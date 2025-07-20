@@ -4,11 +4,13 @@
 
 ## [00] git clone  
 
-``` git clone https://github.com/aliaydemir80/lldpq.git ```
+``` 
+git clone https://github.com/aliaydemir/lldpq.git 
+```
 
 cd lldpq
 
-```install nginx, copy files, edit 4 files, then run```
+``` install nginx, copy files, edit 4 files, then run ```
 
 
 ## [01]  install and runn "nginx"
