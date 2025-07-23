@@ -4,7 +4,13 @@ DATE=$(date '+%Y-%m-%d %H-%M')
 SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
 source "$SCRIPT_DIR/devices.sh"
 
-command='echo $HOSTNAME $(/usr/sbin/ifconfig eth0 | grep netmask | cut -d " " -f 10) $(/usr/sbin/ifconfig eth0 | grep ether | cut -d " " -f 10) $(nv sh platform | grep serial-number | cut -d " " -f 3) $(nv sh platform | grep product-name | cut -d " " -f 4) $(cat /etc/lsb-release  | grep RELEASE | cut -d "=" -f2) $(uptime -p | sed "s/,//g; s/ /-/g") '
+command='echo $HOSTNAME \
+$(ip -4 -o addr show dev eth0 | awk "{print \$4}" | cut -d/ -f1) \
+$(cat /sys/class/net/eth0/address) \
+$(nv sh platform | grep serial-number | awk "{print \$2}") \
+$(nv sh platform | grep product-name | awk "{print \$2}") \
+$(grep RELEASE /etc/lsb-release | cut -d "=" -f2) \
+$(uptime -p | sed "s/,//g; s/ /-/g")'
 
 mkdir -p ~/cable-check
 echo "DEVICE-NAME ETH0-IP ETH0-MAC SERIAL MODEL VERSION UPTIME" > ~/cable-check/assets.txt
