@@ -118,6 +118,22 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
 
         device_name_from_lldp = filename.split("_lldp_result.ini")[0]
         reachable_devices.add(device_name_from_lldp)
+
+        if device_name_from_lldp not in device_nodes:
+            dev_id_for_lldp_only = device_id
+            device_nodes[device_name_from_lldp] = dev_id_for_lldp_only
+            topology_data["nodes"].append({
+                "icon": "unknown",
+                "id": dev_id_for_lldp_only,
+                "layerSortPreference": 9,
+                "name": device_name_from_lldp,
+                "primaryIP": "N/A",
+                "model": "N/A",
+                "serial_number": "N/A",
+                "version": "N/A"
+            })
+            device_id += 1
+
         try:
             with open(filepath, 'r') as file:
                 data = file.read()
@@ -149,24 +165,36 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
             if interface_name.lower() == "eth0" or tgt_ifname.lower() == "eth0":
                 continue
 
-            if device_name_from_lldp in device_nodes and neighbor_device in device_nodes:
-                link = {
-                    "id": link_id,
-                    "source": device_nodes[device_name_from_lldp],
-                    "srcDevice": device_name_from_lldp,
-                    "srcIfName": interface_name,
-                    "target": device_nodes[neighbor_device],
-                    "tgtDevice": neighbor_device,
-                    "tgtIfName": tgt_ifname,
-                    "is_missing": "no"
-                }
-                topology_data["links"].append(link)
-                link_id += 1
+            if neighbor_device not in device_nodes:
+                neighbor_id = device_id
+                device_nodes[neighbor_device] = neighbor_id
+                topology_data["nodes"].append({
+                    "icon": "unknown",
+                    "id": neighbor_id,
+                    "layerSortPreference": 9,
+                    "name": neighbor_device,
+                    "primaryIP": "N/A",
+                    "model": "N/A",
+                    "serial_number": "N/A",
+                    "version": "N/A"
+                })
+                device_id += 1
 
-                all_lldp_links_found.add((device_name_from_lldp, interface_name, neighbor_device, tgt_ifname))
-                all_lldp_links_found.add((neighbor_device, tgt_ifname, device_name_from_lldp, interface_name))
-            else:
-                pass
+            link = {
+                "id": link_id,
+                "source": device_nodes[device_name_from_lldp],
+                "srcDevice": device_name_from_lldp,
+                "srcIfName": interface_name,
+                "target": device_nodes[neighbor_device],
+                "tgtDevice": neighbor_device,
+                "tgtIfName": tgt_ifname,
+                "is_missing": "no"
+            }
+            topology_data["links"].append(link)
+            link_id += 1
+
+            all_lldp_links_found.add((device_name_from_lldp, interface_name, neighbor_device, tgt_ifname))
+            all_lldp_links_found.add((neighbor_device, tgt_ifname, device_name_from_lldp, interface_name))
 
 
     for node in topology_data["nodes"]:
@@ -246,8 +274,6 @@ def generate_topology_file(output_filename, directory, assets_file_path, hosts_f
                 }
                 final_links_to_add.append(link)
                 current_link_id += 1
-            else:
-                pass
 
     topology_data["links"].extend(final_links_to_add)
 
@@ -266,8 +292,6 @@ def generate_topology_file(output_filename, directory, assets_file_path, hosts_f
         if current_link_tuple not in seen_links_for_dedup and reverse_link_tuple not in seen_links_for_dedup:
             unique_links_filtered.append(link)
             seen_links_for_dedup.add(current_link_tuple)
-        else:
-            pass
 
     topology_data["links"] = unique_links_filtered
 
@@ -309,6 +333,11 @@ if __name__ == "__main__":
         exit(1)
 
     generate_topology_file(output_file, lldp_results_directory, assets_file_path, hosts_file_path, dot_file_path)
+
+
+
+
+
 
 
 
