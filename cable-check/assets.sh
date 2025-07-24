@@ -88,9 +88,10 @@ if [[ -s "$UNREACH" ]]; then
 fi
 
 mv "$SCRIPT_DIR/assets.sorted2" "$FINAL"
+
 echo -e "\nCreated on $DATE" >> "$FINAL"
 
 sudo cp "$FINAL" /var/www/html/
 
-
+rm -f "$TMPFILE" "$UNREACH"
 
