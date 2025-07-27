@@ -328,7 +328,7 @@ if __name__ == "__main__":
     dot_file_path = "topology.dot"
     output_file = "/var/www/html/topology/topology.js"
     
-    append_creation_time_to_html("/opt/homebrew/var/www/html/topology/main.html")
+    append_creation_time_to_html("/var/www/html/topology/main.html")
     if not os.path.isdir(lldp_results_directory):
         exit(1)
 
