@@ -1,6 +1,29 @@
+#!/usr/bin/env python3
+
 import os
 import re
 import json
+from datetime import datetime
+
+def append_creation_time_to_html(html_file_path):
+    timestamp = datetime.now().strftime("Created on %Y-%m-%d %H-%M")
+    try:
+        with open(html_file_path, "r") as f:
+            content = f.read()
+        content_before = content
+        content = re.sub(
+            r'\s*<button[^>]*>Created on \d{4}-\d{2}-\d{2} \d{2}-\d{2}</button>',
+            '',
+            content
+        )
+        insert_point = content.lower().rfind('</body>')
+        if insert_point != -1:
+            new_div = f'        <button onclick="time()">{timestamp}</button>\n'
+            new_content = content[:insert_point] + new_div + content[insert_point:]
+            with open(html_file_path, "w") as f:
+                f.write(new_content)
+    except Exception as e:
+        print(f"[ERROR] Failed to modify HTML: {e}")
 
 def parse_assets_file(assets_file_path):
     device_info = {}
@@ -304,11 +327,10 @@ if __name__ == "__main__":
     hosts_file_path = "hosts.ini"
     dot_file_path = "topology.dot"
     output_file = "/var/www/html/topology/topology.js"
-
+    
+    append_creation_time_to_html("/opt/homebrew/var/www/html/topology/main.html")
     if not os.path.isdir(lldp_results_directory):
         exit(1)
 
     generate_topology_file(output_file, lldp_results_directory, assets_file_path, hosts_file_path, dot_file_path)
-
-
 
