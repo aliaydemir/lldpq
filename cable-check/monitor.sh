@@ -10,6 +10,7 @@ mkdir -p "$SCRIPT_DIR/monitor-results"
 mkdir -p "$SCRIPT_DIR/monitor-results/flap-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/bgp-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/optical-data"
+mkdir -p "$SCRIPT_DIR/monitor-results/ber-data"
 
 unreachable_hosts_file=$(mktemp)
 
@@ -115,6 +116,24 @@ EOF
         done
     ' > "monitor-results/optical-data/${hostname}_optical.txt" 2>/dev/null
     
+    # BER data collection (interface error statistics)
+    ssh $SSH_OPTS -q "$user@$device" '
+        # Collect interface error statistics from /proc/net/dev
+        cat /proc/net/dev 2>/dev/null
+    ' > "monitor-results/ber-data/${hostname}_interface_errors.txt" 2>/dev/null
+    
+    # Collect detailed interface counters for BER analysis
+    ssh $SSH_OPTS -q "$user@$device" '
+        echo "=== DETAILED INTERFACE COUNTERS ==="
+        all_interfaces=$(nv show interface 2>/dev/null | grep -E "swp[0-9]+(s[0-9]+)?" | awk "{print \$1}" || ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
+        for interface in $all_interfaces; do
+            if [ ! -e "/sys/class/net/$interface" ]; then continue; fi
+            echo "Interface: $interface"
+            nv show interface $interface counters 2>/dev/null | grep -E "rx.*packets|tx.*packets|rx.*errors|tx.*errors" 2>/dev/null || echo "No detailed counters available"
+            echo ""
+        done
+    ' > "monitor-results/ber-data/${hostname}_detailed_counters.txt" 2>/dev/null
+    
     # Note: All network tables now included in main SSH session above for completeness
     
     # Close HTML
@@ -173,6 +192,13 @@ if python3 process_optical_data.py; then
     echo -e "\e[0;32mOptical analysis completed\e[0m"
 else
     echo -e "\e[0;33mWarning: Optical analysis failed\e[0m"
+fi
+
+echo -e "\n\e[0;34mRunning BER Analysis...\e[0m"
+if python3 process_ber_data.py; then
+    echo -e "\e[0;32mBER analysis completed\e[0m"
+else
+    echo -e "\e[0;33mWarning: BER analysis failed\e[0m"
 fi
 
 sudo cp -r monitor-results/ /var/www/html/
