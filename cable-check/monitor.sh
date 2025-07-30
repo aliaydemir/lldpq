@@ -79,62 +79,68 @@ EOF
     # Separate BGP data collection (for analysis)
     ssh $SSH_OPTS -q "$user@$device" "sudo vtysh -c \"show bgp vrf all sum\"" 2>/dev/null > "monitor-results/bgp-data/${hostname}_bgp.txt"
     
-    # Optimized carrier transition collection
-    ssh $SSH_OPTS -q "$user@$device" '
-        echo "=== CARRIER TRANSITIONS ==="
+    # OPTIMIZED: Single SSH session for all interface data collection
+    timeout 300 ssh $SSH_OPTS -q "$user@$device" '
+        echo "=== OPTIMIZED INTERFACE DATA COLLECTION ==="
+        
+        # Get interface list once
         all_interfaces=$(nv show interface 2>/dev/null | grep -E "swp[0-9]+(s[0-9]+)?" | awk "{print \$1}" || ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
+        
+        # Collect ALL interface data in single loop
         for interface in $all_interfaces; do
             if [ ! -e "/sys/class/net/$interface" ]; then continue; fi
+            
+            echo "=== INTERFACE: $interface ==="
+            
+            # Carrier transitions data
+            echo "CARRIER_TRANSITIONS:"
             carrier_count=$(nv show interface $interface counters 2>/dev/null | grep "carrier-transitions" | awk "{print \$2}")
             if [ -z "$carrier_count" ] || [ "$carrier_count" = "" ]; then
                 carrier_count=$(cat /sys/class/net/$interface/carrier_changes 2>/dev/null || echo "0")
             fi
-            if [[ "$carrier_count" =~ ^[0-9]+$ ]]; then
-                echo "$interface:$carrier_count"
-            fi
-        done
-    ' > "monitor-results/flap-data/${hostname}_carrier_transitions.txt" 2>/dev/null
-    
-    # Optical diagnostics collection (Fixed: check admin up, not operational up)
-    ssh $SSH_OPTS -q "$user@$device" '
-        echo "=== OPTICAL DIAGNOSTICS ==="
-        # Get all swp interfaces that are admin up (not necessarily operational up)
-        all_interfaces=$(nv show interface 2>/dev/null | grep -E "swp[0-9]+(s[0-9]+)?\s+up" | awk "{print \$1}" || ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
-        for interface in $all_interfaces; do
-            # Skip if interface does not exist in system
-            if [ ! -e "/sys/class/net/$interface" ]; then continue; fi
+            echo "$interface:$carrier_count"
             
-            echo "--- Interface: $interface ---"
-            # Try to get transceiver data - works even if operationally down
+            # Optical transceiver data
+            echo "OPTICAL_TRANSCEIVER:"
             transceiver_data=$(nv show interface $interface transceiver 2>/dev/null)
             if [ -n "$transceiver_data" ] && [ "$transceiver_data" != "Error: The requested item does not exist." ]; then
                 echo "$transceiver_data"
             else
                 echo "No transceiver data available"
             fi
-            echo ""
+            
+            # BER detailed counters
+            echo "BER_COUNTERS:"
+            nv show interface $interface counters 2>/dev/null | grep -E "rx.*packets|tx.*packets|rx.*errors|tx.*errors" 2>/dev/null || echo "No detailed counters available"
+            
+            echo "=== END_INTERFACE: $interface ==="
         done
-    ' > "monitor-results/optical-data/${hostname}_optical.txt" 2>/dev/null
+    ' > "monitor-results/${hostname}_combined_interface_data.txt" 2>/dev/null
     
-    # BER data collection (interface error statistics)
-    ssh $SSH_OPTS -q "$user@$device" '
-        # Collect interface error statistics from /proc/net/dev
+    # Extract individual data files from combined data
+    if [ -f "monitor-results/${hostname}_combined_interface_data.txt" ]; then
+        # Extract carrier transitions
+        echo "=== CARRIER TRANSITIONS ===" > "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
+        grep -A1 "CARRIER_TRANSITIONS:" "monitor-results/${hostname}_combined_interface_data.txt" | grep -E "swp.*:" >> "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
+        
+        # Extract optical data
+        echo "=== OPTICAL DIAGNOSTICS ===" > "monitor-results/optical-data/${hostname}_optical.txt"
+        awk '/OPTICAL_TRANSCEIVER:/{flag=1; next} /BER_COUNTERS:/{flag=0} flag' "monitor-results/${hostname}_combined_interface_data.txt" > temp_optical.txt
+        sed 's/^/--- Interface: /' temp_optical.txt | sed 's/=== INTERFACE: /--- Interface: /' >> "monitor-results/optical-data/${hostname}_optical.txt"
+        rm -f temp_optical.txt
+        
+        # Extract BER detailed counters
+        echo "=== DETAILED INTERFACE COUNTERS ===" > "monitor-results/ber-data/${hostname}_detailed_counters.txt"
+        awk '/=== INTERFACE: /{interface=$3} /BER_COUNTERS:/{print "Interface: " interface; getline; print}' "monitor-results/${hostname}_combined_interface_data.txt" >> "monitor-results/ber-data/${hostname}_detailed_counters.txt"
+        
+        # Clean up combined file
+        rm -f "monitor-results/${hostname}_combined_interface_data.txt"
+    fi
+    
+    # BER data collection (interface error statistics) - keep separate as it's fast
+    timeout 30 ssh $SSH_OPTS -q "$user@$device" '
         cat /proc/net/dev 2>/dev/null
     ' > "monitor-results/ber-data/${hostname}_interface_errors.txt" 2>/dev/null
-    
-    # Collect detailed interface counters for BER analysis
-    ssh $SSH_OPTS -q "$user@$device" '
-        echo "=== DETAILED INTERFACE COUNTERS ==="
-        all_interfaces=$(nv show interface 2>/dev/null | grep -E "swp[0-9]+(s[0-9]+)?" | awk "{print \$1}" || ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
-        for interface in $all_interfaces; do
-            if [ ! -e "/sys/class/net/$interface" ]; then continue; fi
-            echo "Interface: $interface"
-            nv show interface $interface counters 2>/dev/null | grep -E "rx.*packets|tx.*packets|rx.*errors|tx.*errors" 2>/dev/null || echo "No detailed counters available"
-            echo ""
-        done
-    ' > "monitor-results/ber-data/${hostname}_detailed_counters.txt" 2>/dev/null
-    
-    # Note: All network tables now included in main SSH session above for completeness
     
     # Close HTML
     cat >> monitor-results/${hostname}.html << EOF
