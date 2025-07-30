@@ -113,8 +113,8 @@ echo "   - Enhanced monitoring capabilities"
 echo ""
 echo "   🌐 Web interface: http://$(hostname -I | awk '{print $1}')"
 echo ""
-echo "   🔍 If you encounter issues, your backup is available at:"
 if [[ -n "$backup_dir" ]]; then
+    echo "   🔍 If you encounter issues, your backup is available at:"
     echo "      $backup_dir"
 fi
 echo ""
