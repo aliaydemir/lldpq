@@ -99,6 +99,7 @@ echo "   - /etc/nccm.yml"
 echo "   - ~/cable-check/devices.sh"
 echo "   - ~/cable-check/hosts.ini"
 echo "   - ~/cable-check/topology.dot"
+echo "   - ~/cable-check/topology_config.yaml"
 
 echo ""
 echo "🧪 [06] Testing updated tools..."
