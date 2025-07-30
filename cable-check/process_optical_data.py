@@ -82,9 +82,14 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                     print(f"  {port_name}: Skipped (non-optical interface)")
                     continue
                 
-                # Skip if no meaningful data
-                if not optical_data or "N/A" in optical_data or len(optical_data.strip()) < 10:
+                # Skip if no meaningful data (Fixed: don't filter on error-status N/A)
+                if not optical_data or len(optical_data.strip()) < 10:
                     print(f"  {port_name}: No optical data available")
+                    continue
+                
+                # Skip if diagnostic data is explicitly unavailable
+                if "diagnostics-status          : N/A" in optical_data or "status                      : unplugged" in optical_data:
+                    print(f"  {port_name}: No transceiver or diagnostics unavailable")
                     continue
                 
                 # Update optical analyzer
