@@ -339,6 +339,7 @@ class BERAnalyzer:
         html_content = f"""<!DOCTYPE html>
 <html>
 <head>
+    <h1></h1>
     <title>BER Analysis Results</title>
     <link rel="stylesheet" type="text/css" href="/css/styles2.css">
     <style>
@@ -365,10 +366,10 @@ class BERAnalyzer:
             font-weight: bold;
             margin: 10px 0;
         }}
-        .excellent {{ color: #4caf50; }}
-        .good {{ color: #8bc34a; }}
-        .warning {{ color: #ff9800; }}
-        .critical {{ color: #f44336; }}
+        .ber-excellent {{ color: #4caf50; font-weight: bold; }}
+        .ber-good {{ color: #8bc34a; font-weight: bold; }}
+        .ber-warning {{ color: #ff9800; font-weight: bold; }}
+        .ber-critical {{ color: #f44336; font-weight: bold; }}
         .anomaly-section {{
             margin: 30px 0;
             padding: 20px;
@@ -426,22 +427,22 @@ class BERAnalyzer:
             </div>
             <div class="summary-card card-excellent">
                 <div class="card-title">Excellent</div>
-                <div class="card-value excellent">{len(summary['excellent_ports'])}</div>
+                <div class="card-value ber-excellent">{len(summary['excellent_ports'])}</div>
                 <div class="card-subtitle">{excellent_pct:.1f}%</div>
             </div>
             <div class="summary-card card-good">
                 <div class="card-title">Good</div>
-                <div class="card-value good">{len(summary['good_ports'])}</div>
+                <div class="card-value ber-good">{len(summary['good_ports'])}</div>
                 <div class="card-subtitle">{good_pct:.1f}%</div>
             </div>
             <div class="summary-card card-warning">
                 <div class="card-title">Warning</div>
-                <div class="card-value warning">{len(summary['warning_ports'])}</div>
+                <div class="card-value ber-warning">{len(summary['warning_ports'])}</div>
                 <div class="card-subtitle">{warning_pct:.1f}%</div>
             </div>
             <div class="summary-card card-critical">
                 <div class="card-title">Critical</div>
-                <div class="card-value critical">{len(summary['critical_ports'])}</div>
+                <div class="card-value ber-critical">{len(summary['critical_ports'])}</div>
                 <div class="card-subtitle">{critical_pct:.1f}%</div>
             </div>
         </div>
@@ -497,16 +498,16 @@ class BERAnalyzer:
             ber_value = port_info['ber_value']
             if ber_value == 0:
                 status = "EXCELLENT"
-                status_class = "excellent"
+                status_class = "ber-excellent"
             elif ber_value < self.config["raw_ber_threshold"]:
                 status = "GOOD"
-                status_class = "good"
+                status_class = "ber-good"
             elif ber_value < self.config["warning_ber_threshold"]:
                 status = "WARNING"
-                status_class = "warning"
+                status_class = "ber-warning"
             else:
                 status = "CRITICAL"
-                status_class = "critical"
+                status_class = "ber-critical"
             
             ber_display = f"{ber_value:.2e}" if ber_value > 0 else "0"
             
