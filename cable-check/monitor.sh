@@ -15,7 +15,7 @@ mkdir -p "$SCRIPT_DIR/monitor-results/ber-data"
 unreachable_hosts_file=$(mktemp)
 
 # SSH Multiplexing for faster connections (fixed TTY issues)
-SSH_OPTS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPath=~/.ssh/cm-%r@%h:%p -o ControlPersist=720 -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
+SSH_OPTS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPath=~/.ssh/cm-%r@%h:%p -o ControlPersist=600 -o BatchMode=yes -T"
 
 ping_test() {
     local device=$1
@@ -95,35 +95,44 @@ EOF
         done
     ' > "monitor-results/flap-data/${hostname}_carrier_transitions.txt" 2>/dev/null
     
-    # Optical diagnostics collection (All interfaces)
-    timeout 600 ssh $SSH_OPTS -q "$user@$device" '
+    # Optical diagnostics collection (Fixed: check admin up, not operational up)
+    ssh $SSH_OPTS -q "$user@$device" '
         echo "=== OPTICAL DIAGNOSTICS ==="
-        # Get ALL swp interfaces
-        interfaces=$(ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
-        for interface in $interfaces; do
+        # Get all swp interfaces that are admin up (not necessarily operational up)
+        all_interfaces=$(nv show interface 2>/dev/null | grep -E "swp[0-9]+(s[0-9]+)?\s+up" | awk "{print \$1}" || ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
+        for interface in $all_interfaces; do
+            # Skip if interface does not exist in system
+            if [ ! -e "/sys/class/net/$interface" ]; then continue; fi
+            
             echo "--- Interface: $interface ---"
-            timeout 5 nv show interface $interface transceiver 2>/dev/null || echo "No transceiver data available"
+            # Try to get transceiver data - works even if operationally down
+            transceiver_data=$(nv show interface $interface transceiver 2>/dev/null)
+            if [ -n "$transceiver_data" ] && [ "$transceiver_data" != "Error: The requested item does not exist." ]; then
+                echo "$transceiver_data"
+            else
+                echo "No transceiver data available"
+            fi
             echo ""
         done
-    ' > "monitor-results/optical-data/${hostname}_optical.txt" 2>/dev/null || echo "⚠️ Optical collection failed for $hostname"
+    ' > "monitor-results/optical-data/${hostname}_optical.txt" 2>/dev/null
     
     # BER data collection (interface error statistics)
-    timeout 30 ssh $SSH_OPTS -q "$user@$device" '
+    ssh $SSH_OPTS -q "$user@$device" '
         # Collect interface error statistics from /proc/net/dev
         cat /proc/net/dev 2>/dev/null
-    ' > "monitor-results/ber-data/${hostname}_interface_errors.txt" 2>/dev/null || echo "⚠️ BER collection failed for $hostname"
+    ' > "monitor-results/ber-data/${hostname}_interface_errors.txt" 2>/dev/null
     
-    # Collect detailed interface counters for BER analysis (All interfaces)
-    timeout 600 ssh $SSH_OPTS -q "$user@$device" '
+    # Collect detailed interface counters for BER analysis
+    ssh $SSH_OPTS -q "$user@$device" '
         echo "=== DETAILED INTERFACE COUNTERS ==="
-        # Get ALL swp interfaces
-        interfaces=$(ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
-        for interface in $interfaces; do
+        all_interfaces=$(nv show interface 2>/dev/null | grep -E "swp[0-9]+(s[0-9]+)?" | awk "{print \$1}" || ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
+        for interface in $all_interfaces; do
+            if [ ! -e "/sys/class/net/$interface" ]; then continue; fi
             echo "Interface: $interface"
-            timeout 5 nv show interface $interface counters 2>/dev/null | grep -E "rx.*errors|tx.*errors" || echo "No detailed counters"
+            nv show interface $interface counters 2>/dev/null | grep -E "rx.*packets|tx.*packets|rx.*errors|tx.*errors" 2>/dev/null || echo "No detailed counters available"
             echo ""
         done
-    ' > "monitor-results/ber-data/${hostname}_detailed_counters.txt" 2>/dev/null || echo "⚠️ BER detailed collection failed for $hostname"
+    ' > "monitor-results/ber-data/${hostname}_detailed_counters.txt" 2>/dev/null
     
     # Note: All network tables now included in main SSH session above for completeness
     
