@@ -349,7 +349,8 @@ class OpticalAnalyzer:
     </style>
 </head>
 <body>
-    <h1><font color="#b57614">🔬 Optical Diagnostics Analysis</font></h1>
+    <h1></h1>
+    <h1><font color="#b57614">Optical Diagnostics Analysis</font></h1>
     <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
     
     <h2>Summary</h2>
