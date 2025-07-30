@@ -339,7 +339,6 @@ class BERAnalyzer:
         html_content = f"""<!DOCTYPE html>
 <html>
 <head>
-    <h1></h1>
     <title>BER Analysis Results</title>
     <link rel="stylesheet" type="text/css" href="/css/styles2.css">
     <style>
@@ -390,9 +389,9 @@ class BERAnalyzer:
         .ber-table th, .ber-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
         .ber-table th {{ background-color: #f2f2f2; }}
     </style>
-</head>
-<body>
-        <h1>BER Analysis Results</h1>
+  </head>
+  <body>
+    <h1><font color="#b57614">BER Analysis Results</font></h1>
         <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         
         <h2>Network Summary</h2>
@@ -402,19 +401,19 @@ class BERAnalyzer:
                 <div>Total Ports</div>
             </div>
             <div class="summary-card card-excellent">
-                <div class="metric ber-excellent">{len(summary['excellent_ports'])}</div>
+                <div class="metric">{len(summary['excellent_ports'])}</div>
                 <div>Excellent</div>
             </div>
             <div class="summary-card card-good">
-                <div class="metric ber-good">{len(summary['good_ports'])}</div>
+                <div class="metric">{len(summary['good_ports'])}</div>
                 <div>Good</div>
             </div>
             <div class="summary-card card-warning">
-                <div class="metric ber-warning">{len(summary['warning_ports'])}</div>
+                <div class="metric">{len(summary['warning_ports'])}</div>
                 <div>Warning</div>
             </div>
             <div class="summary-card card-critical">
-                <div class="metric ber-critical">{len(summary['critical_ports'])}</div>
+                <div class="metric">{len(summary['critical_ports'])}</div>
                 <div>Critical</div>
             </div>
         </div>
