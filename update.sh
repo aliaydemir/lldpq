@@ -22,12 +22,18 @@ if [[ ! -f "README.md" ]] || [[ ! -d "cable-check" ]]; then
 fi
 
 echo ""
-echo "💾 [01] Creating backup of existing cable-check..."
+echo "💾 [01] Backup existing cable-check directory?"
 if [[ -d "$HOME/cable-check" ]]; then
-    backup_dir="$HOME/cable-check.backup.$(date +%Y%m%d_%H%M%S)"
-    echo "   Backing up $HOME/cable-check to $backup_dir"
-    cp -r "$HOME/cable-check" "$backup_dir"
-    echo "✅ Backup created: $backup_dir"
+    read -p "Create backup of existing cable-check? [y/N]: " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        backup_dir="$HOME/cable-check.backup.$(date +%Y%m%d_%H%M%S)"
+        echo "   Backing up $HOME/cable-check to $backup_dir"
+        cp -r "$HOME/cable-check" "$backup_dir"
+        echo "✅ Backup created: $backup_dir"
+    else
+        echo "   Skipping backup as requested"
+    fi
 else
     echo "   No existing cable-check directory found, skipping backup"
 fi
