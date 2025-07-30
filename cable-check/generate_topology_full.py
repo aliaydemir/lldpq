@@ -3,7 +3,46 @@
 import os
 import re
 import json
+import yaml
 from datetime import datetime
+
+def load_topology_config(config_path="topology_config.yaml"):
+    """Load device categorization configuration from YAML file"""
+    try:
+        with open(config_path, "r") as f:
+            config = yaml.safe_load(f)
+            return config
+    except FileNotFoundError:
+        print(f"Warning: {config_path} not found, using default device categorization")
+        # Return default config if file not found
+        return {
+            "device_categories": [
+                {"pattern": "inband-fw", "layer": 1, "icon": "firewall"},
+                {"pattern": "border", "layer": 2, "icon": "switch"},
+                {"pattern": "spine", "layer": 3, "icon": "switch"},
+                {"pattern": "leaf", "layer": 4, "icon": "switch"},
+                {"pattern": "oob-fw", "layer": 5, "icon": "firewall"},
+                {"pattern": "core", "layer": 6, "icon": "switch"},
+                {"pattern": "switch", "layer": 7, "icon": "switch"}
+            ],
+            "default": {"layer": 9, "icon": "server"}
+        }
+    except Exception as e:
+        print(f"Error loading {config_path}: {e}")
+        return {"device_categories": [], "default": {"layer": 9, "icon": "server"}}
+
+def categorize_device(device_name, config):
+    """Categorize device based on configuration"""
+    lower = device_name.lower()
+    
+    # Check each pattern in order
+    for category in config.get("device_categories", []):
+        if category["pattern"] in lower:
+            return category["layer"], category["icon"]
+    
+    # Return default if no pattern matches
+    default = config.get("default", {"layer": 9, "icon": "server"})
+    return default["layer"], default["icon"]
 
 def append_creation_time_to_html(html_file_path):
     timestamp = datetime.now().strftime("Created on %Y-%m-%d %H-%M")
@@ -90,38 +129,17 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
     all_lldp_links_found = set()
 
     known_device_names_for_normalization = set(device_info.keys())
+    
+    # Load topology configuration
+    topology_config = load_topology_config()
+    print(f"📋 Loaded topology config with {len(topology_config.get('device_categories', []))} device patterns")
 
     for device_name, info in device_info.items():
         if "OOB-MGMT" in device_name:
             continue
 
-        lower = device_name.lower()
-
-        if "inband-fw" in lower:
-            layer_sort_preference = 1
-            dev_icon = "firewall"
-        elif "border" in lower:
-            layer_sort_preference = 2
-            dev_icon = "switch"
-        elif "spine" in lower:
-            layer_sort_preference = 3
-            dev_icon = "switch"
-        elif "leaf" in lower:
-            layer_sort_preference = 4
-            dev_icon = "switch"
-        elif "oob-fw" in lower:
-            layer_sort_preference = 5
-            dev_icon = "firewall"
-        elif "core" in lower:
-            layer_sort_preference = 6
-            dev_icon = "switch"
-        elif "switch" in lower:
-            layer_sort_preference = 7
-            dev_icon = "switch"
-
-        else:
-            layer_sort_preference = 9
-            dev_icon = "server"
+        # Use configuration-based device categorization
+        layer_sort_preference, dev_icon = categorize_device(device_name, topology_config)
 
         device_node = {
             "icon": dev_icon,

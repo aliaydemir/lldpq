@@ -57,7 +57,9 @@ nano ~/cable-check/devices.sh
 ```
 nano ~/cable-check/topology.dot
 ```
-
+```
+nano ~/cable-check/topology_confg.yaml
+```
 
 ## [04]  restart nginx service
 ```

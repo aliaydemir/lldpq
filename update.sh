@@ -73,6 +73,11 @@ if [[ -d "$HOME/cable-check" ]]; then
         cp "$HOME/cable-check/topology.dot" "$temp_dir/"
     fi
     
+    if [[ -f "$HOME/cable-check/topology_config.yaml" ]]; then
+        echo "     • topology_config.yaml"
+        cp "$HOME/cable-check/topology_config.yaml" "$temp_dir/"
+    fi
+    
     # Remove old cable-check
     rm -rf "$HOME/cable-check"
 fi
