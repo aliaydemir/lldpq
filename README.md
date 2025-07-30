@@ -10,6 +10,12 @@ git clone https://github.com/aliaydemir/lldpq.git
 
 cd lldpq
 
+```
+bash install.sh or update.sh
+```
+
+or manual 
+
 ``` install nginx, copy files, edit 4 files, then run ```
 
 
