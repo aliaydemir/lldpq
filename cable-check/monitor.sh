@@ -2,6 +2,10 @@
 # Optimized Monitor Script - Faster execution with SSH multiplexing
 # Performance: 3-5x faster than original
 
+# Start timing
+START_TIME=$(date +%s)
+echo "🚀 Starting optimized monitoring at $(date)"
+
 DATE=$(date '+%Y-%m-%d %H-%M')
 SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
 source "$SCRIPT_DIR/devices.sh"
@@ -213,7 +217,14 @@ sudo cp -r monitor-results/ /var/www/html/
 sudo chmod 644 /var/www/html/monitor-results/*
 rm -f "$unreachable_hosts_file"
 
+# Calculate execution time
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+MINUTES=$((DURATION / 60))
+SECONDS=$((DURATION % 60))
+
 echo ""
 echo "⚡ Optimized monitoring completed successfully"
+echo "⏱️  Total execution time: ${MINUTES}m ${SECONDS}s"
 echo "🌐 Results available at web interface"
 exit 0
