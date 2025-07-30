@@ -76,41 +76,47 @@ class OpticalAnalyzer:
             'bias_current_ma': None
         }
         
+        # Track channel data for averaging
+        rx_powers = []
+        tx_powers = []
+        bias_currents = []
+        
         lines = optical_data.strip().split('\n')
         for line in lines:
             line = line.strip()
             
-            # Parse temperature (multiple formats)
-            # NVUE: "temperature     45.5" or "Temperature: 45.5°C"
-            temp_match = re.search(r'[Tt]emperature\s*[:\s]\s*([\d.-]+)\s*[°]?C?', line)
+            # Parse temperature (NVUE format: "temperature : 48.71 degrees C / 119.69 degrees F")
+            temp_match = re.search(r'temperature\s*:\s*([\d.-]+)\s*degrees?\s*C', line)
             if temp_match:
                 optical_params['temperature_c'] = float(temp_match.group(1))
             
-            # Parse voltage
-            voltage_match = re.search(r'[Vv]oltage\s*[:\s]\s*([\d.-]+)\s*V?', line)
+            # Parse voltage (NVUE format: "voltage : 3.2688 V")
+            voltage_match = re.search(r'voltage\s*:\s*([\d.-]+)\s*V', line)
             if voltage_match:
                 optical_params['voltage_v'] = float(voltage_match.group(1))
             
-            # Parse bias current
-            bias_match = re.search(r'[Bb]ias\s*.*[:\s]\s*([\d.-]+)\s*mA?', line)
-            if bias_match:
-                optical_params['bias_current_ma'] = float(bias_match.group(1))
-            
-            # Parse RX power (multiple formats)
-            # NVUE: "rx-power-dbm     -2.3" or "RX Power: -2.3 dBm"
-            rx_power_match = re.search(r'[Rr][Xx][\s-]*[Pp]ower[-\s]*[:\s]\s*([-\d.]+)\s*dBm?', line)
-            if not rx_power_match:
-                rx_power_match = re.search(r'rx-power-dbm\s+([-\d.]+)', line)
+            # Parse multi-channel RX power (NVUE format: "ch-1-rx-power : 1.7055 mW / 2.32 dBm")
+            rx_power_match = re.search(r'ch-\d+-rx-power\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', line)
             if rx_power_match:
-                optical_params['rx_power_dbm'] = float(rx_power_match.group(1))
+                rx_powers.append(float(rx_power_match.group(1)))
             
-            # Parse TX power (multiple formats)
-            # NVUE: "tx-power-dbm     -1.5" or "TX Power: -1.5 dBm"
-            tx_power_match = re.search(r'[Tt][Xx][\s-]*[Pp]ower[-\s]*[:\s]\s*([-\d.]+)\s*dBm?', line)
-            if not tx_power_match:
-                tx_power_match = re.search(r'tx-power-dbm\s+([-\d.]+)', line)
+            # Parse multi-channel TX power (NVUE format: "ch-1-tx-power : 1.1706 mW / 0.68 dBm")
+            tx_power_match = re.search(r'ch-\d+-tx-power\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', line)
             if tx_power_match:
-                optical_params['tx_power_dbm'] = float(tx_power_match.group(1))
+                tx_powers.append(float(tx_power_match.group(1)))
+            
+            # Parse multi-channel bias current (NVUE format: "ch-1-tx-bias-current : 7.056 mA")
+            bias_match = re.search(r'ch-\d+-tx-bias-current\s*:\s*([\d.-]+)\s*mA', line)
+            if bias_match:
+                bias_currents.append(float(bias_match.group(1)))
+        
+        # Average multi-channel values
+        if rx_powers:
+            optical_params['rx_power_dbm'] = sum(rx_powers) / len(rx_powers)
+        if tx_powers:
+            optical_params['tx_power_dbm'] = sum(tx_powers) / len(tx_powers)
+        if bias_currents:
+            optical_params['bias_current_ma'] = sum(bias_currents) / len(bias_currents)
         
         return optical_params
     
