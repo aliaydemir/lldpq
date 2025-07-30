@@ -46,24 +46,33 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
     """Process optical data files and update optical analyzer"""
     optical_analyzer = OpticalAnalyzer("monitor-results")
     
-    print("Processing optical diagnostics data")
-    print(f"Using optical thresholds: RX Power={optical_analyzer.thresholds['rx_power_min_dbm']:.1f} to {optical_analyzer.thresholds['rx_power_max_dbm']:.1f} dBm, "
+    print("🔬 Processing optical diagnostics data")
+    print(f"📁 Data directory: {data_dir}")
+    print(f"📊 Using optical thresholds: RX Power={optical_analyzer.thresholds['rx_power_min_dbm']:.1f} to {optical_analyzer.thresholds['rx_power_max_dbm']:.1f} dBm, "
           f"Temperature max={optical_analyzer.thresholds['temperature_max_c']:.1f}°C")
     
     if not os.path.exists(data_dir):
-        print(f"Optical data directory {data_dir} not found")
+        print(f"❌ Optical data directory {data_dir} not found")
         return
     
+    # List files in directory
+    files = os.listdir(data_dir)
+    print(f"📂 Found {len(files)} files in {data_dir}: {files}")
+    
     # Process all optical diagnostic files
+    total_processed = 0
     for filename in os.listdir(data_dir):
         if filename.endswith("_optical.txt"):
             hostname = filename.replace("_optical.txt", "")
             filepath = os.path.join(data_dir, filename)
             
-            print(f"Processing optical data for {hostname}")
+            print(f"\n🔍 Processing optical data for {hostname}")
+            print(f"📄 File: {filepath}")
             
             # Parse optical diagnostics file
             port_data = parse_optical_diagnostics_file(filepath)
+            print(f"📋 Found {len(port_data)} ports in {filename}")
+            total_processed += 1
             
             for interface, optical_data in port_data.items():
                 port_name = f"{hostname}:{interface}"
@@ -87,25 +96,31 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                     health = current_optical['health_status']
                     rx_power = current_optical.get('rx_power_dbm')
                     temperature = current_optical.get('temperature_c')
+                    voltage = current_optical.get('voltage_v')
                     
                     rx_power_str = f"{rx_power:.2f} dBm" if rx_power is not None else "N/A"
                     temp_str = f"{temperature:.1f}°C" if temperature is not None else "N/A"
+                    voltage_str = f"{voltage:.2f}V" if voltage is not None else "N/A"
                     
-                    print(f"  {port_name}: Health={health.upper()}, RX Power={rx_power_str}, Temp={temp_str}")
+                    print(f"  ✅ {port_name}: Health={health.upper()}, RX Power={rx_power_str}, Temp={temp_str}, Voltage={voltage_str}")
                 else:
-                    print(f"  {port_name}: No optical parameters detected")
+                    print(f"  ❌ {port_name}: No optical parameters detected")
+    
+    print(f"\n📊 Processed {total_processed} files total")
     
     # Save updated optical history
     optical_analyzer.save_optical_history()
+    print("💾 Optical history saved")
     
     # Generate web report
     output_file = "monitor-results/optical-analysis.html"
     optical_analyzer.export_optical_data_for_web(output_file)
-    print(f"Optical analysis report generated: {output_file}")
+    print(f"📄 Optical analysis report generated: {output_file}")
     
     # Generate summary for dashboard
     summary = optical_analyzer.get_optical_summary()
     anomalies = optical_analyzer.detect_optical_anomalies()
+    print(f"📈 Summary stats: {len(optical_analyzer.current_optical_stats)} total ports analyzed")
     
     print(f"\n🔬 Optical Analysis Summary:")
     print(f"  Total ports monitored: {summary['total_ports']}")
