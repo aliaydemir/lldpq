@@ -392,8 +392,6 @@ class BERAnalyzer:
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1></h1>
         <h1>BER Analysis Results</h1>
         <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         
@@ -470,10 +468,12 @@ class BERAnalyzer:
                 return 0  # Critical first
             elif ber_value >= self.config["warning_ber_threshold"]:
                 return 1  # Warning second  
+            elif ber_value == 0:
+                return 3  # Excellent third (perfect quality)
             elif ber_value < self.config["raw_ber_threshold"]:
-                return 3  # Good third
+                return 2  # Good second (low error rate)
             else:
-                return 4  # Excellent last
+                return 4  # Marginal last
         
         sorted_ports = sorted(all_ports, key=get_ber_priority)
         
