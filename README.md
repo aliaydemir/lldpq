@@ -11,7 +11,11 @@ git clone https://github.com/aliaydemir/lldpq.git
 cd lldpq
 
 ```
-bash install.sh or update.sh
+./install.sh 
+```
+or 
+```
+./update.sh
 ```
 
 or manual 
