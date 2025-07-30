@@ -97,10 +97,10 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
 
         lower = device_name.lower()
 
-        if "border" in lower:
+        if "inband-fw" in lower:
             layer_sort_preference = 1
-            dev_icon = "switch"
-        elif "superspine" in lower:
+            dev_icon = "firewall"
+        elif "border" in lower:
             layer_sort_preference = 2
             dev_icon = "switch"
         elif "spine" in lower:
@@ -109,9 +109,16 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
         elif "leaf" in lower:
             layer_sort_preference = 4
             dev_icon = "switch"
-        elif "oobswitch" in lower:
+        elif "oob-fw" in lower:
             layer_sort_preference = 5
+            dev_icon = "firewall"
+        elif "core" in lower:
+            layer_sort_preference = 6
             dev_icon = "switch"
+        elif "switch" in lower:
+            layer_sort_preference = 7
+            dev_icon = "switch"
+
         else:
             layer_sort_preference = 9
             dev_icon = "server"
