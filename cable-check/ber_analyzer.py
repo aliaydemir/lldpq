@@ -427,22 +427,22 @@ class BERAnalyzer:
             </div>
             <div class="summary-card card-excellent">
                 <div class="card-title">Excellent</div>
-                <div class="card-value ber-excellent">{len(summary['excellent_ports'])}</div>
+                <div class="card-value">{len(summary['excellent_ports'])}</div>
                 <div class="card-subtitle">{excellent_pct:.1f}%</div>
             </div>
             <div class="summary-card card-good">
                 <div class="card-title">Good</div>
-                <div class="card-value ber-good">{len(summary['good_ports'])}</div>
+                <div class="card-value">{len(summary['good_ports'])}</div>
                 <div class="card-subtitle">{good_pct:.1f}%</div>
             </div>
             <div class="summary-card card-warning">
                 <div class="card-title">Warning</div>
-                <div class="card-value ber-warning">{len(summary['warning_ports'])}</div>
+                <div class="card-value">{len(summary['warning_ports'])}</div>
                 <div class="card-subtitle">{warning_pct:.1f}%</div>
             </div>
             <div class="summary-card card-critical">
                 <div class="card-title">Critical</div>
-                <div class="card-value ber-critical">{len(summary['critical_ports'])}</div>
+                <div class="card-value">{len(summary['critical_ports'])}</div>
                 <div class="card-subtitle">{critical_pct:.1f}%</div>
             </div>
         </div>
