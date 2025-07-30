@@ -355,6 +355,11 @@ class BERAnalyzer:
             border-radius: 8px; 
             border-left: 4px solid #007bff; 
         }}
+        .card-excellent {{ border-left-color: #4caf50; }}
+        .card-good {{ border-left-color: #8bc34a; }}
+        .card-warning {{ border-left-color: #ff9800; }}
+        .card-critical {{ border-left-color: #f44336; }}
+        .card-total {{ border-left-color: #2196f3; }}
         .metric {{ font-size: 24px; font-weight: bold; }}
         .ber-excellent {{ color: #4caf50; font-weight: bold; }}
         .ber-good {{ color: #8bc34a; font-weight: bold; }}
@@ -411,23 +416,23 @@ class BERAnalyzer:
         
         <h2>Network Summary</h2>
         <div class="summary-grid">
-            <div class="summary-card">
+            <div class="summary-card card-total">
                 <div class="metric">{total_ports}</div>
                 <div>Total Ports</div>
             </div>
-            <div class="summary-card">
+            <div class="summary-card card-excellent">
                 <div class="metric ber-excellent">{len(summary['excellent_ports'])}</div>
                 <div>Excellent</div>
             </div>
-            <div class="summary-card">
+            <div class="summary-card card-good">
                 <div class="metric ber-good">{len(summary['good_ports'])}</div>
                 <div>Good</div>
             </div>
-            <div class="summary-card">
+            <div class="summary-card card-warning">
                 <div class="metric ber-warning">{len(summary['warning_ports'])}</div>
                 <div>Warning</div>
             </div>
-            <div class="summary-card">
+            <div class="summary-card card-critical">
                 <div class="metric ber-critical">{len(summary['critical_ports'])}</div>
                 <div>Critical</div>
             </div>
