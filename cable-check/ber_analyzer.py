@@ -386,27 +386,9 @@ class BERAnalyzer:
             background-color: #fff3e0;
             border-left-color: #ff9800;
         }}
-        .ber-table {{
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-            background: #fff;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }}
-        .ber-table th, .ber-table td {{
-            border: 1px solid #ddd;
-            padding: 12px;
-            text-align: left;
-        }}
-        .ber-table th {{
-            background-color: #f5f5f5;
-            font-weight: bold;
-        }}
-        .ber-table tr:nth-child(even) {{
-            background-color: #f9f9f9;
-        }}
+        .ber-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+        .ber-table th, .ber-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        .ber-table th {{ background-color: #f2f2f2; }}
     </style>
 </head>
 <body>
@@ -458,7 +440,7 @@ class BERAnalyzer:
         </div>
 """
         
-        # Add detailed table
+        # Add detailed table  
         html_content += """
         <h2>Interface BER Status</h2>
         <table class="ber-table">
@@ -477,11 +459,25 @@ class BERAnalyzer:
             <tbody>
 """
         
-        # Add all ports to table
+        # Add all ports to table (sorted by health - problems first, then good ones)
         all_ports = (summary['excellent_ports'] + summary['good_ports'] + 
                     summary['warning_ports'] + summary['critical_ports'])
         
-        for port_info in all_ports:
+        # Sort ports by BER status priority (critical/warning first)
+        def get_ber_priority(port_info):
+            ber_value = port_info['ber_value']
+            if ber_value >= self.config["critical_ber_threshold"]:
+                return 0  # Critical first
+            elif ber_value >= self.config["warning_ber_threshold"]:
+                return 1  # Warning second  
+            elif ber_value < self.config["raw_ber_threshold"]:
+                return 3  # Good third
+            else:
+                return 4  # Excellent last
+        
+        sorted_ports = sorted(all_ports, key=get_ber_priority)
+        
+        for port_info in sorted_ports:
             port_name = port_info['port']
             device = port_name.split(':')[0] if ':' in port_name else "unknown"
             interface = port_name.split(':')[1] if ':' in port_name else port_name
