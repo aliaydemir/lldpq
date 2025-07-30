@@ -94,18 +94,23 @@ EOF
         done
     ' > "monitor-results/flap-data/${hostname}_carrier_transitions.txt" 2>/dev/null
     
-    # Optical diagnostics collection
+    # Optical diagnostics collection (Fixed: check admin up, not operational up)
     ssh $SSH_OPTS -q "$user@$device" '
         echo "=== OPTICAL DIAGNOSTICS ==="
-        all_interfaces=$(nv show interface 2>/dev/null | grep -E "swp[0-9]+(s[0-9]+)?" | awk "{print \$1}" || ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
+        # Get all swp interfaces that are admin up (not necessarily operational up)
+        all_interfaces=$(nv show interface 2>/dev/null | grep -E "swp[0-9]+(s[0-9]+)?\s+up" | awk "{print \$1}" || ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
         for interface in $all_interfaces; do
-            # Check if interface is up and has optical transceiver
+            # Skip if interface does not exist in system
             if [ ! -e "/sys/class/net/$interface" ]; then continue; fi
-            interface_status=$(nv show interface $interface 2>/dev/null | grep -E "operational.*up" | wc -l)
-            if [ "$interface_status" -eq 0 ]; then continue; fi
             
             echo "--- Interface: $interface ---"
-            nv show interface $interface transceiver 2>/dev/null || echo "No transceiver data available"
+            # Try to get transceiver data - works even if operationally down
+            transceiver_data=$(nv show interface $interface transceiver 2>/dev/null)
+            if [ -n "$transceiver_data" ] && [ "$transceiver_data" != "Error: The requested item does not exist." ]; then
+                echo "$transceiver_data"
+            else
+                echo "No transceiver data available"
+            fi
             echo ""
         done
     ' > "monitor-results/optical-data/${hostname}_optical.txt" 2>/dev/null
