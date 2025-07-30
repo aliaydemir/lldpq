@@ -15,7 +15,7 @@ mkdir -p "$SCRIPT_DIR/monitor-results/ber-data"
 unreachable_hosts_file=$(mktemp)
 
 # SSH Multiplexing for faster connections (fixed TTY issues)
-SSH_OPTS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPath=~/.ssh/cm-%r@%h:%p -o ControlPersist=180 -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
+SSH_OPTS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPath=~/.ssh/cm-%r@%h:%p -o ControlPersist=720 -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
 
 ping_test() {
     local device=$1
@@ -95,14 +95,14 @@ EOF
         done
     ' > "monitor-results/flap-data/${hostname}_carrier_transitions.txt" 2>/dev/null
     
-    # Optical diagnostics collection (Fixed timeout logic)
-    timeout 120 ssh $SSH_OPTS -q "$user@$device" '
+    # Optical diagnostics collection (All interfaces)
+    timeout 600 ssh $SSH_OPTS -q "$user@$device" '
         echo "=== OPTICAL DIAGNOSTICS ==="
-        # Get interfaces efficiently (max 10)
-        interfaces=$(ls /sys/class/net/swp* 2>/dev/null | head -10 | xargs -n1 basename)
+        # Get ALL swp interfaces
+        interfaces=$(ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
         for interface in $interfaces; do
             echo "--- Interface: $interface ---"
-            timeout 8 nv show interface $interface transceiver 2>/dev/null || echo "No transceiver data available"
+            timeout 5 nv show interface $interface transceiver 2>/dev/null || echo "No transceiver data available"
             echo ""
         done
     ' > "monitor-results/optical-data/${hostname}_optical.txt" 2>/dev/null || echo "⚠️ Optical collection failed for $hostname"
@@ -113,13 +113,14 @@ EOF
         cat /proc/net/dev 2>/dev/null
     ' > "monitor-results/ber-data/${hostname}_interface_errors.txt" 2>/dev/null || echo "⚠️ BER collection failed for $hostname"
     
-    # Collect detailed interface counters for BER analysis (Fixed timeout logic)
-    timeout 120 ssh $SSH_OPTS -q "$user@$device" '
+    # Collect detailed interface counters for BER analysis (All interfaces)
+    timeout 600 ssh $SSH_OPTS -q "$user@$device" '
         echo "=== DETAILED INTERFACE COUNTERS ==="
-        interfaces=$(ls /sys/class/net/swp* 2>/dev/null | head -10 | xargs -n1 basename)
+        # Get ALL swp interfaces
+        interfaces=$(ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
         for interface in $interfaces; do
             echo "Interface: $interface"
-            timeout 8 nv show interface $interface counters 2>/dev/null | grep -E "rx.*errors|tx.*errors" || echo "No detailed counters"
+            timeout 5 nv show interface $interface counters 2>/dev/null | grep -E "rx.*errors|tx.*errors" || echo "No detailed counters"
             echo ""
         done
     ' > "monitor-results/ber-data/${hostname}_detailed_counters.txt" 2>/dev/null || echo "⚠️ BER detailed collection failed for $hostname"
