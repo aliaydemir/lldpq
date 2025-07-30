@@ -296,7 +296,7 @@ class LinkFlapAnalyzer:
     <div class="summary-grid">
         <div class="summary-card">
             <div class="metric">{len(set(port.split(':')[0] for port in self.carrier_transitions_stats.keys()))}</div>
-            <div>Flap Devices</div>
+            <div>Total Devices</div>
         </div>
         <div class="summary-card">
             <div class="metric">{summary['total_ports']}</div>
