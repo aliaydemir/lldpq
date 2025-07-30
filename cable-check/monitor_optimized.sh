@@ -12,8 +12,8 @@ mkdir -p "$SCRIPT_DIR/monitor-results/bgp-data"
 
 unreachable_hosts_file=$(mktemp)
 
-# SSH Multiplexing for faster connections
-SSH_OPTS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPath=~/.ssh/cm-%r@%h:%p -o ControlPersist=60"
+# SSH Multiplexing for faster connections (fixed TTY issues)
+SSH_OPTS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPath=~/.ssh/cm-%r@%h:%p -o ControlPersist=60 -o BatchMode=yes -T"
 
 ping_test() {
     local device=$1
@@ -51,7 +51,7 @@ EOF
 
     # OPTIMIZED: Single SSH session with ALL original commands
     # Combine all nv show commands into one SSH call (like original monitor.sh)
-    ssh $SSH_OPTS -T -q "$user@$device" '
+    ssh $SSH_OPTS -q "$user@$device" '
         echo "<h1></h1><h1><font color=\"#b57614\">Interface Overview '"$hostname"'</font></h1><h3></h3>"
         nv show interface | sed -E "1 s/^port/<span style=\"color:green;\">Interface<\/span>/; 1,2! s/^(\S+)/<span style=\"color:steelblue;\">\1<\/span>/;  s/ up /<span style=\"color:lime;\"> up <\/span>/g; s/ down /<span style=\"color:red;\"> down <\/span>/g"
         
@@ -75,10 +75,10 @@ EOF
     ' >> monitor-results/${hostname}.html
     
     # Separate BGP data collection (for analysis)
-    ssh $SSH_OPTS -T -q "$user@$device" "sudo vtysh -c \"show bgp vrf all sum\"" 2>/dev/null > "monitor-results/bgp-data/${hostname}_bgp.txt"
+    ssh $SSH_OPTS -q "$user@$device" "sudo vtysh -c \"show bgp vrf all sum\"" 2>/dev/null > "monitor-results/bgp-data/${hostname}_bgp.txt"
     
     # Optimized carrier transition collection
-    ssh $SSH_OPTS -T -q "$user@$device" '
+    ssh $SSH_OPTS -q "$user@$device" '
         echo "=== CARRIER TRANSITIONS ==="
         all_interfaces=$(nv show interface 2>/dev/null | grep -E "swp[0-9]+(s[0-9]+)?" | awk "{print \$1}" || ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
         for interface in $all_interfaces; do
@@ -117,12 +117,8 @@ process_device() {
     fi
 }
 
-# Start SSH control master connections in background
-echo "🚀 Starting optimized monitoring (SSH multiplexing enabled)..."
-for device in "${!devices[@]}"; do
-    IFS=' ' read -r user hostname <<< "${devices[$device]}"
-    ssh $SSH_OPTS -N "$user@$device" 2>/dev/null &
-done
+# Start optimized monitoring
+echo "🚀 Starting optimized monitoring..."
 
 # Process all devices in parallel
 for device in "${!devices[@]}"; do
@@ -131,9 +127,6 @@ for device in "${!devices[@]}"; do
 done
 
 wait
-
-# Cleanup SSH control masters
-ssh -O exit -o ControlPath=~/.ssh/cm-%r@%h:%p 2>/dev/null
 
 echo ""
 echo -e "\e[1;34mOptimized monitoring completed...\e[0m"
