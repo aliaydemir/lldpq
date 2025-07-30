@@ -69,6 +69,25 @@ EOF
     echo "<h1></h1><h1><font color="#b57614">Port LAYER-1 BER Status ${hostname}</font></h1><h3></h3>" >> monitor-results/${hostname}.html
     ssh -o StrictHostKeyChecking=no -T -q "$user@$device" "sudo l1-show all -p | awk 'BEGIN { FS=\": +\"; OFS=\"\t\"; print \"Port\",\"Time_Since_Last_Clear\",\"Phy_Received_Bits\",\"Phy_Symbol_Errors\",\"Phy_Corrected_Bits\",\"Phy_Raw_Errors_Lane0\",\"Phy_Raw_Errors_Lane1\",\"Phy_Raw_Errors_Lane2\",\"Phy_Raw_Errors_Lane3\",\"Phy_Raw_Errors_Lane4\",\"Phy_Raw_Errors_Lane5\",\"Phy_Raw_Errors_Lane6\",\"Phy_Raw_Errors_Lane7\",\"Raw_BER_Magnitude\",\"Raw_BER_Coef\",\"Effective_BER_Magnitude\",\"Effective_BER_Coef\"; } /^Port:/ { if (port != \"\") print port, tslc, prb, pse, pcb, prl0, prl1, prl2, prl3, prl4, prl5, prl6, prl7, rbm, rbc, ebm, ebc; port = \$2; tslc = prb = pse = pcb = prl0 = prl1 = prl2 = prl3 = prl4 = prl5 = prl6 = prl7 = rbm = rbc = ebm = ebc = \"\"; next; } /time_since_last_clear/ { tslc = \$2 } /phy_received_bits/ { prb = \$2 } /phy_symbol_errors/ { pse = \$2 } /phy_corrected_bits/ { pcb = \$2 } /phy_raw_errors_lane0/ { prl0 = \$2 } /phy_raw_errors_lane1/ { prl1 = \$2 } /phy_raw_errors_lane2/ { prl2 = \$2 } /phy_raw_errors_lane3/ { prl3 = \$2 } /phy_raw_errors_lane4/ { prl4 = \$2 } /phy_raw_errors_lane5/ { prl5 = \$2 } /phy_raw_errors_lane6/ { prl6 = \$2 } /phy_raw_errors_lane7/ { prl7 = \$2 } /raw_ber_magnitude/ { rbm = \$2 } /raw_ber_coef/ { rbc = \$2 } /effective_ber_magnitude/ { ebm = \$2 } /effective_ber_coef/ { ebc = \$2 } END { if (port != \"\") print port, tslc, prb, pse, pcb, prl0, prl1, prl2, prl3, prl4, prl5, prl6, prl7, rbm, rbc, ebm, ebc; }' | column -t -s \$'\t' | sed -E '1! s/^(\S+)/<span style=\"color:steelblue;\">\1<\/span>/'" >> monitor-results/${hostname}.html
 
+    # Carrier Transition Collection for Link Flap Detection
+    echo "Collecting carrier transitions for flap detection on ${hostname}..."
+    mkdir -p monitor-results/flap-data
+    carrier_file="monitor-results/flap-data/${hostname}_carrier_transitions.txt"
+    
+    echo "=== CARRIER TRANSITIONS ===" > "$carrier_file"
+    # Collect carrier transition data from /sys/class/net/*/carrier_transitions
+    ssh -o StrictHostKeyChecking=no -T -q "$user@$device" "
+        for interface in /sys/class/net/swp*; do
+            if [ -d \"\$interface\" ]; then
+                iface_name=\$(basename \"\$interface\")
+                if [ -f \"\$interface/carrier_transitions\" ]; then
+                    transitions=\$(cat \"\$interface/carrier_transitions\" 2>/dev/null || echo 0)
+                    echo \"\$iface_name:\$transitions\"
+                fi
+            fi
+        done
+    " >> "$carrier_file"
+    
     echo "</h3>" >> monitor-results/${hostname}.html
     echo "</pre>" >> monitor-results/${hostname}.html
     echo -e "<span style=\"color:tomato;\">Created on $DATE</span>" >> monitor-results/${hostname}.html
@@ -107,6 +126,15 @@ if [ -s "$unreachable_hosts_file" ]; then
 else
     echo -e "\e[0;32mAll hosts are reachable.\e[0m"
     echo ""
+fi
+
+# Run Link Flap Analysis
+echo -e "\n\e[0;34mRunning Link Flap Analysis...\e[0m"
+cd "$(dirname "$0")"
+if python3 process_flap_data.py; then
+    echo -e "\e[0;32mLink Flap analysis completed successfully\e[0m"
+else
+    echo -e "\e[0;33mWarning: Link Flap analysis failed\e[0m"
 fi
 
 sudo cp -r monitor-results/ /var/www/html/
