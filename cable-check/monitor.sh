@@ -15,7 +15,7 @@ mkdir -p "$SCRIPT_DIR/monitor-results/ber-data"
 unreachable_hosts_file=$(mktemp)
 
 # SSH Multiplexing for faster connections (fixed TTY issues)
-SSH_OPTS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPath=~/.ssh/cm-%r@%h:%p -o ControlPersist=60 -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
+SSH_OPTS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPath=~/.ssh/cm-%r@%h:%p -o ControlPersist=180 -o BatchMode=yes -o ConnectTimeout=15 -o ServerAliveInterval=15 -o ServerAliveCountMax=3"
 
 ping_test() {
     local device=$1
