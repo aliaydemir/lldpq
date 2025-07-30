@@ -3,6 +3,34 @@
 import os
 import re
 import subprocess
+import yaml
+
+def load_topology_config(config_path="topology_config.yaml"):
+    """Load topology configuration to determine which script to use"""
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+                return config.get('topology', 'minimal')  # Default to minimal
+        except Exception as e:
+            print(f"Warning: Could not read topology config: {e}")
+            return 'minimal'
+    else:
+        print("Warning: topology_config.yaml not found, using minimal topology")
+        return 'minimal'
+
+def get_topology_script_name(config_path="topology_config.yaml"):
+    """Determine which topology script to use based on config"""
+    topology_type = load_topology_config(config_path)
+    
+    if topology_type == 'full':
+        script_name = "generate_topology_full.py"
+        print("Using full topology generation")
+    else:
+        script_name = "generate_topology.py"
+        print("Using minimal topology generation")
+    
+    return script_name
 
 def parse_lldp_output(filename):
     neighbors = []
@@ -116,7 +144,8 @@ if __name__ == "__main__":
     results = check_connections(topology_file, device_neighbors)
     output_file_path = os.path.join(lldp_results_folder, "lldp_results.ini")
     date_str = subprocess.getoutput("date '+%Y-%m-%d %H-%M'")
-    generate_topology_script = os.path.join(os.path.dirname(__file__), "generate_topology.py")
+    script_name = get_topology_script_name()
+    generate_topology_script = os.path.join(os.path.dirname(__file__), script_name)
     with open(output_file_path, 'w') as output_file:
         output_file.write(f"Created on {date_str}\n\n")
         for filename in files_in_order:

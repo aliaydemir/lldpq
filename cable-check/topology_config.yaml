@@ -1,6 +1,20 @@
+# Topology Generation Mode:
+# - minimal: Uses generate_topology.py (faster, basic topology)
+# - full: Uses generate_topology_full.py (comprehensive, detailed topology)
+# This setting determines which script lldp-validate.py will automatically call
+# If you want to use the full topology, the topology will also be displayed for devices discovered with LLDP.
+
+topology: minimal  # [full] or [minimal]
+
 # Topology Device Configuration
 # This file defines device categorization for topology generation
 # Edit this file to customize device layers and icons
+# Posible icons:
+# - firewall
+# - switch
+# - router
+# - server
+# - host
 
 device_categories:
   - pattern: "inband-fw"

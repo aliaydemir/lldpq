@@ -22,7 +22,7 @@ if [[ ! -f "README.md" ]] || [[ ! -d "cable-check" ]]; then
 fi
 
 echo ""
-echo "💾 [01] Backup existing cable-check directory?"
+echo "[01] Backup existing cable-check directory?"
 if [[ -d "$HOME/cable-check" ]]; then
     read -p "Create backup of existing cable-check? [y/N]: " -n 1 -r
     echo ""
@@ -30,7 +30,7 @@ if [[ -d "$HOME/cable-check" ]]; then
         backup_dir="$HOME/cable-check.backup.$(date +%Y%m%d_%H%M%S)"
         echo "   Backing up $HOME/cable-check to $backup_dir"
         cp -r "$HOME/cable-check" "$backup_dir"
-        echo "✅ Backup created: $backup_dir"
+        echo "Backup created: $backup_dir"
     else
         echo "   Skipping backup as requested"
     fi
@@ -39,17 +39,17 @@ else
 fi
 
 echo ""
-echo "📁 [02] Updating system files..."
+echo "[02] Updating system files..."
 echo "   - Updating html/* to /var/www/html/"
 sudo cp -r html/* /var/www/html/
 
 echo "   - Updating bin/* to /usr/local/bin/"
 sudo cp bin/* /usr/local/bin/
 sudo chmod +x /usr/local/bin/*
-echo "✅ System files updated"
+echo "System files updated"
 
 echo ""
-echo "📝 [03] Updating cable-check directory (preserving configs)..."
+echo "[03] Updating cable-check directory (preserving configs)..."
 # Create temp directory for selective copy
 temp_dir=$(mktemp -d)
 cp -r cable-check/* "$temp_dir/"
@@ -84,15 +84,15 @@ fi
 
 # Copy updated files with preserved configs
 mv "$temp_dir" "$HOME/cable-check"
-echo "✅ cable-check directory updated with preserved configs"
+echo "cable-check directory updated with preserved configs"
 
 echo ""
-echo "🔄 [04] Restarting nginx service..."
+echo "[04] Restarting nginx service..."
 sudo systemctl restart nginx
-echo "✅ nginx restarted"
+echo "nginx restarted"
 
 echo ""
-echo "⚙️  [05] Configuration files preserved:"
+echo "[05] Configuration files preserved:"
 echo "   The following files were NOT updated (your settings preserved):"
 echo "   - /etc/ip_list"
 echo "   - /etc/nccm.yml"
@@ -102,7 +102,7 @@ echo "   - ~/cable-check/topology.dot"
 echo "   - ~/cable-check/topology_config.yaml"
 
 echo ""
-echo "🧪 [06] Testing updated tools..."
+echo "[06] Testing updated tools..."
 echo "   You can test the updated tools:"
 echo "   - lldpq"
 echo "   - monitor"
@@ -111,17 +111,17 @@ echo "   - zzh"
 echo "   - pping"
 
 echo ""
-echo "🎯 Update Complete!"
-echo "   📊 New features:"
+echo "Update Complete!"
+echo "   New features:"
 echo "   - BGP Neighbor Analysis"
 echo "   - Link Flap Detection" 
 echo "   - Enhanced monitoring capabilities"
 echo ""
-echo "   🌐 Web interface: http://$(hostname -I | awk '{print $1}')"
+echo "   Web interface: http://$(hostname -I | awk '{print $1}')"
 echo ""
 if [[ -n "$backup_dir" ]]; then
-    echo "   🔍 If you encounter issues, your backup is available at:"
+    echo "If you encounter issues, your backup is available at:"
     echo "      $backup_dir"
 fi
-echo ""
 echo "✅ LLDPq update completed successfully!"
+echo ""
