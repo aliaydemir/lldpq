@@ -9,6 +9,7 @@ source "$SCRIPT_DIR/devices.sh"
 mkdir -p "$SCRIPT_DIR/monitor-results"
 mkdir -p "$SCRIPT_DIR/monitor-results/flap-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/bgp-data"
+mkdir -p "$SCRIPT_DIR/monitor-results/optical-data"
 
 unreachable_hosts_file=$(mktemp)
 
@@ -93,6 +94,22 @@ EOF
         done
     ' > "monitor-results/flap-data/${hostname}_carrier_transitions.txt" 2>/dev/null
     
+    # Optical diagnostics collection
+    ssh $SSH_OPTS -q "$user@$device" '
+        echo "=== OPTICAL DIAGNOSTICS ==="
+        all_interfaces=$(nv show interface 2>/dev/null | grep -E "swp[0-9]+(s[0-9]+)?" | awk "{print \$1}" || ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
+        for interface in $all_interfaces; do
+            # Check if interface is up and has optical transceiver
+            if [ ! -e "/sys/class/net/$interface" ]; then continue; fi
+            interface_status=$(nv show interface $interface 2>/dev/null | grep -E "operational.*up" | wc -l)
+            if [ "$interface_status" -eq 0 ]; then continue; fi
+            
+            echo "--- Interface: $interface ---"
+            nv show interface $interface transceiver 2>/dev/null || echo "No transceiver data available"
+            echo ""
+        done
+    ' > "monitor-results/optical-data/${hostname}_optical.txt" 2>/dev/null
+    
     # Note: All network tables now included in main SSH session above for completeness
     
     # Close HTML
@@ -144,6 +161,13 @@ if python3 process_flap_data.py; then
     echo -e "\e[0;32mLink Flap analysis completed\e[0m"
 else
     echo -e "\e[0;33mWarning: Link Flap analysis failed\e[0m"
+fi
+
+echo -e "\n\e[0;34mRunning Optical Analysis...\e[0m"
+if python3 process_optical_data.py; then
+    echo -e "\e[0;32mOptical analysis completed\e[0m"
+else
+    echo -e "\e[0;33mWarning: Optical analysis failed\e[0m"
 fi
 
 sudo cp -r monitor-results/ /var/www/html/
