@@ -242,7 +242,7 @@ class LinkFlapAnalyzer:
         return anomalies
     
     def export_flap_data_for_web(self, output_file: str):
-        """Export flap data in format suitable for web display"""
+        """Export flap data for web display"""
         summary = self.get_flap_summary()
         anomalies = self.detect_flap_anomalies()
         
@@ -250,145 +250,166 @@ class LinkFlapAnalyzer:
         total_problematic = len(summary['flapping_ports']) + len(summary['flapped_ports'])
         stability_ratio = ((summary['total_ports'] - total_problematic) / summary['total_ports'] * 100) if summary['total_ports'] > 0 else 0
         
-        if stability_ratio >= 95:
-            overall_status = "EXCELLENT"
-            status_color = "#4caf50"
-        elif stability_ratio >= 85:
-            overall_status = "GOOD"
-            status_color = "#8bc34a"
-        elif stability_ratio >= 70:
-            overall_status = "WARNING"
-            status_color = "#ff9800"
-        else:
-            overall_status = "CRITICAL"
-            status_color = "#f44336"
-        
-        # Generate HTML content
-        html_content = f"""<!DOCTYPE html>
-<html lang="en">
+        html_content = f"""
+<!DOCTYPE html>
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <h1></h1>
     <title>Link Flap Detection Results</title>
-    <link rel="shortcut icon" href="/png/favicon.ico">
     <link rel="stylesheet" type="text/css" href="/css/styles2.css">
     <style>
-        .flap-container {{ max-width: 1400px; margin: 0 auto; padding: 20px; }}
-        .flap-header {{ text-align: center; margin-bottom: 30px; }}
-        .flap-status {{ font-size: 24px; font-weight: bold; color: {status_color}; }}
-        .flap-summary {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }}
-        .summary-card {{ background: #f8f9fa; border-left: 4px solid #007bff; padding: 15px; border-radius: 4px; }}
-        .summary-number {{ font-size: 28px; font-weight: bold; color: #007bff; }}
-        .summary-label {{ color: #6c757d; font-size: 14px; }}
-        .flap-status-flapping {{ color: red; font-weight: bold; }}
-        .flap-status-flapped {{ color: orange; }}
-        .flap-status-ok {{ color: green; }}
+        .flap-excellent {{ color: #4caf50; font-weight: bold; }}
+        .flap-good {{ color: #8bc34a; font-weight: bold; }}
+        .flap-warning {{ color: #ff9800; font-weight: bold; }}
+        .flap-critical {{ color: #f44336; font-weight: bold; }}
+        .flap-unknown {{ color: gray; }}
         .flap-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
         .flap-table th, .flap-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
         .flap-table th {{ background-color: #f2f2f2; }}
-        .anomaly-card {{ margin: 10px 0; padding: 10px; border-radius: 4px; }}
-        .anomaly-critical {{ background-color: #ffebee; border-left: 4px solid #f44336; }}
-        .anomaly-warning {{ background-color: #fff3e0; border-left: 4px solid #ff9800; }}
-        .timestamp {{ color: #6c757d; font-size: 12px; }}
+        .summary-grid {{ 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+            margin: 20px 0; 
+        }}
+        .summary-card {{ 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 8px; 
+            border-left: 4px solid #007bff; 
+        }}
+        .metric {{ font-size: 24px; font-weight: bold; }}
+        .status-established {{ color: #4caf50; font-weight: bold; }}
+        .status-flapping {{ color: #f44336; font-weight: bold; }}
+        .status-flapped {{ color: #ff9800; font-weight: bold; }}
+        .status-ok {{ color: #4caf50; font-weight: bold; }}
+        .transition-good {{ color: #4caf50; }}
+        .transition-warning {{ color: #ff9800; }}
+        .transition-critical {{ color: #f44336; }}
     </style>
 </head>
 <body>
-    <div class="flap-container">
-        <div class="flap-header">
-            <h1><font color="#b57614">Link Flap Detection Results</font></h1>
-            <div class="flap-status">Network Stability: {overall_status}</div>
-            <div class="timestamp">Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+    <h1><font color="#b57614">Link Flap Detection Results</font></h1>
+    <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+    
+    <h2>Network Summary</h2>
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="metric">{len(set(port.split(':')[0] for port in self.carrier_transitions_stats.keys()))}</div>
+            <div>Flap Devices</div>
         </div>
-        
-        <div class="flap-summary">
-            <div class="summary-card">
-                <div class="summary-number">{summary['total_ports']}</div>
-                <div class="summary-label">Total Ports</div>
-            </div>
-            <div class="summary-card">
-                <div class="summary-number">{len(summary['flapping_ports'])}</div>
-                <div class="summary-label">Currently Flapping</div>
-            </div>
-            <div class="summary-card">
-                <div class="summary-number">{len(summary['flapped_ports'])}</div>
-                <div class="summary-label">Previously Flapped</div>
-            </div>
-            <div class="summary-card">
-                <div class="summary-number">{len(summary['ok_ports'])}</div>
-                <div class="summary-label">Stable Ports</div>
-            </div>
-            <div class="summary-card">
-                <div class="summary-number">{stability_ratio:.1f}%</div>
-                <div class="summary-label">Stability Ratio</div>
-            </div>
+        <div class="summary-card">
+            <div class="metric">{summary['total_ports']}</div>
+            <div>Total Ports</div>
         </div>
+        <div class="summary-card">
+            <div class="metric flap-excellent">{len(summary['ok_ports'])}</div>
+            <div>Stable</div>
+        </div>
+        <div class="summary-card">
+            <div class="metric flap-critical">{len(summary['flapping_ports']) + len(summary['flapped_ports'])}</div>
+            <div>Problematic</div>
+        </div>
+        <div class="summary-card">
+            <div class="metric">{stability_ratio:.1f}%</div>
+            <div>Stability Ratio</div>
+        </div>
+    </div>
 """
         
         # Add anomalies section if any exist
         if anomalies:
             html_content += f"""
-        <h2>Interface Flapping Issues Detected ({len(anomalies)})</h2>
+    <h2>📋 Detailed Issue Analysis ({len(anomalies)})</h2>
 """
             for anomaly in anomalies:
-                severity_class = f"anomaly-{anomaly['severity']}"
                 html_content += f"""
-        <div class="{severity_class}">
-            <h4>{anomaly['device']}:{anomaly['interface']}</h4>
-            <p><strong>Issue:</strong> {anomaly['message']}</p>
-            <p><strong>Recommended Action:</strong> {anomaly['action']}</p>
-        </div>
-"""
-        
-        # Add detailed tables
-        for category, ports in [
-            ("Currently Flapping Ports", summary['flapping_ports']),
-            ("Previously Flapped Ports", summary['flapped_ports'])
-        ]:
-            if ports:
-                html_content += f"""
-        <h2>{category}</h2>
-        <table class="flap-table">
-            <tr>
-                <th>Port</th>
-                <th>Status</th>
-                <th>30s</th>
-                <th>1m</th>
-                <th>5m</th>
-                <th>1h</th>
-                <th>12h</th>
-                <th>24h</th>
-                <th>Total Transitions</th>
-            </tr>
-"""
-                for port in ports:
-                    counters = port['counters']
-                    status_class = f"flap-status-{port['status']}"
-                    html_content += f"""
-            <tr>
-                <td>{port['port']}</td>
-                <td><span class="{status_class}">{port['status'].upper()}</span></td>
-                <td>{counters['flap_30_sec']}</td>
-                <td>{counters['flap_1_min']}</td>
-                <td>{counters['flap_5_min']}</td>
-                <td>{counters['flap_1_hr']}</td>
-                <td>{counters['flap_12_hrs']}</td>
-                <td>{counters['flap_24_hrs']}</td>
-                <td>{port['last_transitions']}</td>
-            </tr>
-"""
-                html_content += "        </table>"
-        
-        html_content += f"""
-        
-        <h2>Algorithm Parameters</h2>
-        <table class="flap-table">
-            <tr><th>Parameter</th><th>Value</th><th>Description</th></tr>
-            <tr><td>Flapping Interval</td><td>{self.FLAPPING_INTERVAL} seconds</td><td>Detection window for carrier transitions</td></tr>
-            <tr><td>Min Transition Delta</td><td>{self.MIN_CARRIER_TRANSITION_DELTA}</td><td>Minimum transitions to consider flap</td></tr>
-            <tr><td>Flap Persistence</td><td>{self.INTERVAL_TO_PERSIST_FLAP} seconds</td><td>How long flap status persists</td></tr>
-            <tr><td>Data Retention</td><td>24 hours</td><td>Historical data retention period</td></tr>
-        </table>
+    <div style="margin: 10px 0; padding: 10px; background-color: {'#ffebee' if anomaly['severity'] == 'critical' else '#fff3e0'}; border-left: 4px solid {'#f44336' if anomaly['severity'] == 'critical' else '#ff9800'};">
+        <h4>{anomaly['device']} - {anomaly['interface']}</h4>
+        <p><strong>Issue:</strong> {anomaly['message']}</p>
+        <p><strong>Recommended Action:</strong> {anomaly['action']}</p>
     </div>
+"""
+        
+        # Collect all ports for display
+        all_ports = []
+        for port_name in self.carrier_transitions_stats.keys():
+            status = self.get_port_flap_status(port_name)
+            counters = self.calculate_flapping_rate(port_name)
+            device = port_name.split(':')[0] if ':' in port_name else "unknown"
+            interface = port_name.split(':')[1] if ':' in port_name else port_name
+            
+            port_info = {
+                'device': device,
+                'interface': interface,
+                'status': status,
+                'counters': counters,
+                'total_transitions': self.carrier_transitions_stats.get(port_name, 0)
+            }
+            all_ports.append(port_info)
+        
+        # Interface flapping table (sorted by problems first, like BGP)
+        html_content += f"""
+    <h2>Interface Flapping Status ({len(all_ports)} total)</h2>
+    <table class="flap-table">
+        <tr>
+            <th>Device</th>
+            <th>Interface</th>
+            <th>Status</th>
+            <th>30s Flaps</th>
+            <th>1m Flaps</th>
+            <th>5m Flaps</th>
+            <th>1h Flaps</th>
+            <th>12h Flaps</th>
+            <th>24h Flaps</th>
+            <th>Total Transitions</th>
+        </tr>
+"""
+        
+        # Sort by severity (problems first, like BGP)
+        sorted_ports = sorted(all_ports, key=lambda x: (
+            0 if x['status'] == FlapStatus.FLAPPING else
+            1 if x['status'] == FlapStatus.FLAPPED else 2
+        ))
+        
+        for port in sorted_ports:
+            counters = port['counters']
+            status_class = f"status-{port['status'].value}"
+            
+            # Color coding for transition counts
+            transition_class = "transition-good"
+            if port['total_transitions'] > 50:
+                transition_class = "transition-critical"
+            elif port['total_transitions'] > 10:
+                transition_class = "transition-warning"
+                
+            html_content += f"""
+        <tr>
+            <td>{port['device']}</td>
+            <td>{port['interface']}</td>
+            <td><span class="{status_class}">{port['status'].value.upper()}</span></td>
+            <td>{counters['flap_30_sec']}</td>
+            <td>{counters['flap_1_min']}</td>
+            <td>{counters['flap_5_min']}</td>
+            <td>{counters['flap_1_hr']}</td>
+            <td>{counters['flap_12_hrs']}</td>
+            <td>{counters['flap_24_hrs']}</td>
+            <td><span class="{transition_class}">{port['total_transitions']}</span></td>
+        </tr>
+"""
+        
+        html_content += """
+    </table>
+    
+    <h2>Link Flap Detection Thresholds</h2>
+    <table class="flap-table">
+        <tr><th>Parameter</th><th>Threshold</th><th>Description</th></tr>
+        <tr><td>Detection Window</td><td>125 seconds</td><td>Time window for carrier transition analysis</td></tr>
+        <tr><td>Min Transition Delta</td><td>2+ transitions</td><td>Minimum transitions to trigger flap detection</td></tr>
+        <tr><td>Flap Persistence</td><td>60 seconds</td><td>Duration flap status remains active</td></tr>
+        <tr><td>High Transition Alert</td><td>50+ transitions</td><td>Indicates potential hardware issues</td></tr>
+        <tr><td>Data Retention</td><td>24 hours</td><td>Historical carrier transition data retention</td></tr>
+    </table>
 </body>
 </html>
 """
