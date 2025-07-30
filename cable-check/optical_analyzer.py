@@ -309,6 +309,36 @@ class OpticalAnalyzer:
         
         return anomalies
     
+    def get_recommended_action(self, port_info: Dict[str, Any]) -> str:
+        """Get recommended action for a port based on its health status and parameters"""
+        health = port_info.get('health', 'unknown')
+        
+        if health == OpticalHealth.EXCELLENT.value:
+            return ""  # No action needed for excellent health
+        
+        if health == OpticalHealth.CRITICAL.value:
+            rx_power = port_info.get('rx_power_dbm')
+            temperature = port_info.get('temperature_c')
+            
+            if rx_power is not None and rx_power < self.thresholds['rx_power_min_dbm']:
+                return "Check fiber connection, clean connectors, or replace cable"
+            elif temperature is not None and temperature > self.thresholds['temperature_max_c']:
+                return "Check cooling, reduce load, or replace SFP module"
+            else:
+                return "Investigate critical optical parameters immediately"
+        
+        if health == OpticalHealth.WARNING.value:
+            link_margin = port_info.get('link_margin_db', 0)
+            if link_margin < self.thresholds['link_margin_min_db']:
+                return "Monitor closely, schedule proactive maintenance"
+            else:
+                return "Monitor optical parameters regularly"
+        
+        if health == OpticalHealth.GOOD.value:
+            return "Continue regular monitoring"
+        
+        return "Check optical diagnostics availability"
+    
     def export_optical_data_for_web(self, output_file: str):
         """Export optical data for web display - EXACT same styling as BGP/Link Flap"""
         summary = self.get_optical_summary()
@@ -383,20 +413,7 @@ class OpticalAnalyzer:
         </div>
     </div>"""
         
-        # Add anomalies section (matching BGP/Link Flap style)
-        if anomalies:
-            html_content += f"""
-    <h2>⚠️ Optical Anomalies Detected ({len(anomalies)})</h2>"""
-            for anomaly in anomalies:
-                card_class = "anomaly-card" if anomaly['severity'] == 'critical' else "anomaly-card warning-card"
-                html_content += f"""
-    <div class="{card_class}">
-        <h4>{anomaly['port']} - {anomaly['type']}</h4>
-        <p><strong>Issue:</strong> {anomaly['message']}</p>
-        <p><strong>Recommended Action:</strong> {anomaly['action']}</p>
-    </div>"""
-        
-        # Add detailed tables for each health category (matching BGP/Link Flap style)
+        # Add detailed tables for each health category with recommended actions
         for category, ports, health_class in [
             ("Critical Optical Issues (Immediate Action Required)", summary['critical_ports'], "optical-critical"),
             ("Warning Level Issues (Monitor Closely)", summary['warning_ports'], "optical-warning"),
@@ -416,6 +433,7 @@ class OpticalAnalyzer:
             <th>Link Margin (dB)</th>
             <th>Voltage (V)</th>
             <th>Bias Current (mA)</th>
+            <th>Recommended Action</th>
         </tr>"""
                 for port in ports:
                     rx_power = f"{port['rx_power_dbm']:.2f}" if port['rx_power_dbm'] is not None else "N/A"
@@ -424,6 +442,7 @@ class OpticalAnalyzer:
                     link_margin = f"{port['link_margin_db']:.2f}" if port['link_margin_db'] is not None else "N/A"
                     voltage = f"{port['voltage_v']:.2f}" if port['voltage_v'] is not None else "N/A"
                     bias_current = f"{port['bias_current_ma']:.2f}" if port['bias_current_ma'] is not None else "N/A"
+                    recommended_action = self.get_recommended_action(port)
                     
                     html_content += f"""
         <tr>
@@ -435,6 +454,7 @@ class OpticalAnalyzer:
             <td>{link_margin}</td>
             <td>{voltage}</td>
             <td>{bias_current}</td>
+            <td>{recommended_action}</td>
         </tr>"""
                 html_content += "    </table>"
         
