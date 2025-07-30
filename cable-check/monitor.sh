@@ -125,9 +125,11 @@ EOF
         
         # Extract optical data
         echo "=== OPTICAL DIAGNOSTICS ===" > "monitor-results/optical-data/${hostname}_optical.txt"
-        awk '/OPTICAL_TRANSCEIVER:/{flag=1; next} /BER_COUNTERS:/{flag=0} flag' "monitor-results/${hostname}_combined_interface_data.txt" > temp_optical.txt
-        sed 's/^/--- Interface: /' temp_optical.txt | sed 's/=== INTERFACE: /--- Interface: /' >> "monitor-results/optical-data/${hostname}_optical.txt"
-        rm -f temp_optical.txt
+        awk '/OPTICAL_TRANSCEIVER:/{flag=1; next} /BER_COUNTERS:/{flag=0} flag' "monitor-results/${hostname}_combined_interface_data.txt" > "temp_optical_${hostname}.txt"
+        if [ -s "temp_optical_${hostname}.txt" ]; then
+            sed 's/^/--- Interface: /' "temp_optical_${hostname}.txt" | sed 's/=== INTERFACE: /--- Interface: /' >> "monitor-results/optical-data/${hostname}_optical.txt"
+        fi
+        rm -f "temp_optical_${hostname}.txt"
         
         # Extract BER detailed counters
         echo "=== DETAILED INTERFACE COUNTERS ===" > "monitor-results/ber-data/${hostname}_detailed_counters.txt"
