@@ -411,7 +411,8 @@ class BERAnalyzer:
 </head>
 <body>
     <div class="container">
-        <h1>🔬 BER Analysis Results</h1>
+        <h1></h1>
+        <h1>BER Analysis Results</h1>
         <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         
         <h2>Network Summary</h2>
