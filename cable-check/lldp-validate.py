@@ -138,6 +138,18 @@ if __name__ == "__main__":
                         output_file.write(f"{res['Port']:<10} {res['Status']:<10} {res['Exp-Nbr']:<28} {res['Exp-Nbr-Port']:<16} {res['Act-Nbr']:<28} {res['Act-Nbr-Port']}\n")
                     output_file.write("\n\n")
     subprocess.run(["sudo", "python3", generate_topology_script], check=True)
+    
+    # Run LLDP analysis
+    try:
+        lldp_analysis_script = os.path.join(os.path.dirname(__file__), "process_lldp_data.py")
+        print("Running LLDP connection analysis...")
+        subprocess.run(["python3", lldp_analysis_script], check=True)
+        print("LLDP analysis completed successfully")
+    except subprocess.CalledProcessError as e:
+        print(f"Warning: LLDP analysis failed: {e}")
+    except Exception as e:
+        print(f"Warning: Could not run LLDP analysis: {e}")
+    
     for filename in files_in_order:
         if filename.endswith("_lldp_result.ini"):
             os.remove(os.path.join(lldp_results_folder, filename))
