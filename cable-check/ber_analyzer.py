@@ -343,29 +343,19 @@ class BERAnalyzer:
     <title>BER Analysis Results</title>
     <link rel="stylesheet" type="text/css" href="/css/styles2.css">
     <style>
-        .summary-grid {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin: 20px 0;
+        .summary-grid {{ 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+            margin: 20px 0; 
         }}
-        .summary-card {{
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-            border-left: 4px solid;
+        .summary-card {{ 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 8px; 
+            border-left: 4px solid #007bff; 
         }}
-        .card-excellent {{ border-left-color: #4caf50; }}
-        .card-good {{ border-left-color: #8bc34a; }}
-        .card-warning {{ border-left-color: #ff9800; }}
-        .card-critical {{ border-left-color: #f44336; }}
-        .card-total {{ border-left-color: #2196f3; }}
-        .card-value {{
-            font-size: 2em;
-            font-weight: bold;
-            margin: 10px 0;
-        }}
+        .metric {{ font-size: 24px; font-weight: bold; }}
         .ber-excellent {{ color: #4caf50; font-weight: bold; }}
         .ber-good {{ color: #8bc34a; font-weight: bold; }}
         .ber-warning {{ color: #ff9800; font-weight: bold; }}
@@ -421,29 +411,25 @@ class BERAnalyzer:
         
         <h2>Network Summary</h2>
         <div class="summary-grid">
-            <div class="summary-card card-total">
-                <div class="card-title">Total Ports</div>
-                <div class="card-value">{total_ports}</div>
+            <div class="summary-card">
+                <div class="metric">{total_ports}</div>
+                <div>Total Ports</div>
             </div>
-            <div class="summary-card card-excellent">
-                <div class="card-title">Excellent</div>
-                <div class="card-value">{len(summary['excellent_ports'])}</div>
-                <div class="card-subtitle">{excellent_pct:.1f}%</div>
+            <div class="summary-card">
+                <div class="metric ber-excellent">{len(summary['excellent_ports'])}</div>
+                <div>Excellent</div>
             </div>
-            <div class="summary-card card-good">
-                <div class="card-title">Good</div>
-                <div class="card-value">{len(summary['good_ports'])}</div>
-                <div class="card-subtitle">{good_pct:.1f}%</div>
+            <div class="summary-card">
+                <div class="metric ber-good">{len(summary['good_ports'])}</div>
+                <div>Good</div>
             </div>
-            <div class="summary-card card-warning">
-                <div class="card-title">Warning</div>
-                <div class="card-value">{len(summary['warning_ports'])}</div>
-                <div class="card-subtitle">{warning_pct:.1f}%</div>
+            <div class="summary-card">
+                <div class="metric ber-warning">{len(summary['warning_ports'])}</div>
+                <div>Warning</div>
             </div>
-            <div class="summary-card card-critical">
-                <div class="card-title">Critical</div>
-                <div class="card-value">{len(summary['critical_ports'])}</div>
-                <div class="card-subtitle">{critical_pct:.1f}%</div>
+            <div class="summary-card">
+                <div class="metric ber-critical">{len(summary['critical_ports'])}</div>
+                <div>Critical</div>
             </div>
         </div>
 """
