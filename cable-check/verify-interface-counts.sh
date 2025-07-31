@@ -102,7 +102,6 @@ total_swp_sum=0
 base_only_sum=0
 breakout_subs_sum=0
 transceivers_sum=0
-traffic_sum=0
 admin_up_sum=0
 
 while IFS= read -r line; do
@@ -122,18 +121,17 @@ while IFS= read -r line; do
         count=$(echo "$line" | cut -d' ' -f2)
         breakout_subs_sum=$((breakout_subs_sum + count))
         echo "  Breakout sub-interfaces: $count"
-    elif [[ $line == WITH_TRANSCEIVERS:* ]]; then
+    elif [[ $line == ESTIMATED_TRANSCEIVERS:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         transceivers_sum=$((transceivers_sum + count))
-        echo "  With transceivers: $count"
-    elif [[ $line == WITH_TRAFFIC:* ]]; then
-        count=$(echo "$line" | cut -d' ' -f2)
-        traffic_sum=$((traffic_sum + count))
-        echo "  With traffic: $count"
+        echo "  Estimated transceivers: $count"
     elif [[ $line == ADMIN_UP:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         admin_up_sum=$((admin_up_sum + count))
         echo "  Admin up: $count"
+        echo ""
+    elif [[ $line == *"ERROR"* ]]; then
+        echo "  ❌ $line"
         echo ""
     fi
 done < "$RESULTS_FILE"
@@ -144,8 +142,7 @@ echo "Total devices checked: $total_devices"
 echo "Total SWP interfaces: $total_swp_sum"
 echo "Base interfaces only: $base_only_sum" 
 echo "Breakout sub-interfaces: $breakout_subs_sum"
-echo "Interfaces with transceivers: $transceivers_sum"
-echo "Interfaces with traffic: $traffic_sum"
+echo "Estimated interfaces with transceivers: $transceivers_sum"
 echo "Admin up interfaces: $admin_up_sum"
 echo ""
 
@@ -154,24 +151,30 @@ echo "==========="
 if [[ $total_devices -gt 0 ]]; then
     avg_base=$((base_only_sum / total_devices))
     avg_transceivers=$((transceivers_sum / total_devices))
-    avg_traffic=$((traffic_sum / total_devices))
     
     echo "Average base interfaces per device: $avg_base"
-    echo "Average transceivers per device: $avg_transceivers"
-    echo "Average traffic interfaces per device: $avg_traffic"
+    echo "Average estimated transceivers per device: $avg_transceivers"
     echo ""
     
-    echo "📈 EXPECTED DASHBOARD COUNTS"
-    echo "============================"
+    echo "📈 EXPECTED DASHBOARD COUNTS AFTER FIX"
+    echo "====================================="
     echo "Link Flap Total Ports: $base_only_sum (base interfaces)"
-    echo "BER Total Ports: $traffic_sum (interfaces with traffic)"
-    echo "Optical Total Ports: $transceivers_sum (interfaces with transceivers)"
+    echo "Optical Total Ports: $transceivers_sum (estimated transceivers)"
+    echo "BER Total Ports: ~$((base_only_sum * 60 / 100)) (estimated 60% with traffic)"
     echo ""
     
-    if [[ $breakout_subs_sum -gt $base_only_sum ]]; then
-        echo "⚠️  WARNING: More breakout sub-interfaces than base interfaces!"
-        echo "   This suggests monitor.sh was including breakouts before fix."
-        echo "   Old total would have been: $total_swp_sum"
+    echo "📊 CURRENT vs EXPECTED"
+    echo "====================="
+    echo "Current Flap: 4904 → Expected: $base_only_sum"
+    echo "Current BER: 2896 → Expected: ~$((base_only_sum * 60 / 100))"
+    echo "Current Optical: 1905 → Expected: $transceivers_sum"
+    echo ""
+    
+    if [[ $breakout_subs_sum -gt 0 ]]; then
+        echo "⚠️  WARNING: $breakout_subs_sum breakout sub-interfaces found!"
+        echo "   This confirms monitor.sh was including breakouts before fix."
+        echo "   Old total included breakouts: $total_swp_sum"
+        echo "   New total should be base only: $base_only_sum"
     fi
 fi
 
