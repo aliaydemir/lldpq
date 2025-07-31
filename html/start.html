@@ -460,11 +460,39 @@
                     
                     // LLDP data parsed
                     
+                } else if (dataType === 'optical') {
+                    // Special case for optical: use summary cards because they have correct total ports count
+                    const response = await fetch('monitor-results/optical-analysis.html');
+                    
+                    if (!response.ok) {
+                        return summaryData;
+                    }
+                    
+                    const html = await response.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+                    
+                    // Parse summary cards for optical (they have the correct total ports count)
+                    const totalPortsElement = doc.querySelector('#total-ports');
+                    const excellentElement = doc.querySelector('#excellent-ports');
+                    const goodElement = doc.querySelector('#good-ports');
+                    const warningElement = doc.querySelector('#warning-ports');
+                    const criticalElement = doc.querySelector('#critical-ports');
+                    
+                    summaryData.totalPorts = totalPortsElement ? parseInt(totalPortsElement.textContent) : 0;
+                    summaryData.excellent = excellentElement ? parseInt(excellentElement.textContent) : 0;
+                    summaryData.good = goodElement ? parseInt(goodElement.textContent) : 0;
+                    summaryData.warning = warningElement ? parseInt(warningElement.textContent) : 0;
+                    summaryData.critical = criticalElement ? parseInt(criticalElement.textContent) : 0;
+                    
+                    // Count unique devices from table for optical (if needed)
+                    const rows = doc.querySelectorAll('tbody tr[data-health]');
+                    summaryData.totalDevices = new Set(Array.from(rows).map(row => row.cells[0]?.textContent.trim())).size;
+                    
                 } else {
-                    // For analysis pages, parse table data instead of summary cards
+                    // For other analysis pages (BGP, BER, Link Flap), parse table data
                     const pageMap = {
                         'bgp': 'monitor-results/bgp-analysis.html',
-                        'optical': 'monitor-results/optical-analysis.html',
                         'ber': 'monitor-results/ber-analysis.html',
                         'flap': 'monitor-results/link-flap-analysis.html'
                     };
