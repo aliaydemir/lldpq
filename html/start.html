@@ -419,7 +419,10 @@
                     // Parse assets.ini directly
                     const response = await fetch('assets.ini');
                     const text = await response.text();
-                    const lines = text.split('\n').filter(line => line.trim());
+                    const lines = text.split('\n').filter(line => line.trim() && !line.startsWith('#') && line.includes('|'));
+                    
+                    console.log('Assets.ini lines found:', lines.length);
+                    console.log('First few lines:', lines.slice(0, 3));
                     
                     summaryData.totalDevices = lines.length;
                     summaryData.successful = 0;
@@ -427,10 +430,11 @@
                     summaryData.warning = 0;
                     summaryData.noInfo = 0;
                     
-                    lines.forEach(line => {
+                    lines.forEach((line, index) => {
                         const parts = line.split('|');
                         if (parts.length >= 7) {
                             const status = parts[6].trim();
+                            console.log(`Line ${index}: status = "${status}"`);
                             if (status === 'SUCCESS') summaryData.successful++;
                             else if (status === 'FAILED') summaryData.failed++;
                             else if (status === 'WARNING') summaryData.warning++;
@@ -471,19 +475,31 @@
                     
                     const pageUrl = pageMap[dataType];
                     if (pageUrl) {
+                        console.log(`Fetching ${dataType} from ${pageUrl}`);
                         const response = await fetch(pageUrl);
+                        
+                        if (!response.ok) {
+                            console.warn(`Failed to fetch ${pageUrl}: ${response.status}`);
+                            return summaryData;
+                        }
+                        
                         const html = await response.text();
+                        console.log(`${dataType} HTML length:`, html.length);
+                        
                         const parser = new DOMParser();
                         const doc = parser.parseFromString(html, 'text/html');
                         const cards = doc.querySelectorAll('.summary-card');
                         
-                        cards.forEach(card => {
+                        console.log(`${dataType} summary cards found:`, cards.length);
+                        
+                        cards.forEach((card, index) => {
                             const valueElement = card.querySelector('.card-value');
                             const labelElement = card.querySelector('.card-label');
                             
                             if (valueElement && labelElement) {
                                 const value = valueElement.textContent.trim();
                                 const label = labelElement.textContent.trim().toLowerCase();
+                                console.log(`${dataType} Card ${index}: "${label}" = "${value}"`);
                                 
                                 if (label.includes('total devices')) summaryData.totalDevices = parseInt(value) || 0;
                                 else if (label.includes('total ports')) summaryData.totalPorts = parseInt(value) || 0;
