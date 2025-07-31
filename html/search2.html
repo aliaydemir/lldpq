@@ -198,9 +198,9 @@
             document.getElementById('last-updated').textContent = formattedDate;
         }
 
-        function performSearch() {
+        async function performSearch() {
             const searchInput = document.getElementById('searchInput');
-            const searchQuery = searchInput.value.trim();
+            let searchQuery = searchInput.value.trim().toLowerCase();
             const resultsContainer = document.getElementById('resultsContainer');
             const results = document.getElementById('results');
             const searchInfo = document.getElementById('searchInfo');
@@ -213,6 +213,11 @@
                 return;
             }
             
+            // Normalize MAC address if needed
+            if (/^([0-9a-f]{2}[:-]?){5}[0-9a-f]{2}$/i.test(searchQuery)) {
+                searchQuery = normalizeMacAddress(searchQuery);
+            }
+            
             // Show search info
             searchQuerySpan.textContent = searchQuery;
             searchInfo.style.display = 'block';
@@ -223,35 +228,92 @@
             
             const startTime = Date.now();
             
-            // Call the original search function
-            fetch('/search', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ query: searchQuery })
-            })
-            .then(response => response.text())
-            .then(data => {
-                const endTime = Date.now();
-                const duration = ((endTime - startTime) / 1000).toFixed(2);
-                
-                searchTime.textContent = `Search completed in ${duration}s`;
-                
-                if (data.trim()) {
-                    displayResults(data);
-                    const lines = data.split('\n').filter(line => line.trim()).length;
-                    resultCount.textContent = `${lines} results found`;
-                } else {
-                    results.innerHTML = '<div class="status-message">No results found for the specified query</div>';
-                    resultCount.textContent = '0 results found';
+            // Get file list from monitor-results directory
+            const fileList = await getFileList();
+            if (fileList.length === 0) {
+                results.innerHTML = '<div class="error-message">No device files found in monitor-results directory</div>';
+                resultCount.textContent = 'No files found';
+                return;
+            }
+            
+            let searchResults = '';
+            let matchCount = 0;
+            let filesSearched = 0;
+            
+            // Search through each device file
+            for (const file of fileList) {
+                try {
+                    const response = await fetch(`monitor-results/${file}`);
+                    const text = await response.text();
+                    const lines = text.split('\n');
+                    const matchingLines = lines.filter(line => {
+                        const lowerLine = line.toLowerCase();
+                        return (
+                            lowerLine.includes(searchQuery) &&
+                            !lowerLine.includes('vxlan') &&
+                            !lowerLine.includes('extern_learn')
+                        );
+                    });
+                    
+                    if (matchingLines.length > 0) {
+                        const fileName = file.replace('.html', '');
+                        searchResults += `<div class="device-result">`;
+                        searchResults += `<h3><span class="green">${fileName}</span></h3>`;
+                        matchingLines.forEach(line => {
+                            searchResults += `<pre class="match-line">${highlightMatch(line, searchQuery)}</pre>`;
+                        });
+                        searchResults += `</div>`;
+                        matchCount += matchingLines.length;
+                    }
+                } catch (error) {
+                    console.error(`Error fetching ${file}:`, error);
                 }
-            })
-            .catch(error => {
-                console.error('Search error:', error);
-                results.innerHTML = '<div class="error-message">Search failed: ' + error.message + '</div>';
-                resultCount.textContent = 'Search failed';
-            });
+                
+                filesSearched++;
+                results.innerHTML = `<div class="loading-message">Searched ${filesSearched} of ${fileList.length} devices...</div>`;
+            }
+            
+            const endTime = Date.now();
+            const duration = ((endTime - startTime) / 1000).toFixed(2);
+            searchTime.textContent = `Search completed in ${duration}s`;
+            
+            if (searchResults) {
+                results.innerHTML = searchResults;
+                resultCount.textContent = `${matchCount} matches found`;
+            } else {
+                results.innerHTML = '<div class="status-message">No results found for the specified query</div>';
+                resultCount.textContent = '0 results found';
+            }
+        }
+        
+        async function getFileList() {
+            try {
+                const response = await fetch('monitor-results/');
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const links = Array.from(doc.querySelectorAll('a'));
+                const files = links
+                    .map(link => link.getAttribute('href'))
+                    .filter(href => href && href.endsWith('.html'));
+                return files;
+            } catch (error) {
+                console.error('Error fetching directory listing:', error);
+                return [];
+            }
+        }
+        
+        function normalizeMacAddress(mac) {
+            return mac.replace(/[^a-f0-9]/ig, '').match(/.{1,2}/g).join(':');
+        }
+        
+        function highlightMatch(text, query) {
+            const regex = new RegExp(`(${escapeRegExp(query)})`, 'gi');
+            return text.replace(regex, '<mark style="background-color: #b57614; color: white; padding: 2px 4px; border-radius: 3px;">$1</mark>');
+        }
+        
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
         
         function displayResults(data) {
