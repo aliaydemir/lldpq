@@ -2,7 +2,6 @@
 set -euo pipefail
 
 #### CONFIGURATION
-DATE=$(date '+%Y-%m-%d %H-%M')
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/devices.sh"
 
@@ -88,8 +87,6 @@ if [[ -s "$UNREACH" ]]; then
 fi
 
 mv "$SCRIPT_DIR/assets.sorted2" "$FINAL"
-
-echo -e "\nCreated on $DATE" >> "$FINAL"
 
 sudo cp "$FINAL" /var/www/html/
 
