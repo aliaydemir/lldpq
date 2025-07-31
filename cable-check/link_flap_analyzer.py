@@ -454,46 +454,31 @@ class LinkFlapAnalyzer:
         });
         
         function setupCardEvents() {
-            console.log('LINK FLAP: Setting up card events...');
-            console.log('LINK FLAP: Available elements:', document.querySelectorAll('.summary-card'));
-            
             // Check if elements exist
             const totalDevicesCard = document.getElementById('total-devices-card');
             const totalPortsCard = document.getElementById('total-ports-card');
-            console.log('LINK FLAP: total-devices-card found?', totalDevicesCard);
-            console.log('LINK FLAP: total-ports-card found?', totalPortsCard);
             
             if (totalDevicesCard) {
-                console.log('LINK FLAP: Adding click listener to total-devices-card');
                 totalDevicesCard.addEventListener('click', function() {
-                    console.log('LINK FLAP: Total devices clicked - calling filterPorts(TOTAL)');
                     filterPorts('TOTAL');
                 });
-            } else {
-                console.error('LINK FLAP: total-devices-card not found!');
-                console.log('LINK FLAP: Available IDs:', Array.from(document.querySelectorAll('[id]')).map(el => el.id));
             }
             
             if (totalPortsCard) {
                 totalPortsCard.addEventListener('click', function() {
-                    console.log('LINK FLAP: Total ports clicked');
                     if (parseInt(document.getElementById('total-ports').textContent) > 0) {
                         filterPorts('TOTAL');
                     }
                 });
-            } else {
-                console.error('LINK FLAP: total-ports-card not found!');
             }
             
             document.getElementById('stable-card').addEventListener('click', function() {
-                console.log('LINK FLAP: Stable clicked');
                 if (parseInt(document.getElementById('stable-ports').textContent) > 0) {
                     filterPorts('STABLE');
                 }
             });
             
             document.getElementById('problematic-card').addEventListener('click', function() {
-                console.log('LINK FLAP: Problematic clicked');
                 if (parseInt(document.getElementById('problematic-ports').textContent) > 0) {
                     filterPorts('PROBLEMATIC');
                 }
