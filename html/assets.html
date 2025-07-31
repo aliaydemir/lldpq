@@ -54,15 +54,22 @@
         .status-no-info { color: #f44336; font-weight: bold; }
         
         /* Device name link hover effect */
-        .device-link {
+        .assets-table .device-link {
             color: inherit;
             text-decoration: underline;
-            transition: color 0.3s ease;
+            transition: all 0.3s ease;
+            position: relative;
         }
         
-        .device-link:hover {
+        .assets-table .device-link:hover {
             color: #b57614 !important;
             text-decoration: underline;
+            text-shadow: 0 0 8px rgba(181, 118, 20, 0.6);
+            transform: scale(1.05);
+        }
+        
+        .assets-table .device-link:active {
+            transform: scale(0.98);
         }
     </style>
 </head>
