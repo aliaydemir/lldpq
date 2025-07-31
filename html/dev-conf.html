@@ -367,8 +367,7 @@
             if (line.trim().startsWith('#')) {
                 return `<span class="comment">${line}</span>`;
             }
-            // 7. Description values - highlight everything after 'description' keyword
-            result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, '$1<span class="comment">$2</span>');            
+            
             // 2. IP addresses (most specific first)
             result = result.replace(/\b(\d+\.\d+\.\d+\.\d+(?:\/\d+)?)\b/g, '<span class="ip-address">$1</span>');
             
@@ -384,7 +383,8 @@
             // 6. Numbers (but avoid IP parts)
             result = result.replace(/(?<!\.)(\b\d+\b)(?!\.\d)/g, '<span class="number">$1</span>');
             
-
+            // 7. Description values - highlight everything after 'description' keyword
+            result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, '$1<span class="comment">$2</span>');
 
             // 8. Wrap everything in default blue color
             return `<span class="default">${result}</span>`;
