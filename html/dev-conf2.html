@@ -350,7 +350,7 @@
                 } else if (line.trim() === '') {
                     span.textContent = ' ';
                 } else {
-                    // Enhanced syntax highlighting for NV-SET commands
+                    // Simple and clean syntax highlighting
                     span.innerHTML = highlightNvSetLine(line);
                 }
                 
@@ -359,50 +359,29 @@
         }
 
         function highlightNvSetLine(line) {
-            // Keywords (commands)
-            const keywords = ['nv', 'set', 'unset', 'delete', 'add', 'remove'];
-            const actions = ['enable', 'disable', 'on', 'off', 'permit', 'deny', 'allow', 'block'];
-            const objects = ['router', 'bgp', 'interface', 'policy', 'prefix-list', 'route-map', 'access-list', 'vrf', 'bridge', 'vlan'];
-            const properties = ['router-id', 'as-number', 'neighbor', 'address-family', 'network', 'redistribute', 'rule', 'action', 'match', 'type'];
-            
             let result = line;
             
-            // Replace IP addresses
+            // Highlight only key elements, keep it simple
+            
+            // 1. Comments first
+            if (line.trim().startsWith('#')) {
+                return `<span class="comment">${line}</span>`;
+            }
+            
+            // 2. IP addresses (most specific first)
             result = result.replace(/\b(\d+\.\d+\.\d+\.\d+(?:\/\d+)?)\b/g, '<span class="ip-address">$1</span>');
             
-            // Replace numbers (rule numbers, port numbers, etc.)
-            result = result.replace(/\b(\d+)\b/g, '<span class="number">$1</span>');
-            
-            // Replace keywords
-            keywords.forEach(keyword => {
-                const regex = new RegExp(`\\b(${keyword})\\b`, 'gi');
-                result = result.replace(regex, '<span class="keyword">$1</span>');
-            });
-            
-            // Replace actions
-            actions.forEach(action => {
-                const regex = new RegExp(`\\b(${action})\\b`, 'gi');
-                result = result.replace(regex, '<span class="string">$1</span>');
-            });
-            
-            // Replace objects
-            objects.forEach(obj => {
-                const regex = new RegExp(`\\b(${obj})\\b`, 'gi');
-                result = result.replace(regex, '<span class="section">$1</span>');
-            });
-            
-            // Replace properties
-            properties.forEach(prop => {
-                const regex = new RegExp(`\\b(${prop})\\b`, 'gi');
-                result = result.replace(regex, '<span class="variable">$1</span>');
-            });
-            
-            // Replace interface names (swp, eth, lo, etc.)
+            // 3. Interface names
             result = result.replace(/\b(swp\d+(?:s\d+)?|eth\d+|lo\d*|br\d+|vlan\d+)\b/g, '<span class="interface">$1</span>');
             
-            // Replace strings in quotes
-            result = result.replace(/"([^"]*)"/g, '<span class="string">"$1"</span>');
-            result = result.replace(/'([^']*)'/g, '<span class="string">\'$1\'</span>');
+            // 4. Main commands (only nv set)
+            result = result.replace(/^(\s*)(nv\s+set)\b/g, '$1<span class="keyword">$2</span>');
+            
+            // 5. Important actions
+            result = result.replace(/\b(enable|disable|permit|deny)\b/g, '<span class="string">$1</span>');
+            
+            // 6. Numbers (but avoid IP parts)
+            result = result.replace(/(?<!\.)(\b\d+\b)(?!\.\d)/g, '<span class="number">$1</span>');
             
             return result;
         }
