@@ -139,12 +139,12 @@
         .keyword { color: #569cd6; font-weight: bold; }
         .string { color: #ce9178; }
         .number { color: #d7ba7d; }
-        .ip-number { color: #b5cea8; }
+        .ip-number { color: #ffffff; }
         .variable { color: #9cdcfe; }
         .operator { color: #d4d4d4; }
         .section { color: #dcdcaa; font-weight: bold; }
         .interface { color: #4ec9b0; }
-        .ip-address { color: #b5cea8; }
+        .ip-address { color: #ffffff; }
         .default { color: #569cd6; }
         
         /* YAML specific */
@@ -369,37 +369,37 @@
                 return `<span class="comment">${line}</span>`;
             }
             
-            // 2. IP addresses with separate number coloring
+            // 2. Interface names (only if NOT in description) - do this BEFORE IP processing
+            if (!line.includes('description')) {
+                result = result.replace(/\b(swp\d+(?:s\d+)?-\d+|swp\d+(?:s\d+)?|vlan\d+-\d+(?:,\d+)?|vlan\d+|eth\d+|lo\d*|br\d+|peerlink\.\d+)\b/g, '<span class="interface">$1</span>');
+            }
+            
+            // 3. IP addresses with separate number coloring
             result = result.replace(/\b(\d+)\.(\d+)\.(\d+)\.(\d+)(?:\/(\d+))?\b/g, function(match, p1, p2, p3, p4, p5) {
                 let ipResult = `<span class="ip-number">${p1}</span>.<span class="ip-number">${p2}</span>.<span class="ip-number">${p3}</span>.<span class="ip-number">${p4}</span>`;
                 if (p5) ipResult += `/<span class="ip-number">${p5}</span>`;
                 return ipResult;
             });
             
-            // 2b. MAC addresses with separate coloring
+            // 4. MAC addresses with separate coloring
             result = result.replace(/\b([0-9a-f]{2}):([0-9a-f]{2}):([0-9a-f]{2}):([0-9a-f]{2}):([0-9a-f]{2}):([0-9a-f]{2})\b/gi, 
                 '<span class="ip-number">$1</span>:<span class="ip-number">$2</span>:<span class="ip-number">$3</span>:<span class="ip-number">$4</span>:<span class="ip-number">$5</span>:<span class="ip-number">$6</span>');
             
-            // 3. Interface names (only if NOT in description)
-            if (!line.includes('description')) {
-                result = result.replace(/\b(swp\d+(?:s\d+)?|swp\d+-\d+|eth\d+|lo\d*|br\d+|vlan\d+|peerlink\.\d+)\b/g, '<span class="interface">$1</span>');
-            }
-            
-            // 4. Main commands (only nv set)
+            // 5. Main commands (only nv set)
             result = result.replace(/^(\s*)(nv\s+set)\b/g, '$1<span class="keyword">$2</span>');
             
-            // 5. Special network terms
+            // 7. Special network terms
             result = result.replace(/\b(autonomous-system|route-map|prefix-list|access-list)\b/g, '<span class="variable">$1</span>');
 
-            // 6. Description values - highlight everything after 'description' keyword (before numbers)
+            // 8. Description values - highlight everything after 'description' keyword (before numbers)
             result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, '$1<span class="comment">$2</span>');
             
-            // 7. Numbers (but avoid IP parts and skip lines with description)
+            // 9. Numbers (but avoid IP parts and skip lines with description)
             if (!line.includes('description')) {
                 result = result.replace(/(?<!\.)(\b\d+\b)(?!\.\d)/g, '<span class="number">$1</span>');
             }
 
-            // 8. Wrap everything in default blue color
+            // 10. Wrap everything in default blue color
             return `<span class="default">${result}</span>`;
         }
 
