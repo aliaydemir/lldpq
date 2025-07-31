@@ -404,10 +404,10 @@
             result = result.replace(/^(\s*)(nv\s+set)\b/g, '$1<span class="keyword">$2</span>');
             
             // 6. Special network terms
-            result = result.replace(/\b(autonomous-system|route-map|prefix-list|access-list)\b/g, '<span class="variable">$1</span>');
+            result = result.replace(/\b(autonomous-system|route-map|prefix-list|ip-prefix-list|access-list)\b/g, '<span class="variable">$1</span>');
 
             // 7. Numbers (but ONLY on non-interface lines and avoid MAC addresses)
-            if (!line.includes('description') && !line.includes('interface') && !line.includes('mac-address')) {
+            if (!line.includes('description') && !line.includes('interface') && !line.includes('mac')) {
                 result = result.replace(/(?<!\.)(\b\d+\b)(?!\.\d)/g, '<span class="number">$1</span>');
             }
 
