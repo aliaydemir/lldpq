@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="shortcut icon" href="/png/favicon.ico">
+    <title>..::LLDPQ::..</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <link rel="stylesheet" type="text/css" href="/css/styles2.css">
+    <style>
+        .summary-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+            margin: 20px 0; 
+        }
+        .summary-card { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 8px; 
+            border-left: 4px solid #007bff; 
+        }
+        .card-excellent { border-left-color: #4caf50; }
+        .card-good { border-left-color: #8bc34a; }
+        .card-warning { border-left-color: #ff9800; }
+        .card-critical { border-left-color: #f44336; }
+        .card-total { border-left-color: #2196f3; }
+        .card-value { font-size: 24px; font-weight: bold; color: #333; }
+        .card-label { font-size: 14px; color: #666; margin-top: 5px; }
+        
+        .assets-excellent { color: #4caf50; font-weight: bold; }
+        .assets-good { color: #8bc34a; font-weight: bold; }
+        .assets-warning { color: #ff9800; font-weight: bold; }
+        .assets-critical { color: #f44336; font-weight: bold; }
+        .assets-unknown { color: gray; }
+        
+        .assets-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .assets-table th, .assets-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .assets-table th { background-color: #f2f2f2; }
+        
+        .steelBlue { color: steelblue; }
+        .tomato { color: tomato; }
+        .red { color: red; }
+        .green { color: green; }
+        .lime { color: lime; }
+        
+        #metinAlani-1 {
+            white-space: pre;
+            font-family: monospace;
+            font-size: 15px;
+        }
+        
+        .device-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .status-success { background-color: #d4edda; color: #155724; }
+        .status-fail { background-color: #f8d7da; color: #721c24; }
+        .status-warning { background-color: #fff3cd; color: #856404; }
+        .status-no-info { background-color: #f8f9fa; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <h1></h1>
+    <h1><font color="#b57614">Asset Analysis Results</font></h1>
+    <p><strong>Last Updated:</strong> <span id="last-updated"></span></p>
+    
+    <h2>Asset Summary</h2>
+    <div class="summary-grid">
+        <div class="summary-card card-total">
+            <div class="card-value" id="total-devices">0</div>
+            <div class="card-label">Total Devices</div>
+        </div>
+        <div class="summary-card card-excellent">
+            <div class="card-value" id="success-count">0</div>
+            <div class="card-label">Successful</div>
+        </div>
+        <div class="summary-card card-warning">
+            <div class="card-value" id="warning-count">0</div>
+            <div class="card-label">Warnings</div>
+        </div>
+        <div class="summary-card card-critical">
+            <div class="card-value" id="fail-count">0</div>
+            <div class="card-label">Failed</div>
+        </div>
+        <div class="summary-card">
+            <div class="card-value" id="no-info-count">0</div>
+            <div class="card-label">No Information</div>
+        </div>
+    </div>
+    
+    <h2>Device Asset Status</h2>
+    <table class="assets-table" id="assets-table">
+        <tr>
+            <th>Device</th>
+            <th>Status</th>
+            <th>Details</th>
+            <th>Health</th>
+        </tr>
+    </table>
+    
+    <div id="metinAlani-1" style="display: none;"></div>
+
+<script>
+    function fetchAndDisplayAssetResults() {
+        const now = new Date();
+        document.getElementById('last-updated').textContent = now.toLocaleString();
+        
+        fetch('assets.ini')
+            .then(response => response.text())
+            .then(data => {
+                displayAssetResults(data);
+                generateAssetTable(data);
+            })
+            .catch(error => {
+                console.error('Error fetching Asset results:', error);
+                // Show fallback content if assets.ini doesn't exist
+                showFallbackContent();
+            });
+    }
+
+    function displayAssetResults(results) {
+        const element = document.getElementById('metinAlani-1');
+        element.innerHTML = '';
+        const lines = results.split('\n');
+        lines.forEach(line => {
+            let colorClass = 'green';
+            if (line.startsWith('DEVICE')) {
+                colorClass = 'steelBlue';
+            } else if (line.toLowerCase().includes('fail')) {
+                colorClass = 'tomato';
+            } else if (line.toLowerCase().includes('reated')) {
+                colorClass = 'tomato';
+            } else if (line.toLowerCase().includes('no-info')) {
+                colorClass = 'red';
+            }
+
+            const span = document.createElement('span');
+            span.className = colorClass;
+            span.textContent = line;
+
+            element.appendChild(span);
+            element.appendChild(document.createElement('br'));
+        });
+    }
+
+    function generateAssetTable(results) {
+        const lines = results.split('\n').filter(line => line.trim() !== '');
+        const table = document.getElementById('assets-table');
+        
+        // Clear existing rows except header
+        while(table.rows.length > 1) {
+            table.deleteRow(1);
+        }
+        
+        let totalDevices = 0;
+        let successCount = 0;
+        let failCount = 0;
+        let warningCount = 0;
+        let noInfoCount = 0;
+        
+        // Parse each line and create table rows
+        lines.forEach(line => {
+            if (line.startsWith('DEVICE') || line.trim() === '') return;
+            
+            const parts = line.split(/\s+/);
+            if (parts.length === 0) return;
+            
+            const deviceName = parts[0];
+            const restOfLine = line.substring(deviceName.length).trim();
+            
+            let status, healthClass, statusClass, details;
+            
+            if (line.toLowerCase().includes('fail')) {
+                status = 'FAILED';
+                healthClass = 'assets-critical';
+                statusClass = 'status-fail';
+                failCount++;
+            } else if (line.toLowerCase().includes('reated')) {
+                status = 'REATED'; // Keeping original naming
+                healthClass = 'assets-warning';
+                statusClass = 'status-warning';
+                warningCount++;
+            } else if (line.toLowerCase().includes('no-info')) {
+                status = 'NO INFO';
+                healthClass = 'assets-unknown';
+                statusClass = 'status-no-info';
+                noInfoCount++;
+            } else {
+                status = 'SUCCESS';
+                healthClass = 'assets-excellent';
+                statusClass = 'status-success';
+                successCount++;
+            }
+            
+            details = restOfLine || 'N/A';
+            totalDevices++;
+            
+            const row = table.insertRow();
+            row.innerHTML = `
+                <td>${deviceName}</td>
+                <td><span class="${statusClass}">${status}</span></td>
+                <td>${details}</td>
+                <td><span class="${healthClass}">${status}</span></td>
+            `;
+        });
+        
+        // Update summary cards
+        document.getElementById('total-devices').textContent = totalDevices;
+        document.getElementById('success-count').textContent = successCount;
+        document.getElementById('fail-count').textContent = failCount;
+        document.getElementById('warning-count').textContent = warningCount;
+        document.getElementById('no-info-count').textContent = noInfoCount;
+        
+        // Sort table by health (problems first)
+        sortTableByHealth();
+    }
+    
+    function sortTableByHealth() {
+        const table = document.getElementById('assets-table');
+        const tbody = table.tBodies[0] || table;
+        const rows = Array.from(tbody.rows).slice(1); // Skip header
+        
+        rows.sort((a, b) => {
+            const aHealth = a.cells[3].textContent.trim();
+            const bHealth = b.cells[3].textContent.trim();
+            
+            const priority = {
+                'FAILED': 0,
+                'REATED': 1,
+                'NO INFO': 2,
+                'SUCCESS': 3
+            };
+            
+            return (priority[aHealth] || 4) - (priority[bHealth] || 4);
+        });
+        
+        // Remove existing rows (except header)
+        while(tbody.rows.length > 1) {
+            tbody.deleteRow(1);
+        }
+        
+        // Add sorted rows back
+        rows.forEach(row => tbody.appendChild(row));
+    }
+
+    function showFallbackContent() {
+        // Show sample data if assets.ini doesn't exist
+        const sampleData = `DEVICE ASSETS COLLECTION RESULTS
+Switch1    SUCCESS    All assets collected
+Switch2    FAILED     Connection timeout
+Switch3    SUCCESS    All assets collected
+Switch4    NO-INFO    Device not responding
+Switch5    REATED     Partial data collection
+Switch6    SUCCESS    All assets collected`;
+        
+        displayAssetResults(sampleData);
+        generateAssetTable(sampleData);
+    }
+
+    window.onload = fetchAndDisplayAssetResults;
+</script>
+</body>
+</html>
