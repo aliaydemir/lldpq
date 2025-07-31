@@ -458,8 +458,19 @@ class LinkFlapAnalyzer:
             console.log('LINK FLAP: Available elements:', document.querySelectorAll('.summary-card'));
             
             // Check if elements exist
+            const totalDevicesCard = document.getElementById('total-devices-card');
             const totalPortsCard = document.getElementById('total-ports-card');
+            console.log('LINK FLAP: total-devices-card found?', totalDevicesCard);
             console.log('LINK FLAP: total-ports-card found?', totalPortsCard);
+            
+            if (totalDevicesCard) {{
+                totalDevicesCard.addEventListener('click', function() {{
+                    console.log('LINK FLAP: Total devices clicked');
+                    filterPorts('TOTAL');
+                }});
+            }} else {{
+                console.error('LINK FLAP: total-devices-card not found!');
+            }}
             
             if (totalPortsCard) {{
                 totalPortsCard.addEventListener('click', function() {{
