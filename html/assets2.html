@@ -48,16 +48,10 @@
             font-size: 15px;
         }
         
-        .device-status {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-weight: bold;
-            text-align: center;
-        }
-        .status-success { background-color: #d4edda; color: #155724; }
-        .status-fail { background-color: #f8d7da; color: #721c24; }
-        .status-warning { background-color: #fff3cd; color: #856404; }
-        .status-no-info { background-color: #f8f9fa; color: #6c757d; }
+        .status-success { color: #4caf50; font-weight: bold; }
+        .status-fail { color: #f44336; font-weight: bold; }
+        .status-warning { color: #ff9800; font-weight: bold; }
+        .status-no-info { color: #f44336; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -182,23 +176,32 @@
             
             let status, healthClass, statusClass;
             
-            // Determine status based on data availability and uptime
-            if (!ipAddress || ipAddress === 'N/A' || !macAddress || macAddress === 'N/A') {
-                status = 'NO INFO';
-                healthClass = 'assets-unknown';
-                statusClass = 'status-no-info';
-                noInfoCount++;
-            } else if (uptime && uptime.includes('up-')) {
-                // Device is up and running
-                status = 'SUCCESS';
-                healthClass = 'assets-excellent';
-                statusClass = 'status-success';
-                successCount++;
-            } else if (uptime && (uptime.includes('down') || uptime.includes('fail'))) {
+            // Determine status based on asset collection results
+            const lineText = line.toLowerCase();
+            
+            if (lineText.includes('fail') || lineText.includes('error') || lineText.includes('timeout')) {
                 status = 'FAILED';
                 healthClass = 'assets-critical';
                 statusClass = 'status-fail';
                 failCount++;
+            } else if (lineText.includes('no-info') || lineText.includes('no info') || 
+                       (!ipAddress || ipAddress === 'N/A' || !macAddress || macAddress === 'N/A')) {
+                status = 'NO INFO';
+                healthClass = 'assets-unknown';
+                statusClass = 'status-no-info';
+                noInfoCount++;
+            } else if (lineText.includes('reated') || lineText.includes('partial') || lineText.includes('warning')) {
+                status = 'WARNING';
+                healthClass = 'assets-warning';
+                statusClass = 'status-warning';
+                warningCount++;
+            } else if (uptime && uptime.includes('up-') && ipAddress && macAddress && 
+                       ipAddress !== 'N/A' && macAddress !== 'N/A') {
+                // Device is up and all asset info collected successfully
+                status = 'SUCCESS';
+                healthClass = 'assets-excellent';
+                statusClass = 'status-success';
+                successCount++;
             } else {
                 status = 'WARNING';
                 healthClass = 'assets-warning';
@@ -265,7 +268,9 @@
         const sampleData = `DEVICE-NAME  IP             ETH0-MAC           SERIAL             MODEL  RELEASE  UPTIME
 Switch1      10.10.100.20   48:b0:2d:c3:a9:24  48:b0:2d:c3:a9:24  VX     5.11.2   up-1-week-4-days-18-hours-33-minutes
 Switch2      10.10.100.21   48:b0:2d:b9:26:13  48:b0:2d:b9:26:13  VX     5.11.2   up-1-week-4-days-18-hours-33-minutes
-TestDevice   N/A            N/A                N/A                N/A    N/A      down
+TestDevice   timeout        N/A                N/A                N/A    N/A      connection-failed
+ReatedDev    10.10.100.30   48:b0:2d:aa:bb:cc  48:b0:2d:aa:bb:cc  VX     5.11.2   up-partial-reated
+NoInfoDev    no-info        N/A                N/A                N/A    N/A      N/A
 Switch3      10.10.100.22   48:b0:2d:d7:90:23  48:b0:2d:d7:90:23  VX     5.11.2   up-1-week-4-days-18-hours-33-minutes`;
         
         displayAssetResults(sampleData);
