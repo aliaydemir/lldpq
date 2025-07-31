@@ -369,11 +369,9 @@
                 return `<span class="comment">${line}</span>`;
             }
             
-            // 2. Interface names (only if NOT in description) - do this BEFORE IP processing
-            if (!line.includes('description')) {
-                // All interface types in one comprehensive regex
-                result = result.replace(/\b(bond_[a-zA-Z_]+|bond\d+|swp\d+(?:s\d+)?(?:-\d+)?|vlan\d+(?:-\d+)?(?:,\d+)*|eth\d+|lo\d*|br\d+|peerlink\.?\d*)\b/g, '<span class="interface">$1</span>');
-            }
+            // 2. Interface names - do this BEFORE IP processing
+            // Always highlight interfaces, but description content stays green
+            result = result.replace(/\b(bond_[a-zA-Z_]+|bond\d+|swp\d+(?:s\d+)?(?:-\d+)?|vlan\d+(?:-\d+)?(?:,\d+)*|eth\d+|lo\d*|br\d+|peerlink\.?\d*)\b/g, '<span class="interface">$1</span>');
             
             // 3. IP addresses with separate number coloring
             result = result.replace(/\b(\d+)\.(\d+)\.(\d+)\.(\d+)(?:\/(\d+))?\b/g, function(match, p1, p2, p3, p4, p5) {
