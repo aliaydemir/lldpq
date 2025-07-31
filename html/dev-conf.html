@@ -369,11 +369,11 @@
                 return `<span class="comment">${line}</span>`;
             }
             
-            // 2. Description values - highlight everything after 'description' keyword FIRST
-            result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, '$1<span class="comment">$2</span>');
-            
-            // 3. Interface names - apply to entire line, descriptions will override
+            // 2. Interface names - highlight all interfaces first
             result = result.replace(/\b(bond_[a-zA-Z_]+|bond\d+|swp\d+(?:s\d+)?(?:-\d+)?|vlan\d+(?:-\d+)?(?:,\d+)*|eth\d+|lo\d*|br\d+|peerlink\.?\d*)\b/g, '<span class="interface">$1</span>');
+            
+            // 3. Description values - highlight everything after 'description' keyword (will override interface highlighting in description part)
+            result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, '$1<span class="comment">$2</span>');
             
             // 4. IP addresses with separate number coloring
             result = result.replace(/\b(\d+)\.(\d+)\.(\d+)\.(\d+)(?:\/(\d+))?\b/g, function(match, p1, p2, p3, p4, p5) {
@@ -389,18 +389,15 @@
             // 5. Main commands (only nv set)
             result = result.replace(/^(\s*)(nv\s+set)\b/g, '$1<span class="keyword">$2</span>');
             
-            // 7. Special network terms
+            // 6. Special network terms
             result = result.replace(/\b(autonomous-system|route-map|prefix-list|access-list)\b/g, '<span class="variable">$1</span>');
 
-            // 8. Numbers (but ONLY on non-interface lines)
+            // 7. Numbers (but ONLY on non-interface lines)
             if (!line.includes('description') && !line.includes('interface')) {
                 result = result.replace(/(?<!\.)(\b\d+\b)(?!\.\d)/g, '<span class="number">$1</span>');
             }
 
-            // 9. Description values - highlight everything after 'description' keyword FIRST
-            result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, '$1<span class="comment">$2</span>');
-
-            // 10. Wrap everything in default blue color
+            // 8. Wrap everything in default blue color
             return `<span class="default">${result}</span>`;
         }
 
