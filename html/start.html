@@ -432,10 +432,10 @@
                 // For LLDP page
                 else if (pageUrl.includes('lldp.html')) {
                     summaryData.totalConnections = parseInt(doc.getElementById('total-connections')?.textContent) || 0;
-                    summaryData.successful = parseInt(doc.getElementById('success-count')?.textContent) || 0;
-                    summaryData.failed = parseInt(doc.getElementById('fail-count')?.textContent) || 0;
-                    summaryData.warning = parseInt(doc.getElementById('warning-count')?.textContent) || 0;
-                    summaryData.noInfo = parseInt(doc.getElementById('no-info-count')?.textContent) || 0;
+                    summaryData.successful = parseInt(doc.getElementById('success-connections')?.textContent) || 0;
+                    summaryData.failed = parseInt(doc.getElementById('failed-connections')?.textContent) || 0;
+                    summaryData.warning = parseInt(doc.getElementById('warning-connections')?.textContent) || 0;
+                    summaryData.noInfo = parseInt(doc.getElementById('no-info-connections')?.textContent) || 0;
                 }
                 // For other analysis pages, use generic .summary-card parsing
                 else {
