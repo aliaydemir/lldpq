@@ -392,12 +392,13 @@
             // 7. Special network terms
             result = result.replace(/\b(autonomous-system|route-map|prefix-list|access-list)\b/g, '<span class="variable">$1</span>');
 
-
-            
-            // 9. Numbers (but ONLY on non-interface lines)
+            // 8. Numbers (but ONLY on non-interface lines)
             if (!line.includes('description') && !line.includes('interface')) {
                 result = result.replace(/(?<!\.)(\b\d+\b)(?!\.\d)/g, '<span class="number">$1</span>');
             }
+
+            // 9. Description values - highlight everything after 'description' keyword FIRST
+            result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, '$1<span class="comment">$2</span>');
 
             // 10. Wrap everything in default blue color
             return `<span class="default">${result}</span>`;
