@@ -66,12 +66,12 @@ echo "[05] Adding cron jobs..."
 sudo sed -i '/lldpq\|monitor\|get-conf/d' /etc/crontab
 
 # Add new cron jobs
-echo "0 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab
-echo "*/15 * * * * $(whoami) /usr/local/bin/monitor" | sudo tee -a /etc/crontab  
+echo "*/30 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab
+echo "15,45 * * * * $(whoami) /usr/local/bin/monitor" | sudo tee -a /etc/crontab  
 echo "0 */12 * * * $(whoami) /usr/local/bin/get-conf" | sudo tee -a /etc/crontab
 echo "Cron jobs added:"
-echo "   - lldpq:    every hour"
-echo "   - monitor:  every 15 minutes"  
+echo "   - lldpq:    every 30 minutes (0,30)"
+echo "   - monitor:  every 30 minutes (15,45)"  
 echo "   - get-conf: every 12 hours"
 
 echo ""

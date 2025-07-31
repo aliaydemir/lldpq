@@ -69,10 +69,10 @@ sudo systemctl restart nginx
 
 ## [05]  add cron job
 ```
-echo "0 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab
+echo "*/30 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab
 ```
 ```
-echo "*/15 * * * * $(whoami) /usr/local/bin/monitor" | sudo tee -a /etc/crontab
+echo "15,45 * * * * $(whoami) /usr/local/bin/monitor" | sudo tee -a /etc/crontab
 ```
 ```
 echo "0 */12 * * * $(whoami) /usr/local/bin/get-conf" | sudo tee -a /etc/crontab

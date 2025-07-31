@@ -62,7 +62,8 @@ class BGPAnalyzer:
         "high_queue_threshold": 10,        # Warning if queue > 10
         "low_prefix_threshold": 1,         # Warning if prefixes < 1
         "uptime_stability_days": 1,        # Expect > 1 day uptime for good health
-        "message_ratio_threshold": 0.8     # Warning if sent/received ratio < 0.8
+        "message_ratio_threshold": 0.8,    # Warning if sent/received ratio < 0.8
+        "history_retention_hours": 24       # Keep 24 hours of historical data
     }
     
     def __init__(self, data_dir="monitor-results"):
@@ -84,8 +85,11 @@ class BGPAnalyzer:
                 data = json.load(f)
                 self.bgp_history = data.get("bgp_history", {})
                 self.current_bgp_stats = data.get("current_bgp_stats", {})
+                
+                # Clean old data (older than retention period)
+                self.cleanup_old_history()
         except (FileNotFoundError, json.JSONDecodeError):
-            pass
+            print("No previous BGP history found, starting fresh")
     
     def save_bgp_history(self):
         """Save BGP history to file"""
@@ -99,6 +103,22 @@ class BGPAnalyzer:
                 json.dump(data, f, indent=2)
         except Exception as e:
             print(f"Error saving BGP history: {e}")
+    
+    def cleanup_old_history(self):
+        """Remove history entries older than retention period"""
+        current_time = time.time()
+        retention_seconds = self.thresholds["history_retention_hours"] * 3600
+        
+        for hostname in list(self.bgp_history.keys()):
+            if hostname in self.bgp_history:
+                self.bgp_history[hostname] = [
+                    entry for entry in self.bgp_history[hostname]
+                    if current_time - entry.get('timestamp', 0) <= retention_seconds
+                ]
+                
+                # Remove hostname if no history left
+                if not self.bgp_history[hostname]:
+                    del self.bgp_history[hostname]
     
     def parse_bgp_output(self, bgp_data: str) -> List[BGPNeighbor]:
         """Parse BGP neighbor output from vtysh command"""
