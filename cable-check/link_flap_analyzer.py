@@ -471,6 +471,10 @@ class LinkFlapAnalyzer:
                     filterPorts('PROBLEMATIC');
                 }}
             }});
+            
+            document.getElementById('stability-card').addEventListener('click', function() {{
+                filterPorts('TOTAL'); // Stability ratio shows all ports
+            }});
         }}
         
         function filterPorts(filterType) {{

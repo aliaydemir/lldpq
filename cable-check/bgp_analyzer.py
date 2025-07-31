@@ -634,6 +634,12 @@ class BGPAnalyzer:
         });
         
         function setupCardEvents() {
+            document.getElementById('total-devices-card').addEventListener('click', function() {
+                if (parseInt(document.getElementById('total-devices').textContent) > 0) {
+                    filterNeighbors('TOTAL');
+                }
+            });
+            
             document.getElementById('total-neighbors-card').addEventListener('click', function() {
                 if (parseInt(document.getElementById('total-neighbors').textContent) > 0) {
                     filterNeighbors('TOTAL');

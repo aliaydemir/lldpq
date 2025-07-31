@@ -572,31 +572,38 @@ class BERAnalyzer:
         }});
         
         function setupCardEvents() {{
+            console.log('BER: Setting up card events...');
+            
             document.getElementById('total-ports-card').addEventListener('click', function() {{
+                console.log('BER: Total ports clicked');
                 if (parseInt(document.getElementById('total-ports').textContent) > 0) {{
                     filterPorts('TOTAL');
                 }}
             }});
             
             document.getElementById('excellent-card').addEventListener('click', function() {{
+                console.log('BER: Excellent clicked');
                 if (parseInt(document.getElementById('excellent-ports').textContent) > 0) {{
                     filterPorts('EXCELLENT');
                 }}
             }});
             
             document.getElementById('good-card').addEventListener('click', function() {{
+                console.log('BER: Good clicked');
                 if (parseInt(document.getElementById('good-ports').textContent) > 0) {{
                     filterPorts('GOOD');
                 }}
             }});
             
             document.getElementById('warning-card').addEventListener('click', function() {{
+                console.log('BER: Warning clicked');
                 if (parseInt(document.getElementById('warning-ports').textContent) > 0) {{
                     filterPorts('WARNING');
                 }}
             }});
             
             document.getElementById('critical-card').addEventListener('click', function() {{
+                console.log('BER: Critical clicked');
                 if (parseInt(document.getElementById('critical-ports').textContent) > 0) {{
                     filterPorts('CRITICAL');
                 }}
@@ -604,6 +611,7 @@ class BERAnalyzer:
         }}
         
         function filterPorts(filterType) {{
+            console.log('BER: filterPorts called with:', filterType);
             currentFilter = filterType;
             
             // Clear active state from all cards
@@ -616,6 +624,7 @@ class BERAnalyzer:
             
             if (filterType === 'EXCELLENT') {{
                 filteredRows = allRows.filter(row => row.dataset.status === 'excellent');
+                console.log('BER: Found', filteredRows.length, 'excellent ports');
                 filterText = `Showing ${{filteredRows.length}} Excellent Ports`;
                 document.getElementById('excellent-card').classList.add('active');
             }} else if (filterType === 'GOOD') {{
