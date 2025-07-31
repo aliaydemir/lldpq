@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search on the Fabric</title>
+    <link rel="shortcut icon" href="/png/favicon.ico">
+    <link rel="stylesheet" type="text/css" href="/css/styles2.css">
+    <style>
+        .search-container {
+            margin: 30px 0;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .search-input {
+            padding: 12px 18px;
+            border: 1px solid #43453B;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #2a2a2a 0%, #333333 100%);
+            color: #e0e0e0;
+            font-size: 14px;
+            min-width: 300px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #b57614;
+            box-shadow: 0 0 0 2px rgba(181, 118, 20, 0.2);
+        }
+        
+        .search-input::placeholder {
+            color: #888;
+        }
+        
+        .search-button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #b57614 0%, #d4940a 100%);
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .search-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        .search-button:active {
+            transform: translateY(0);
+        }
+        
+        .results-container {
+            background: #1a1a1a;
+            border: 1px solid #43453B;
+            border-radius: 12px;
+            margin: 30px 0;
+            min-height: 200px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            display: none;
+        }
+        
+        .results-container.show {
+            display: block;
+        }
+        
+        .results-header {
+            background: #43453B;
+            padding: 15px 20px;
+            border-bottom: 1px solid #43453B;
+            border-radius: 12px 12px 0 0;
+            font-weight: bold;
+            color: #b57614;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .results-content {
+            padding: 20px;
+            white-space: pre-wrap;
+            font-family: 'Fira Code', 'Courier New', Courier, monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            min-height: 150px;
+        }
+        
+        .status-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+            font-style: italic;
+            font-size: 16px;
+        }
+        
+        .loading-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #b57614;
+            font-weight: bold;
+        }
+        
+        .error-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #f44336;
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid rgba(244, 67, 54, 0.3);
+            border-radius: 8px;
+            margin: 20px;
+        }
+        
+        /* Enhanced color classes for results */
+        .steelBlue { color: #4682b4; font-weight: bold; }
+        .tomato { color: #ff6347; font-weight: bold; }
+        .red { color: #ff4444; font-weight: bold; }
+        .green { color: #4caf50; font-weight: bold; }
+        .lime { color: #32cd32; font-weight: bold; }
+        
+        .search-info {
+            margin: 20px 0;
+            padding: 15px;
+            background: rgba(181, 118, 20, 0.1);
+            border: 1px solid rgba(181, 118, 20, 0.3);
+            border-radius: 8px;
+            color: #b57614;
+            text-align: center;
+            font-size: 14px;
+        }
+        
+        .search-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .search-query {
+            font-weight: bold;
+            color: #b57614;
+        }
+    </style>
+</head>
+<body>
+    <h1></h1>
+    <h1><font color="#b57614">Search on the Fabric</font></h1>
+    <p><strong>Last Updated:</strong> <span id="last-updated"></span></p>
+    
+    <h2>Network Device Search</h2>
+    
+    <div class="search-container">
+        <input type="text" id="searchInput" class="search-input" placeholder="Enter IP address or MAC address" />
+        <button onclick="performSearch()" class="search-button">Search</button>
+    </div>
+    
+    <div id="searchInfo" class="search-info" style="display: none;">
+        Searching for: <span class="search-query" id="searchQuery"></span>
+    </div>
+    
+    <div id="resultsContainer" class="results-container">
+        <div class="results-header">
+            <span>Search Results</span>
+            <div class="search-stats">
+                <span id="searchTime"></span>
+                <span id="resultCount"></span>
+            </div>
+        </div>
+        <div id="results" class="results-content"></div>
+    </div>
+
+    <script>
+        function setLastUpdated() {
+            const now = new Date();
+            const options = { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            };
+            const formattedDate = now.toLocaleString('en-US', options);
+            document.getElementById('last-updated').textContent = formattedDate;
+        }
+
+        function performSearch() {
+            const searchInput = document.getElementById('searchInput');
+            const searchQuery = searchInput.value.trim();
+            const resultsContainer = document.getElementById('resultsContainer');
+            const results = document.getElementById('results');
+            const searchInfo = document.getElementById('searchInfo');
+            const searchQuerySpan = document.getElementById('searchQuery');
+            const searchTime = document.getElementById('searchTime');
+            const resultCount = document.getElementById('resultCount');
+            
+            if (!searchQuery) {
+                showError('Please enter an IP address or MAC address to search');
+                return;
+            }
+            
+            // Show search info
+            searchQuerySpan.textContent = searchQuery;
+            searchInfo.style.display = 'block';
+            
+            // Show loading
+            results.innerHTML = '<div class="loading-message">Searching network devices...</div>';
+            resultsContainer.classList.add('show');
+            
+            const startTime = Date.now();
+            
+            // Call the original search function
+            fetch('/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ query: searchQuery })
+            })
+            .then(response => response.text())
+            .then(data => {
+                const endTime = Date.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+                
+                searchTime.textContent = `Search completed in ${duration}s`;
+                
+                if (data.trim()) {
+                    displayResults(data);
+                    const lines = data.split('\n').filter(line => line.trim()).length;
+                    resultCount.textContent = `${lines} results found`;
+                } else {
+                    results.innerHTML = '<div class="status-message">No results found for the specified query</div>';
+                    resultCount.textContent = '0 results found';
+                }
+            })
+            .catch(error => {
+                console.error('Search error:', error);
+                results.innerHTML = '<div class="error-message">Search failed: ' + error.message + '</div>';
+                resultCount.textContent = 'Search failed';
+            });
+        }
+        
+        function displayResults(data) {
+            const results = document.getElementById('results');
+            results.innerHTML = '';
+            
+            const lines = data.split('\n');
+            lines.forEach(line => {
+                if (line.trim()) {
+                    let colorClass = 'lime';
+                    if (line.toLowerCase().includes('error') || line.toLowerCase().includes('fail')) {
+                        colorClass = 'tomato';
+                    } else if (line.toLowerCase().includes('found') || line.toLowerCase().includes('match')) {
+                        colorClass = 'steelBlue';
+                    } else if (line.toLowerCase().includes('ip') || line.toLowerCase().includes('mac')) {
+                        colorClass = 'green';
+                    }
+                    
+                    const span = document.createElement('span');
+                    span.className = colorClass;
+                    span.textContent = line;
+                    results.appendChild(span);
+                    results.appendChild(document.createElement('br'));
+                }
+            });
+        }
+        
+        function showError(message) {
+            const results = document.getElementById('results');
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            results.innerHTML = `<div class="error-message">${message}</div>`;
+            resultsContainer.classList.add('show');
+            
+            setTimeout(() => {
+                resultsContainer.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Enter key support
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+        
+        window.onload = function() {
+            setLastUpdated();
+        };
+    </script>
+</body>
+</html>
