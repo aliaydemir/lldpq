@@ -15,11 +15,43 @@ hosts_down=0
 unreachable_hosts=()
 reachable_hosts=()
 
+show_usage() {
+    echo -e "\e[95m┌─────────────────────────────────────────────┐\e[0m"
+    echo -e "\e[95m│\e[0m            \e[93mPPING v10.0\e[0m                  \e[95m│\e[0m"
+    echo -e "\e[95m│\e[0m      \e[92mParallel Ping Utility\e[0m             \e[95m│\e[0m"
+    echo -e "\e[95m└─────────────────────────────────────────────┘\e[0m"
+    echo ""
+    echo -e "\e[96mUSAGE:\e[0m"
+    echo -e "  \e[32mpping\e[0m [\e[33mOPTIONS\e[0m]"
+    echo ""
+    echo -e "\e[96mOPTIONS:\e[0m"
+    echo -e "  \e[33m-f <file>\e[0m     Use custom IP list file (default: /etc/ip_list)"
+    echo -e "  \e[33m-v <vrf>\e[0m      Use VRF for ping commands"
+    echo -e "  \e[33m-h, --help\e[0m    Show this help message"
+    echo ""
+    echo -e "\e[96mFILE FORMAT:\e[0m"
+    echo -e "  hostname ip_address"
+    echo -e "  or"
+    echo -e "  ip_address          (hostname will be same as IP)"
+    echo ""
+    echo -e "\e[96mEXAMPLES:\e[0m"
+    echo -e "  \e[32mpping\e[0m                    # Use default /etc/ip_list"
+    echo -e "  \e[32mpping -f custom.txt\e[0m     # Use custom file"
+    echo -e "  \e[32mpping -v mgmt\e[0m          # Use mgmt VRF"
+    echo ""
+    echo -e "\e[96mFEATURES:\e[0m"
+    echo -e "  • \e[92mParallel execution\e[0m for faster results"
+    echo -e "  • \e[92m300ms timeout\e[0m per ping (3 retries)"
+    echo -e "  • \e[92mColor-coded output\e[0m for easy reading"
+    echo -e "  • \e[92mInteractive mode\e[0m with repeat option"
+    echo ""
+}
+
 load_ip_list() {
     local file_path=$1
     if [[ ! -f $file_path ]]; then
         echo -e "\e[91mError: \e[32m${file_path}\e[91m does not exist.\e[0m"
-        echo -e "\e[91mUse: \e[32mpping -h\e[0m"
+        echo -e "\e[91mUse: \e[32mpping -h\e[0m for help"
         exit 1
     fi
     mapfile -t ip_list < <(awk '{if(NF==2) print $0; else print $1, $1}' "$file_path")
@@ -160,11 +192,22 @@ main_loop() {
 }
 
 main() {
-    while getopts ":v:f:" opt; do
+    # Handle --help first
+    for arg in "$@"; do
+        if [[ "$arg" == "--help" ]]; then
+            show_usage
+            exit 0
+        fi
+    done
+    
+    while getopts ":v:f:h" opt; do
         case $opt in
             v) vrf_name=$OPTARG ;;
             f) file_path=$OPTARG ;;
-            \?) echo "Invalid option -$OPTARG" >&2; exit 1 ;;
+            h) show_usage; exit 0 ;;
+            \?) echo -e "\e[91mInvalid option: -$OPTARG\e[0m" >&2
+                echo -e "\e[91mUse: \e[32mpping -h\e[0m for help" >&2
+                exit 1 ;;
         esac
     done
     file_path=${file_path:-/etc/ip_list}
