@@ -5,105 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LLDP Network Topology Analysis</title>
     <link rel="shortcut icon" href="/png/favicon.ico">
+    <link rel="stylesheet" type="text/css" href="/css/styles2.css">
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f7fa;
-            color: #333;
+        .summary-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+            margin: 20px 0; 
         }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
+        .summary-card { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 8px; 
+            border-left: 4px solid #007bff; 
         }
-        .header h1 {
-            font-size: 2.5rem;
-            margin: 0;
-            color: #b57614;
-            font-weight: 700;
-        }
-        .header p {
-            color: #666;
-            margin: 10px 0 0 0;
-            font-size: 1.1rem;
-        }
-        .summary-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        .summary-card {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid; /* Base for colored border */
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .card-success { border-left-color: #4caf50; }
-        .card-fail { border-left-color: #f44336; }
+        .card-excellent { border-left-color: #4caf50; }
+        .card-good { border-left-color: #8bc34a; }
         .card-warning { border-left-color: #ff9800; }
-        .card-no-info { border-left-color: #f44336; }
-        .card-total { border-left-color: #007bff; }
-        .summary-card h3 {
-            margin: 0 0 5px 0;
-            font-size: 2rem;
-            font-weight: bold;
-            color: #333;
-        }
-        .summary-card p {
-            margin: 0;
-            color: #666;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .table-container {
-            background: white;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        th {
-            background: #f8f9fa;
-            color: #333;
-            font-weight: 600;
-            padding: 15px 12px;
-            text-align: left;
-            border-bottom: 2px solid #dee2e6;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        td {
-            padding: 12px;
-            border-bottom: 1px solid #f1f3f4;
-        }
-        tr:hover {
-            background-color: #f8f9fa;
-        }
+        .card-critical { border-left-color: #f44336; }
+        .card-total { border-left-color: #2196f3; }
+        .card-value { font-size: 24px; font-weight: bold; color: #333; }
+        .card-label { font-size: 14px; color: #666; margin-top: 5px; }
+        
         .status-success { color: #4caf50; font-weight: bold; }
         .status-fail { color: #f44336; font-weight: bold; }
         .status-warning { color: #ff9800; font-weight: bold; }
         .status-no-info { color: #f44336; font-weight: bold; }
-        .lldp-excellent { background-color: #f0f8f0; }
-        .lldp-critical { background-color: #fdf2f2; }
-        .lldp-warning { background-color: #fefbf0; }
-        .lldp-unknown { background-color: #f8f9fa; }
-        .device-link {
-            color: inherit;
-            text-decoration: underline;
-            font-weight: 500;
-        }
-        .device-link:hover {
-            color: #007bff;
-        }
+        
+        .lldp-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        .lldp-table th, .lldp-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        .lldp-table th { background-color: #f2f2f2; }
+        
         .loading {
             text-align: center;
             padding: 40px;
@@ -123,115 +55,106 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>LLDP Network Topology Analysis</h1>
-        <p>Real-time Link Layer Discovery Protocol monitoring and validation</p>
-    </div>
-
-    <div class="summary-cards">
+    <h1></h1>
+    <h1><font color="#b57614">LLDP Network Topology Analysis</font></h1>
+    <p><strong>Last Updated:</strong> <span id="last-updated"></span></p>
+    
+    <h2>LLDP Connection Summary</h2>
+    <div class="summary-grid">
         <div class="summary-card card-total">
-            <h3 id="total-connections">0</h3>
-            <p>Total Connections</p>
+            <div class="card-value" id="total-connections">0</div>
+            <div class="card-label">Total Connections</div>
         </div>
-        <div class="summary-card card-success">
-            <h3 id="success-connections">0</h3>
-            <p>Successful Links</p>
+        <div class="summary-card card-excellent">
+            <div class="card-value" id="success-connections">0</div>
+            <div class="card-label">Successful Links</div>
         </div>
-        <div class="summary-card card-fail">
-            <h3 id="failed-connections">0</h3>
-            <p>Failed Links</p>
+        <div class="summary-card card-critical">
+            <div class="card-value" id="failed-connections">0</div>
+            <div class="card-label">Failed Links</div>
         </div>
         <div class="summary-card card-warning">
-            <h3 id="warning-connections">0</h3>
-            <p>Warning Links</p>
+            <div class="card-value" id="warning-connections">0</div>
+            <div class="card-label">Warning Links</div>
         </div>
-        <div class="summary-card card-no-info">
-            <h3 id="no-info-connections">0</h3>
-            <p>No Information</p>
+        <div class="summary-card">
+            <div class="card-value" id="no-info-connections">0</div>
+            <div class="card-label">No Information</div>
         </div>
     </div>
-
-    <div class="table-container">
-        <div id="loading" class="loading">
-            <p>Loading LLDP topology data...</p>
-        </div>
-        <div id="error" class="error" style="display: none;">
-            <p>Error loading LLDP data. Please check if the data file exists.</p>
-        </div>
-        <table id="lldp-table" style="display: none;">
-            <thead>
-                <tr>
-                    <th>Local Device</th>
-                    <th>Local Port</th>
-                    <th>Remote Device</th>
-                    <th>Remote Port</th>
-                    <th>Status</th>
-                    <th>Connection Health</th>
-                </tr>
-            </thead>
-            <tbody id="lldp-data">
-            </tbody>
-        </table>
+    
+    <h2>LLDP Connection Status</h2>
+    <div id="loading" class="loading">
+        <p>Loading LLDP topology data...</p>
     </div>
+    <div id="error" class="error" style="display: none;">
+        <p>Error loading LLDP data. Please check if the data file exists.</p>
+    </div>
+    <table class="lldp-table" id="lldp-table" style="display: none;">
+        <tr>
+            <th>Local Device</th>
+            <th>Local Port</th>
+            <th>Remote Device</th>
+            <th>Remote Port</th>
+            <th>Status</th>
+            <th>Connection Health</th>
+        </tr>
+        <tbody id="lldp-data">
+        </tbody>
+    </table>
 
     <!-- Fallback content if no data file exists -->
     <div class="fallback-content">
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Local Device</th>
-                        <th>Local Port</th>
-                        <th>Remote Device</th>
-                        <th>Remote Port</th>
-                        <th>Status</th>
-                        <th>Connection Health</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr class="lldp-critical">
-                        <td>NM1S104PH2TNP1LF04</td>
-                        <td>swp48s0</td>
-                        <td>NM1S104PH2TNP1SP04</td>
-                        <td>swp16s1</td>
-                        <td><span class="status-fail">FAILED</span></td>
-                        <td>Wrong Device/Port Connection</td>
-                    </tr>
-                    <tr class="lldp-unknown">
-                        <td>NM1S104PH2TNP1LF01</td>
-                        <td>swp45s0</td>
-                        <td>N/A</td>
-                        <td>N/A</td>
-                        <td><span class="status-no-info">NO INFO</span></td>
-                        <td>No LLDP Response Received</td>
-                    </tr>
-                    <tr class="lldp-excellent">
-                        <td>NM1S104PH2OBCO01</td>
-                        <td>swp3</td>
-                        <td>NM1S104PH2OBSP01</td>
-                        <td>swp29</td>
-                        <td><span class="status-success">SUCCESS</span></td>
-                        <td>LLDP Connection Verified</td>
-                    </tr>
-                    <tr class="lldp-excellent">
-                        <td>NM1S104PH2OBCO01</td>
-                        <td>swp1</td>
-                        <td>oob-core1</td>
-                        <td>swp31</td>
-                        <td><span class="status-success">SUCCESS</span></td>
-                        <td>LLDP Connection Verified</td>
-                    </tr>
-                    <tr class="lldp-excellent">
-                        <td>NM1S105PH2PXP2LF01</td>
-                        <td>swp49</td>
-                        <td>NM1S105PH2PXSP03</td>
-                        <td>swp1</td>
-                        <td><span class="status-success">SUCCESS</span></td>
-                        <td>LLDP Connection Verified</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+        <table class="lldp-table">
+            <tr>
+                <th>Local Device</th>
+                <th>Local Port</th>
+                <th>Remote Device</th>
+                <th>Remote Port</th>
+                <th>Status</th>
+                <th>Connection Health</th>
+            </tr>
+            <tr>
+                <td>NM1S104PH2TNP1LF04</td>
+                <td>swp48s0</td>
+                <td>NM1S104PH2TNP1SP04</td>
+                <td>swp16s1</td>
+                <td><span class="status-fail">FAILED</span></td>
+                <td>Wrong Device/Port Connection</td>
+            </tr>
+            <tr>
+                <td>NM1S104PH2TNP1LF01</td>
+                <td>swp45s0</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td><span class="status-no-info">NO INFO</span></td>
+                <td>No LLDP Response Received</td>
+            </tr>
+            <tr>
+                <td>NM1S104PH2OBCO01</td>
+                <td>swp3</td>
+                <td>NM1S104PH2OBSP01</td>
+                <td>swp29</td>
+                <td><span class="status-success">SUCCESS</span></td>
+                <td>LLDP Connection Verified</td>
+            </tr>
+            <tr>
+                <td>NM1S104PH2OBCO01</td>
+                <td>swp1</td>
+                <td>oob-core1</td>
+                <td>swp31</td>
+                <td><span class="status-success">SUCCESS</span></td>
+                <td>LLDP Connection Verified</td>
+            </tr>
+            <tr>
+                <td>NM1S105PH2PXP2LF01</td>
+                <td>swp49</td>
+                <td>NM1S105PH2PXSP03</td>
+                <td>swp1</td>
+                <td><span class="status-success">SUCCESS</span></td>
+                <td>LLDP Connection Verified</td>
+            </tr>
+        </table>
     </div>
 
     <script>
@@ -404,6 +327,22 @@
             warningConnections = 0;
             noInfoConnections = 224;
             updateSummaryCards();
+            setLastUpdated();
+        }
+        
+        function setLastUpdated() {
+            const now = new Date();
+            const options = { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            };
+            const formattedDate = now.toLocaleString('en-US', options);
+            document.getElementById('last-updated').textContent = formattedDate;
         }
 
         function loadLLDPData() {
@@ -420,6 +359,7 @@
                     console.log('Data loaded successfully. Size:', data.length, 'chars');
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('lldp-table').style.display = 'table';
+                    setLastUpdated();
                     parseAndDisplayLLDPData(data);
                 })
                 .catch(error => {
@@ -430,7 +370,10 @@
         }
 
         // Load data when page loads
-        window.addEventListener('load', loadLLDPData);
+        window.addEventListener('load', function() {
+            setLastUpdated();
+            loadLLDPData();
+        });
     </script>
 </body>
 </html>
