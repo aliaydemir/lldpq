@@ -544,6 +544,15 @@
                             else if (status === 'problematic' || status === 'flapped') summaryData.problematic++;
                         });
                         
+                        // Calculate percentages based on data type
+                        if (dataType === 'bgp' && summaryData.totalNeighbors > 0) {
+                            summaryData.healthPercent = ((summaryData.established / summaryData.totalNeighbors) * 100).toFixed(1);
+                        }
+                        
+                        if (dataType === 'flap' && summaryData.totalPorts > 0) {
+                            summaryData.stabilityPercent = ((summaryData.stable / summaryData.totalPorts) * 100).toFixed(1);
+                        }
+                        
                         // Analysis data parsed from table
                     }
                 }
