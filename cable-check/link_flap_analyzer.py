@@ -439,8 +439,7 @@ class LinkFlapAnalyzer:
         <tr><td>High Transition Alert</td><td>50+ transitions</td><td>Indicates potential hardware issues</td></tr>
         <tr><td>Data Retention</td><td>24 hours</td><td>Historical carrier transition data retention</td></tr>
     </table>
-</body>
-</html>
+
     <script>
         // Filter functionality
         let currentFilter = 'ALL';

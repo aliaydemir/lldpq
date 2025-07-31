@@ -557,9 +557,6 @@ class BERAnalyzer:
                 <li><strong>Analysis:</strong> Based on interface error statistics and packet counters</li>
             </ul>
         </div>
-    </div>
-</body>
-</html>
 
     <script>
         // Filter functionality
