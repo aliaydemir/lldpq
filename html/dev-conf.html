@@ -369,11 +369,25 @@
                 return `<span class="comment">${line}</span>`;
             }
             
-            // 2. Interface names - highlight all interfaces first
-            result = result.replace(/\b(bond_[a-zA-Z_]+|bond\d+|swp\d+(?:s\d+)?(?:-\d+)?|vlan\d+(?:-\d+)?(?:,\d+)*|eth\d+|lo\d*|br\d+|peerlink\.?\d*)\b/g, '<span class="interface">$1</span>');
-            
-            // 3. Description values - highlight everything after 'description' keyword (will override interface highlighting in description part)
-            result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, '$1<span class="comment">$2</span>');
+            // 2. Handle description lines specially
+            if (line.includes('description')) {
+                // Split line at 'description' keyword
+                let match = line.match(/^(.*?)(\bdescription\s+)(.*)$/);
+                if (match) {
+                    let beforeDesc = match[1];
+                    let descKeyword = match[2];
+                    let descContent = match[3];
+                    
+                    // Apply interface highlighting only to the part before description
+                    beforeDesc = beforeDesc.replace(/\b(bond_[a-zA-Z_]+|bond\d+|swp\d+(?:s\d+)?(?:-\d+)?|vlan\d+(?:-\d+)?(?:,\d+)*|eth\d+|lo\d*|br\d+|peerlink\.?\d*)\b/g, '<span class="interface">$1</span>');
+                    
+                    // Combine: highlighted before + description keyword + comment content
+                    result = beforeDesc + descKeyword + '<span class="comment">' + descContent + '</span>';
+                }
+            } else {
+                // Normal interface highlighting for non-description lines
+                result = result.replace(/\b(bond_[a-zA-Z_]+|bond\d+|swp\d+(?:s\d+)?(?:-\d+)?|vlan\d+(?:-\d+)?(?:,\d+)*|eth\d+|lo\d*|br\d+|peerlink\.?\d*)\b/g, '<span class="interface">$1</span>');
+            }
             
             // 4. IP addresses with separate number coloring
             result = result.replace(/\b(\d+)\.(\d+)\.(\d+)\.(\d+)(?:\/(\d+))?\b/g, function(match, p1, p2, p3, p4, p5) {
