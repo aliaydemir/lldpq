@@ -92,10 +92,14 @@
     <h2>Device Asset Status</h2>
     <table class="assets-table" id="assets-table">
         <tr>
-            <th>Device</th>
+            <th>Device Name</th>
+            <th>IP Address</th>
+            <th>MAC Address</th>
+            <th>Serial Number</th>
+            <th>Model</th>
+            <th>Release</th>
+            <th>Uptime</th>
             <th>Status</th>
-            <th>Details</th>
-            <th>Health</th>
         </tr>
     </table>
     
@@ -161,47 +165,59 @@
         
         // Parse each line and create table rows
         lines.forEach(line => {
-            if (line.startsWith('DEVICE') || line.trim() === '') return;
+            if (line.startsWith('DEVICE-NAME') || line.trim() === '') return;
             
-            const parts = line.split(/\s+/);
-            if (parts.length === 0) return;
+            // Parse the structured data - split by whitespace but handle columns properly
+            const parts = line.trim().split(/\s+/);
+            if (parts.length < 6) return;
             
             const deviceName = parts[0];
-            const restOfLine = line.substring(deviceName.length).trim();
+            const ipAddress = parts[1];
+            const macAddress = parts[2];
+            const serialNumber = parts[3];
+            const model = parts[4];
+            const release = parts[5];
+            // Uptime might have multiple parts, join the rest
+            const uptime = parts.slice(6).join(' ');
             
-            let status, healthClass, statusClass, details;
+            let status, healthClass, statusClass;
             
-            if (line.toLowerCase().includes('fail')) {
-                status = 'FAILED';
-                healthClass = 'assets-critical';
-                statusClass = 'status-fail';
-                failCount++;
-            } else if (line.toLowerCase().includes('reated')) {
-                status = 'REATED'; // Keeping original naming
-                healthClass = 'assets-warning';
-                statusClass = 'status-warning';
-                warningCount++;
-            } else if (line.toLowerCase().includes('no-info')) {
+            // Determine status based on data availability and uptime
+            if (!ipAddress || ipAddress === 'N/A' || !macAddress || macAddress === 'N/A') {
                 status = 'NO INFO';
                 healthClass = 'assets-unknown';
                 statusClass = 'status-no-info';
                 noInfoCount++;
-            } else {
+            } else if (uptime && uptime.includes('up-')) {
+                // Device is up and running
                 status = 'SUCCESS';
                 healthClass = 'assets-excellent';
                 statusClass = 'status-success';
                 successCount++;
+            } else if (uptime && (uptime.includes('down') || uptime.includes('fail'))) {
+                status = 'FAILED';
+                healthClass = 'assets-critical';
+                statusClass = 'status-fail';
+                failCount++;
+            } else {
+                status = 'WARNING';
+                healthClass = 'assets-warning';
+                statusClass = 'status-warning';
+                warningCount++;
             }
             
-            details = restOfLine || 'N/A';
             totalDevices++;
             
             const row = table.insertRow();
             row.innerHTML = `
-                <td>${deviceName}</td>
+                <td><a href="monitor-results/${deviceName}.html" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: underline;">${deviceName}</a></td>
+                <td>${ipAddress || 'N/A'}</td>
+                <td>${macAddress || 'N/A'}</td>
+                <td>${serialNumber || 'N/A'}</td>
+                <td>${model || 'N/A'}</td>
+                <td>${release || 'N/A'}</td>
+                <td>${uptime || 'N/A'}</td>
                 <td><span class="${statusClass}">${status}</span></td>
-                <td>${details}</td>
-                <td><span class="${healthClass}">${status}</span></td>
             `;
         });
         
@@ -222,17 +238,17 @@
         const rows = Array.from(tbody.rows).slice(1); // Skip header
         
         rows.sort((a, b) => {
-            const aHealth = a.cells[3].textContent.trim();
-            const bHealth = b.cells[3].textContent.trim();
+            const aStatus = a.cells[7].textContent.trim(); // Status is now column 7 (8th column)
+            const bStatus = b.cells[7].textContent.trim();
             
             const priority = {
                 'FAILED': 0,
-                'REATED': 1,
+                'WARNING': 1,
                 'NO INFO': 2,
                 'SUCCESS': 3
             };
             
-            return (priority[aHealth] || 4) - (priority[bHealth] || 4);
+            return (priority[aStatus] || 4) - (priority[bStatus] || 4);
         });
         
         // Remove existing rows (except header)
@@ -246,13 +262,11 @@
 
     function showFallbackContent() {
         // Show sample data if assets.ini doesn't exist
-        const sampleData = `DEVICE ASSETS COLLECTION RESULTS
-Switch1    SUCCESS    All assets collected
-Switch2    FAILED     Connection timeout
-Switch3    SUCCESS    All assets collected
-Switch4    NO-INFO    Device not responding
-Switch5    REATED     Partial data collection
-Switch6    SUCCESS    All assets collected`;
+        const sampleData = `DEVICE-NAME  IP             ETH0-MAC           SERIAL             MODEL  RELEASE  UPTIME
+Switch1      10.10.100.20   48:b0:2d:c3:a9:24  48:b0:2d:c3:a9:24  VX     5.11.2   up-1-week-4-days-18-hours-33-minutes
+Switch2      10.10.100.21   48:b0:2d:b9:26:13  48:b0:2d:b9:26:13  VX     5.11.2   up-1-week-4-days-18-hours-33-minutes
+TestDevice   N/A            N/A                N/A                N/A    N/A      down
+Switch3      10.10.100.22   48:b0:2d:d7:90:23  48:b0:2d:d7:90:23  VX     5.11.2   up-1-week-4-days-18-hours-33-minutes`;
         
         displayAssetResults(sampleData);
         generateAssetTable(sampleData);
