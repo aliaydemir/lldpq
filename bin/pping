@@ -17,8 +17,8 @@ reachable_hosts=()
 
 show_usage() {
     echo -e "\e[95m┌─────────────────────────────────────────────┐\e[0m"
-    echo -e "\e[95m│\e[0m            \e[93mPPING v10.0\e[0m                  \e[95m│\e[0m"
-    echo -e "\e[95m│\e[0m      \e[92mParallel Ping Utility\e[0m             \e[95m│\e[0m"
+    echo -e "\e[95m│\e[0m            \e[93mPPING v10.0\e[0m                      \e[95m│\e[0m"
+    echo -e "\e[95m│\e[0m      \e[92mParallel Ping Utility\e[0m                  \e[95m│\e[0m"
     echo -e "\e[95m└─────────────────────────────────────────────┘\e[0m"
     echo ""
     echo -e "\e[96mUSAGE:\e[0m"
@@ -36,8 +36,8 @@ show_usage() {
     echo ""
     echo -e "\e[96mEXAMPLES:\e[0m"
     echo -e "  \e[32mpping\e[0m                    # Use default /etc/ip_list"
-    echo -e "  \e[32mpping -f custom.txt\e[0m     # Use custom file"
-    echo -e "  \e[32mpping -v mgmt\e[0m          # Use mgmt VRF"
+    echo -e "  \e[32mpping -f custom.txt\e[0m      # Use custom file"
+    echo -e "  \e[32mpping -v mgmt\e[0m            # Use mgmt VRF"
     echo ""
     echo -e "\e[96mFEATURES:\e[0m"
     echo -e "  • \e[92mParallel execution\e[0m for faster results"
