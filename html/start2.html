@@ -38,8 +38,8 @@
         }
         
         .view-details-btn {
-            background: #b57614;
-            color: white;
+            background: #b57614 !important;
+            color: white !important;
             padding: 8px 16px;
             border: none;
             border-radius: 6px;
@@ -47,10 +47,12 @@
             font-weight: bold;
             transition: all 0.3s ease;
             cursor: pointer;
+            display: inline-block;
         }
         
         .view-details-btn:hover {
-            background: #d4940a;
+            background: #d4940a !important;
+            color: white !important;
             transform: translateY(-1px);
             box-shadow: 0 4px 8px rgba(181, 118, 20, 0.3);
         }
@@ -138,6 +140,7 @@
             margin: 30px 0;
             text-align: center;
             color: white;
+            box-shadow: 0 4px 8px rgba(30, 60, 114, 0.3);
         }
         
         .dashboard-stats h3 {
@@ -184,7 +187,7 @@
         
         <!-- Dashboard Overview Stats -->
         <div class="dashboard-stats">
-            <h3>🌐 Network Health Overview</h3>
+            <h3>Network Health Overview</h3>
             <div class="stats-grid">
                 <div class="stat-item">
                     <div class="stat-value" id="total-network-devices">--</div>
@@ -208,7 +211,7 @@
         <!-- Assets Analysis Section -->
         <div class="analysis-section">
             <div class="section-header">
-                <h2 class="section-title">🖥️ Asset Analysis</h2>
+                <h2 class="section-title">Asset Analysis</h2>
                 <a href="assets.html" class="view-details-btn">View Details</a>
             </div>
             <div class="summary-grid">
@@ -238,7 +241,7 @@
         <!-- LLDP Analysis Section -->
         <div class="analysis-section">
             <div class="section-header">
-                <h2 class="section-title">🔗 LLDP Topology Analysis</h2>
+                <h2 class="section-title">LLDP Topology Analysis</h2>
                 <a href="lldp.html" class="view-details-btn">View Details</a>
             </div>
             <div class="summary-grid">
@@ -268,7 +271,7 @@
         <!-- BGP Analysis Section -->
         <div class="analysis-section">
             <div class="section-header">
-                <h2 class="section-title">🛣️ BGP Neighbor Analysis</h2>
+                <h2 class="section-title">BGP Neighbor Analysis</h2>
                 <a href="monitor-results/bgp-analysis.html" class="view-details-btn">View Details</a>
             </div>
             <div class="summary-grid">
@@ -298,7 +301,7 @@
         <!-- Optical Analysis Section -->
         <div class="analysis-section">
             <div class="section-header">
-                <h2 class="section-title">🔬 Optical Diagnostics Analysis</h2>
+                <h2 class="section-title">Optical Diagnostics Analysis</h2>
                 <a href="monitor-results/optical-analysis.html" class="view-details-btn">View Details</a>
             </div>
             <div class="summary-grid">
@@ -328,7 +331,7 @@
         <!-- BER Analysis Section -->
         <div class="analysis-section">
             <div class="section-header">
-                <h2 class="section-title">📊 BER Analysis</h2>
+                <h2 class="section-title">BER Analysis</h2>
                 <a href="monitor-results/ber-analysis.html" class="view-details-btn">View Details</a>
             </div>
             <div class="summary-grid">
@@ -358,7 +361,7 @@
         <!-- Link Flap Analysis Section -->
         <div class="analysis-section">
             <div class="section-header">
-                <h2 class="section-title">⚡ Link Flap Detection</h2>
+                <h2 class="section-title">Link Flap Detection</h2>
                 <a href="monitor-results/link-flap-analysis.html" class="view-details-btn">View Details</a>
             </div>
             <div class="summary-grid">
