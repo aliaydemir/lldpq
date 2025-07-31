@@ -1,3 +1,47 @@
+/*
+ * =============================================================================
+ * TOPOLOGY.DOT - LLDPq Expected Network Topology Definition
+ * =============================================================================
+ *
+ * PURPOSE:
+ *   This file defines the expected/designed network topology connections.
+ *   Used by generate_topology.py and generate_topology_full.py to validate
+ *   actual LLDP-discovered connections against the intended network design.
+ *
+ * FORMAT:
+ *   GraphViz DOT format - defines network connections as graph edges
+ *   "DeviceA":"InterfaceX" -- "DeviceB":"InterfaceY"
+ *
+ * USAGE:
+ *   - Topology validation: Compare LLDP discoveries vs expected design
+ *   - Missing link detection: Identify cables not connected as designed
+ *   - Network documentation: Visual representation of intended topology
+ *   - Change management: Track topology modifications over time
+ *
+ * VALIDATION LOGIC:
+ *   - ✅ LLDP matches DOT: Connection is correct
+ *   - ❌ LLDP missing from DOT: Unexpected connection found
+ *   - ⚠️  DOT missing from LLDP: Expected connection not found (missing cable)
+ *
+ * SYNTAX:
+ *   graph "NETWORK_NAME" {
+ *     "Hostname1":"Interface1" -- "Hostname2":"Interface2"
+ *     "Leaf01":"swp49" -- "Spine01":"swp1"
+ *   }
+ *
+ * MAINTENANCE:
+ *   - Add new connections when cables are installed
+ *   - Remove connections when cables are removed  
+ *   - Update when devices/interfaces are renamed
+ *   - Keep synchronized with physical network changes
+ *
+ * NOTE:
+ *   Hostnames must match those in devices.sh and assets.ini for proper
+ *   correlation. Interface names must match actual device interface naming.
+ *
+ * =============================================================================
+ */
+
 graph "ACME" {
 
 # Leaf to Spine
