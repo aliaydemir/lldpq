@@ -138,7 +138,9 @@
         .comment { color: #6a9955; font-style: italic; }
         .keyword { color: #569cd6; font-weight: bold; }
         .string { color: #ce9178; }
-        .number { color: #b5cea8; }
+        .number { color: #d7ba7d; }
+        .ip-number { color: #b5cea8; }
+        .interface-number { color: #f44747; }
         .variable { color: #9cdcfe; }
         .operator { color: #d4d4d4; }
         .section { color: #dcdcaa; font-weight: bold; }
@@ -368,11 +370,20 @@
                 return `<span class="comment">${line}</span>`;
             }
             
-            // 2. IP addresses (most specific first)
-            result = result.replace(/\b(\d+\.\d+\.\d+\.\d+(?:\/\d+)?)\b/g, '<span class="ip-address">$1</span>');
+            // 2. IP addresses with separate number coloring
+            result = result.replace(/\b(\d+)\.(\d+)\.(\d+)\.(\d+)(?:\/(\d+))?\b/g, function(match, p1, p2, p3, p4, p5) {
+                let ipResult = `<span class="ip-number">${p1}</span>.<span class="ip-number">${p2}</span>.<span class="ip-number">${p3}</span>.<span class="ip-number">${p4}</span>`;
+                if (p5) ipResult += `/<span class="ip-number">${p5}</span>`;
+                return ipResult;
+            });
             
-            // 3. Interface names
-            result = result.replace(/\b(swp\d+(?:s\d+)?|eth\d+|lo\d*|br\d+|vlan\d+)\b/g, '<span class="interface">$1</span>');
+            // 3. Interface names with separate number coloring
+            // Interface ranges (swp1-32)
+            result = result.replace(/\b(swp)(\d+)-(\d+)\b/g, '<span class="interface">$1</span><span class="interface-number">$2</span><span class="interface">-</span><span class="interface-number">$3</span>');
+            // Single interfaces (swp1, swp2s3)
+            result = result.replace(/\b(swp)(\d+)(?:(s)(\d+))?\b/g, '<span class="interface">$1</span><span class="interface-number">$2</span><span class="interface">$3</span><span class="interface-number">$4</span>');
+            // Other interfaces  
+            result = result.replace(/\b(eth|lo|br|vlan)(\d*)\b/g, '<span class="interface">$1</span><span class="interface-number">$2</span>');
             
             // 4. Main commands (only nv set)
             result = result.replace(/^(\s*)(nv\s+set)\b/g, '$1<span class="keyword">$2</span>');
