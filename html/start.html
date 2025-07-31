@@ -418,38 +418,59 @@
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
                 
-                // Extract summary card values
+                // Extract summary data based on specific page structure
                 const summaryData = {};
-                const cards = doc.querySelectorAll('.summary-card');
                 
-                cards.forEach(card => {
-                    const valueElement = card.querySelector('.card-value');
-                    const labelElement = card.querySelector('.card-label');
+                // For Assets page
+                if (pageUrl.includes('assets.html')) {
+                    summaryData.totalDevices = parseInt(doc.getElementById('total-devices')?.textContent) || 0;
+                    summaryData.successful = parseInt(doc.getElementById('success-count')?.textContent) || 0;
+                    summaryData.warning = parseInt(doc.getElementById('warning-count')?.textContent) || 0;
+                    summaryData.failed = parseInt(doc.getElementById('fail-count')?.textContent) || 0;
+                    summaryData.noInfo = parseInt(doc.getElementById('no-info-count')?.textContent) || 0;
+                }
+                // For LLDP page
+                else if (pageUrl.includes('lldp.html')) {
+                    summaryData.totalConnections = parseInt(doc.getElementById('total-connections')?.textContent) || 0;
+                    summaryData.successful = parseInt(doc.getElementById('success-count')?.textContent) || 0;
+                    summaryData.failed = parseInt(doc.getElementById('fail-count')?.textContent) || 0;
+                    summaryData.warning = parseInt(doc.getElementById('warning-count')?.textContent) || 0;
+                    summaryData.noInfo = parseInt(doc.getElementById('no-info-count')?.textContent) || 0;
+                }
+                // For other analysis pages, use generic .summary-card parsing
+                else {
+                    const cards = doc.querySelectorAll('.summary-card');
                     
-                    if (valueElement && labelElement) {
-                        const value = valueElement.textContent.trim();
-                        const label = labelElement.textContent.trim().toLowerCase();
+                    cards.forEach(card => {
+                        const valueElement = card.querySelector('.card-value');
+                        const labelElement = card.querySelector('.card-label');
                         
-                        // Map label to standardized key
-                        if (label.includes('total devices')) summaryData.totalDevices = parseInt(value) || 0;
-                        else if (label.includes('total connections') || label.includes('total links')) summaryData.totalConnections = parseInt(value) || 0;
-                        else if (label.includes('total ports')) summaryData.totalPorts = parseInt(value) || 0;
-                        else if (label.includes('total neighbors')) summaryData.totalNeighbors = parseInt(value) || 0;
-                        else if (label.includes('successful') || label.includes('success')) summaryData.successful = parseInt(value) || 0;
-                        else if (label.includes('excellent')) summaryData.excellent = parseInt(value) || 0;
-                        else if (label.includes('good')) summaryData.good = parseInt(value) || 0;
-                        else if (label.includes('established')) summaryData.established = parseInt(value) || 0;
-                        else if (label.includes('stable')) summaryData.stable = parseInt(value) || 0;
-                        else if (label.includes('failed') || label.includes('down')) summaryData.failed = parseInt(value) || 0;
-                        else if (label.includes('problematic')) summaryData.problematic = parseInt(value) || 0;
-                        else if (label.includes('warning')) summaryData.warning = parseInt(value) || 0;
-                        else if (label.includes('critical')) summaryData.critical = parseInt(value) || 0;
-                        else if (label.includes('no info') || label.includes('no information')) summaryData.noInfo = parseInt(value) || 0;
-                        else if (label.includes('health') && value.includes('%')) summaryData.healthPercent = parseFloat(value) || 0;
-                        else if (label.includes('stability') && value.includes('%')) summaryData.stabilityPercent = parseFloat(value) || 0;
-                    }
-                });
+                        if (valueElement && labelElement) {
+                            const value = valueElement.textContent.trim();
+                            const label = labelElement.textContent.trim().toLowerCase();
+                            
+                            // Map label to standardized key
+                            if (label.includes('total devices')) summaryData.totalDevices = parseInt(value) || 0;
+                            else if (label.includes('total connections') || label.includes('total links')) summaryData.totalConnections = parseInt(value) || 0;
+                            else if (label.includes('total ports')) summaryData.totalPorts = parseInt(value) || 0;
+                            else if (label.includes('total neighbors')) summaryData.totalNeighbors = parseInt(value) || 0;
+                            else if (label.includes('successful') || label.includes('success')) summaryData.successful = parseInt(value) || 0;
+                            else if (label.includes('excellent')) summaryData.excellent = parseInt(value) || 0;
+                            else if (label.includes('good')) summaryData.good = parseInt(value) || 0;
+                            else if (label.includes('established')) summaryData.established = parseInt(value) || 0;
+                            else if (label.includes('stable')) summaryData.stable = parseInt(value) || 0;
+                            else if (label.includes('failed') || label.includes('down')) summaryData.failed = parseInt(value) || 0;
+                            else if (label.includes('problematic')) summaryData.problematic = parseInt(value) || 0;
+                            else if (label.includes('warning')) summaryData.warning = parseInt(value) || 0;
+                            else if (label.includes('critical')) summaryData.critical = parseInt(value) || 0;
+                            else if (label.includes('no info') || label.includes('no information')) summaryData.noInfo = parseInt(value) || 0;
+                            else if (label.includes('health') && value.includes('%')) summaryData.healthPercent = parseFloat(value) || 0;
+                            else if (label.includes('stability') && value.includes('%')) summaryData.stabilityPercent = parseFloat(value) || 0;
+                        }
+                    });
+                }
                 
+                console.log(`Fetched data from ${pageUrl}:`, summaryData); // Debug log
                 return summaryData;
             } catch (error) {
                 console.warn(`Failed to fetch data from ${pageUrl}:`, error);
