@@ -127,13 +127,19 @@ EOF
         echo "=== CARRIER TRANSITIONS ===" > "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
         grep -A1 "CARRIER_TRANSITIONS:" "monitor-results/${hostname}_combined_interface_data.txt" | grep -E "swp.*:" >> "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
         
-        # Extract optical data
+        # Extract optical data with interface names
         echo "=== OPTICAL DIAGNOSTICS ===" > "monitor-results/optical-data/${hostname}_optical.txt"
-        awk '/OPTICAL_TRANSCEIVER:/{flag=1; next} /BER_COUNTERS:/{flag=0} flag' "monitor-results/${hostname}_combined_interface_data.txt" > "temp_optical_${hostname}.txt"
-        if [ -s "temp_optical_${hostname}.txt" ]; then
-            sed 's/^/--- Interface: /' "temp_optical_${hostname}.txt" | sed 's/=== INTERFACE: /--- Interface: /' >> "monitor-results/optical-data/${hostname}_optical.txt"
-        fi
-        rm -f "temp_optical_${hostname}.txt"
+        awk '
+        /=== INTERFACE: / { interface = $3 }
+        /OPTICAL_TRANSCEIVER:/ { 
+            if (interface != "") {
+                print "--- Interface: " interface
+                flag=1; next 
+            }
+        }
+        /BER_COUNTERS:/ { flag=0 }
+        flag && interface != "" { print }
+        ' "monitor-results/${hostname}_combined_interface_data.txt" >> "monitor-results/optical-data/${hostname}_optical.txt"
         
         # Extract BER detailed counters
         echo "=== DETAILED INTERFACE COUNTERS ===" > "monitor-results/ber-data/${hostname}_detailed_counters.txt"
