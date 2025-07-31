@@ -2,104 +2,94 @@
 
 # 🚀️ LLDPq
 
-## [00] git clone  
+simple network monitoring tool for cumulus switches
+
+## [00] quick start  
 
 ``` 
 git clone https://github.com/aliaydemir/lldpq.git 
-```
-
 cd lldpq
-
-```
 ./install.sh 
 ```
-or 
-```
-./update.sh
-```
 
-or manual 
+## [01] what it does
 
-``` install nginx, copy files, edit 4 files, then run ```
+- monitors switches every 30 minutes  
+- collects bgp, optical, ber, link flap data
+- shows network topology with lldp
+- web dashboard with real-time stats
 
+## [02] configuration files
 
-## [01]  install and runn "nginx"
-```
-sudo apt install nginx
-
-sudo systemctl enable --now nginx
-```
-
-
-## [02]  copy files (cd lldpq/)
-```
-sudo cp -r etc/* /etc
-
-sudo cp -r html/* /var/www/html/
-
-sudo cp bin/* /usr/local/bin/
-
-cp -r cable-check ~/cable-check 
-```
-
-
-## [03]  edit necesary files
-```
-sudo nano /etc/ip_list    
-```
-edit the end of the ```nccm.yml```
-```
-sudo nano /etc/nccm.yml
-```
-```
-nano ~/cable-check/devices.sh
-```
-```
-nano ~/cable-check/topology.dot
-```
-```
-nano ~/cable-check/topology_confg.yaml
-```
-
-## [04]  restart nginx service
-```
-sudo systemctl restart nginx
-```
-
-
-## [05]  add cron job
-```
-echo "*/30 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab
-```
-```
-echo "15,45 * * * * $(whoami) /usr/local/bin/monitor" | sudo tee -a /etc/crontab
-```
-```
-echo "0 */12 * * * $(whoami) /usr/local/bin/get-conf" | sudo tee -a /etc/crontab
-```
- 
-# run the LLDPq 🚀️
-
-Before running ```lldpq``` or ```zzh```, ```ssh-copy-id``` must be done on all devices. 
-And run ```sudo``` without password.
+edit these 4 files:
 
 ```
-lldpq
+cable-check/devices.sh     # add your switches (ip + hostname)
+cable-check/topology.dot   # expected cable connections
+cable-check/hosts.ini      # optional: extra hostnames for topology  
+/etc/nccm.yml              # optional: ssh manager [zzh]
+/etc/ip_list               # optional: paralel ping to all devices [pping]
 ```
 
-```
-get-conf
-```
+## [03] cron jobs (auto setup)
 
 ```
-monitor
+*/30 * * * * lldpq         # topology every 30min (0,30)
+15,45 * * * * monitor      # performance every 30min (15,45)  
+0 */12 * * * get-conf      # configs every 12 hours
 ```
 
-```
-zzh
-```
+## [04] web pages  
+
+- `http://server/` - main dashboard
+- `http://server/lldp.html` - topology problems
+- `http://server/monitor-results/bgp-analysis.html` - bgp neighbors
+- `http://server/monitor-results/optical-analysis.html` - sfp health
+- `http://server/monitor-results/ber-analysis.html` - bit errors
+- `http://server/monitor-results/link-flap-analysis.html` - unstable links
+
+## [05] update
+
+when lldpq gets new features via git:
 
 ```
-pping
+cd lldpq
+git pull                    # get latest code
+./update.sh                 # keeps your configs, updates everything else
 ```
 
+your devices.sh, hosts.ini, topology.dot topology_config.yaml files stay untouched.
+
+## [06] requirements
+
+- linux based server
+- ssh key auth to all switches  
+- cumulus linux switches
+- nginx web server
+
+## [07] file sizes
+
+monitor data grows ~50MB/day. history cleanup after 24h automatically.
+
+## [08] ssh setup
+
+setup ssh keys to all switches:
+
+```
+cd ~/cable-check && ./send-key.sh   # auto-installs deps, generates key, prompts password
+```
+
+## [09] troubleshooting
+
+```
+# check if cron is running
+sudo crontab -l | grep lldpq
+
+# manual run
+cd ~/cable-check && ./monitor.sh
+
+# check logs  
+ls -la /var/www/html/monitor-results/
+```
+
+done.

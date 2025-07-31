@@ -1,11 +1,13 @@
 #!/bin/bash
 
 # Ali Aydemir
+# v10.0 Added parallel execution support for faster ping operations
 # v9.9 Updated to support hostname and IP pair input format
 
 count=1       # quantity of send
-timeout=0.1   # timeout in seconds (100 milliseconds)
-max_tries=3   # if not reachable, quantity of tries
+timeout=0.3   # timeout in seconds (300 milliseconds)
+#timeout=1     # timeout in seconds (1 second for parallel efficiency)
+max_tries=3   # if not reachable, quantity of tries (reduced for speed)
 
 starting_time=0
 hosts_up=0
@@ -43,43 +45,78 @@ process_ping() {
     local hostname=$1
     local cmd=$2
     local ip=$3
+    local temp_file=$4
     tries=0
+    
     while [[ $tries -lt $max_tries ]]; do
         tries=$((tries+1))
         if eval $cmd > /dev/null 2>&1; then
             echo -e "\e[93m${hostname} [${ip}] is UP\e[0m"
-            hosts_up=$((hosts_up+1))
-            reachable_hosts+=("$hostname $ip")
-            return
+            echo "UP:$hostname $ip" >> "$temp_file"
+            return 0
         else
             echo -e "\e[96m${hostname} [${ip}] is DOWN !!!\e[0m"
         fi
     done
-    hosts_down=$((hosts_down+1))
-    unreachable_hosts+=("$hostname $ip")
+    echo "DOWN:$hostname $ip" >> "$temp_file"
+    return 1
 }
 
 full_ping() {
     echo
-    echo -e "\e[101;93m...::Ping Starting::...\e[0m"
+    echo -e "\e[101;93m...::Parallel Ping Starting::...\e[0m"
     starting_time=$(date +%s)
     hosts_up=0
     hosts_down=0
     unreachable_hosts=()
     reachable_hosts=()
+    
+    # Create temporary file for collecting results
+    local temp_results=$(mktemp)
+    local pids=()
+    
     command_maker "${ip_list[@]}"
+    
+    echo -e "\e[32mStarting parallel ping to ${#ip_list[@]} hosts...\e[0m"
+    
+    # Start all pings in parallel
     for i in "${!commands[@]}"; do
         cmd=${commands[i]}
         hostname=$(echo "${ip_list[i]}" | cut -d' ' -f1)
         ip=$(echo "${ip_list[i]}" | cut -d' ' -f2)
-        echo
+        
         if [[ -n $vrf_name ]]; then
-            echo -e "\e[32mPinging IP Address:\e[0m \e[1m-->\e[31m ${hostname} [${ip}] [VRF: ${vrf_name}]\e[0m"
+            echo -e "\e[32mPinging:\e[0m \e[1m${hostname} [${ip}] [VRF: ${vrf_name}]\e[0m"
         else
-            echo -e "\e[32mPinging IP Address:\e[0m \e[1m-->\e[31m ${hostname} [${ip}]\e[0m"
+            echo -e "\e[32mPinging:\e[0m \e[1m${hostname} [${ip}]\e[0m"
         fi
-        process_ping "$hostname" "$cmd" "$ip"
+        
+        # Start ping in background
+        process_ping "$hostname" "$cmd" "$ip" "$temp_results" &
+        pids+=($!)
     done
+    
+    echo
+    echo -e "\e[33mWaiting for all pings to complete...\e[0m"
+    
+    # Wait for all background processes
+    for pid in "${pids[@]}"; do
+        wait $pid
+    done
+    
+    # Process results from temp file
+    while IFS=':' read -r status host_info; do
+        if [[ $status == "UP" ]]; then
+            hosts_up=$((hosts_up+1))
+            reachable_hosts+=("$host_info")
+        elif [[ $status == "DOWN" ]]; then
+            hosts_down=$((hosts_down+1))
+            unreachable_hosts+=("$host_info")
+        fi
+    done < "$temp_results"
+    
+    # Cleanup temp file
+    rm -f "$temp_results"
 }
 
 last_call() {
@@ -88,19 +125,18 @@ last_call() {
     elapsed_time=$(($(date +%s) - starting_time))
     echo -e "Time Elapsed: \e[95m${elapsed_time}\e[0m seconds"
     echo -e "Hosts UP: \e[93m${hosts_up}\e[0m, Hosts DOWN: \e[96m${hosts_down}\e[0m"
-    if [[ ${#unreachable_hosts[@]} -gt 0 ]]; then
-        echo -e "\n\e[96mUnreachable Hosts:\n\e[0m"
-        for host in "${unreachable_hosts[@]}"; do
-            IFS=' ' read -r hostname ip <<< "$host"
-            echo -e "\e[31m[$ip] \e[0;31m[$hostname]\e[0m"
-        done
-        echo ""
-    fi
     if [[ ${#reachable_hosts[@]} -gt 0 ]]; then
         echo -e "\n\e[92mReachable Hosts:\n\e[0m"
         for host in "${reachable_hosts[@]}"; do
             IFS=' ' read -r hostname ip <<< "$host"
             echo -e "\e[32m[$ip] \e[0;32m[$hostname]\e[0m"
+        done
+    fi
+    if [[ ${#unreachable_hosts[@]} -gt 0 ]]; then
+        echo -e "\n\e[96mUnreachable Hosts:\n\e[0m"
+        for host in "${unreachable_hosts[@]}"; do
+            IFS=' ' read -r hostname ip <<< "$host"
+            echo -e "\e[31m[$ip] \e[0;31m[$hostname]\e[0m"
         done
         echo ""
     fi
