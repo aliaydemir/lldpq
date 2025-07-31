@@ -88,7 +88,12 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                     continue
                 
                 # Skip if diagnostic data is explicitly unavailable
-                if "diagnostics-status          : N/A" in optical_data or "status                      : unplugged" in optical_data:
+                if ("status                      : unplugged" in optical_data or 
+                    "No transceiver data available" in optical_data or
+                    ("diagnostics-status          : N/A" in optical_data and 
+                     "diagnostics-status          : Diagnostic Data Available" not in optical_data and
+                     "temperature" not in optical_data and 
+                     "rx-power" not in optical_data)):
                     print(f"  {port_name}: No transceiver or diagnostics unavailable")
                     continue
                 
