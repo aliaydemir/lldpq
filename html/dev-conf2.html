@@ -346,19 +346,65 @@
                 
                 if (line.trim().startsWith('#')) {
                     span.className += ' comment';
-                } else if (line.includes('interface')) {
-                    span.className += ' interface';
-                } else if (line.match(/\b\d+\.\d+\.\d+\.\d+\b/)) {
-                    span.className += ' ip-address';
-                } else if (line.includes('set') || line.includes('unset')) {
-                    span.className += ' keyword';
+                    span.textContent = line || ' ';
+                } else if (line.trim() === '') {
+                    span.textContent = ' ';
                 } else {
-                    span.className += ' default';
+                    // Enhanced syntax highlighting for NV-SET commands
+                    span.innerHTML = highlightNvSetLine(line);
                 }
                 
-                span.textContent = line || ' '; // Preserve empty lines
                 container.appendChild(span);
             });
+        }
+
+        function highlightNvSetLine(line) {
+            // Keywords (commands)
+            const keywords = ['nv', 'set', 'unset', 'delete', 'add', 'remove'];
+            const actions = ['enable', 'disable', 'on', 'off', 'permit', 'deny', 'allow', 'block'];
+            const objects = ['router', 'bgp', 'interface', 'policy', 'prefix-list', 'route-map', 'access-list', 'vrf', 'bridge', 'vlan'];
+            const properties = ['router-id', 'as-number', 'neighbor', 'address-family', 'network', 'redistribute', 'rule', 'action', 'match', 'type'];
+            
+            let result = line;
+            
+            // Replace IP addresses
+            result = result.replace(/\b(\d+\.\d+\.\d+\.\d+(?:\/\d+)?)\b/g, '<span class="ip-address">$1</span>');
+            
+            // Replace numbers (rule numbers, port numbers, etc.)
+            result = result.replace(/\b(\d+)\b/g, '<span class="number">$1</span>');
+            
+            // Replace keywords
+            keywords.forEach(keyword => {
+                const regex = new RegExp(`\\b(${keyword})\\b`, 'gi');
+                result = result.replace(regex, '<span class="keyword">$1</span>');
+            });
+            
+            // Replace actions
+            actions.forEach(action => {
+                const regex = new RegExp(`\\b(${action})\\b`, 'gi');
+                result = result.replace(regex, '<span class="string">$1</span>');
+            });
+            
+            // Replace objects
+            objects.forEach(obj => {
+                const regex = new RegExp(`\\b(${obj})\\b`, 'gi');
+                result = result.replace(regex, '<span class="section">$1</span>');
+            });
+            
+            // Replace properties
+            properties.forEach(prop => {
+                const regex = new RegExp(`\\b(${prop})\\b`, 'gi');
+                result = result.replace(regex, '<span class="variable">$1</span>');
+            });
+            
+            // Replace interface names (swp, eth, lo, etc.)
+            result = result.replace(/\b(swp\d+(?:s\d+)?|eth\d+|lo\d*|br\d+|vlan\d+)\b/g, '<span class="interface">$1</span>');
+            
+            // Replace strings in quotes
+            result = result.replace(/"([^"]*)"/g, '<span class="string">"$1"</span>');
+            result = result.replace(/'([^']*)'/g, '<span class="string">\'$1\'</span>');
+            
+            return result;
         }
 
         function displayYamlConfig(content, container) {
