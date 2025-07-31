@@ -464,12 +464,14 @@ class LinkFlapAnalyzer:
             console.log('LINK FLAP: total-ports-card found?', totalPortsCard);
             
             if (totalDevicesCard) {{
+                console.log('LINK FLAP: Adding click listener to total-devices-card');
                 totalDevicesCard.addEventListener('click', function() {{
-                    console.log('LINK FLAP: Total devices clicked');
+                    console.log('LINK FLAP: Total devices clicked - calling filterPorts(TOTAL)');
                     filterPorts('TOTAL');
                 }});
             }} else {{
                 console.error('LINK FLAP: total-devices-card not found!');
+                console.log('LINK FLAP: Available IDs:', Array.from(document.querySelectorAll('[id]')).map(el => el.id));
             }}
             
             if (totalPortsCard) {{
