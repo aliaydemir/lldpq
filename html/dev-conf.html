@@ -379,13 +379,13 @@
             
             // 5. Special network terms
             result = result.replace(/\b(autonomous-system|route-map|prefix-list|access-list)\b/g, '<span class="variable">$1</span>');
-            
-            // 6. Description values - highlight everything after 'description' keyword
-            result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, '$1<span class="comment">$2</span>');
-            
-            // 7. Numbers (but avoid IP parts)
+
+            // 6. Numbers (but avoid IP parts)
             result = result.replace(/(?<!\.)(\b\d+\b)(?!\.\d)/g, '<span class="number">$1</span>');
             
+            // 7. Description values - highlight everything after 'description' keyword
+            result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, '$1<span class="comment">$2</span>');
+
             // 8. Wrap everything in default blue color
             return `<span class="default">${result}</span>`;
         }
