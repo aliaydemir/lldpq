@@ -445,15 +445,15 @@ class LinkFlapAnalyzer:
         let currentFilter = 'ALL';
         let allRows = [];
         
-        document.addEventListener('DOMContentLoaded', function() {{
+        document.addEventListener('DOMContentLoaded', function() {
             // Store all table rows for filtering
             allRows = Array.from(document.querySelectorAll('#flap-data tr'));
             
             // Add click events to summary cards
             setupCardEvents();
-        }});
+        });
         
-        function setupCardEvents() {{
+        function setupCardEvents() {
             console.log('LINK FLAP: Setting up card events...');
             console.log('LINK FLAP: Available elements:', document.querySelectorAll('.summary-card'));
             
@@ -463,100 +463,100 @@ class LinkFlapAnalyzer:
             console.log('LINK FLAP: total-devices-card found?', totalDevicesCard);
             console.log('LINK FLAP: total-ports-card found?', totalPortsCard);
             
-            if (totalDevicesCard) {{
+            if (totalDevicesCard) {
                 console.log('LINK FLAP: Adding click listener to total-devices-card');
-                totalDevicesCard.addEventListener('click', function() {{
+                totalDevicesCard.addEventListener('click', function() {
                     console.log('LINK FLAP: Total devices clicked - calling filterPorts(TOTAL)');
                     filterPorts('TOTAL');
-                }});
-            }} else {{
+                });
+            } else {
                 console.error('LINK FLAP: total-devices-card not found!');
                 console.log('LINK FLAP: Available IDs:', Array.from(document.querySelectorAll('[id]')).map(el => el.id));
-            }}
+            }
             
-            if (totalPortsCard) {{
-                totalPortsCard.addEventListener('click', function() {{
+            if (totalPortsCard) {
+                totalPortsCard.addEventListener('click', function() {
                     console.log('LINK FLAP: Total ports clicked');
-                    if (parseInt(document.getElementById('total-ports').textContent) > 0) {{
+                    if (parseInt(document.getElementById('total-ports').textContent) > 0) {
                         filterPorts('TOTAL');
-                    }}
-                }});
-            }} else {{
+                    }
+                });
+            } else {
                 console.error('LINK FLAP: total-ports-card not found!');
-            }}
+            }
             
-            document.getElementById('stable-card').addEventListener('click', function() {{
+            document.getElementById('stable-card').addEventListener('click', function() {
                 console.log('LINK FLAP: Stable clicked');
-                if (parseInt(document.getElementById('stable-ports').textContent) > 0) {{
+                if (parseInt(document.getElementById('stable-ports').textContent) > 0) {
                     filterPorts('STABLE');
-                }}
-            }});
+                }
+            });
             
-            document.getElementById('problematic-card').addEventListener('click', function() {{
+            document.getElementById('problematic-card').addEventListener('click', function() {
                 console.log('LINK FLAP: Problematic clicked');
-                if (parseInt(document.getElementById('problematic-ports').textContent) > 0) {{
+                if (parseInt(document.getElementById('problematic-ports').textContent) > 0) {
                     filterPorts('PROBLEMATIC');
-                }}
-            }});
+                }
+            });
             
-            document.getElementById('stability-card').addEventListener('click', function() {{
+            document.getElementById('stability-card').addEventListener('click', function() {
                 console.log('LINK FLAP: Stability clicked');
                 filterPorts('TOTAL'); // Stability ratio shows all ports
-            }});
-        }}
+            });
+        }
         
-        function filterPorts(filterType) {{
+        function filterPorts(filterType) {
             currentFilter = filterType;
             
             // Clear active state from all cards
-            document.querySelectorAll('.summary-card').forEach(card => {{
+            document.querySelectorAll('.summary-card').forEach(card => {
                 card.classList.remove('active');
-            }});
+            });
             
             let filteredRows = allRows;
             let filterText = '';
             
-            if (filterType === 'STABLE') {{
+            if (filterType === 'STABLE') {
                 filteredRows = allRows.filter(row => row.dataset.status === 'ok');
                 filterText = 'Showing ' + filteredRows.length + ' Stable Ports';
                 document.getElementById('stable-card').classList.add('active');
-            }} else if (filterType === 'PROBLEMATIC') {{
+            } else if (filterType === 'PROBLEMATIC') {
                 filteredRows = allRows.filter(row => 
                     row.dataset.status === 'flapping' || 
                     row.dataset.status === 'flapped'
                 );
                 filterText = 'Showing ' + filteredRows.length + ' Problematic Ports';
                 document.getElementById('problematic-card').classList.add('active');
-            }} else if (filterType === 'TOTAL') {{
+            } else if (filterType === 'TOTAL') {
                 filteredRows = allRows;
                 document.getElementById('total-ports-card').classList.add('active');
-            }}
+            }
             
             // Show filter info for all filters except TOTAL
-            if (filterType !== 'ALL' && filterType !== 'TOTAL') {{
+            if (filterType !== 'ALL' && filterType !== 'TOTAL') {
                 document.getElementById('filter-info').style.display = 'block';
                 document.getElementById('filter-text').textContent = filterText;
-            }} else {{
+            } else {
                 document.getElementById('filter-info').style.display = 'none';
-            }}
+            }
             
             // Hide all rows first
             allRows.forEach(row => row.style.display = 'none');
             
             // Show filtered rows
             filteredRows.forEach(row => row.style.display = '');
-        }}
+        }
         
-        function clearFilter() {{
+        function clearFilter() {
             currentFilter = 'ALL';
-            document.querySelectorAll('.summary-card').forEach(card => {{
+            document.querySelectorAll('.summary-card').forEach(card => {
                 card.classList.remove('active');
-            }});
+            });
             document.getElementById('filter-info').style.display = 'none';
             
             // Show all rows
             allRows.forEach(row => row.style.display = '');
-        }}
+        }
     </script>
 </body>
 </html>"""
