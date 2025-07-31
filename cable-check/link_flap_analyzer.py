@@ -413,7 +413,7 @@ class LinkFlapAnalyzer:
                 transition_class = "transition-warning"
                 
             html_content += f"""
-        <tr class="{status_class}" data-status="{port['status'].value}">
+        <tr data-status="{port['status'].value}">
             <td>{port['device']}</td>
             <td>{port['interface']}</td>
             <td><span class="{status_class}">{port['status'].value.upper()}</span></td>

@@ -593,7 +593,7 @@ class BGPAnalyzer:
             health_class = f"bgp-{health.value}"
             
             html_content += f"""
-        <tr class="{health_class}" data-health="{health.value}" data-state="{neighbor.state.value}">
+        <tr data-health="{health.value}" data-state="{neighbor.state.value}">
             <td>{hostname}</td>
             <td>{neighbor.neighbor_name}</td>
             <td>{neighbor.interface or 'N/A'}</td>

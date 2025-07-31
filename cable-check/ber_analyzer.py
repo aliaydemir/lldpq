@@ -531,7 +531,7 @@ class BERAnalyzer:
             timestamp = datetime.fromtimestamp(port_info['timestamp']).strftime('%H:%M:%S')
             
             html_content += f"""
-                <tr class="{status_class}" data-status="{status.lower()}">
+                <tr data-status="{status.lower()}">
                     <td>{device}</td>
                     <td>{interface}</td>
                     <td><span class="{status_class}">{status}</span></td>

@@ -474,7 +474,7 @@ class OpticalAnalyzer:
             health_class = f"optical-{port['health']}"
             
             html_content += f"""
-        <tr class="{health_class}" data-health="{port['health']}">
+        <tr data-health="{port['health']}">
             <td>{port['port']}</td>
             <td><span class="{health_class}">{port['health'].upper()}</span></td>
             <td>{rx_power}</td>
