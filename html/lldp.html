@@ -128,8 +128,10 @@
         <tr>
             <th>Local Device</th>
             <th>Local Port</th>
-            <th>Remote Device</th>
-            <th>Remote Port</th>
+            <th>Expected Neighbor</th>
+            <th>Expected Neighbor Port</th>
+            <th>Active Neighbor</th>
+            <th>Active Neighbor Port</th>
             <th>Status</th>
             <th>Connection Health</th>
         </tr>
@@ -271,13 +273,15 @@
                 
                 row.insertCell(0).textContent = connection.localDevice;
                 row.insertCell(1).textContent = connection.localPort;
-                row.insertCell(2).textContent = connection.actualDevice || 'N/A';
-                row.insertCell(3).textContent = connection.actualPort || 'N/A';
+                row.insertCell(2).textContent = connection.expectedDevice || 'N/A';
+                row.insertCell(3).textContent = connection.expectedPort || 'N/A';
+                row.insertCell(4).textContent = connection.actualDevice || 'N/A';
+                row.insertCell(5).textContent = connection.actualPort || 'N/A';
                 
-                const statusCell = row.insertCell(4);
+                const statusCell = row.insertCell(6);
                 statusCell.innerHTML = `<span class="${status.statusClass}">${status.status}</span>`;
                 
-                row.insertCell(5).textContent = status.health;
+                row.insertCell(7).textContent = status.health;
             });
         }
 
