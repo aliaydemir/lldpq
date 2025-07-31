@@ -394,8 +394,8 @@
             // 8. Description values - highlight everything after 'description' keyword (before numbers)
             result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, '$1<span class="comment">$2</span>');
             
-            // 9. Numbers (but avoid IP parts and skip lines with description)
-            if (!line.includes('description')) {
+            // 9. Numbers (but avoid IP parts, skip lines with description, and skip interface lines)
+            if (!line.includes('description') && !line.match(/\b(swp|vlan|eth|lo|br|peerlink)\b/)) {
                 result = result.replace(/(?<!\.)(\b\d+\b)(?!\.\d)/g, '<span class="number">$1</span>');
             }
 
