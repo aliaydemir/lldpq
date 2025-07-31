@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLDPQ Network Dashboard</title>
+    <link rel="shortcut icon" href="/png/favicon.ico">
+    <link rel="stylesheet" type="text/css" href="/css/styles2.css">
+    <style>
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .analysis-section {
+            margin: 30px 0;
+            background: #2d2d2d;
+            border-radius: 12px;
+            padding: 25px;
+            border: 1px solid #444;
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #b57614;
+            padding-bottom: 10px;
+        }
+        
+        .section-title {
+            font-size: 22px;
+            font-weight: bold;
+            color: #b57614;
+            margin: 0;
+        }
+        
+        .view-details-btn {
+            background: #b57614;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .view-details-btn:hover {
+            background: #d4940a;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(181, 118, 20, 0.3);
+        }
+        
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .summary-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 5px solid #007bff;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .summary-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        
+        .card-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .card-label {
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        /* Card Border Colors */
+        .card-total { border-left-color: #2196f3; }
+        .card-excellent { border-left-color: #4caf50; }
+        .card-good { border-left-color: #8bc34a; }
+        .card-warning { border-left-color: #ff9800; }
+        .card-critical { border-left-color: #f44336; }
+        .card-info { border-left-color: #17a2b8; }
+        
+        /* Status Colors */
+        .status-excellent { color: #4caf50; }
+        .status-good { color: #8bc34a; }
+        .status-warning { color: #ff9800; }
+        .status-critical { color: #f44336; }
+        .status-info { color: #17a2b8; }
+        
+        .main-title {
+            text-align: center;
+            margin: 30px 0;
+            font-size: 2.5em;
+            color: #b57614;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .last-updated {
+            text-align: center;
+            margin: 20px 0;
+            color: #ccc;
+            font-size: 16px;
+        }
+        
+        .nvidia-logo {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .nvidia-logo img {
+            max-width: 200px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .dashboard-stats {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 30px 0;
+            text-align: center;
+            color: white;
+        }
+        
+        .dashboard-stats h3 {
+            margin: 0 0 15px 0;
+            font-size: 20px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .stat-item {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 8px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <h1 class="main-title">LLDPQ Network Dashboard</h1>
+        
+        <div class="nvidia-logo">
+            <img src="/png/nvidia-logo.jpg" alt="NVIDIA Logo">
+        </div>
+        
+        <div class="last-updated">
+            <strong>Last Updated:</strong> <span id="last-updated-time"></span>
+        </div>
+        
+        <!-- Dashboard Overview Stats -->
+        <div class="dashboard-stats">
+            <h3>🌐 Network Health Overview</h3>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-value" id="total-network-devices">--</div>
+                    <div class="stat-label">Total Network Devices</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="total-interfaces">--</div>
+                    <div class="stat-label">Total Interfaces</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="overall-health">--</div>
+                    <div class="stat-label">Overall Health</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="critical-issues">--</div>
+                    <div class="stat-label">Critical Issues</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Assets Analysis Section -->
+        <div class="analysis-section">
+            <div class="section-header">
+                <h2 class="section-title">🖥️ Asset Analysis</h2>
+                <a href="assets.html" class="view-details-btn">View Details</a>
+            </div>
+            <div class="summary-grid">
+                <div class="summary-card card-total" onclick="window.location.href='assets.html'">
+                    <div class="card-value" id="assets-total">16</div>
+                    <div class="card-label">Total Devices</div>
+                </div>
+                <div class="summary-card card-excellent" onclick="window.location.href='assets.html'">
+                    <div class="card-value status-excellent" id="assets-success">16</div>
+                    <div class="card-label">Successful</div>
+                </div>
+                <div class="summary-card card-warning" onclick="window.location.href='assets.html'">
+                    <div class="card-value status-warning" id="assets-warnings">0</div>
+                    <div class="card-label">Warnings</div>
+                </div>
+                <div class="summary-card card-critical" onclick="window.location.href='assets.html'">
+                    <div class="card-value status-critical" id="assets-failed">0</div>
+                    <div class="card-label">Failed</div>
+                </div>
+                <div class="summary-card card-info" onclick="window.location.href='assets.html'">
+                    <div class="card-value status-info" id="assets-no-info">0</div>
+                    <div class="card-label">No Information</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LLDP Analysis Section -->
+        <div class="analysis-section">
+            <div class="section-header">
+                <h2 class="section-title">🔗 LLDP Topology Analysis</h2>
+                <a href="lldp.html" class="view-details-btn">View Details</a>
+            </div>
+            <div class="summary-grid">
+                <div class="summary-card card-total" onclick="window.location.href='lldp.html'">
+                    <div class="card-value" id="lldp-total">78</div>
+                    <div class="card-label">Total Connections</div>
+                </div>
+                <div class="summary-card card-excellent" onclick="window.location.href='lldp.html'">
+                    <div class="card-value status-excellent" id="lldp-success">72</div>
+                    <div class="card-label">Successful Links</div>
+                </div>
+                <div class="summary-card card-critical" onclick="window.location.href='lldp.html'">
+                    <div class="card-value status-critical" id="lldp-failed">2</div>
+                    <div class="card-label">Failed Links</div>
+                </div>
+                <div class="summary-card card-warning" onclick="window.location.href='lldp.html'">
+                    <div class="card-value status-warning" id="lldp-warning">3</div>
+                    <div class="card-label">Warning Links</div>
+                </div>
+                <div class="summary-card card-info" onclick="window.location.href='lldp.html'">
+                    <div class="card-value status-info" id="lldp-no-info">1</div>
+                    <div class="card-label">No Info Links</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BGP Analysis Section -->
+        <div class="analysis-section">
+            <div class="section-header">
+                <h2 class="section-title">🛣️ BGP Neighbor Analysis</h2>
+                <a href="monitor-results/bgp-analysis.html" class="view-details-btn">View Details</a>
+            </div>
+            <div class="summary-grid">
+                <div class="summary-card card-total" onclick="window.location.href='monitor-results/bgp-analysis.html'">
+                    <div class="card-value" id="bgp-devices">0</div>
+                    <div class="card-label">BGP Devices</div>
+                </div>
+                <div class="summary-card card-info" onclick="window.location.href='monitor-results/bgp-analysis.html'">
+                    <div class="card-value" id="bgp-neighbors">0</div>
+                    <div class="card-label">Total Neighbors</div>
+                </div>
+                <div class="summary-card card-excellent" onclick="window.location.href='monitor-results/bgp-analysis.html'">
+                    <div class="card-value status-excellent" id="bgp-established">0</div>
+                    <div class="card-label">Established</div>
+                </div>
+                <div class="summary-card card-critical" onclick="window.location.href='monitor-results/bgp-analysis.html'">
+                    <div class="card-value status-critical" id="bgp-down">0</div>
+                    <div class="card-label">Down/Problem</div>
+                </div>
+                <div class="summary-card card-total" onclick="window.location.href='monitor-results/bgp-analysis.html'">
+                    <div class="card-value" id="bgp-health">0.0%</div>
+                    <div class="card-label">Health Ratio</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Optical Analysis Section -->
+        <div class="analysis-section">
+            <div class="section-header">
+                <h2 class="section-title">🔬 Optical Diagnostics Analysis</h2>
+                <a href="monitor-results/optical-analysis.html" class="view-details-btn">View Details</a>
+            </div>
+            <div class="summary-grid">
+                <div class="summary-card card-total" onclick="window.location.href='monitor-results/optical-analysis.html'">
+                    <div class="card-value" id="optical-total">944</div>
+                    <div class="card-label">Total Ports</div>
+                </div>
+                <div class="summary-card card-excellent" onclick="window.location.href='monitor-results/optical-analysis.html'">
+                    <div class="card-value status-excellent" id="optical-excellent">725</div>
+                    <div class="card-label">Excellent</div>
+                </div>
+                <div class="summary-card card-good" onclick="window.location.href='monitor-results/optical-analysis.html'">
+                    <div class="card-value status-good" id="optical-good">32</div>
+                    <div class="card-label">Good</div>
+                </div>
+                <div class="summary-card card-warning" onclick="window.location.href='monitor-results/optical-analysis.html'">
+                    <div class="card-value status-warning" id="optical-warning">0</div>
+                    <div class="card-label">Warning</div>
+                </div>
+                <div class="summary-card card-critical" onclick="window.location.href='monitor-results/optical-analysis.html'">
+                    <div class="card-value status-critical" id="optical-critical">187</div>
+                    <div class="card-label">Critical</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BER Analysis Section -->
+        <div class="analysis-section">
+            <div class="section-header">
+                <h2 class="section-title">📊 BER Analysis</h2>
+                <a href="monitor-results/ber-analysis.html" class="view-details-btn">View Details</a>
+            </div>
+            <div class="summary-grid">
+                <div class="summary-card card-total" onclick="window.location.href='monitor-results/ber-analysis.html'">
+                    <div class="card-value" id="ber-total">0</div>
+                    <div class="card-label">Total Ports</div>
+                </div>
+                <div class="summary-card card-excellent" onclick="window.location.href='monitor-results/ber-analysis.html'">
+                    <div class="card-value status-excellent" id="ber-excellent">0</div>
+                    <div class="card-label">Excellent</div>
+                </div>
+                <div class="summary-card card-good" onclick="window.location.href='monitor-results/ber-analysis.html'">
+                    <div class="card-value status-good" id="ber-good">0</div>
+                    <div class="card-label">Good</div>
+                </div>
+                <div class="summary-card card-warning" onclick="window.location.href='monitor-results/ber-analysis.html'">
+                    <div class="card-value status-warning" id="ber-warning">0</div>
+                    <div class="card-label">Warning</div>
+                </div>
+                <div class="summary-card card-critical" onclick="window.location.href='monitor-results/ber-analysis.html'">
+                    <div class="card-value status-critical" id="ber-critical">0</div>
+                    <div class="card-label">Critical</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Link Flap Analysis Section -->
+        <div class="analysis-section">
+            <div class="section-header">
+                <h2 class="section-title">⚡ Link Flap Detection</h2>
+                <a href="monitor-results/link-flap-analysis.html" class="view-details-btn">View Details</a>
+            </div>
+            <div class="summary-grid">
+                <div class="summary-card card-total" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
+                    <div class="card-value" id="flap-devices">1</div>
+                    <div class="card-label">Total Devices</div>
+                </div>
+                <div class="summary-card card-info" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
+                    <div class="card-value" id="flap-ports">4</div>
+                    <div class="card-label">Total Ports</div>
+                </div>
+                <div class="summary-card card-excellent" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
+                    <div class="card-value status-excellent" id="flap-stable">4</div>
+                    <div class="card-label">Stable</div>
+                </div>
+                <div class="summary-card card-critical" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
+                    <div class="card-value status-critical" id="flap-problematic">0</div>
+                    <div class="card-label">Problematic</div>
+                </div>
+                <div class="summary-card card-total" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
+                    <div class="card-value" id="flap-stability">100.0%</div>
+                    <div class="card-label">Stability Ratio</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Set last updated time
+        function setLastUpdated() {
+            const now = new Date();
+            const options = { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            };
+            const formattedDate = now.toLocaleString('en-US', options);
+            document.getElementById('last-updated-time').textContent = formattedDate;
+        }
+
+        // Calculate overall network stats
+        function updateNetworkStats() {
+            // Total devices (from Assets)
+            const totalDevices = parseInt(document.getElementById('assets-total').textContent) || 0;
+            
+            // Total interfaces (from Optical + BER analysis)
+            const opticalPorts = parseInt(document.getElementById('optical-total').textContent) || 0;
+            const berPorts = parseInt(document.getElementById('ber-total').textContent) || 0;
+            const totalInterfaces = Math.max(opticalPorts, berPorts);
+            
+            // Critical issues across all systems
+            const criticalIssues = 
+                (parseInt(document.getElementById('assets-failed').textContent) || 0) +
+                (parseInt(document.getElementById('lldp-failed').textContent) || 0) +
+                (parseInt(document.getElementById('bgp-down').textContent) || 0) +
+                (parseInt(document.getElementById('optical-critical').textContent) || 0) +
+                (parseInt(document.getElementById('ber-critical').textContent) || 0) +
+                (parseInt(document.getElementById('flap-problematic').textContent) || 0);
+            
+            // Overall health calculation
+            const successfulAssets = parseInt(document.getElementById('assets-success').textContent) || 0;
+            const successfulLldp = parseInt(document.getElementById('lldp-success').textContent) || 0;
+            const excellentOptical = parseInt(document.getElementById('optical-excellent').textContent) || 0;
+            const stableFlap = parseInt(document.getElementById('flap-stable').textContent) || 0;
+            
+            const totalAssessments = totalDevices + 
+                (parseInt(document.getElementById('lldp-total').textContent) || 0) + 
+                opticalPorts + 
+                (parseInt(document.getElementById('flap-ports').textContent) || 0);
+            
+            const healthyItems = successfulAssets + successfulLldp + excellentOptical + stableFlap;
+            const overallHealth = totalAssessments > 0 ? Math.round((healthyItems / totalAssessments) * 100) : 0;
+            
+            // Update dashboard stats
+            document.getElementById('total-network-devices').textContent = totalDevices;
+            document.getElementById('total-interfaces').textContent = totalInterfaces;
+            document.getElementById('overall-health').textContent = overallHealth + '%';
+            document.getElementById('critical-issues').textContent = criticalIssues;
+            
+            // Color code the health percentage
+            const healthElement = document.getElementById('overall-health');
+            if (overallHealth >= 95) {
+                healthElement.style.color = '#4caf50';
+            } else if (overallHealth >= 85) {
+                healthElement.style.color = '#8bc34a';
+            } else if (overallHealth >= 70) {
+                healthElement.style.color = '#ff9800';
+            } else {
+                healthElement.style.color = '#f44336';
+            }
+            
+            // Color code critical issues
+            const criticalElement = document.getElementById('critical-issues');
+            if (criticalIssues === 0) {
+                criticalElement.style.color = '#4caf50';
+            } else if (criticalIssues <= 5) {
+                criticalElement.style.color = '#ff9800';
+            } else {
+                criticalElement.style.color = '#f44336';
+            }
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            setLastUpdated();
+            updateNetworkStats();
+            
+            // Update every 30 seconds
+            setInterval(function() {
+                setLastUpdated();
+                updateNetworkStats();
+            }, 30000);
+        });
+
+        // Add hover effects for clickable cards
+        document.querySelectorAll('.summary-card[onclick]').forEach(card => {
+            card.style.cursor = 'pointer';
+        });
+    </script>
+</body>
+</html>
