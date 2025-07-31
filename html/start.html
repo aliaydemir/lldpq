@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LLDPQ Network Dashboard</title>
+    <title>LLDPQ Dashboard</title>
     <link rel="shortcut icon" href="/png/favicon.ico">
     <link rel="stylesheet" type="text/css" href="/css/styles2.css">
     <style>
@@ -40,32 +40,13 @@
             border: 1px solid rgba(181, 118, 20, 0.3);
             display: inline-block;
             transition: all 0.3s ease;
+            cursor: pointer;
         }
         
         .section-title:hover {
             background: rgba(181, 118, 20, 0.2);
             border-color: rgba(181, 118, 20, 0.5);
             transform: translateY(-1px);
-        }
-        
-        .view-details-btn {
-            background: #b57614 !important;
-            color: white !important;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            text-decoration: none;
-            font-weight: bold;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            display: inline-block;
-        }
-        
-        .view-details-btn:hover {
-            background: #d4940a !important;
-            color: white !important;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(181, 118, 20, 0.3);
         }
         
         .summary-grid {
@@ -120,7 +101,7 @@
         
         .main-title {
             text-align: center;
-            margin: 30px 0 40px 0;
+            margin: 30px 0 15px 0;
             font-size: 3.2em;
             font-weight: bold;
             color: #b57614;
@@ -144,7 +125,7 @@
         
         .nvidia-logo {
             text-align: center;
-            margin: 20px 0;
+            margin: 10px 0 20px 0;
         }
         
         .nvidia-logo img {
@@ -239,8 +220,7 @@
         <!-- Assets Analysis Section -->
         <div class="analysis-section">
             <div class="section-header">
-                <h2 class="section-title">Asset Analysis</h2>
-                <a href="assets.html" class="view-details-btn">View Details</a>
+                <h2 class="section-title" onclick="window.location.href='assets.html'">Asset Analysis</h2>
             </div>
             <div class="summary-grid">
                 <div class="summary-card card-total" onclick="window.location.href='assets.html'">
@@ -269,8 +249,7 @@
         <!-- LLDP Analysis Section -->
         <div class="analysis-section">
             <div class="section-header">
-                <h2 class="section-title">LLDP Topology Analysis</h2>
-                <a href="lldp.html" class="view-details-btn">View Details</a>
+                <h2 class="section-title" onclick="window.location.href='lldp.html'">LLDP Topology Analysis</h2>
             </div>
             <div class="summary-grid">
                 <div class="summary-card card-total" onclick="window.location.href='lldp.html'">
@@ -299,8 +278,7 @@
         <!-- BGP Analysis Section -->
         <div class="analysis-section">
             <div class="section-header">
-                <h2 class="section-title">BGP Neighbor Analysis</h2>
-                <a href="monitor-results/bgp-analysis.html" class="view-details-btn">View Details</a>
+                <h2 class="section-title" onclick="window.location.href='monitor-results/bgp-analysis.html'">BGP Neighbor Analysis</h2>
             </div>
             <div class="summary-grid">
                 <div class="summary-card card-total" onclick="window.location.href='monitor-results/bgp-analysis.html'">
@@ -329,8 +307,7 @@
         <!-- Optical Analysis Section -->
         <div class="analysis-section">
             <div class="section-header">
-                <h2 class="section-title">Optical Diagnostics Analysis</h2>
-                <a href="monitor-results/optical-analysis.html" class="view-details-btn">View Details</a>
+                <h2 class="section-title" onclick="window.location.href='monitor-results/optical-analysis.html'">Optical Diagnostics Analysis</h2>
             </div>
             <div class="summary-grid">
                 <div class="summary-card card-total" onclick="window.location.href='monitor-results/optical-analysis.html'">
@@ -359,8 +336,7 @@
         <!-- BER Analysis Section -->
         <div class="analysis-section">
             <div class="section-header">
-                <h2 class="section-title">BER Analysis</h2>
-                <a href="monitor-results/ber-analysis.html" class="view-details-btn">View Details</a>
+                <h2 class="section-title" onclick="window.location.href='monitor-results/ber-analysis.html'">BER Analysis</h2>
             </div>
             <div class="summary-grid">
                 <div class="summary-card card-total" onclick="window.location.href='monitor-results/ber-analysis.html'">
@@ -389,8 +365,7 @@
         <!-- Link Flap Analysis Section -->
         <div class="analysis-section">
             <div class="section-header">
-                <h2 class="section-title">Link Flap Detection</h2>
-                <a href="monitor-results/link-flap-analysis.html" class="view-details-btn">View Details</a>
+                <h2 class="section-title" onclick="window.location.href='monitor-results/link-flap-analysis.html'">Link Flap Detection</h2>
             </div>
             <div class="summary-grid">
                 <div class="summary-card card-total" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
