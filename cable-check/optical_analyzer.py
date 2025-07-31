@@ -382,6 +382,30 @@ class OpticalAnalyzer:
             border-left-color: #ff9800; 
             background-color: #fff3e0; 
         }}
+        
+        .summary-card {{
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }}
+        .summary-card:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }}
+        .summary-card.active {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            border-left-width: 6px;
+        }}
+        
+        .filter-info {{
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            background: #e8f4fd;
+            border-radius: 4px;
+            color: #1976d2;
+            display: none;
+        }}
     </style>
 </head>
 <body>
@@ -391,39 +415,40 @@ class OpticalAnalyzer:
     
     <h2>Summary</h2>
     <div class="summary-grid">
-        <div class="summary-card">
-            <div class="metric">{summary['total_ports']}</div>
+        <div class="summary-card" id="total-ports-card">
+            <div class="metric" id="total-ports">{summary['total_ports']}</div>
             <div>Total Ports</div>
         </div>
-        <div class="summary-card">
-            <div class="metric optical-excellent">{len(summary['excellent_ports'])}</div>
+        <div class="summary-card" id="excellent-card">
+            <div class="metric optical-excellent" id="excellent-ports">{len(summary['excellent_ports'])}</div>
             <div>Excellent</div>
         </div>
-        <div class="summary-card">
-            <div class="metric optical-good">{len(summary['good_ports'])}</div>
+        <div class="summary-card" id="good-card">
+            <div class="metric optical-good" id="good-ports">{len(summary['good_ports'])}</div>
             <div>Good</div>
         </div>
-        <div class="summary-card">
-            <div class="metric optical-warning">{len(summary['warning_ports'])}</div>
+        <div class="summary-card" id="warning-card">
+            <div class="metric optical-warning" id="warning-ports">{len(summary['warning_ports'])}</div>
             <div>Warning</div>
         </div>
-        <div class="summary-card">
-            <div class="metric optical-critical">{len(summary['critical_ports'])}</div>
+        <div class="summary-card" id="critical-card">
+            <div class="metric optical-critical" id="critical-ports">{len(summary['critical_ports'])}</div>
             <div>Critical</div>
         </div>
+    </div>
+    
+    <div id="filter-info" class="filter-info">
+        <span id="filter-text"></span>
+        <button onclick="clearFilter()" style="margin-left: 10px; padding: 2px 8px; background: #1976d2; color: white; border: none; border-radius: 3px; cursor: pointer;">Show All</button>
     </div>"""
         
-        # Add detailed tables for each health category with recommended actions
-        for category, ports, health_class in [
-            ("Critical Optical Issues (Immediate Action Required)", summary['critical_ports'], "optical-critical"),
-            ("Warning Level Issues (Monitor Closely)", summary['warning_ports'], "optical-warning"),
-            ("Good Optical Health", summary['good_ports'], "optical-good"),
-            ("Excellent Optical Health", summary['excellent_ports'], "optical-excellent")
-        ]:
-            if ports:
-                html_content += f"""
-    <h2>{category}</h2>
-    <table class="optical-table">
+        # Create one unified table for all ports (sorted by health - problems first)
+        all_ports = summary['critical_ports'] + summary['warning_ports'] + summary['good_ports'] + summary['excellent_ports']
+        
+        html_content += f"""
+    <h2>Optical Port Status ({len(all_ports)} ports)</h2>
+    <table class="optical-table" id="optical-table">
+        <thead>
         <tr>
             <th>Port</th>
             <th>Health</th>
@@ -434,18 +459,22 @@ class OpticalAnalyzer:
             <th>Voltage (V)</th>
             <th>Bias Current (mA)</th>
             <th>Recommended Action</th>
-        </tr>"""
-                for port in ports:
-                    rx_power = f"{port['rx_power_dbm']:.2f}" if port['rx_power_dbm'] is not None else "N/A"
-                    tx_power = f"{port['tx_power_dbm']:.2f}" if port['tx_power_dbm'] is not None else "N/A"
-                    temperature = f"{port['temperature_c']:.1f}" if port['temperature_c'] is not None else "N/A"
-                    link_margin = f"{port['link_margin_db']:.2f}" if port['link_margin_db'] is not None else "N/A"
-                    voltage = f"{port['voltage_v']:.2f}" if port['voltage_v'] is not None else "N/A"
-                    bias_current = f"{port['bias_current_ma']:.2f}" if port['bias_current_ma'] is not None else "N/A"
-                    recommended_action = self.get_recommended_action(port)
-                    
-                    html_content += f"""
-        <tr>
+        </tr>
+        </thead>
+        <tbody id="optical-data">"""
+        
+        for port in all_ports:
+            rx_power = f"{port['rx_power_dbm']:.2f}" if port['rx_power_dbm'] is not None else "N/A"
+            tx_power = f"{port['tx_power_dbm']:.2f}" if port['tx_power_dbm'] is not None else "N/A"
+            temperature = f"{port['temperature_c']:.1f}" if port['temperature_c'] is not None else "N/A"
+            link_margin = f"{port['link_margin_db']:.2f}" if port['link_margin_db'] is not None else "N/A"
+            voltage = f"{port['voltage_v']:.2f}" if port['voltage_v'] is not None else "N/A"
+            bias_current = f"{port['bias_current_ma']:.2f}" if port['bias_current_ma'] is not None else "N/A"
+            recommended_action = self.get_recommended_action(port)
+            health_class = f"optical-{port['health']}"
+            
+            html_content += f"""
+        <tr class="{health_class}" data-health="{port['health']}">
             <td>{port['port']}</td>
             <td><span class="{health_class}">{port['health'].upper()}</span></td>
             <td>{rx_power}</td>
@@ -456,7 +485,10 @@ class OpticalAnalyzer:
             <td>{bias_current}</td>
             <td>{recommended_action}</td>
         </tr>"""
-                html_content += "    </table>"
+        
+        html_content += """
+        </tbody>
+    </table>"""
         
         html_content += f"""
     <h2>Optical Health Thresholds</h2>
@@ -469,6 +501,110 @@ class OpticalAnalyzer:
         <tr><td>Link Margin</td><td>{self.thresholds['link_margin_min_db']} dB</td><td>-</td><td>Minimum acceptable link budget margin</td></tr>
         <tr><td>Bias Current</td><td>-</td><td>{self.thresholds['bias_current_max_ma']} mA</td><td>Maximum laser bias current</td></tr>
     </table>
+
+    <script>
+        // Filter functionality
+        let currentFilter = 'ALL';
+        let allRows = [];
+        
+        document.addEventListener('DOMContentLoaded', function() {{
+            // Store all table rows for filtering
+            allRows = Array.from(document.querySelectorAll('#optical-data tr'));
+            
+            // Add click events to summary cards
+            setupCardEvents();
+        }});
+        
+        function setupCardEvents() {{
+            document.getElementById('total-ports-card').addEventListener('click', function() {{
+                if (parseInt(document.getElementById('total-ports').textContent) > 0) {{
+                    filterPorts('TOTAL');
+                }}
+            }});
+            
+            document.getElementById('excellent-card').addEventListener('click', function() {{
+                if (parseInt(document.getElementById('excellent-ports').textContent) > 0) {{
+                    filterPorts('EXCELLENT');
+                }}
+            }});
+            
+            document.getElementById('good-card').addEventListener('click', function() {{
+                if (parseInt(document.getElementById('good-ports').textContent) > 0) {{
+                    filterPorts('GOOD');
+                }}
+            }});
+            
+            document.getElementById('warning-card').addEventListener('click', function() {{
+                if (parseInt(document.getElementById('warning-ports').textContent) > 0) {{
+                    filterPorts('WARNING');
+                }}
+            }});
+            
+            document.getElementById('critical-card').addEventListener('click', function() {{
+                if (parseInt(document.getElementById('critical-ports').textContent) > 0) {{
+                    filterPorts('CRITICAL');
+                }}
+            }});
+        }}
+        
+        function filterPorts(filterType) {{
+            currentFilter = filterType;
+            
+            // Clear active state from all cards
+            document.querySelectorAll('.summary-card').forEach(card => {{
+                card.classList.remove('active');
+            }});
+            
+            let filteredRows = allRows;
+            let filterText = '';
+            
+            if (filterType === 'EXCELLENT') {{
+                filteredRows = allRows.filter(row => row.dataset.health === 'excellent');
+                filterText = `Showing ${{filteredRows.length}} Excellent Ports`;
+                document.getElementById('excellent-card').classList.add('active');
+            }} else if (filterType === 'GOOD') {{
+                filteredRows = allRows.filter(row => row.dataset.health === 'good');
+                filterText = `Showing ${{filteredRows.length}} Good Ports`;
+                document.getElementById('good-card').classList.add('active');
+            }} else if (filterType === 'WARNING') {{
+                filteredRows = allRows.filter(row => row.dataset.health === 'warning');
+                filterText = `Showing ${{filteredRows.length}} Warning Ports`;
+                document.getElementById('warning-card').classList.add('active');
+            }} else if (filterType === 'CRITICAL') {{
+                filteredRows = allRows.filter(row => row.dataset.health === 'critical');
+                filterText = `Showing ${{filteredRows.length}} Critical Ports`;
+                document.getElementById('critical-card').classList.add('active');
+            }} else if (filterType === 'TOTAL') {{
+                filteredRows = allRows;
+                document.getElementById('total-ports-card').classList.add('active');
+            }}
+            
+            // Show filter info for all filters except TOTAL
+            if (filterType !== 'ALL' && filterType !== 'TOTAL') {{
+                document.getElementById('filter-info').style.display = 'block';
+                document.getElementById('filter-text').textContent = filterText;
+            }} else {{
+                document.getElementById('filter-info').style.display = 'none';
+            }}
+            
+            // Hide all rows first
+            allRows.forEach(row => row.style.display = 'none');
+            
+            // Show filtered rows
+            filteredRows.forEach(row => row.style.display = '');
+        }}
+        
+        function clearFilter() {{
+            currentFilter = 'ALL';
+            document.querySelectorAll('.summary-card').forEach(card => {{
+                card.classList.remove('active');
+            }});
+            document.getElementById('filter-info').style.display = 'none';
+            
+            // Show all rows
+            allRows.forEach(row => row.style.display = '');
+        }}
+    </script>
 </body>
 </html>"""
         

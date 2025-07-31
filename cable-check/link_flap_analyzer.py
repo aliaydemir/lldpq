@@ -277,8 +277,29 @@ class LinkFlapAnalyzer:
             padding: 15px; 
             border-radius: 8px; 
             border-left: 4px solid #007bff; 
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }}
+        .summary-card:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }}
+        .summary-card.active {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            border-left-width: 6px;
         }}
         .metric {{ font-size: 24px; font-weight: bold; }}
+        
+        .filter-info {{
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            background: #e8f4fd;
+            border-radius: 4px;
+            color: #1976d2;
+            display: none;
+        }}
         .status-established {{ color: #4caf50; font-weight: bold; }}
         .status-flapping {{ color: #f44336; font-weight: bold; }}
         .status-flapped {{ color: #ff9800; font-weight: bold; }}
@@ -294,26 +315,31 @@ class LinkFlapAnalyzer:
     
     <h2>Network Summary</h2>
     <div class="summary-grid">
-        <div class="summary-card">
-            <div class="metric">{len(set(port.split(':')[0] for port in self.carrier_transitions_stats.keys()))}</div>
+        <div class="summary-card" id="total-devices-card">
+            <div class="metric" id="total-devices">{len(set(port.split(':')[0] for port in self.carrier_transitions_stats.keys()))}</div>
             <div>Total Devices</div>
         </div>
-        <div class="summary-card">
-            <div class="metric">{summary['total_ports']}</div>
+        <div class="summary-card" id="total-ports-card">
+            <div class="metric" id="total-ports">{summary['total_ports']}</div>
             <div>Total Ports</div>
         </div>
-        <div class="summary-card">
-            <div class="metric flap-excellent">{len(summary['ok_ports'])}</div>
+        <div class="summary-card" id="stable-card">
+            <div class="metric flap-excellent" id="stable-ports">{len(summary['ok_ports'])}</div>
             <div>Stable</div>
         </div>
-        <div class="summary-card">
-            <div class="metric flap-critical">{len(summary['flapping_ports']) + len(summary['flapped_ports'])}</div>
+        <div class="summary-card" id="problematic-card">
+            <div class="metric flap-critical" id="problematic-ports">{len(summary['flapping_ports']) + len(summary['flapped_ports'])}</div>
             <div>Problematic</div>
         </div>
-        <div class="summary-card">
-            <div class="metric">{stability_ratio:.1f}%</div>
+        <div class="summary-card" id="stability-card">
+            <div class="metric" id="stability-ratio">{stability_ratio:.1f}%</div>
             <div>Stability Ratio</div>
         </div>
+    </div>
+    
+    <div id="filter-info" class="filter-info">
+        <span id="filter-text"></span>
+        <button onclick="clearFilter()" style="margin-left: 10px; padding: 2px 8px; background: #1976d2; color: white; border: none; border-radius: 3px; cursor: pointer;">Show All</button>
     </div>
 """
         
@@ -351,7 +377,8 @@ class LinkFlapAnalyzer:
         # Interface flapping table (sorted by problems first, like BGP)
         html_content += f"""
     <h2>Interface Flapping Status ({len(all_ports)} total)</h2>
-    <table class="flap-table">
+    <table class="flap-table" id="flap-table">
+        <thead>
         <tr>
             <th>Device</th>
             <th>Interface</th>
@@ -364,6 +391,8 @@ class LinkFlapAnalyzer:
             <th>24h Flaps</th>
             <th>Total Transitions</th>
         </tr>
+        </thead>
+        <tbody id="flap-data">
 """
         
         # Sort by severity (problems first, like BGP)
@@ -384,7 +413,7 @@ class LinkFlapAnalyzer:
                 transition_class = "transition-warning"
                 
             html_content += f"""
-        <tr>
+        <tr class="{status_class}" data-status="{port['status'].value}">
             <td>{port['device']}</td>
             <td>{port['interface']}</td>
             <td><span class="{status_class}">{port['status'].value.upper()}</span></td>
@@ -412,7 +441,94 @@ class LinkFlapAnalyzer:
     </table>
 </body>
 </html>
-"""
+    <script>
+        // Filter functionality
+        let currentFilter = 'ALL';
+        let allRows = [];
+        
+        document.addEventListener('DOMContentLoaded', function() {{
+            // Store all table rows for filtering
+            allRows = Array.from(document.querySelectorAll('#flap-data tr'));
+            
+            // Add click events to summary cards
+            setupCardEvents();
+        }});
+        
+        function setupCardEvents() {{
+            document.getElementById('total-ports-card').addEventListener('click', function() {{
+                if (parseInt(document.getElementById('total-ports').textContent) > 0) {{
+                    filterPorts('TOTAL');
+                }}
+            }});
+            
+            document.getElementById('stable-card').addEventListener('click', function() {{
+                if (parseInt(document.getElementById('stable-ports').textContent) > 0) {{
+                    filterPorts('STABLE');
+                }}
+            }});
+            
+            document.getElementById('problematic-card').addEventListener('click', function() {{
+                if (parseInt(document.getElementById('problematic-ports').textContent) > 0) {{
+                    filterPorts('PROBLEMATIC');
+                }}
+            }});
+        }}
+        
+        function filterPorts(filterType) {{
+            currentFilter = filterType;
+            
+            // Clear active state from all cards
+            document.querySelectorAll('.summary-card').forEach(card => {{
+                card.classList.remove('active');
+            }});
+            
+            let filteredRows = allRows;
+            let filterText = '';
+            
+            if (filterType === 'STABLE') {{
+                filteredRows = allRows.filter(row => row.dataset.status === 'ok');
+                filterText = `Showing ${{filteredRows.length}} Stable Ports`;
+                document.getElementById('stable-card').classList.add('active');
+            }} else if (filterType === 'PROBLEMATIC') {{
+                filteredRows = allRows.filter(row => 
+                    row.dataset.status === 'flapping' || 
+                    row.dataset.status === 'flapped'
+                );
+                filterText = `Showing ${{filteredRows.length}} Problematic Ports`;
+                document.getElementById('problematic-card').classList.add('active');
+            }} else if (filterType === 'TOTAL') {{
+                filteredRows = allRows;
+                document.getElementById('total-ports-card').classList.add('active');
+            }}
+            
+            // Show filter info for all filters except TOTAL
+            if (filterType !== 'ALL' && filterType !== 'TOTAL') {{
+                document.getElementById('filter-info').style.display = 'block';
+                document.getElementById('filter-text').textContent = filterText;
+            }} else {{
+                document.getElementById('filter-info').style.display = 'none';
+            }}
+            
+            // Hide all rows first
+            allRows.forEach(row => row.style.display = 'none');
+            
+            // Show filtered rows
+            filteredRows.forEach(row => row.style.display = '');
+        }}
+        
+        function clearFilter() {{
+            currentFilter = 'ALL';
+            document.querySelectorAll('.summary-card').forEach(card => {{
+                card.classList.remove('active');
+            }});
+            document.getElementById('filter-info').style.display = 'none';
+            
+            // Show all rows
+            allRows.forEach(row => row.style.display = '');
+        }}
+    </script>
+</body>
+</html>"""
         
         with open(output_file, "w") as f:
             f.write(html_content)

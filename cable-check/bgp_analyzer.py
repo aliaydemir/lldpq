@@ -460,6 +460,30 @@ class BGPAnalyzer:
         .uptime-good {{ color: #4caf50; }}
         .uptime-warning {{ color: #ff9800; }}
         .uptime-critical {{ color: #f44336; }}
+        
+        .summary-card {{
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }}
+        .summary-card:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }}
+        .summary-card.active {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            border-left-width: 6px;
+        }}
+        
+        .filter-info {{
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            background: #e8f4fd;
+            border-radius: 4px;
+            color: #1976d2;
+            display: none;
+        }}
     </style>
 </head>
 <body>
@@ -468,24 +492,24 @@ class BGPAnalyzer:
     
     <h2>Network Summary</h2>
     <div class="summary-grid">
-        <div class="summary-card">
-            <div class="metric">{summary['total_devices']}</div>
+        <div class="summary-card" id="total-devices-card">
+            <div class="metric" id="total-devices">{summary['total_devices']}</div>
             <div>BGP Devices</div>
         </div>
-        <div class="summary-card">
-            <div class="metric">{summary['total_neighbors']}</div>
+        <div class="summary-card" id="total-neighbors-card">
+            <div class="metric" id="total-neighbors">{summary['total_neighbors']}</div>
             <div>Total Neighbors</div>
         </div>
-        <div class="summary-card">
-            <div class="metric bgp-excellent">{summary['established_neighbors']}</div>
+        <div class="summary-card" id="established-card">
+            <div class="metric bgp-excellent" id="established-neighbors">{summary['established_neighbors']}</div>
             <div>Established</div>
         </div>
-        <div class="summary-card">
-            <div class="metric bgp-critical">{summary['down_neighbors']}</div>
+        <div class="summary-card" id="down-card">
+            <div class="metric bgp-critical" id="down-neighbors">{summary['down_neighbors']}</div>
             <div>Down/Problem</div>
         </div>
-        <div class="summary-card">
-            <div class="metric">{summary['health_ratio']:.1f}%</div>
+        <div class="summary-card" id="health-card">
+            <div class="metric" id="health-ratio">{summary['health_ratio']:.1f}%</div>
             <div>Health Ratio</div>
         </div>
     </div>
@@ -530,7 +554,12 @@ class BGPAnalyzer:
         # BGP neighbors table (sorted by health - problems first)
         html_content += f"""
     <h2>BGP Neighbors Status ({len(all_neighbors)} total)</h2>
-    <table class="bgp-table">
+    <div id="filter-info" class="filter-info">
+        <span id="filter-text"></span>
+        <button onclick="clearFilter()" style="margin-left: 10px; padding: 2px 8px; background: #1976d2; color: white; border: none; border-radius: 3px; cursor: pointer;">Show All</button>
+    </div>
+    <table class="bgp-table" id="bgp-table">
+        <thead>
         <tr>
             <th>Device</th>
             <th>Neighbor</th>
@@ -543,6 +572,8 @@ class BGPAnalyzer:
             <th>Queue In/Out</th>
             <th>Health</th>
         </tr>
+        </thead>
+        <tbody id="bgp-data">
 """
         
         # Add all neighbor data (sorted by health - problems first, then good ones)
@@ -562,7 +593,7 @@ class BGPAnalyzer:
             health_class = f"bgp-{health.value}"
             
             html_content += f"""
-        <tr>
+        <tr class="{health_class}" data-health="{health.value}" data-state="{neighbor.state.value}">
             <td>{hostname}</td>
             <td>{neighbor.neighbor_name}</td>
             <td>{neighbor.interface or 'N/A'}</td>
@@ -577,6 +608,7 @@ class BGPAnalyzer:
 """
         
         html_content += """
+        </tbody>
     </table>
     
     <h2>BGP Health Thresholds</h2>
@@ -587,6 +619,94 @@ class BGPAnalyzer:
         <tr><td>Low Prefix Count</td><td>&lt; 1 prefix</td><td>Potential route advertisement issues</td></tr>
         <tr><td>Message Ratio</td><td>&lt; 80%</td><td>Imbalanced message exchange</td></tr>
     </table>
+
+    <script>
+        // Filter functionality
+        let currentFilter = 'ALL';
+        let allRows = [];
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Store all table rows for filtering
+            allRows = Array.from(document.querySelectorAll('#bgp-data tr'));
+            
+            // Add click events to summary cards
+            setupCardEvents();
+        });
+        
+        function setupCardEvents() {
+            document.getElementById('total-neighbors-card').addEventListener('click', function() {
+                if (parseInt(document.getElementById('total-neighbors').textContent) > 0) {
+                    filterNeighbors('TOTAL');
+                }
+            });
+            
+            document.getElementById('established-card').addEventListener('click', function() {
+                if (parseInt(document.getElementById('established-neighbors').textContent) > 0) {
+                    filterNeighbors('ESTABLISHED');
+                }
+            });
+            
+            document.getElementById('down-card').addEventListener('click', function() {
+                if (parseInt(document.getElementById('down-neighbors').textContent) > 0) {
+                    filterNeighbors('DOWN');
+                }
+            });
+        }
+        
+        function filterNeighbors(filterType) {
+            currentFilter = filterType;
+            
+            // Clear active state from all cards
+            document.querySelectorAll('.summary-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            
+            let filteredRows = allRows;
+            let filterText = '';
+            
+            if (filterType === 'ESTABLISHED') {
+                filteredRows = allRows.filter(row => row.dataset.state === 'established');
+                filterText = `Showing ${filteredRows.length} Established Neighbors`;
+                document.getElementById('established-card').classList.add('active');
+            } else if (filterType === 'DOWN') {
+                filteredRows = allRows.filter(row => 
+                    row.dataset.state !== 'established' || 
+                    row.dataset.health === 'critical' || 
+                    row.dataset.health === 'warning'
+                );
+                filterText = `Showing ${filteredRows.length} Down/Problem Neighbors`;
+                document.getElementById('down-card').classList.add('active');
+            } else if (filterType === 'TOTAL') {
+                filteredRows = allRows;
+                document.getElementById('total-neighbors-card').classList.add('active');
+            }
+            
+            // Show filter info for all filters except TOTAL
+            if (filterType !== 'ALL' && filterType !== 'TOTAL') {
+                document.getElementById('filter-info').style.display = 'block';
+                document.getElementById('filter-text').textContent = filterText;
+            } else {
+                document.getElementById('filter-info').style.display = 'none';
+            }
+            
+            // Hide all rows first
+            allRows.forEach(row => row.style.display = 'none');
+            
+            // Show filtered rows
+            filteredRows.forEach(row => row.style.display = '');
+        }
+        
+        function clearFilter() {
+            currentFilter = 'ALL';
+            document.querySelectorAll('.summary-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            document.getElementById('filter-info').style.display = 'none';
+            
+            // Show all rows
+            allRows.forEach(row => row.style.display = '');
+        }
+    </script>
 </body>
 </html>
 """

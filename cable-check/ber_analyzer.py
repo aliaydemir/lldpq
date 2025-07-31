@@ -388,6 +388,30 @@ class BERAnalyzer:
         .ber-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
         .ber-table th, .ber-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
         .ber-table th {{ background-color: #f2f2f2; }}
+        
+        .summary-card {{
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }}
+        .summary-card:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }}
+        .summary-card.active {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            border-left-width: 6px;
+        }}
+        
+        .filter-info {{
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            background: #e8f4fd;
+            border-radius: 4px;
+            color: #1976d2;
+            display: none;
+        }}
     </style>
   </head>
   <body>
@@ -397,26 +421,31 @@ class BERAnalyzer:
         
         <h2>Network Summary</h2>
         <div class="summary-grid">
-            <div class="summary-card card-total">
-                <div class="metric">{total_ports}</div>
+            <div class="summary-card card-total" id="total-ports-card">
+                <div class="metric" id="total-ports">{total_ports}</div>
                 <div>Total Ports</div>
             </div>
-            <div class="summary-card card-excellent">
-                <div class="metric">{len(summary['excellent_ports'])}</div>
+            <div class="summary-card card-excellent" id="excellent-card">
+                <div class="metric" id="excellent-ports">{len(summary['excellent_ports'])}</div>
                 <div>Excellent</div>
             </div>
-            <div class="summary-card card-good">
-                <div class="metric">{len(summary['good_ports'])}</div>
+            <div class="summary-card card-good" id="good-card">
+                <div class="metric" id="good-ports">{len(summary['good_ports'])}</div>
                 <div>Good</div>
             </div>
-            <div class="summary-card card-warning">
-                <div class="metric">{len(summary['warning_ports'])}</div>
+            <div class="summary-card card-warning" id="warning-card">
+                <div class="metric" id="warning-ports">{len(summary['warning_ports'])}</div>
                 <div>Warning</div>
             </div>
-            <div class="summary-card card-critical">
-                <div class="metric">{len(summary['critical_ports'])}</div>
+            <div class="summary-card card-critical" id="critical-card">
+                <div class="metric" id="critical-ports">{len(summary['critical_ports'])}</div>
                 <div>Critical</div>
             </div>
+        </div>
+        
+        <div id="filter-info" class="filter-info">
+            <span id="filter-text"></span>
+            <button onclick="clearFilter()" style="margin-left: 10px; padding: 2px 8px; background: #1976d2; color: white; border: none; border-radius: 3px; cursor: pointer;">Show All</button>
         </div>
 """
         
@@ -441,7 +470,7 @@ class BERAnalyzer:
         # Add detailed table  
         html_content += """
         <h2>Interface BER Status</h2>
-        <table class="ber-table">
+        <table class="ber-table" id="ber-table">
             <thead>
                 <tr>
                     <th>Device</th>
@@ -454,7 +483,7 @@ class BERAnalyzer:
                     <th>Last Updated</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="ber-data">
 """
         
         # Add all ports to table (sorted by health - problems first, then good ones)
@@ -502,7 +531,7 @@ class BERAnalyzer:
             timestamp = datetime.fromtimestamp(port_info['timestamp']).strftime('%H:%M:%S')
             
             html_content += f"""
-                <tr>
+                <tr class="{status_class}" data-status="{status.lower()}">
                     <td>{device}</td>
                     <td>{interface}</td>
                     <td><span class="{status_class}">{status}</span></td>
@@ -531,7 +560,112 @@ class BERAnalyzer:
     </div>
 </body>
 </html>
-"""
+
+    <script>
+        // Filter functionality
+        let currentFilter = 'ALL';
+        let allRows = [];
+        
+        document.addEventListener('DOMContentLoaded', function() {{
+            // Store all table rows for filtering
+            allRows = Array.from(document.querySelectorAll('#ber-data tr'));
+            
+            // Add click events to summary cards
+            setupCardEvents();
+        }});
+        
+        function setupCardEvents() {{
+            document.getElementById('total-ports-card').addEventListener('click', function() {{
+                if (parseInt(document.getElementById('total-ports').textContent) > 0) {{
+                    filterPorts('TOTAL');
+                }}
+            }});
+            
+            document.getElementById('excellent-card').addEventListener('click', function() {{
+                if (parseInt(document.getElementById('excellent-ports').textContent) > 0) {{
+                    filterPorts('EXCELLENT');
+                }}
+            }});
+            
+            document.getElementById('good-card').addEventListener('click', function() {{
+                if (parseInt(document.getElementById('good-ports').textContent) > 0) {{
+                    filterPorts('GOOD');
+                }}
+            }});
+            
+            document.getElementById('warning-card').addEventListener('click', function() {{
+                if (parseInt(document.getElementById('warning-ports').textContent) > 0) {{
+                    filterPorts('WARNING');
+                }}
+            }});
+            
+            document.getElementById('critical-card').addEventListener('click', function() {{
+                if (parseInt(document.getElementById('critical-ports').textContent) > 0) {{
+                    filterPorts('CRITICAL');
+                }}
+            }});
+        }}
+        
+        function filterPorts(filterType) {{
+            currentFilter = filterType;
+            
+            // Clear active state from all cards
+            document.querySelectorAll('.summary-card').forEach(card => {{
+                card.classList.remove('active');
+            }});
+            
+            let filteredRows = allRows;
+            let filterText = '';
+            
+            if (filterType === 'EXCELLENT') {{
+                filteredRows = allRows.filter(row => row.dataset.status === 'excellent');
+                filterText = `Showing ${{filteredRows.length}} Excellent Ports`;
+                document.getElementById('excellent-card').classList.add('active');
+            }} else if (filterType === 'GOOD') {{
+                filteredRows = allRows.filter(row => row.dataset.status === 'good');
+                filterText = `Showing ${{filteredRows.length}} Good Ports`;
+                document.getElementById('good-card').classList.add('active');
+            }} else if (filterType === 'WARNING') {{
+                filteredRows = allRows.filter(row => row.dataset.status === 'warning');
+                filterText = `Showing ${{filteredRows.length}} Warning Ports`;
+                document.getElementById('warning-card').classList.add('active');
+            }} else if (filterType === 'CRITICAL') {{
+                filteredRows = allRows.filter(row => row.dataset.status === 'critical');
+                filterText = `Showing ${{filteredRows.length}} Critical Ports`;
+                document.getElementById('critical-card').classList.add('active');
+            }} else if (filterType === 'TOTAL') {{
+                filteredRows = allRows;
+                document.getElementById('total-ports-card').classList.add('active');
+            }}
+            
+            // Show filter info for all filters except TOTAL
+            if (filterType !== 'ALL' && filterType !== 'TOTAL') {{
+                document.getElementById('filter-info').style.display = 'block';
+                document.getElementById('filter-text').textContent = filterText;
+            }} else {{
+                document.getElementById('filter-info').style.display = 'none';
+            }}
+            
+            // Hide all rows first
+            allRows.forEach(row => row.style.display = 'none');
+            
+            // Show filtered rows
+            filteredRows.forEach(row => row.style.display = '');
+        }}
+        
+        function clearFilter() {{
+            currentFilter = 'ALL';
+            document.querySelectorAll('.summary-card').forEach(card => {{
+                card.classList.remove('active');
+            }});
+            document.getElementById('filter-info').style.display = 'none';
+            
+            // Show all rows
+            allRows.forEach(row => row.style.display = '');
+        }}
+    </script>
+</body>
+</html>"""
         
         try:
             with open(output_file, 'w') as f:
