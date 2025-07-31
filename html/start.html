@@ -471,6 +471,16 @@
                 }
                 
                 console.log(`Fetched data from ${pageUrl}:`, summaryData); // Debug log
+                
+                // Extra debug for assets page
+                if (pageUrl.includes('assets.html')) {
+                    console.log('Assets page elements found:');
+                    console.log('total-devices element:', doc.getElementById('total-devices'));
+                    console.log('total-devices value:', doc.getElementById('total-devices')?.textContent);
+                    console.log('success-count element:', doc.getElementById('success-count'));
+                    console.log('success-count value:', doc.getElementById('success-count')?.textContent);
+                }
+                
                 return summaryData;
             } catch (error) {
                 console.warn(`Failed to fetch data from ${pageUrl}:`, error);
@@ -481,7 +491,10 @@
         // Calculate overall network stats with real-time data
         async function updateNetworkStats() {
             try {
+                console.log('Starting updateNetworkStats...');
+                
                 // Fetch data from all analysis pages
+                console.log('Fetching data from all pages...');
                 const [assetsData, lldpData, bgpData, opticalData, berData, flapData] = await Promise.all([
                     fetchPageSummary('assets.html'),
                     fetchPageSummary('lldp.html'), 
@@ -490,6 +503,15 @@
                     fetchPageSummary('monitor-results/ber-analysis.html'),
                     fetchPageSummary('monitor-results/link-flap-analysis.html')
                 ]);
+                
+                console.log('All data fetched:', {
+                    assets: assetsData,
+                    lldp: lldpData,
+                    bgp: bgpData,
+                    optical: opticalData,
+                    ber: berData,
+                    flap: flapData
+                });
 
                 // Update dashboard summary cards
                 updateDashboardCard('assets-total', assetsData.totalDevices);
