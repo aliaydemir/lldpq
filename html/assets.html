@@ -52,6 +52,18 @@
         .status-fail { color: #f44336; font-weight: bold; }
         .status-warning { color: #ff9800; font-weight: bold; }
         .status-no-info { color: #f44336; font-weight: bold; }
+        
+        /* Device name link hover effect */
+        .device-link {
+            color: inherit;
+            text-decoration: underline;
+            transition: color 0.3s ease;
+        }
+        
+        .device-link:hover {
+            color: #b57614 !important;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -112,8 +124,7 @@
             })
             .catch(error => {
                 console.error('Error fetching Asset results:', error);
-                // Show fallback content if assets.ini doesn't exist
-                showFallbackContent();
+                document.getElementById('metinAlani-1').innerHTML = '<p style="color: red;">Error loading asset data: ' + error.message + '</p>';
             });
     }
 
@@ -213,7 +224,7 @@
             
             const row = table.insertRow();
             row.innerHTML = `
-                <td><a href="monitor-results/${deviceName}.html" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: underline;">${deviceName}</a></td>
+                <td><a href="monitor-results/${deviceName}.html" target="_blank" rel="noopener noreferrer" class="device-link">${deviceName}</a></td>
                 <td>${ipAddress || 'N/A'}</td>
                 <td>${macAddress || 'N/A'}</td>
                 <td>${serialNumber || 'N/A'}</td>
@@ -263,19 +274,7 @@
         rows.forEach(row => tbody.appendChild(row));
     }
 
-    function showFallbackContent() {
-        // Show sample data if assets.ini doesn't exist
-        const sampleData = `DEVICE-NAME  IP             ETH0-MAC           SERIAL             MODEL  RELEASE  UPTIME
-Switch1      10.10.100.20   48:b0:2d:c3:a9:24  48:b0:2d:c3:a9:24  VX     5.11.2   up-1-week-4-days-18-hours-33-minutes
-Switch2      10.10.100.21   48:b0:2d:b9:26:13  48:b0:2d:b9:26:13  VX     5.11.2   up-1-week-4-days-18-hours-33-minutes
-TestDevice   timeout        N/A                N/A                N/A    N/A      connection-failed
-ReatedDev    10.10.100.30   48:b0:2d:aa:bb:cc  48:b0:2d:aa:bb:cc  VX     5.11.2   up-partial-reated
-NoInfoDev    no-info        N/A                N/A                N/A    N/A      N/A
-Switch3      10.10.100.22   48:b0:2d:d7:90:23  48:b0:2d:d7:90:23  VX     5.11.2   up-1-week-4-days-18-hours-33-minutes`;
-        
-        displayAssetResults(sampleData);
-        generateAssetTable(sampleData);
-    }
+
 
     window.onload = fetchAndDisplayAssetResults;
 </script>
