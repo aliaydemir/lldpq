@@ -416,56 +416,50 @@
                 let summaryData = {};
                 
                 if (dataType === 'assets') {
-                    // Parse assets.ini directly
+                    // Parse assets.ini directly (space/tab delimited, no STATUS column)
                     const response = await fetch('assets.ini');
                     const text = await response.text();
-                    const lines = text.split('\n').filter(line => line.trim() && !line.startsWith('#') && line.includes('|'));
+                    const lines = text.split('\n').filter(line => line.trim() && !line.startsWith('DEVICE-NAME'));
                     
-                    console.log('Assets.ini lines found:', lines.length);
-                    console.log('First few lines:', lines.slice(0, 3));
+                    // Parse assets.ini file
                     
                     summaryData.totalDevices = lines.length;
-                    summaryData.successful = 0;
+                    summaryData.successful = lines.length; // All devices are successful since they're in the file
                     summaryData.failed = 0;
                     summaryData.warning = 0;
                     summaryData.noInfo = 0;
                     
-                    lines.forEach((line, index) => {
-                        const parts = line.split('|');
-                        if (parts.length >= 7) {
-                            const status = parts[6].trim();
-                            console.log(`Line ${index}: status = "${status}"`);
-                            if (status === 'SUCCESS') summaryData.successful++;
-                            else if (status === 'FAILED') summaryData.failed++;
-                            else if (status === 'WARNING') summaryData.warning++;
-                            else if (status === 'NO INFO') summaryData.noInfo++;
-                        }
-                    });
-                    
                 } else if (dataType === 'lldp') {
-                    // Parse lldp_results.ini directly
+                    // Parse lldp_results.ini directly (structured text format)
                     const response = await fetch('lldp_results.ini');
                     const text = await response.text();
-                    const lines = text.split('\n').filter(line => line.trim());
+                    const lines = text.split('\n');
                     
-                    summaryData.totalConnections = lines.length;
+                    summaryData.totalConnections = 0;
                     summaryData.successful = 0;
                     summaryData.failed = 0;
                     summaryData.warning = 0;
                     summaryData.noInfo = 0;
                     
                     lines.forEach(line => {
-                        const parts = line.split('|');
-                        if (parts.length >= 6) {
-                            const status = parts[5].trim();
-                            if (status === 'Pass') summaryData.successful++;
-                            else if (status === 'Fail') summaryData.failed++;
-                            else if (status === 'No-Info') summaryData.noInfo++;
+                        // Look for port status lines (swp + Pass/Fail/No-Info pattern)
+                        if (line.includes('swp') && (line.includes('Pass') || line.includes('Fail') || line.includes('No-Info'))) {
+                            const parts = line.trim().split(/\s+/);
+                            if (parts.length >= 2) {
+                                const status = parts[1]; // Status is second column
+                                summaryData.totalConnections++;
+                                
+                                if (status === 'Pass') summaryData.successful++;
+                                else if (status === 'Fail') summaryData.failed++;
+                                else if (status === 'No-Info') summaryData.noInfo++;
+                            }
                         }
                     });
                     
+                    // LLDP data parsed
+                    
                 } else {
-                    // For analysis pages, fetch the generated HTML and parse its summary cards
+                    // For analysis pages, parse table data instead of summary cards
                     const pageMap = {
                         'bgp': 'monitor-results/bgp-analysis.html',
                         'optical': 'monitor-results/optical-analysis.html',
@@ -475,51 +469,54 @@
                     
                     const pageUrl = pageMap[dataType];
                     if (pageUrl) {
-                        console.log(`Fetching ${dataType} from ${pageUrl}`);
                         const response = await fetch(pageUrl);
                         
                         if (!response.ok) {
-                            console.warn(`Failed to fetch ${pageUrl}: ${response.status}`);
                             return summaryData;
                         }
                         
                         const html = await response.text();
-                        console.log(`${dataType} HTML length:`, html.length);
-                        
                         const parser = new DOMParser();
                         const doc = parser.parseFromString(html, 'text/html');
-                        const cards = doc.querySelectorAll('.summary-card');
                         
-                        console.log(`${dataType} summary cards found:`, cards.length);
+                        // Parse table rows instead of summary cards
+                        const rows = doc.querySelectorAll('tbody tr[data-health], tbody tr[data-status], tbody tr[data-state]');
                         
-                        cards.forEach((card, index) => {
-                            const valueElement = card.querySelector('.card-value');
-                            const labelElement = card.querySelector('.card-label');
+                        summaryData.totalPorts = rows.length;
+                        summaryData.totalDevices = new Set(Array.from(rows).map(row => row.cells[0]?.textContent.trim())).size;
+                        summaryData.excellent = 0;
+                        summaryData.good = 0;
+                        summaryData.warning = 0;
+                        summaryData.critical = 0;
+                        summaryData.established = 0;
+                        summaryData.failed = 0;
+                        summaryData.stable = 0;
+                        summaryData.problematic = 0;
+                        
+                        rows.forEach(row => {
+                            const health = row.getAttribute('data-health') || '';
+                            const status = row.getAttribute('data-status') || '';
+                            const state = row.getAttribute('data-state') || '';
                             
-                            if (valueElement && labelElement) {
-                                const value = valueElement.textContent.trim();
-                                const label = labelElement.textContent.trim().toLowerCase();
-                                console.log(`${dataType} Card ${index}: "${label}" = "${value}"`);
-                                
-                                if (label.includes('total devices')) summaryData.totalDevices = parseInt(value) || 0;
-                                else if (label.includes('total ports')) summaryData.totalPorts = parseInt(value) || 0;
-                                else if (label.includes('total neighbors')) summaryData.totalNeighbors = parseInt(value) || 0;
-                                else if (label.includes('excellent')) summaryData.excellent = parseInt(value) || 0;
-                                else if (label.includes('good')) summaryData.good = parseInt(value) || 0;
-                                else if (label.includes('established')) summaryData.established = parseInt(value) || 0;
-                                else if (label.includes('stable')) summaryData.stable = parseInt(value) || 0;
-                                else if (label.includes('failed') || label.includes('down')) summaryData.failed = parseInt(value) || 0;
-                                else if (label.includes('problematic')) summaryData.problematic = parseInt(value) || 0;
-                                else if (label.includes('warning')) summaryData.warning = parseInt(value) || 0;
-                                else if (label.includes('critical')) summaryData.critical = parseInt(value) || 0;
-                                else if (label.includes('health') && value.includes('%')) summaryData.healthPercent = parseFloat(value) || 0;
-                                else if (label.includes('stability') && value.includes('%')) summaryData.stabilityPercent = parseFloat(value) || 0;
-                            }
+                            // Count by health/status
+                            if (health === 'excellent' || status === 'excellent') summaryData.excellent++;
+                            else if (health === 'good' || status === 'good') summaryData.good++;
+                            else if (health === 'warning' || status === 'warning') summaryData.warning++;
+                            else if (health === 'critical' || status === 'critical') summaryData.critical++;
+                            
+                            // Count by state
+                            if (state === 'established') summaryData.established++;
+                            else if (state === 'idle' || state === 'down') summaryData.failed++;
+                            
+                            // Count by stability
+                            if (status === 'stable') summaryData.stable++;
+                            else if (status === 'problematic') summaryData.problematic++;
                         });
+                        
+                        // Analysis data parsed from table
                     }
                 }
                 
-                console.log(`Fetched ${dataType} data:`, summaryData);
                 return summaryData;
                 
             } catch (error) {
@@ -531,10 +528,7 @@
         // Calculate overall network stats with real-time data
         async function updateNetworkStats() {
             try {
-                console.log('Starting updateNetworkStats...');
-                
                 // Fetch data directly from raw data files
-                console.log('Fetching data from raw data files...');
                 const [assetsData, lldpData, bgpData, opticalData, berData, flapData] = await Promise.all([
                     fetchRawDataSummary('assets'),
                     fetchRawDataSummary('lldp'), 
@@ -544,14 +538,7 @@
                     fetchRawDataSummary('flap')
                 ]);
                 
-                console.log('All raw data fetched:', {
-                    assets: assetsData,
-                    lldp: lldpData,
-                    bgp: bgpData,
-                    optical: opticalData,
-                    ber: berData,
-                    flap: flapData
-                });
+                // Data fetched successfully
 
                 // Update dashboard summary cards
                 updateDashboardCard('assets-total', assetsData.totalDevices);
@@ -662,11 +649,11 @@
             setLastUpdated();
             updateNetworkStats();
             
-            // Update every 30 seconds
+            // Update every 2 minutes (large data files)
             setInterval(function() {
                 setLastUpdated();
                 updateNetworkStats();
-            }, 30000);
+            }, 120000);
         });
 
         // Add hover effects for clickable cards
