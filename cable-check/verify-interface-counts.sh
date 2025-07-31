@@ -22,49 +22,54 @@ verify_device() {
     
     echo "📡 Checking $hostname..."
     
-    # Single SSH session to get all counts
-    ssh $SSH_OPTS -q "$user@$device" '
-        echo "=== INTERFACE COUNTS FOR $(hostname) ==="
+    # Get interface list first
+    interface_list=$(ssh $SSH_OPTS -q "$user@$device" 'nv show interface 2>/dev/null' 2>/dev/null)
+    
+    if [[ -z "$interface_list" ]]; then
+        echo "$hostname: ERROR - Could not connect or get interface list" >> "$RESULTS_FILE"
+        return
+    fi
+    
+    # Process locally to avoid complex SSH
+    {
+        echo "=== INTERFACE COUNTS FOR $hostname ==="
         
-        # Total interfaces with swp pattern  
-        total_swp=$(nv show interface 2>/dev/null | grep -c "swp" || echo "0")
+        # Total SWP interfaces
+        total_swp=$(echo "$interface_list" | grep -c "swp" || echo "0")
         echo "TOTAL_SWP: $total_swp"
         
         # Base interfaces only (swp1, swp2, swp32 - no breakouts)
-        base_only=$(nv show interface 2>/dev/null | grep -E "^swp[0-9]+[^s]|^swp[0-9]+$" | wc -l || echo "0")
+        base_only=$(echo "$interface_list" | grep -E "swp[0-9]+\s" | grep -vE "swp[0-9]+s[0-9]+" | wc -l || echo "0")
         echo "BASE_ONLY: $base_only"
         
-        # Breakout sub-interfaces (swp1s0, swp1s1, etc)
-        breakout_subs=$(nv show interface 2>/dev/null | grep -E "swp[0-9]+s[0-9]+" | wc -l || echo "0")
+        # Breakout sub-interfaces (swp1s0, swp1s1, etc)  
+        breakout_subs=$(echo "$interface_list" | grep -cE "swp[0-9]+s[0-9]+" || echo "0")
         echo "BREAKOUT_SUBS: $breakout_subs"
         
-        # Interfaces with transceivers (optical)
-        with_transceivers=0
-        for iface in $(nv show interface 2>/dev/null | grep -E "^swp[0-9]+" | awk "{print \$1}"); do
-            transceiver_check=$(nv show interface $iface transceiver 2>/dev/null)
-            if [[ -n "$transceiver_check" ]] && [[ "$transceiver_check" != *"does not exist"* ]] && [[ "$transceiver_check" != *"No transceiver data"* ]]; then
-                ((with_transceivers++))
-            fi
-        done
-        echo "WITH_TRANSCEIVERS: $with_transceivers"
-        
-        # Interfaces with traffic (for BER analysis)
-        with_traffic=0
-        for iface in $(nv show interface 2>/dev/null | grep -E "^swp[0-9]+" | awk "{print \$1}"); do
-            rx_packets=$(nv show interface $iface counters 2>/dev/null | grep "rx-packets" | awk "{print \$2}" | head -1)
-            tx_packets=$(nv show interface $iface counters 2>/dev/null | grep "tx-packets" | awk "{print \$2}" | head -1)
-            if [[ -n "$rx_packets" ]] && [[ -n "$tx_packets" ]] && [[ $((rx_packets + tx_packets)) -gt 1000 ]]; then
-                ((with_traffic++))
-            fi
-        done
-        echo "WITH_TRAFFIC: $with_traffic"
-        
         # Admin up interfaces
-        admin_up=$(nv show interface 2>/dev/null | grep -E "swp[0-9]+" | grep -c "up" || echo "0")
+        admin_up=$(echo "$interface_list" | grep -E "swp[0-9]+" | grep -c "up" || echo "0")
         echo "ADMIN_UP: $admin_up"
         
+        # Quick sample check for transceivers (check first 5 interfaces)
+        sample_interfaces=$(echo "$interface_list" | grep -E "swp[0-9]+\s" | head -5 | awk '{print $1}')
+        sample_transceivers=0
+        for iface in $sample_interfaces; do
+            transceiver_check=$(ssh $SSH_OPTS -q "$user@$device" "nv show interface $iface transceiver 2>/dev/null" 2>/dev/null)
+            if [[ -n "$transceiver_check" ]] && [[ "$transceiver_check" != *"does not exist"* ]]; then
+                ((sample_transceivers++))
+            fi
+        done
+        
+        # Estimate total transceivers
+        if [[ $sample_transceivers -gt 0 && $base_only -gt 0 ]]; then
+            estimated_transceivers=$((sample_transceivers * base_only / 5))
+        else
+            estimated_transceivers=0
+        fi
+        echo "ESTIMATED_TRANSCEIVERS: $estimated_transceivers"
+        
         echo "=== END_COUNTS ==="
-    ' >> "$RESULTS_FILE" 2>/dev/null &
+    } >> "$RESULTS_FILE" 2>/dev/null &
 }
 
 echo "🚀 Starting parallel verification..."
