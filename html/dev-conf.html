@@ -140,7 +140,6 @@
         .string { color: #ce9178; }
         .number { color: #d7ba7d; }
         .ip-number { color: #b5cea8; }
-        .interface-number { color: #f44747; }
         .variable { color: #9cdcfe; }
         .operator { color: #d4d4d4; }
         .section { color: #dcdcaa; font-weight: bold; }
@@ -377,13 +376,14 @@
                 return ipResult;
             });
             
-            // 3. Interface names with separate number coloring
-            // Interface ranges (swp1-32)
-            result = result.replace(/\b(swp)(\d+)-(\d+)\b/g, '<span class="interface">$1</span><span class="interface-number">$2</span><span class="interface">-</span><span class="interface-number">$3</span>');
-            // Single interfaces (swp1, swp2s3)
-            result = result.replace(/\b(swp)(\d+)(?:(s)(\d+))?\b/g, '<span class="interface">$1</span><span class="interface-number">$2</span><span class="interface">$3</span><span class="interface-number">$4</span>');
-            // Other interfaces  
-            result = result.replace(/\b(eth|lo|br|vlan)(\d*)\b/g, '<span class="interface">$1</span><span class="interface-number">$2</span>');
+            // 2b. MAC addresses with separate coloring
+            result = result.replace(/\b([0-9a-f]{2}):([0-9a-f]{2}):([0-9a-f]{2}):([0-9a-f]{2}):([0-9a-f]{2}):([0-9a-f]{2})\b/gi, 
+                '<span class="ip-number">$1</span>:<span class="ip-number">$2</span>:<span class="ip-number">$3</span>:<span class="ip-number">$4</span>:<span class="ip-number">$5</span>:<span class="ip-number">$6</span>');
+            
+            // 3. Interface names (only if NOT in description)
+            if (!line.includes('description')) {
+                result = result.replace(/\b(swp\d+(?:s\d+)?|swp\d+-\d+|eth\d+|lo\d*|br\d+|vlan\d+|peerlink\.\d+)\b/g, '<span class="interface">$1</span>');
+            }
             
             // 4. Main commands (only nv set)
             result = result.replace(/^(\s*)(nv\s+set)\b/g, '$1<span class="keyword">$2</span>');
