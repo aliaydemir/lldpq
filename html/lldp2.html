@@ -92,9 +92,9 @@
         .status-fail { color: #f44336; font-weight: bold; }
         .status-warning { color: #ff9800; font-weight: bold; }
         .status-no-info { color: #f44336; font-weight: bold; }
-        .lldp-excellent { background-color: #e8f5e8; }
-        .lldp-critical { background-color: #ffeaea; }
-        .lldp-warning { background-color: #fff3cd; }
+        .lldp-excellent { background-color: #f0f8f0; }
+        .lldp-critical { background-color: #fdf2f2; }
+        .lldp-warning { background-color: #fefbf0; }
         .lldp-unknown { background-color: #f8f9fa; }
         .device-link {
             color: inherit;
@@ -190,7 +190,7 @@
                 </thead>
                 <tbody>
                     <tr class="lldp-critical">
-                        <td><a href="monitor-results/NM1S104PH2TNP1LF04.html" class="device-link">NM1S104PH2TNP1LF04</a></td>
+                        <td>NM1S104PH2TNP1LF04</td>
                         <td>swp48s0</td>
                         <td>NM1S104PH2TNP1SP04</td>
                         <td>swp16s1</td>
@@ -198,7 +198,7 @@
                         <td>Wrong Device/Port Connection</td>
                     </tr>
                     <tr class="lldp-unknown">
-                        <td><a href="monitor-results/NM1S104PH2TNP1LF01.html" class="device-link">NM1S104PH2TNP1LF01</a></td>
+                        <td>NM1S104PH2TNP1LF01</td>
                         <td>swp45s0</td>
                         <td>N/A</td>
                         <td>N/A</td>
@@ -206,7 +206,7 @@
                         <td>No LLDP Response Received</td>
                     </tr>
                     <tr class="lldp-excellent">
-                        <td><a href="monitor-results/NM1S104PH2OBCO01.html" class="device-link">NM1S104PH2OBCO01</a></td>
+                        <td>NM1S104PH2OBCO01</td>
                         <td>swp3</td>
                         <td>NM1S104PH2OBSP01</td>
                         <td>swp29</td>
@@ -214,7 +214,7 @@
                         <td>LLDP Connection Verified</td>
                     </tr>
                     <tr class="lldp-excellent">
-                        <td><a href="monitor-results/NM1S104PH2OBCO01.html" class="device-link">NM1S104PH2OBCO01</a></td>
+                        <td>NM1S104PH2OBCO01</td>
                         <td>swp1</td>
                         <td>oob-core1</td>
                         <td>swp31</td>
@@ -222,7 +222,7 @@
                         <td>LLDP Connection Verified</td>
                     </tr>
                     <tr class="lldp-excellent">
-                        <td><a href="monitor-results/NM1S105PH2PXP2LF01.html" class="device-link">NM1S105PH2PXP2LF01</a></td>
+                        <td>NM1S105PH2PXP2LF01</td>
                         <td>swp49</td>
                         <td>NM1S105PH2PXSP03</td>
                         <td>swp1</td>
@@ -304,8 +304,10 @@
             const connections = [];
             let currentDevice = '';
             
+            console.log('Total lines to process:', lines.length);
+            
             // Parse LLDP data based on actual format
-            lines.forEach(line => {
+            lines.forEach((line, index) => {
                 line = line.trim();
                 
                 // Extract device name from header lines
@@ -313,6 +315,7 @@
                     const deviceMatch = line.match(/=+\s*(.+?)\s*=+/);
                     if (deviceMatch) {
                         currentDevice = deviceMatch[1].trim();
+                        console.log('Found device:', currentDevice);
                     }
                     return;
                 }
@@ -343,8 +346,14 @@
                         lldpStatus: status,
                         originalLine: line
                     });
+                } else if (parts.length >= 6) {
+                    console.log('Skipping line (no current device):', line);
+                } else if (currentDevice && parts.length > 0) {
+                    console.log('Skipping line (not enough parts):', line, 'Parts:', parts.length);
                 }
             });
+            
+            console.log('Total connections parsed:', connections.length);
 
             // Sort connections - problems first
             connections.sort((a, b) => {
@@ -371,7 +380,7 @@
                 const row = tbody.insertRow();
                 row.className = statusInfo.healthClass;
                 row.innerHTML = `
-                    <td><a href="monitor-results/${conn.localDevice}.html" target="_blank" rel="noopener noreferrer" class="device-link">${conn.localDevice}</a></td>
+                    <td>${conn.localDevice}</td>
                     <td>${conn.localPort}</td>
                     <td>${conn.actualDevice || 'N/A'}</td>
                     <td>${conn.actualPort || 'N/A'}</td>
@@ -398,20 +407,24 @@
         }
 
         function loadLLDPData() {
-            fetch('lldp-results/lldp_results.ini')
+            console.log('Loading LLDP data from: lldp_results.ini');
+            fetch('lldp_results.ini')
                 .then(response => {
+                    console.log('Response status:', response.status);
                     if (!response.ok) {
-                        throw new Error('Data file not found');
+                        throw new Error(`Data file not found. Status: ${response.status}`);
                     }
                     return response.text();
                 })
                 .then(data => {
+                    console.log('Data loaded successfully. Size:', data.length, 'chars');
                     document.getElementById('loading').style.display = 'none';
                     document.getElementById('lldp-table').style.display = 'table';
                     parseAndDisplayLLDPData(data);
                 })
                 .catch(error => {
-                    console.log('Using fallback content:', error);
+                    console.error('Error loading LLDP data:', error);
+                    console.log('Using fallback content');
                     showFallbackContent();
                 });
         }
