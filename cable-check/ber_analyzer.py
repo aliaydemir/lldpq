@@ -574,12 +574,20 @@ class BERAnalyzer:
         function setupCardEvents() {{
             console.log('BER: Setting up card events...');
             
-            document.getElementById('total-ports-card').addEventListener('click', function() {{
-                console.log('BER: Total ports clicked');
-                if (parseInt(document.getElementById('total-ports').textContent) > 0) {{
-                    filterPorts('TOTAL');
-                }}
-            }});
+            // Check if elements exist
+            const totalPortsCard = document.getElementById('total-ports-card');
+            console.log('BER: total-ports-card found?', totalPortsCard);
+            
+            if (totalPortsCard) {{
+                totalPortsCard.addEventListener('click', function() {{
+                    console.log('BER: Total ports clicked');
+                    if (parseInt(document.getElementById('total-ports').textContent) > 0) {{
+                        filterPorts('TOTAL');
+                    }}
+                }});
+            }} else {{
+                console.error('BER: total-ports-card not found!');
+            }}
             
             document.getElementById('excellent-card').addEventListener('click', function() {{
                 console.log('BER: Excellent clicked');
@@ -625,19 +633,19 @@ class BERAnalyzer:
             if (filterType === 'EXCELLENT') {{
                 filteredRows = allRows.filter(row => row.dataset.status === 'excellent');
                 console.log('BER: Found', filteredRows.length, 'excellent ports');
-                filterText = `Showing ${{filteredRows.length}} Excellent Ports`;
+                filterText = 'Showing ' + filteredRows.length + ' Excellent Ports';
                 document.getElementById('excellent-card').classList.add('active');
             }} else if (filterType === 'GOOD') {{
                 filteredRows = allRows.filter(row => row.dataset.status === 'good');
-                filterText = `Showing ${{filteredRows.length}} Good Ports`;
+                filterText = 'Showing ' + filteredRows.length + ' Good Ports';
                 document.getElementById('good-card').classList.add('active');
             }} else if (filterType === 'WARNING') {{
                 filteredRows = allRows.filter(row => row.dataset.status === 'warning');
-                filterText = `Showing ${{filteredRows.length}} Warning Ports`;
+                filterText = 'Showing ' + filteredRows.length + ' Warning Ports';
                 document.getElementById('warning-card').classList.add('active');
             }} else if (filterType === 'CRITICAL') {{
                 filteredRows = allRows.filter(row => row.dataset.status === 'critical');
-                filterText = `Showing ${{filteredRows.length}} Critical Ports`;
+                filterText = 'Showing ' + filteredRows.length + ' Critical Ports';
                 document.getElementById('critical-card').classList.add('active');
             }} else if (filterType === 'TOTAL') {{
                 filteredRows = allRows;

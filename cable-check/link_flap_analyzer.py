@@ -454,25 +454,40 @@ class LinkFlapAnalyzer:
         }});
         
         function setupCardEvents() {{
-            document.getElementById('total-ports-card').addEventListener('click', function() {{
-                if (parseInt(document.getElementById('total-ports').textContent) > 0) {{
-                    filterPorts('TOTAL');
-                }}
-            }});
+            console.log('LINK FLAP: Setting up card events...');
+            console.log('LINK FLAP: Available elements:', document.querySelectorAll('.summary-card'));
+            
+            // Check if elements exist
+            const totalPortsCard = document.getElementById('total-ports-card');
+            console.log('LINK FLAP: total-ports-card found?', totalPortsCard);
+            
+            if (totalPortsCard) {{
+                totalPortsCard.addEventListener('click', function() {{
+                    console.log('LINK FLAP: Total ports clicked');
+                    if (parseInt(document.getElementById('total-ports').textContent) > 0) {{
+                        filterPorts('TOTAL');
+                    }}
+                }});
+            }} else {{
+                console.error('LINK FLAP: total-ports-card not found!');
+            }}
             
             document.getElementById('stable-card').addEventListener('click', function() {{
+                console.log('LINK FLAP: Stable clicked');
                 if (parseInt(document.getElementById('stable-ports').textContent) > 0) {{
                     filterPorts('STABLE');
                 }}
             }});
             
             document.getElementById('problematic-card').addEventListener('click', function() {{
+                console.log('LINK FLAP: Problematic clicked');
                 if (parseInt(document.getElementById('problematic-ports').textContent) > 0) {{
                     filterPorts('PROBLEMATIC');
                 }}
             }});
             
             document.getElementById('stability-card').addEventListener('click', function() {{
+                console.log('LINK FLAP: Stability clicked');
                 filterPorts('TOTAL'); // Stability ratio shows all ports
             }});
         }}
@@ -490,14 +505,14 @@ class LinkFlapAnalyzer:
             
             if (filterType === 'STABLE') {{
                 filteredRows = allRows.filter(row => row.dataset.status === 'ok');
-                filterText = `Showing ${{filteredRows.length}} Stable Ports`;
+                filterText = 'Showing ' + filteredRows.length + ' Stable Ports';
                 document.getElementById('stable-card').classList.add('active');
             }} else if (filterType === 'PROBLEMATIC') {{
                 filteredRows = allRows.filter(row => 
                     row.dataset.status === 'flapping' || 
                     row.dataset.status === 'flapped'
                 );
-                filterText = `Showing ${{filteredRows.length}} Problematic Ports`;
+                filterText = 'Showing ' + filteredRows.length + ' Problematic Ports';
                 document.getElementById('problematic-card').classList.add('active');
             }} else if (filterType === 'TOTAL') {{
                 filteredRows = allRows;
