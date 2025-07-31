@@ -227,7 +227,7 @@ class OpticalAnalyzer:
     def get_optical_summary(self) -> Dict[str, Any]:
         """Get optical analysis summary"""
         summary = {
-            "total_ports": len(self.current_optical_stats),
+            "total_ports": 0,  # Will calculate as sum of classified ports
             "excellent_ports": [],
             "good_ports": [],
             "warning_ports": [],
@@ -259,6 +259,12 @@ class OpticalAnalyzer:
                 summary["critical_ports"].append(port_info)
             else:
                 summary["unknown_ports"].append(port_info)
+        
+        # Calculate total as sum of classified ports (exclude unknown)
+        summary["total_ports"] = (len(summary["excellent_ports"]) + 
+                                 len(summary["good_ports"]) + 
+                                 len(summary["warning_ports"]) + 
+                                 len(summary["critical_ports"]))
         
         return summary
     
