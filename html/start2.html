@@ -109,10 +109,19 @@
         
         .main-title {
             text-align: center;
-            margin: 30px 0;
-            font-size: 2.5em;
+            margin: 30px 0 40px 0;
+            font-size: 3.2em;
+            font-weight: bold;
             color: #b57614;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.5);
+            letter-spacing: 2px;
+            padding: 15px 0;
+            border-top: 3px solid #b57614;
+            border-bottom: 3px solid #b57614;
+            display: inline-block;
+            position: relative;
+            left: 50%;
+            transform: translateX(-50%);
         }
         
         .last-updated {
@@ -134,13 +143,14 @@
         }
         
         .dashboard-stats {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            background: linear-gradient(135deg, #3d3d3d 0%, #4a4a4a 100%);
+            border: 1px solid #b57614;
             border-radius: 12px;
             padding: 20px;
             margin: 30px 0;
             text-align: center;
-            color: white;
-            box-shadow: 0 4px 8px rgba(30, 60, 114, 0.3);
+            color: #e0e0e0;
+            box-shadow: 0 4px 8px rgba(181, 118, 20, 0.2);
         }
         
         .dashboard-stats h3 {
@@ -156,9 +166,16 @@
         }
         
         .stat-item {
-            background: rgba(255,255,255,0.1);
-            padding: 10px;
+            background: rgba(181, 118, 20, 0.1);
+            border: 1px solid rgba(181, 118, 20, 0.3);
+            padding: 15px;
             border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .stat-item:hover {
+            background: rgba(181, 118, 20, 0.2);
+            border-color: rgba(181, 118, 20, 0.5);
         }
         
         .stat-value {
@@ -175,7 +192,7 @@
 </head>
 <body>
     <div class="dashboard-container">
-        <h1 class="main-title">LLDPQ Network Dashboard</h1>
+        <h1 class="main-title">LLDPQ Dashboard</h1>
         
         <div class="nvidia-logo">
             <img src="/png/nvidia-logo.jpg" alt="NVIDIA Logo">
