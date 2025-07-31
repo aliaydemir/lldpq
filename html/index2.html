@@ -14,18 +14,20 @@
         }
         
         #sidebar {
-            width: 300px;
-            float: left;
+            width: 280px;
+            position: fixed;
+            left: 0;
+            top: 0;
             background: linear-gradient(135deg, #2d2d2d 0%, #3a3a3a 100%);
-            min-height: 100vh;
+            height: 100vh;
             padding: 20px;
             box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+            overflow-y: auto;
         }
         
         #content-iframe {
-            float: left;
-            margin-left: 340px;
-            width: calc(100% - 340px);
+            margin-left: 320px;
+            width: calc(100% - 320px);
             height: 100vh;
             border: none;
         }
@@ -100,43 +102,43 @@
             color: #1976d2;
         }
         
-        /* Group 3: LLDP - Green Theme */
+        /* Group 3: LLDP - Light Blue Theme */
         .group-lldp .menu-item {
-            background: linear-gradient(135deg, rgba(76, 175, 80, 0.15) 0%, rgba(56, 142, 60, 0.1) 100%);
-            color: #4caf50;
-            border-color: rgba(76, 175, 80, 0.3);
+            background: linear-gradient(135deg, rgba(33, 150, 243, 0.12) 0%, rgba(25, 118, 210, 0.08) 100%);
+            color: #42a5f5;
+            border-color: rgba(33, 150, 243, 0.25);
         }
         
         .group-lldp .menu-item:hover {
-            background: linear-gradient(135deg, rgba(76, 175, 80, 0.25) 0%, rgba(56, 142, 60, 0.2) 100%);
-            border-color: rgba(76, 175, 80, 0.5);
-            color: #388e3c;
+            background: linear-gradient(135deg, rgba(33, 150, 243, 0.2) 0%, rgba(25, 118, 210, 0.15) 100%);
+            border-color: rgba(33, 150, 243, 0.4);
+            color: #1e88e5;
         }
         
-        /* Group 4: Analysis - Purple Theme */
+        /* Group 4: Analysis - Dark Blue Theme */
         .group-analysis .menu-item {
-            background: linear-gradient(135deg, rgba(156, 39, 176, 0.15) 0%, rgba(123, 31, 162, 0.1) 100%);
-            color: #9c27b0;
-            border-color: rgba(156, 39, 176, 0.3);
+            background: linear-gradient(135deg, rgba(25, 118, 210, 0.15) 0%, rgba(21, 101, 192, 0.1) 100%);
+            color: #1976d2;
+            border-color: rgba(25, 118, 210, 0.3);
         }
         
         .group-analysis .menu-item:hover {
-            background: linear-gradient(135deg, rgba(156, 39, 176, 0.25) 0%, rgba(123, 31, 162, 0.2) 100%);
-            border-color: rgba(156, 39, 176, 0.5);
-            color: #7b1fa2;
+            background: linear-gradient(135deg, rgba(25, 118, 210, 0.25) 0%, rgba(21, 101, 192, 0.2) 100%);
+            border-color: rgba(25, 118, 210, 0.5);
+            color: #1565c0;
         }
         
-        /* Group 5: Topology - Teal Theme */
+        /* Group 5: Topology - Steel Blue Theme */
         .group-topology .menu-item {
-            background: linear-gradient(135deg, rgba(0, 150, 136, 0.15) 0%, rgba(0, 121, 107, 0.1) 100%);
-            color: #009688;
-            border-color: rgba(0, 150, 136, 0.3);
+            background: linear-gradient(135deg, rgba(21, 101, 192, 0.15) 0%, rgba(13, 71, 161, 0.1) 100%);
+            color: #1565c0;
+            border-color: rgba(21, 101, 192, 0.3);
         }
         
         .group-topology .menu-item:hover {
-            background: linear-gradient(135deg, rgba(0, 150, 136, 0.25) 0%, rgba(0, 121, 107, 0.2) 100%);
-            border-color: rgba(0, 150, 136, 0.5);
-            color: #00796b;
+            background: linear-gradient(135deg, rgba(21, 101, 192, 0.25) 0%, rgba(13, 71, 161, 0.2) 100%);
+            border-color: rgba(21, 101, 192, 0.5);
+            color: #0d47a1;
         }
         
         /* Footer */
