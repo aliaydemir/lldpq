@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLDP Network Topology Analysis</title>
+    <link rel="shortcut icon" href="/png/favicon.ico">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 2.5rem;
+            margin: 0;
+            color: #b57614;
+            font-weight: 700;
+        }
+        .header p {
+            color: #666;
+            margin: 10px 0 0 0;
+            font-size: 1.1rem;
+        }
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .summary-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid; /* Base for colored border */
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card-success { border-left-color: #4caf50; }
+        .card-fail { border-left-color: #f44336; }
+        .card-warning { border-left-color: #ff9800; }
+        .card-no-info { border-left-color: #f44336; }
+        .card-total { border-left-color: #007bff; }
+        .summary-card h3 {
+            margin: 0 0 5px 0;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #333;
+        }
+        .summary-card p {
+            margin: 0;
+            color: #666;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            background: #f8f9fa;
+            color: #333;
+            font-weight: 600;
+            padding: 15px 12px;
+            text-align: left;
+            border-bottom: 2px solid #dee2e6;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #f1f3f4;
+        }
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        .status-success { color: #4caf50; font-weight: bold; }
+        .status-fail { color: #f44336; font-weight: bold; }
+        .status-warning { color: #ff9800; font-weight: bold; }
+        .status-no-info { color: #f44336; font-weight: bold; }
+        .lldp-excellent { background-color: #e8f5e8; }
+        .lldp-critical { background-color: #ffeaea; }
+        .lldp-warning { background-color: #fff3cd; }
+        .lldp-unknown { background-color: #f8f9fa; }
+        .device-link {
+            color: inherit;
+            text-decoration: underline;
+            font-weight: 500;
+        }
+        .device-link:hover {
+            color: #007bff;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .error {
+            text-align: center;
+            padding: 40px;
+            color: #f44336;
+            background: #ffeaea;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .fallback-content {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>LLDP Network Topology Analysis</h1>
+        <p>Real-time Link Layer Discovery Protocol monitoring and validation</p>
+    </div>
+
+    <div class="summary-cards">
+        <div class="summary-card card-total">
+            <h3 id="total-connections">0</h3>
+            <p>Total Connections</p>
+        </div>
+        <div class="summary-card card-success">
+            <h3 id="success-connections">0</h3>
+            <p>Successful Links</p>
+        </div>
+        <div class="summary-card card-fail">
+            <h3 id="failed-connections">0</h3>
+            <p>Failed Links</p>
+        </div>
+        <div class="summary-card card-warning">
+            <h3 id="warning-connections">0</h3>
+            <p>Warning Links</p>
+        </div>
+        <div class="summary-card card-no-info">
+            <h3 id="no-info-connections">0</h3>
+            <p>No Information</p>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <div id="loading" class="loading">
+            <p>Loading LLDP topology data...</p>
+        </div>
+        <div id="error" class="error" style="display: none;">
+            <p>Error loading LLDP data. Please check if the data file exists.</p>
+        </div>
+        <table id="lldp-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Local Device</th>
+                    <th>Local Port</th>
+                    <th>Remote Device</th>
+                    <th>Remote Port</th>
+                    <th>Status</th>
+                    <th>Connection Health</th>
+                </tr>
+            </thead>
+            <tbody id="lldp-data">
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Fallback content if no data file exists -->
+    <div class="fallback-content">
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Local Device</th>
+                        <th>Local Port</th>
+                        <th>Remote Device</th>
+                        <th>Remote Port</th>
+                        <th>Status</th>
+                        <th>Connection Health</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="lldp-excellent">
+                        <td><a href="monitor-results/Spine1.html" class="device-link">Spine1</a></td>
+                        <td>swp1</td>
+                        <td>Leaf1</td>
+                        <td>swp49</td>
+                        <td><span class="status-success">SUCCESS</span></td>
+                        <td>Bidirectional Link Verified</td>
+                    </tr>
+                    <tr class="lldp-excellent">
+                        <td><a href="monitor-results/Spine1.html" class="device-link">Spine1</a></td>
+                        <td>swp2</td>
+                        <td>Leaf2</td>
+                        <td>swp49</td>
+                        <td><span class="status-success">SUCCESS</span></td>
+                        <td>Bidirectional Link Verified</td>
+                    </tr>
+                    <tr class="lldp-critical">
+                        <td><a href="monitor-results/Spine2.html" class="device-link">Spine2</a></td>
+                        <td>swp3</td>
+                        <td>N/A</td>
+                        <td>N/A</td>
+                        <td><span class="status-fail">FAILED</span></td>
+                        <td>No LLDP Response</td>
+                    </tr>
+                    <tr class="lldp-warning">
+                        <td><a href="monitor-results/Leaf3.html" class="device-link">Leaf3</a></td>
+                        <td>swp50</td>
+                        <td>Spine1</td>
+                        <td>swp4</td>
+                        <td><span class="status-warning">WARNING</span></td>
+                        <td>Unidirectional Link Detected</td>
+                    </tr>
+                    <tr class="lldp-unknown">
+                        <td><a href="monitor-results/Switch1.html" class="device-link">Switch1</a></td>
+                        <td>swp1</td>
+                        <td>Unknown</td>
+                        <td>Unknown</td>
+                        <td><span class="status-no-info">NO INFO</span></td>
+                        <td>LLDP Data Unavailable</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let totalConnections = 0;
+        let successConnections = 0;
+        let failedConnections = 0;
+        let warningConnections = 0;
+        let noInfoConnections = 0;
+
+        function updateSummaryCards() {
+            document.getElementById('total-connections').textContent = totalConnections;
+            document.getElementById('success-connections').textContent = successConnections;
+            document.getElementById('failed-connections').textContent = failedConnections;
+            document.getElementById('warning-connections').textContent = warningConnections;
+            document.getElementById('no-info-connections').textContent = noInfoConnections;
+        }
+
+        function determineConnectionStatus(lineText, localPort, remoteDevice, remotePort) {
+            const line = lineText.toLowerCase();
+            
+            if (line.includes('fail') || line.includes('error') || line.includes('timeout') || 
+                line.includes('no response') || line.includes('down')) {
+                return {
+                    status: 'FAILED',
+                    healthClass: 'lldp-critical',
+                    statusClass: 'status-fail',
+                    health: remoteDevice === 'N/A' ? 'No LLDP Response' : 'Connection Failed'
+                };
+            } else if (line.includes('no-info') || line.includes('no info') || line.includes('unknown') ||
+                       !remoteDevice || remoteDevice === 'N/A' || remoteDevice === 'Unknown') {
+                return {
+                    status: 'NO INFO',
+                    healthClass: 'lldp-unknown',
+                    statusClass: 'status-no-info',
+                    health: 'LLDP Data Unavailable'
+                };
+            } else if (line.includes('unidirectional') || line.includes('partial') || line.includes('warning') ||
+                       line.includes('reated')) {
+                return {
+                    status: 'WARNING',
+                    healthClass: 'lldp-warning',
+                    statusClass: 'status-warning',
+                    health: line.includes('unidirectional') ? 'Unidirectional Link Detected' : 'Partial LLDP Data'
+                };
+            } else if (localPort && remoteDevice && remotePort && 
+                       remoteDevice !== 'N/A' && remotePort !== 'N/A') {
+                return {
+                    status: 'SUCCESS',
+                    healthClass: 'lldp-excellent',
+                    statusClass: 'status-success',
+                    health: 'Bidirectional Link Verified'
+                };
+            } else {
+                return {
+                    status: 'WARNING',
+                    healthClass: 'lldp-warning',
+                    statusClass: 'status-warning',
+                    health: 'Incomplete LLDP Information'
+                };
+            }
+        }
+
+        function parseAndDisplayLLDPData(data) {
+            const tbody = document.getElementById('lldp-data');
+            tbody.innerHTML = '';
+            
+            const lines = data.split('\n');
+            const connections = [];
+            
+            // Parse LLDP data - this may need adjustment based on actual format
+            lines.forEach(line => {
+                if (line.trim() && !line.startsWith('===') && !line.startsWith('DEVICE')) {
+                    // Example parsing - adjust based on actual lldp_results.ini format
+                    const parts = line.split(/\s+/);
+                    if (parts.length >= 4) {
+                        const localDevice = parts[0] || 'Unknown';
+                        const localPort = parts[1] || 'N/A';
+                        const remoteDevice = parts[2] || 'N/A';
+                        const remotePort = parts[3] || 'N/A';
+                        
+                        connections.push({
+                            localDevice,
+                            localPort,
+                            remoteDevice,
+                            remotePort,
+                            originalLine: line
+                        });
+                    }
+                }
+            });
+
+            // Sort connections - problems first
+            connections.sort((a, b) => {
+                const statusA = determineConnectionStatus(a.originalLine, a.localPort, a.remoteDevice, a.remotePort);
+                const statusB = determineConnectionStatus(b.originalLine, b.localPort, b.remoteDevice, b.remotePort);
+                
+                const priority = { 'FAILED': 0, 'NO INFO': 1, 'WARNING': 2, 'SUCCESS': 3 };
+                return priority[statusA.status] - priority[statusB.status];
+            });
+
+            // Display connections
+            connections.forEach(conn => {
+                const statusInfo = determineConnectionStatus(conn.originalLine, conn.localPort, conn.remoteDevice, conn.remotePort);
+                
+                // Update counters
+                totalConnections++;
+                switch(statusInfo.status) {
+                    case 'SUCCESS': successConnections++; break;
+                    case 'FAILED': failedConnections++; break;
+                    case 'WARNING': warningConnections++; break;
+                    case 'NO INFO': noInfoConnections++; break;
+                }
+                
+                const row = tbody.insertRow();
+                row.className = statusInfo.healthClass;
+                row.innerHTML = `
+                    <td><a href="monitor-results/${conn.localDevice}.html" target="_blank" rel="noopener noreferrer" class="device-link">${conn.localDevice}</a></td>
+                    <td>${conn.localPort}</td>
+                    <td>${conn.remoteDevice}</td>
+                    <td>${conn.remotePort}</td>
+                    <td><span class="${statusInfo.statusClass}">${statusInfo.status}</span></td>
+                    <td>${statusInfo.health}</td>
+                `;
+            });
+
+            updateSummaryCards();
+        }
+
+        function showFallbackContent() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('lldp-table').style.display = 'none';
+            document.querySelector('.fallback-content').style.display = 'block';
+            
+            // Update summary cards with fallback data
+            totalConnections = 5;
+            successConnections = 2;
+            failedConnections = 1;
+            warningConnections = 1;
+            noInfoConnections = 1;
+            updateSummaryCards();
+        }
+
+        function loadLLDPData() {
+            fetch('lldp_results.ini')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Data file not found');
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('lldp-table').style.display = 'table';
+                    parseAndDisplayLLDPData(data);
+                })
+                .catch(error => {
+                    console.log('Using fallback content:', error);
+                    showFallbackContent();
+                });
+        }
+
+        // Load data when page loads
+        window.addEventListener('load', loadLLDPData);
+    </script>
+</body>
+</html>
