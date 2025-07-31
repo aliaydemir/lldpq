@@ -123,9 +123,9 @@ EOF
     
     # Extract individual data files from combined data
     if [ -f "monitor-results/${hostname}_combined_interface_data.txt" ]; then
-        # Extract carrier transitions
+        # Extract carrier transitions (base interfaces only - no breakouts)
         echo "=== CARRIER TRANSITIONS ===" > "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
-        grep -A1 "CARRIER_TRANSITIONS:" "monitor-results/${hostname}_combined_interface_data.txt" | grep -E "swp.*:" >> "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
+        grep -A1 "CARRIER_TRANSITIONS:" "monitor-results/${hostname}_combined_interface_data.txt" | grep -E "swp[0-9]+:" | grep -vE "swp[0-9]+s[0-9]+:" >> "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
         
         # Extract optical data with interface names
         echo "=== OPTICAL DIAGNOSTICS ===" > "monitor-results/optical-data/${hostname}_optical.txt"

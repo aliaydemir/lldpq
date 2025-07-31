@@ -87,10 +87,12 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                     print(f"  {port_name}: No optical data available")
                     continue
                 
-                # Skip only truly unusable data
+                # Skip unusable data
                 if ("status                      : unplugged" in optical_data or 
-                    "No transceiver data available" in optical_data):
-                    print(f"  {port_name}: No transceiver or unplugged")
+                    "No transceiver data available" in optical_data or
+                    ("diagnostics-status          : N/A" in optical_data and 
+                     "temperature" not in optical_data and "voltage" not in optical_data)):
+                    print(f"  {port_name}: No transceiver or insufficient data")
                     continue
                 
                 # Update optical analyzer
