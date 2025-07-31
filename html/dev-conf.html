@@ -1,57 +1,231 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Configurations</title>
     <link rel="shortcut icon" href="/png/favicon.ico">
-    <title>..::LLDPQ::..</title>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <link rel="stylesheet" type="text/css" href="/css/styles2.css">
     <style>
-        #metinAlani {
-            white-space: pre;
-            font-family: monospace;
-            font-size: 15px;
+        .selector-container {
+            margin: 20px 0 30px 0;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: center;
         }
-        .steelBlue {
-            color: steelblue;
+        
+        .selector-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
         }
-        .tomato {
-            color: tomato;
+        
+        .selector-label {
+            font-size: 14px;
+            font-weight: bold;
+            color: #b57614;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
-        .red {
-            color: red;
+        
+        .dropdown {
+            padding: 12px 18px;
+            border: 1px solid #43453B;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #2a2a2a 0%, #333333 100%);
+            color: #e0e0e0;
+            font-size: 14px;
+            min-width: 200px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
-        .green {
-            color: green;
+        
+        .dropdown:focus {
+            outline: none;
+            border-color: #b57614;
+            box-shadow: 0 0 0 2px rgba(181, 118, 20, 0.2);
         }
-        .lime {
-            color: lime;
+        
+        .dropdown:hover {
+            border-color: #b57614;
+            transform: translateY(-1px);
         }
-        #status {
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 15px;
-            color: green;
+        
+        .dropdown:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
         }
+        
+        .config-content {
+            background: #1a1a1a;
+            border: 1px solid #43453B;
+            border-radius: 12px;
+            margin: 30px 0;
+            padding: 25px;
+            min-height: 400px;
+            font-family: 'Fira Code', 'Courier New', Courier, monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            display: none;
+        }
+        
+        .config-content.show {
+            display: block;
+        }
+        
+        .config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #43453B;
+        }
+        
+        .config-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #b57614;
+            margin: 0;
+        }
+        
+        .config-info {
+            font-size: 12px;
+            color: #888;
+            text-align: right;
+        }
+        
+        .loading-message {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+            font-style: italic;
+            font-size: 16px;
+        }
+        
+        .error-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #f44336;
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid rgba(244, 67, 54, 0.3);
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .placeholder-message {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+            font-size: 16px;
+        }
+        
+        /* Syntax highlighting for config content */
+        .config-line {
+            display: block;
+            margin: 2px 0;
+        }
+        
+        .comment { color: #6a9955; font-style: italic; }
+        .keyword { color: #569cd6; font-weight: bold; }
+        .string { color: #ce9178; }
+        .number { color: #b5cea8; }
+        .variable { color: #9cdcfe; }
+        .operator { color: #d4d4d4; }
+        .section { color: #dcdcaa; font-weight: bold; }
+        .interface { color: #4ec9b0; }
+        .ip-address { color: #b5cea8; }
+        .default { color: #569cd6; }
+        
+        /* YAML specific */
+        .yaml-key { color: #92c5f7; font-weight: bold; }
+        .yaml-value { color: #ce9178; }
+        .yaml-indent { color: #808080; }
+        
+        /* Status indicator */
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-success { background-color: #4caf50; }
+        .status-warning { background-color: #ff9800; }
+        .status-error { background-color: #f44336; }
     </style>
 </head>
 <body>
     <h1></h1>
-    <h1><font color="#b57614">Device Configs on the Fabric</font></h1>
-    <h3></h3>
-    <label for="deviceDropdown">Select Device:</label>
-    <select id="deviceDropdown" onchange="handleDeviceSelection()">
-        <option value="">-- Select a Device --</option>
-    </select>
-    <label for="fileTypeDropdown">Select File Type:</label>
-    <select id="fileTypeDropdown" onchange="handleFileTypeSelection()" disabled>
-        <option value="">-- Select File Type --</option>
-        <option value="txt">NV-SET</option>
-        <option value="yaml">YAML</option>
-    </select>
-    <br><br>
-    <div id="metinAlani"></div>
+    <h1><font color="#b57614">Device Configurations on the Fabric</font></h1>
+    <p><strong>Last Updated:</strong> <span id="last-updated"></span></p>
+    
+    <h2>Configuration Management</h2>
+    
+    <div class="selector-container">
+        <div class="selector-group">
+            <label class="selector-label">Device</label>
+            <select id="deviceDropdown" class="dropdown" onchange="handleDeviceSelection()">
+                <option value="">-- Select a Device --</option>
+            </select>
+        </div>
+        
+        <div class="selector-group">
+            <label class="selector-label">Format</label>
+            <select id="fileTypeDropdown" class="dropdown" onchange="handleFileTypeSelection()" disabled>
+                <option value="">-- Select Format --</option>
+                <option value="txt">NV-SET Commands</option>
+                <option value="yaml">YAML Configuration</option>
+            </select>
+        </div>
+    </div>
+    
+    <div id="configContent" class="config-content">
+        <div class="config-header">
+            <h3 class="config-title" id="configTitle">Configuration File</h3>
+            <div class="config-info">
+                <div id="configDevice"></div>
+                <div id="configType"></div>
+                <div id="configSize"></div>
+            </div>
+        </div>
+        <div id="configText"></div>
+    </div>
+    
+    <div id="loadingMessage" class="loading-message" style="display: none;">
+        <span class="status-indicator status-warning"></span>
+        Loading configuration...
+    </div>
+
     <script>
         let files = [];
         let devices = [];
+        
+        function setLastUpdated() {
+            const now = new Date();
+            const options = { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            };
+            const formattedDate = now.toLocaleString('en-US', options);
+            document.getElementById('last-updated').textContent = formattedDate;
+        }
+
         function listFiles() {
             fetch('/configs/')
                 .then(response => response.text())
@@ -63,8 +237,12 @@
                         .filter(file => file !== '../');
                     extractDevices();
                 })
-                .catch(error => console.error('Error fetching file list:', error));
+                .catch(error => {
+                    console.error('Error fetching file list:', error);
+                    showError('Error loading device list: ' + error.message);
+                });
         }
+
         function extractDevices() {
             const deviceSet = new Set();
             files.forEach(file => {
@@ -72,9 +250,10 @@
                 const deviceName = fileName.split('.')[0];
                 deviceSet.add(deviceName);
             });
-            devices = Array.from(deviceSet);
+            devices = Array.from(deviceSet).sort();
             populateDeviceDropdown();
         }
+
         function populateDeviceDropdown() {
             const deviceDropdown = document.getElementById('deviceDropdown');
             devices.forEach(device => {
@@ -84,14 +263,17 @@
                 deviceDropdown.appendChild(option);
             });
         }
+
         function handleDeviceSelection() {
             const deviceDropdown = document.getElementById('deviceDropdown');
             const selectedDevice = deviceDropdown.value;
             const fileTypeDropdown = document.getElementById('fileTypeDropdown');
+            
             fileTypeDropdown.value = '';
             fileTypeDropdown.disabled = !selectedDevice;
-            clearDisplay();
+            hideConfig();
         }
+
         function handleFileTypeSelection() {
             const deviceDropdown = document.getElementById('deviceDropdown');
             const selectedDevice = deviceDropdown.value;
@@ -101,61 +283,185 @@
             if (selectedType) {
                 const fileName = `${selectedDevice}.${selectedType}`;
                 if (files.includes(fileName)) {
-                    fetchFileContent(fileName);
+                    fetchFileContent(fileName, selectedDevice, selectedType);
                 } else {
-                    displayError(`File ${fileName} not found.`);
+                    showError(`Configuration file ${fileName} not found.`);
                 }
             } else {
-                clearDisplay();
+                hideConfig();
             }
         }
-        function fetchFileContent(fileName) {
+
+        function fetchFileContent(fileName, device, type) {
+            showLoading();
+            
             fetch(`/configs/${fileName}`)
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Network response was not ok');
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     return response.text();
                 })
                 .then(data => {
-                    displayLLDPResults(data);
+                    hideLoading();
+                    displayConfig(data, device, type, fileName);
                 })
                 .catch(error => {
-                    displayError('Error fetching file content: ' + error);
+                    hideLoading();
+                    showError('Error fetching configuration: ' + error.message);
                 });
         }
-        function displayLLDPResults(results) {
-            const element = document.getElementById('metinAlani');
-            element.innerHTML = '';
-            const lines = results.split('\n');
-            lines.forEach(line => {
-                let colorClass = 'green';
-                if (line.startsWith('====')) {
-                    colorClass = 'steelBlue';
-                } else if (line.toLowerCase().includes('fail')) {
-                    colorClass = 'tomato';
-                } else if (line.toLowerCase().includes('reated')) {
-                    colorClass = 'tomato';
-                } else if (line.toLowerCase().includes('no-info')) {
-                    colorClass = 'red';
-                }
-                const span = document.createElement('span');
-                span.className = colorClass;
-                span.textContent = line;
-                element.appendChild(span);
-                element.appendChild(document.createElement('br'));
-            });
-        }
-        function displayError(message) {
-            const element = document.getElementById('metinAlani');
-            element.innerHTML = `<span class="red">${message}</span>`;
+
+        function displayConfig(content, device, type, fileName) {
+            const configContent = document.getElementById('configContent');
+            const configTitle = document.getElementById('configTitle');
+            const configDevice = document.getElementById('configDevice');
+            const configType = document.getElementById('configType');
+            const configSize = document.getElementById('configSize');
+            const configText = document.getElementById('configText');
+            
+            // Update header info
+            configTitle.textContent = fileName;
+            configDevice.innerHTML = `<span class="status-indicator status-success"></span>Device: ${device}`;
+            configType.textContent = `Format: ${type === 'txt' ? 'NV-SET Commands' : 'YAML Configuration'}`;
+            configSize.textContent = `Size: ${formatFileSize(content.length)}`;
+            
+            // Process and display content
+            configText.innerHTML = '';
+            
+            if (type === 'yaml') {
+                displayYamlConfig(content, configText);
+            } else {
+                displayNvSetConfig(content, configText);
+            }
+            
+            configContent.classList.add('show');
         }
 
-        function clearDisplay() {
-            const element = document.getElementById('metinAlani');
-            element.innerHTML = '';
+        function displayNvSetConfig(content, container) {
+            const lines = content.split('\n');
+            lines.forEach(line => {
+                const span = document.createElement('span');
+                span.className = 'config-line';
+                
+                if (line.trim().startsWith('#')) {
+                    span.className += ' comment';
+                    span.textContent = line || ' ';
+                } else if (line.trim() === '') {
+                    span.textContent = ' ';
+                } else {
+                    // Simple and clean syntax highlighting
+                    span.innerHTML = highlightNvSetLine(line);
+                }
+                
+                container.appendChild(span);
+            });
         }
-        window.onload = listFiles;
+
+        function highlightNvSetLine(line) {
+            let result = line;
+            
+            // Highlight only key elements, keep it simple
+            
+            // 1. Comments first
+            if (line.trim().startsWith('#')) {
+                return `<span class="comment">${line}</span>`;
+            }
+            
+            // 2. IP addresses (most specific first)
+            result = result.replace(/\b(\d+\.\d+\.\d+\.\d+(?:\/\d+)?)\b/g, '<span class="ip-address">$1</span>');
+            
+            // 3. Interface names
+            result = result.replace(/\b(swp\d+(?:s\d+)?|eth\d+|lo\d*|br\d+|vlan\d+)\b/g, '<span class="interface">$1</span>');
+            
+            // 4. Main commands (only nv set)
+            result = result.replace(/^(\s*)(nv\s+set)\b/g, '$1<span class="keyword">$2</span>');
+            
+            // 5. Special network terms
+            result = result.replace(/\b(autonomous-system|route-map|prefix-list|access-list)\b/g, '<span class="variable">$1</span>');
+            
+            // 6. Numbers (but avoid IP parts)
+            result = result.replace(/(?<!\.)(\b\d+\b)(?!\.\d)/g, '<span class="number">$1</span>');
+            
+            // 7. Wrap everything in default blue color
+            return `<span class="default">${result}</span>`;
+        }
+
+        function displayYamlConfig(content, container) {
+            const lines = content.split('\n');
+            lines.forEach(line => {
+                const span = document.createElement('span');
+                span.className = 'config-line';
+                
+                if (line.trim().startsWith('#')) {
+                    span.className += ' comment';
+                } else if (line.includes(':') && !line.trim().startsWith('-')) {
+                    const parts = line.split(':');
+                    const key = parts[0];
+                    const value = parts.slice(1).join(':');
+                    
+                    span.innerHTML = `<span class="yaml-key">${key}:</span><span class="yaml-value">${value}</span>`;
+                } else {
+                    span.className += ' default';
+                    span.textContent = line || ' ';
+                }
+                
+                if (span.innerHTML === '') {
+                    span.textContent = line || ' ';
+                }
+                
+                container.appendChild(span);
+            });
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function showLoading() {
+            document.getElementById('loadingMessage').style.display = 'block';
+            document.getElementById('configContent').classList.remove('show');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingMessage').style.display = 'none';
+        }
+
+        function hideConfig() {
+            document.getElementById('configContent').classList.remove('show');
+        }
+
+        function showError(message) {
+            // Remove any existing error messages
+            const existingError = document.querySelector('.error-message');
+            if (existingError) {
+                existingError.remove();
+            }
+            
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.innerHTML = `<span class="status-indicator status-error"></span>${message}`;
+            
+            // Insert error message after selector container
+            const selectorContainer = document.querySelector('.selector-container');
+            selectorContainer.parentNode.insertBefore(errorDiv, selectorContainer.nextSibling);
+            
+            // Auto-remove error after 5 seconds
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.remove();
+                }
+            }, 5000);
+        }
+
+        window.onload = function() {
+            setLastUpdated();
+            listFiles();
+        };
     </script>
 </body>
 </html>
