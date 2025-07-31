@@ -369,11 +369,13 @@
                 return `<span class="comment">${line}</span>`;
             }
             
-            // 2. Interface names - do this BEFORE IP processing
-            // Always highlight interfaces, but description content stays green
+            // 2. Description values - highlight everything after 'description' keyword FIRST
+            result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, '$1<span class="comment">$2</span>');
+            
+            // 3. Interface names - apply to entire line, descriptions will override
             result = result.replace(/\b(bond_[a-zA-Z_]+|bond\d+|swp\d+(?:s\d+)?(?:-\d+)?|vlan\d+(?:-\d+)?(?:,\d+)*|eth\d+|lo\d*|br\d+|peerlink\.?\d*)\b/g, '<span class="interface">$1</span>');
             
-            // 3. IP addresses with separate number coloring
+            // 4. IP addresses with separate number coloring
             result = result.replace(/\b(\d+)\.(\d+)\.(\d+)\.(\d+)(?:\/(\d+))?\b/g, function(match, p1, p2, p3, p4, p5) {
                 let ipResult = `<span class="ip-number">${p1}</span>.<span class="ip-number">${p2}</span>.<span class="ip-number">${p3}</span>.<span class="ip-number">${p4}</span>`;
                 if (p5) ipResult += `/<span class="ip-number">${p5}</span>`;
@@ -390,8 +392,7 @@
             // 7. Special network terms
             result = result.replace(/\b(autonomous-system|route-map|prefix-list|access-list)\b/g, '<span class="variable">$1</span>');
 
-            // 8. Description values - highlight everything after 'description' keyword (before numbers)
-            result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, '$1<span class="comment">$2</span>');
+
             
             // 9. Numbers (but ONLY on non-interface lines)
             if (!line.includes('description') && !line.includes('interface')) {
