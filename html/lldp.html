@@ -184,7 +184,8 @@
                 document.getElementById('total-connections').parentElement.classList.add('active');
             }
             
-            if (filterType !== 'ALL') {
+            // Show filter info for all filters except TOTAL
+            if (filterType !== 'ALL' && filterType !== 'TOTAL') {
                 document.getElementById('filter-info').style.display = 'block';
                 document.getElementById('filter-text').textContent = filterText;
             } else {
