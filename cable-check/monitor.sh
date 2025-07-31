@@ -141,9 +141,9 @@ EOF
         flag && interface != "" { print }
         ' "monitor-results/${hostname}_combined_interface_data.txt" >> "monitor-results/optical-data/${hostname}_optical.txt"
         
-        # Extract BER detailed counters
+        # Extract BER detailed counters (base interfaces only - no breakouts)
         echo "=== DETAILED INTERFACE COUNTERS ===" > "monitor-results/ber-data/${hostname}_detailed_counters.txt"
-        awk '/=== INTERFACE: /{interface=$3} /BER_COUNTERS:/{print "Interface: " interface; getline; print}' "monitor-results/${hostname}_combined_interface_data.txt" >> "monitor-results/ber-data/${hostname}_detailed_counters.txt"
+        awk '/=== INTERFACE: /{interface=$3} /BER_COUNTERS:/ && interface !~ /s[0-9]+$/ {print "Interface: " interface; getline; print}' "monitor-results/${hostname}_combined_interface_data.txt" >> "monitor-results/ber-data/${hostname}_detailed_counters.txt"
         
         # Clean up combined file
         rm -f "monitor-results/${hostname}_combined_interface_data.txt"
