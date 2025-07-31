@@ -24,7 +24,16 @@
         .card-warning { border-left-color: #ff9800; }
         .card-critical { border-left-color: #f44336; }
         .card-total { border-left-color: #2196f3; }
+        .card-info { border-left-color: #2196f3; }
         .card-value { font-size: 24px; font-weight: bold; color: #333; }
+        
+        /* Colored card values */
+        .card-excellent .card-value { color: #4caf50; }
+        .card-good .card-value { color: #8bc34a; }
+        .card-warning .card-value { color: #ff9800; }
+        .card-critical .card-value { color: #f44336; }
+        .card-total .card-value { color: #333; }
+        .card-info .card-value { color: #2196f3; }
         .card-label { font-size: 14px; color: #666; margin-top: 5px; }
         
         .summary-card {
@@ -98,7 +107,7 @@
             <div class="card-value" id="warning-connections">0</div>
             <div class="card-label">Warning Links</div>
         </div>
-        <div class="summary-card">
+        <div class="summary-card card-info">
             <div class="card-value" id="no-info-connections">0</div>
             <div class="card-label">No Information</div>
         </div>
