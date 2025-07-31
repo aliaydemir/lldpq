@@ -360,6 +360,14 @@ class BERAnalyzer:
         .card-critical {{ border-left-color: #f44336; }}
         .card-total {{ border-left-color: #2196f3; }}
         .metric {{ font-size: 24px; font-weight: bold; }}
+        
+        /* Colored card values */
+        .card-excellent .metric {{ color: #4caf50; }}
+        .card-good .metric {{ color: #8bc34a; }}
+        .card-warning .metric {{ color: #ff9800; }}
+        .card-critical .metric {{ color: #f44336; }}
+        .card-total .metric {{ color: #333; }}
+        .card-info .metric {{ color: #2196f3; }}
         .ber-excellent {{ color: #4caf50; font-weight: bold; }}
         .ber-good {{ color: #8bc34a; font-weight: bold; }}
         .ber-warning {{ color: #ff9800; font-weight: bold; }}
