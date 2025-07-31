@@ -372,7 +372,7 @@
             // 2. Interface names (only if NOT in description) - do this BEFORE IP processing
             if (!line.includes('description')) {
                 // All interface types in one comprehensive regex
-                result = result.replace(/\b(bond_[a-zA-Z_]+|bond\d+|swp\d+(?:s\d+)?(?:-\d+)?|vlan\d+(?:-\d+)?(?:,\d+)*|eth\d+|lo\d*|br\d+|peerlink\.?\d*|vxlan\d*)\b/g, '<span class="interface">$1</span>');
+                result = result.replace(/\b(bond_[a-zA-Z_]+|bond\d+|swp\d+(?:s\d+)?(?:-\d+)?|vlan\d+(?:-\d+)?(?:,\d+)*|eth\d+|lo\d*|br\d+|peerlink\.?\d*)\b/g, '<span class="interface">$1</span>');
             }
             
             // 3. IP addresses with separate number coloring
@@ -393,7 +393,12 @@
             result = result.replace(/\b(autonomous-system|route-map|prefix-list|access-list)\b/g, '<span class="variable">$1</span>');
 
             // 8. Description values - highlight everything after 'description' keyword (before numbers)
-            result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, '$1<span class="comment">$2</span>');
+            // But preserve interface names within descriptions
+            result = result.replace(/(\bdescription\s+)([^\s]+(?:\s+[^\s]+)*)/g, function(match, descKeyword, descValue) {
+                // First highlight any interface names in the description
+                let highlightedDesc = descValue.replace(/\b(bond_[a-zA-Z_]+|bond\d+|swp\d+(?:s\d+)?(?:-\d+)?|vlan\d+(?:-\d+)?(?:,\d+)*|eth\d+|lo\d*|br\d+|peerlink\.?\d*)\b/g, '<span class="interface">$1</span>');
+                return descKeyword + '<span class="comment">' + highlightedDesc + '</span>';
+            });
             
             // 9. Numbers (but ONLY on non-interface lines)
             if (!line.includes('description') && !line.includes('interface')) {
