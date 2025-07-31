@@ -27,6 +27,30 @@
         .card-value { font-size: 24px; font-weight: bold; color: #333; }
         .card-label { font-size: 14px; color: #666; margin-top: 5px; }
         
+        .summary-card {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .summary-card.active {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            border-left-width: 6px;
+        }
+        
+        .filter-info {
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            background: #e8f4fd;
+            border-radius: 4px;
+            color: #1976d2;
+            display: none;
+        }
+        
         .status-success { color: #4caf50; font-weight: bold; }
         .status-fail { color: #f44336; font-weight: bold; }
         .status-warning { color: #ff9800; font-weight: bold; }
@@ -48,9 +72,6 @@
             background: #ffeaea;
             border-radius: 8px;
             margin: 20px 0;
-        }
-        .fallback-content {
-            display: none;
         }
     </style>
 </head>
@@ -84,6 +105,10 @@
     </div>
     
     <h2>LLDP Connection Status</h2>
+    <div id="filter-info" class="filter-info">
+        <span id="filter-text"></span>
+        <button onclick="clearFilter()" style="margin-left: 10px; padding: 2px 8px; background: #1976d2; color: white; border: none; border-radius: 3px; cursor: pointer;">Show All</button>
+    </div>
     <div id="loading" class="loading">
         <p>Loading LLDP topology data...</p>
     </div>
@@ -103,59 +128,7 @@
         </tbody>
     </table>
 
-    <!-- Fallback content if no data file exists -->
-    <div class="fallback-content">
-        <table class="lldp-table">
-            <tr>
-                <th>Local Device</th>
-                <th>Local Port</th>
-                <th>Remote Device</th>
-                <th>Remote Port</th>
-                <th>Status</th>
-                <th>Connection Health</th>
-            </tr>
-            <tr>
-                <td>NM1S104PH2TNP1LF04</td>
-                <td>swp48s0</td>
-                <td>NM1S104PH2TNP1SP04</td>
-                <td>swp16s1</td>
-                <td><span class="status-fail">FAILED</span></td>
-                <td>Wrong Device/Port Connection</td>
-            </tr>
-            <tr>
-                <td>NM1S104PH2TNP1LF01</td>
-                <td>swp45s0</td>
-                <td>N/A</td>
-                <td>N/A</td>
-                <td><span class="status-no-info">NO INFO</span></td>
-                <td>No LLDP Response Received</td>
-            </tr>
-            <tr>
-                <td>NM1S104PH2OBCO01</td>
-                <td>swp3</td>
-                <td>NM1S104PH2OBSP01</td>
-                <td>swp29</td>
-                <td><span class="status-success">SUCCESS</span></td>
-                <td>LLDP Connection Verified</td>
-            </tr>
-            <tr>
-                <td>NM1S104PH2OBCO01</td>
-                <td>swp1</td>
-                <td>oob-core1</td>
-                <td>swp31</td>
-                <td><span class="status-success">SUCCESS</span></td>
-                <td>LLDP Connection Verified</td>
-            </tr>
-            <tr>
-                <td>NM1S105PH2PXP2LF01</td>
-                <td>swp49</td>
-                <td>NM1S105PH2PXSP03</td>
-                <td>swp1</td>
-                <td><span class="status-success">SUCCESS</span></td>
-                <td>LLDP Connection Verified</td>
-            </tr>
-        </table>
-    </div>
+
 
     <script>
         let totalConnections = 0;
@@ -163,6 +136,10 @@
         let failedConnections = 0;
         let warningConnections = 0;
         let noInfoConnections = 0;
+        
+        // Filter state
+        let currentFilter = 'ALL';
+        let allConnections = [];
 
         function updateSummaryCards() {
             document.getElementById('total-connections').textContent = totalConnections;
@@ -170,6 +147,60 @@
             document.getElementById('failed-connections').textContent = failedConnections;
             document.getElementById('warning-connections').textContent = warningConnections;
             document.getElementById('no-info-connections').textContent = noInfoConnections;
+        }
+        
+        function filterConnections(filterType) {
+            if (allConnections.length === 0) return;
+            
+            currentFilter = filterType;
+            
+            // Clear active state from all cards
+            document.querySelectorAll('.summary-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            
+            let filteredConnections = allConnections;
+            let filterText = '';
+            
+            if (filterType === 'SUCCESS') {
+                filteredConnections = allConnections.filter(conn => determineLLDPStatus(conn).status === 'SUCCESS');
+                filterText = `Showing ${filteredConnections.length} Successful Links`;
+                document.getElementById('success-connections').parentElement.classList.add('active');
+            } else if (filterType === 'FAILED') {
+                filteredConnections = allConnections.filter(conn => determineLLDPStatus(conn).status === 'FAILED');
+                filterText = `Showing ${filteredConnections.length} Failed Links`;
+                document.getElementById('failed-connections').parentElement.classList.add('active');
+            } else if (filterType === 'WARNING') {
+                filteredConnections = allConnections.filter(conn => determineLLDPStatus(conn).status === 'WARNING');
+                filterText = `Showing ${filteredConnections.length} Warning Links`;
+                document.getElementById('warning-connections').parentElement.classList.add('active');
+            } else if (filterType === 'NO_INFO') {
+                filteredConnections = allConnections.filter(conn => determineLLDPStatus(conn).status === 'NO INFO');
+                filterText = `Showing ${filteredConnections.length} No Information Links`;
+                document.getElementById('no-info-connections').parentElement.classList.add('active');
+            } else if (filterType === 'TOTAL') {
+                filteredConnections = allConnections;
+                filterText = `Showing All ${filteredConnections.length} Connections`;
+                document.getElementById('total-connections').parentElement.classList.add('active');
+            }
+            
+            if (filterType !== 'ALL') {
+                document.getElementById('filter-info').style.display = 'block';
+                document.getElementById('filter-text').textContent = filterText;
+            } else {
+                document.getElementById('filter-info').style.display = 'none';
+            }
+            
+            renderConnectionsTable(filteredConnections);
+        }
+        
+        function clearFilter() {
+            currentFilter = 'ALL';
+            document.querySelectorAll('.summary-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            document.getElementById('filter-info').style.display = 'none';
+            renderConnectionsTable(allConnections);
         }
 
         function determineLLDPStatus(connection) {
@@ -185,7 +216,7 @@
                 };
             } else if (lldpStatus === 'No-Info') {
                 return {
-                    status: 'NO INFO',
+                    status: 'NO-INFO',
                     healthClass: 'lldp-unknown',
                     statusClass: 'status-no-info',
                     health: 'No LLDP Response Received'
@@ -217,6 +248,27 @@
                     health: `Unknown Status: ${lldpStatus}`
                 };
             }
+        }
+        
+        function renderConnectionsTable(connections) {
+            const tbody = document.getElementById('lldp-data');
+            tbody.innerHTML = '';
+            
+            connections.forEach(connection => {
+                const status = determineLLDPStatus(connection);
+                const row = tbody.insertRow();
+                row.className = status.healthClass;
+                
+                row.insertCell(0).textContent = connection.localDevice;
+                row.insertCell(1).textContent = connection.localPort;
+                row.insertCell(2).textContent = connection.actualDevice || 'N/A';
+                row.insertCell(3).textContent = connection.actualPort || 'N/A';
+                
+                const statusCell = row.insertCell(4);
+                statusCell.innerHTML = `<span class="${status.statusClass}">${status.status}</span>`;
+                
+                row.insertCell(5).textContent = status.health;
+            });
         }
 
         function parseAndDisplayLLDPData(data) {
@@ -287,45 +339,45 @@
                 return priority[statusA.status] - priority[statusB.status];
             });
 
-            // Display connections
-            connections.forEach(conn => {
-                const statusInfo = determineLLDPStatus(conn);
-                
-                // Update counters
+            // Store all connections for filtering
+            allConnections = connections;
+
+            // Count by status
+            totalConnections = 0;
+            successConnections = 0;
+            failedConnections = 0;
+            warningConnections = 0;
+            noInfoConnections = 0;
+            
+            connections.forEach(connection => {
+                const status = determineLLDPStatus(connection);
                 totalConnections++;
-                switch(statusInfo.status) {
-                    case 'SUCCESS': successConnections++; break;
-                    case 'FAILED': failedConnections++; break;
-                    case 'WARNING': warningConnections++; break;
-                    case 'NO INFO': noInfoConnections++; break;
-                }
-                
-                const row = tbody.insertRow();
-                row.className = statusInfo.healthClass;
-                row.innerHTML = `
-                    <td>${conn.localDevice}</td>
-                    <td>${conn.localPort}</td>
-                    <td>${conn.actualDevice || 'N/A'}</td>
-                    <td>${conn.actualPort || 'N/A'}</td>
-                    <td><span class="${statusInfo.statusClass}">${statusInfo.status}</span></td>
-                    <td>${statusInfo.health}</td>
-                `;
+                if (status.status === 'SUCCESS') successConnections++;
+                else if (status.status === 'FAILED') failedConnections++;
+                else if (status.status === 'WARNING') warningConnections++;
+                else if (status.status === 'NO INFO') noInfoConnections++;
             });
 
             updateSummaryCards();
+            
+            // Setup click events for summary cards
+            setupSummaryCardEvents();
+            
+            // Render table with all connections initially
+            renderConnectionsTable(connections);
         }
 
         function showFallbackContent() {
             document.getElementById('loading').style.display = 'none';
             document.getElementById('lldp-table').style.display = 'none';
-            document.querySelector('.fallback-content').style.display = 'block';
+            document.getElementById('error').style.display = 'block';
             
-            // Update summary cards with realistic fallback data based on actual LLDP results
-            totalConnections = 2068;
-            successConnections = 1842;
-            failedConnections = 2;
+            // Reset summary cards to 0 when no data available
+            totalConnections = 0;
+            successConnections = 0;
+            failedConnections = 0;
             warningConnections = 0;
-            noInfoConnections = 224;
+            noInfoConnections = 0;
             updateSummaryCards();
             setLastUpdated();
         }
@@ -343,6 +395,33 @@
             };
             const formattedDate = now.toLocaleString('en-US', options);
             document.getElementById('last-updated').textContent = formattedDate;
+        }
+        
+        function setupSummaryCardEvents() {
+            // Total connections card
+            document.getElementById('total-connections').parentElement.addEventListener('click', function() {
+                if (totalConnections > 0) filterConnections('TOTAL');
+            });
+            
+            // Success connections card
+            document.getElementById('success-connections').parentElement.addEventListener('click', function() {
+                if (successConnections > 0) filterConnections('SUCCESS');
+            });
+            
+            // Failed connections card
+            document.getElementById('failed-connections').parentElement.addEventListener('click', function() {
+                if (failedConnections > 0) filterConnections('FAILED');
+            });
+            
+            // Warning connections card
+            document.getElementById('warning-connections').parentElement.addEventListener('click', function() {
+                if (warningConnections > 0) filterConnections('WARNING');
+            });
+            
+            // No info connections card
+            document.getElementById('no-info-connections').parentElement.addEventListener('click', function() {
+                if (noInfoConnections > 0) filterConnections('NO_INFO');
+            });
         }
 
         function loadLLDPData() {
