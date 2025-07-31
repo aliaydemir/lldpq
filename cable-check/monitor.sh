@@ -87,8 +87,8 @@ EOF
     timeout 300 ssh $SSH_OPTS -q "$user@$device" '
         echo "=== OPTIMIZED INTERFACE DATA COLLECTION ==="
         
-        # Get interface list once
-        all_interfaces=$(nv show interface 2>/dev/null | grep -E "swp[0-9]+(s[0-9]+)?" | awk "{print \$1}" || ls /sys/class/net/swp* 2>/dev/null | xargs -n1 basename)
+        # Get interface list once (exclude breakout sub-interfaces)
+        all_interfaces=$(nv show interface 2>/dev/null | grep -E "^swp[0-9]+[^s]|^swp[0-9]+$" | awk "{print \$1}" || ls /sys/class/net/swp[0-9]* 2>/dev/null | grep -v "s[0-9]" | xargs -n1 basename)
         
         # Collect ALL interface data in single loop
         for interface in $all_interfaces; do
