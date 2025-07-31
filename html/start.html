@@ -305,6 +305,35 @@
             </div>
         </div>
 
+        <!-- Link Flap Analysis Section -->
+        <div class="analysis-section">
+            <div class="section-header">
+                <h2 class="section-title" onclick="window.location.href='monitor-results/link-flap-analysis.html'">Link Flap Detection</h2>
+            </div>
+            <div class="summary-grid">
+                <div class="summary-card card-total" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
+                    <div class="card-value" id="flap-devices">1</div>
+                    <div class="card-label">Total Devices</div>
+                </div>
+                <div class="summary-card card-info" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
+                    <div class="card-value" id="flap-ports">4</div>
+                    <div class="card-label">Total Ports</div>
+                </div>
+                <div class="summary-card card-excellent" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
+                    <div class="card-value status-excellent" id="flap-stable">4</div>
+                    <div class="card-label">Stable</div>
+                </div>
+                <div class="summary-card card-critical" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
+                    <div class="card-value status-critical" id="flap-problematic">0</div>
+                    <div class="card-label">Problematic</div>
+                </div>
+                <div class="summary-card card-total" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
+                    <div class="card-value" id="flap-stability">100.0%</div>
+                    <div class="card-label">Stability Ratio</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Optical Analysis Section -->
         <div class="analysis-section">
             <div class="section-header">
@@ -363,34 +392,7 @@
             </div>
         </div>
 
-        <!-- Link Flap Analysis Section -->
-        <div class="analysis-section">
-            <div class="section-header">
-                <h2 class="section-title" onclick="window.location.href='monitor-results/link-flap-analysis.html'">Link Flap Detection</h2>
-            </div>
-            <div class="summary-grid">
-                <div class="summary-card card-total" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
-                    <div class="card-value" id="flap-devices">1</div>
-                    <div class="card-label">Total Devices</div>
-                </div>
-                <div class="summary-card card-info" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
-                    <div class="card-value" id="flap-ports">4</div>
-                    <div class="card-label">Total Ports</div>
-                </div>
-                <div class="summary-card card-excellent" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
-                    <div class="card-value status-excellent" id="flap-stable">4</div>
-                    <div class="card-label">Stable</div>
-                </div>
-                <div class="summary-card card-critical" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
-                    <div class="card-value status-critical" id="flap-problematic">0</div>
-                    <div class="card-label">Problematic</div>
-                </div>
-                <div class="summary-card card-total" onclick="window.location.href='monitor-results/link-flap-analysis.html'">
-                    <div class="card-value" id="flap-stability">100.0%</div>
-                    <div class="card-label">Stability Ratio</div>
-                </div>
-            </div>
-        </div>
+
     </div>
 
     <script>
@@ -484,6 +486,7 @@
                         
                         summaryData.totalPorts = rows.length;
                         summaryData.totalDevices = new Set(Array.from(rows).map(row => row.cells[0]?.textContent.trim())).size;
+                        summaryData.totalNeighbors = rows.length; // BGP neighbors = rows
                         summaryData.excellent = 0;
                         summaryData.good = 0;
                         summaryData.warning = 0;
@@ -504,13 +507,13 @@
                             else if (health === 'warning' || status === 'warning') summaryData.warning++;
                             else if (health === 'critical' || status === 'critical') summaryData.critical++;
                             
-                            // Count by state
+                            // Count by state (BGP)
                             if (state === 'established') summaryData.established++;
                             else if (state === 'idle' || state === 'down') summaryData.failed++;
                             
-                            // Count by stability
-                            if (status === 'stable') summaryData.stable++;
-                            else if (status === 'problematic') summaryData.problematic++;
+                            // Count by stability (Link Flap uses 'ok' not 'stable')
+                            if (status === 'stable' || status === 'ok') summaryData.stable++;
+                            else if (status === 'problematic' || status === 'flapped') summaryData.problematic++;
                         });
                         
                         // Analysis data parsed from table
