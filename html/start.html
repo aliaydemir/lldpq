@@ -464,10 +464,10 @@
                 const [assetsData, lldpData, bgpData, opticalData, berData, flapData] = await Promise.all([
                     fetchPageSummary('assets.html'),
                     fetchPageSummary('lldp.html'), 
-                    fetchPageSummary('bgp-analysis.html'),
-                    fetchPageSummary('optical-analysis.html'),
-                    fetchPageSummary('ber-analysis.html'),
-                    fetchPageSummary('link-flap-analysis.html')
+                    fetchPageSummary('monitor-results/bgp-analysis.html'),
+                    fetchPageSummary('monitor-results/optical-analysis.html'),
+                    fetchPageSummary('monitor-results/ber-analysis.html'),
+                    fetchPageSummary('monitor-results/link-flap-analysis.html')
                 ]);
 
                 // Update dashboard summary cards
