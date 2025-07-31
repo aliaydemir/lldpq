@@ -31,10 +31,15 @@
             width: calc(100% - 280px);
             height: 100vh;
             border: none;
+            display: block;
+            overflow: auto;
         }
         
-        body {
-            overflow-x: hidden;
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
         }
         
         .logo-section {
@@ -251,7 +256,7 @@
         </div>
     </div>
     
-    <iframe id="content-iframe" name="content-iframe" src="start.html" scrolling="yes" frameborder="0"></iframe>
+    <iframe id="content-iframe" name="content-iframe" src="start.html"></iframe>
     
     <script>
         // Add active state management
