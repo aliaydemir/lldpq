@@ -410,80 +410,104 @@
             document.getElementById('last-updated-time').textContent = formattedDate;
         }
 
-        // Fetch summary data from analysis pages
-        async function fetchPageSummary(pageUrl) {
+        // Fetch summary data directly from data files
+        async function fetchRawDataSummary(dataType) {
             try {
-                const response = await fetch(pageUrl);
-                const html = await response.text();
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(html, 'text/html');
+                let summaryData = {};
                 
-                // Extract summary data based on specific page structure
-                const summaryData = {};
-                
-                // For Assets page
-                if (pageUrl.includes('assets.html')) {
-                    summaryData.totalDevices = parseInt(doc.getElementById('total-devices')?.textContent) || 0;
-                    summaryData.successful = parseInt(doc.getElementById('success-count')?.textContent) || 0;
-                    summaryData.warning = parseInt(doc.getElementById('warning-count')?.textContent) || 0;
-                    summaryData.failed = parseInt(doc.getElementById('fail-count')?.textContent) || 0;
-                    summaryData.noInfo = parseInt(doc.getElementById('no-info-count')?.textContent) || 0;
-                }
-                // For LLDP page
-                else if (pageUrl.includes('lldp.html')) {
-                    summaryData.totalConnections = parseInt(doc.getElementById('total-connections')?.textContent) || 0;
-                    summaryData.successful = parseInt(doc.getElementById('success-connections')?.textContent) || 0;
-                    summaryData.failed = parseInt(doc.getElementById('failed-connections')?.textContent) || 0;
-                    summaryData.warning = parseInt(doc.getElementById('warning-connections')?.textContent) || 0;
-                    summaryData.noInfo = parseInt(doc.getElementById('no-info-connections')?.textContent) || 0;
-                }
-                // For other analysis pages, use generic .summary-card parsing
-                else {
-                    const cards = doc.querySelectorAll('.summary-card');
+                if (dataType === 'assets') {
+                    // Parse assets.ini directly
+                    const response = await fetch('assets.ini');
+                    const text = await response.text();
+                    const lines = text.split('\n').filter(line => line.trim());
                     
-                    cards.forEach(card => {
-                        const valueElement = card.querySelector('.card-value');
-                        const labelElement = card.querySelector('.card-label');
-                        
-                        if (valueElement && labelElement) {
-                            const value = valueElement.textContent.trim();
-                            const label = labelElement.textContent.trim().toLowerCase();
-                            
-                            // Map label to standardized key
-                            if (label.includes('total devices')) summaryData.totalDevices = parseInt(value) || 0;
-                            else if (label.includes('total connections') || label.includes('total links')) summaryData.totalConnections = parseInt(value) || 0;
-                            else if (label.includes('total ports')) summaryData.totalPorts = parseInt(value) || 0;
-                            else if (label.includes('total neighbors')) summaryData.totalNeighbors = parseInt(value) || 0;
-                            else if (label.includes('successful') || label.includes('success')) summaryData.successful = parseInt(value) || 0;
-                            else if (label.includes('excellent')) summaryData.excellent = parseInt(value) || 0;
-                            else if (label.includes('good')) summaryData.good = parseInt(value) || 0;
-                            else if (label.includes('established')) summaryData.established = parseInt(value) || 0;
-                            else if (label.includes('stable')) summaryData.stable = parseInt(value) || 0;
-                            else if (label.includes('failed') || label.includes('down')) summaryData.failed = parseInt(value) || 0;
-                            else if (label.includes('problematic')) summaryData.problematic = parseInt(value) || 0;
-                            else if (label.includes('warning')) summaryData.warning = parseInt(value) || 0;
-                            else if (label.includes('critical')) summaryData.critical = parseInt(value) || 0;
-                            else if (label.includes('no info') || label.includes('no information')) summaryData.noInfo = parseInt(value) || 0;
-                            else if (label.includes('health') && value.includes('%')) summaryData.healthPercent = parseFloat(value) || 0;
-                            else if (label.includes('stability') && value.includes('%')) summaryData.stabilityPercent = parseFloat(value) || 0;
+                    summaryData.totalDevices = lines.length;
+                    summaryData.successful = 0;
+                    summaryData.failed = 0;
+                    summaryData.warning = 0;
+                    summaryData.noInfo = 0;
+                    
+                    lines.forEach(line => {
+                        const parts = line.split('|');
+                        if (parts.length >= 7) {
+                            const status = parts[6].trim();
+                            if (status === 'SUCCESS') summaryData.successful++;
+                            else if (status === 'FAILED') summaryData.failed++;
+                            else if (status === 'WARNING') summaryData.warning++;
+                            else if (status === 'NO INFO') summaryData.noInfo++;
                         }
                     });
+                    
+                } else if (dataType === 'lldp') {
+                    // Parse lldp_results.ini directly
+                    const response = await fetch('lldp_results.ini');
+                    const text = await response.text();
+                    const lines = text.split('\n').filter(line => line.trim());
+                    
+                    summaryData.totalConnections = lines.length;
+                    summaryData.successful = 0;
+                    summaryData.failed = 0;
+                    summaryData.warning = 0;
+                    summaryData.noInfo = 0;
+                    
+                    lines.forEach(line => {
+                        const parts = line.split('|');
+                        if (parts.length >= 6) {
+                            const status = parts[5].trim();
+                            if (status === 'Pass') summaryData.successful++;
+                            else if (status === 'Fail') summaryData.failed++;
+                            else if (status === 'No-Info') summaryData.noInfo++;
+                        }
+                    });
+                    
+                } else {
+                    // For analysis pages, fetch the generated HTML and parse its summary cards
+                    const pageMap = {
+                        'bgp': 'monitor-results/bgp-analysis.html',
+                        'optical': 'monitor-results/optical-analysis.html',
+                        'ber': 'monitor-results/ber-analysis.html',
+                        'flap': 'monitor-results/link-flap-analysis.html'
+                    };
+                    
+                    const pageUrl = pageMap[dataType];
+                    if (pageUrl) {
+                        const response = await fetch(pageUrl);
+                        const html = await response.text();
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
+                        const cards = doc.querySelectorAll('.summary-card');
+                        
+                        cards.forEach(card => {
+                            const valueElement = card.querySelector('.card-value');
+                            const labelElement = card.querySelector('.card-label');
+                            
+                            if (valueElement && labelElement) {
+                                const value = valueElement.textContent.trim();
+                                const label = labelElement.textContent.trim().toLowerCase();
+                                
+                                if (label.includes('total devices')) summaryData.totalDevices = parseInt(value) || 0;
+                                else if (label.includes('total ports')) summaryData.totalPorts = parseInt(value) || 0;
+                                else if (label.includes('total neighbors')) summaryData.totalNeighbors = parseInt(value) || 0;
+                                else if (label.includes('excellent')) summaryData.excellent = parseInt(value) || 0;
+                                else if (label.includes('good')) summaryData.good = parseInt(value) || 0;
+                                else if (label.includes('established')) summaryData.established = parseInt(value) || 0;
+                                else if (label.includes('stable')) summaryData.stable = parseInt(value) || 0;
+                                else if (label.includes('failed') || label.includes('down')) summaryData.failed = parseInt(value) || 0;
+                                else if (label.includes('problematic')) summaryData.problematic = parseInt(value) || 0;
+                                else if (label.includes('warning')) summaryData.warning = parseInt(value) || 0;
+                                else if (label.includes('critical')) summaryData.critical = parseInt(value) || 0;
+                                else if (label.includes('health') && value.includes('%')) summaryData.healthPercent = parseFloat(value) || 0;
+                                else if (label.includes('stability') && value.includes('%')) summaryData.stabilityPercent = parseFloat(value) || 0;
+                            }
+                        });
+                    }
                 }
                 
-                console.log(`Fetched data from ${pageUrl}:`, summaryData); // Debug log
-                
-                // Extra debug for assets page
-                if (pageUrl.includes('assets.html')) {
-                    console.log('Assets page elements found:');
-                    console.log('total-devices element:', doc.getElementById('total-devices'));
-                    console.log('total-devices value:', doc.getElementById('total-devices')?.textContent);
-                    console.log('success-count element:', doc.getElementById('success-count'));
-                    console.log('success-count value:', doc.getElementById('success-count')?.textContent);
-                }
-                
+                console.log(`Fetched ${dataType} data:`, summaryData);
                 return summaryData;
+                
             } catch (error) {
-                console.warn(`Failed to fetch data from ${pageUrl}:`, error);
+                console.warn(`Failed to fetch ${dataType} data:`, error);
                 return {};
             }
         }
@@ -493,18 +517,18 @@
             try {
                 console.log('Starting updateNetworkStats...');
                 
-                // Fetch data from all analysis pages
-                console.log('Fetching data from all pages...');
+                // Fetch data directly from raw data files
+                console.log('Fetching data from raw data files...');
                 const [assetsData, lldpData, bgpData, opticalData, berData, flapData] = await Promise.all([
-                    fetchPageSummary('assets.html'),
-                    fetchPageSummary('lldp.html'), 
-                    fetchPageSummary('monitor-results/bgp-analysis.html'),
-                    fetchPageSummary('monitor-results/optical-analysis.html'),
-                    fetchPageSummary('monitor-results/ber-analysis.html'),
-                    fetchPageSummary('monitor-results/link-flap-analysis.html')
+                    fetchRawDataSummary('assets'),
+                    fetchRawDataSummary('lldp'), 
+                    fetchRawDataSummary('bgp'),
+                    fetchRawDataSummary('optical'),
+                    fetchRawDataSummary('ber'),
+                    fetchRawDataSummary('flap')
                 ]);
                 
-                console.log('All data fetched:', {
+                console.log('All raw data fetched:', {
                     assets: assetsData,
                     lldp: lldpData,
                     bgp: bgpData,
