@@ -131,6 +131,7 @@ last_call() {
             IFS=' ' read -r hostname ip <<< "$host"
             echo -e "\e[32m[$ip] \e[0;32m[$hostname]\e[0m"
         done
+        echo ""
     fi
     if [[ ${#unreachable_hosts[@]} -gt 0 ]]; then
         echo -e "\n\e[96mUnreachable Hosts:\n\e[0m"
