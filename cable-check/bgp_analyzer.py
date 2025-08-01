@@ -111,10 +111,28 @@ class BGPAnalyzer:
         
         for hostname in list(self.bgp_history.keys()):
             if hostname in self.bgp_history:
-                self.bgp_history[hostname] = [
-                    entry for entry in self.bgp_history[hostname]
-                    if current_time - float(entry.get('timestamp', 0)) <= retention_seconds
-                ]
+                filtered_entries = []
+                for entry in self.bgp_history[hostname]:
+                    timestamp = entry.get('timestamp', 0)
+                    
+                    # Handle different timestamp formats
+                    try:
+                        if isinstance(timestamp, str):
+                            # Parse ISO format: '2025-08-01T03:26:51.970342'
+                            if 'T' in timestamp:
+                                entry_time = datetime.fromisoformat(timestamp.replace('Z', '+00:00')).timestamp()
+                            else:
+                                entry_time = float(timestamp)
+                        else:
+                            entry_time = float(timestamp)
+                        
+                        if current_time - entry_time <= retention_seconds:
+                            filtered_entries.append(entry)
+                    except (ValueError, TypeError):
+                        # Skip entries with invalid timestamps
+                        continue
+                
+                self.bgp_history[hostname] = filtered_entries
                 
                 # Remove hostname if no history left
                 if not self.bgp_history[hostname]:
