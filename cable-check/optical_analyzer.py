@@ -361,13 +361,13 @@ class OpticalAnalyzer:
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
             gap: 15px; 
             margin: 20px 0; 
-        }}}
+        }}
         .summary-card {{ 
             background: #f8f9fa; 
             padding: 15px; 
             border-radius: 8px; 
             border-left: 4px solid #007bff; 
-        }}}
+        }}
         .metric {{ font-size: 24px; font-weight: bold; }}
         .optical-excellent {{ color: #4caf50; font-weight: bold; }}
         .optical-good {{ color: #8bc34a; font-weight: bold; }}
@@ -383,25 +383,25 @@ class OpticalAnalyzer:
             border-radius: 8px; 
             border-left: 4px solid #f44336; 
             background-color: #ffebee; 
-        }}}
+        }}
         .warning-card {{ 
             border-left-color: #ff9800; 
             background-color: #fff3e0; 
-        }}}
+        }}
         
         .summary-card {{
             cursor: pointer;
             transition: all 0.3s ease;
-        }}}
+        }}
         .summary-card:hover {{
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }}}
+        }}
         .summary-card.active {{
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.25);
             border-left-width: 6px;
-        }}}
+        }}
         
         .filter-info {{
             text-align: center;
@@ -411,7 +411,7 @@ class OpticalAnalyzer:
             border-radius: 4px;
             color: #1976d2;
             display: none;
-        }}}
+        }}
         
         /* Sortable table styling */
         .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
