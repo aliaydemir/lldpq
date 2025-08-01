@@ -121,26 +121,28 @@ EOF
         done
     ' > "monitor-results/${hostname}_combined_interface_data.txt" 2>/dev/null
     
-    # DIRECT carrier transitions collection (no dependency on combined file)
+    # OPTIMIZED carrier transitions collection (single SSH session)
     echo "=== CARRIER TRANSITIONS ===" > "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
     
-    # Get interface list for direct flap data collection
-    flap_interfaces=$(timeout 60 ssh $SSH_OPTS -q "$user@$device" 'nv show interface 2>/dev/null | grep "^swp[0-9]" | awk "{print \$1}"' 2>/dev/null)
-    
-    if [ -n "$flap_interfaces" ]; then
-        # Collect carrier transitions directly for each interface
-        for interface in $flap_interfaces; do
-            if timeout 10 ssh $SSH_OPTS -q "$user@$device" "[ -e '/sys/class/net/$interface' ]" 2>/dev/null; then
-                carrier_count=$(timeout 15 ssh $SSH_OPTS -q "$user@$device" "nv show interface $interface counters 2>/dev/null | grep 'carrier-transitions' | awk '{print \$2}'" 2>/dev/null)
+    # Single SSH session for ALL carrier transitions data
+    timeout 120 ssh $SSH_OPTS -q "$user@$device" '
+        # Get all swp interfaces (base + breakout)
+        all_interfaces=$(nv show interface 2>/dev/null | grep "^swp[0-9]" | awk "{print \$1}")
+        
+        # Collect carrier transitions for all interfaces in one session
+        for interface in $all_interfaces; do
+            if [ -e "/sys/class/net/$interface" ]; then
+                # Try nv command first, fallback to /sys
+                carrier_count=$(nv show interface $interface counters 2>/dev/null | grep "carrier-transitions" | awk "{print \$2}")
                 if [ -z "$carrier_count" ] || [ "$carrier_count" = "" ]; then
-                    carrier_count=$(timeout 10 ssh $SSH_OPTS -q "$user@$device" "cat /sys/class/net/$interface/carrier_changes 2>/dev/null" 2>/dev/null || echo "0")
+                    carrier_count=$(cat /sys/class/net/$interface/carrier_changes 2>/dev/null || echo "0")
                 fi
                 if [ -n "$carrier_count" ] && [ "$carrier_count" != "" ]; then
-                    echo "$interface:$carrier_count" >> "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
+                    echo "$interface:$carrier_count"
                 fi
             fi
         done
-    fi
+    ' >> "monitor-results/flap-data/${hostname}_carrier_transitions.txt" 2>/dev/null
     
     # Extract individual data files from combined data (if exists)
     if [ -f "monitor-results/${hostname}_combined_interface_data.txt" ]; then
