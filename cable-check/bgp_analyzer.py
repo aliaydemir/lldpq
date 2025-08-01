@@ -98,7 +98,7 @@ class BGPAnalyzer:
                 "bgp_history": self.bgp_history,
                 "current_bgp_stats": self.current_bgp_stats,
                 "last_update": time.time()
-            }
+            }}
             with open(f"{self.data_dir}/bgp_history.json", "w") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
@@ -338,7 +338,7 @@ class BGPAnalyzer:
             "established_neighbors": len([n for n in neighbors if n.state == BGPState.ESTABLISHED]),
             "down_neighbors": len([n for n in neighbors if n.state in [BGPState.IDLE, BGPState.ACTIVE, BGPState.CONNECT]]),
             "last_update": datetime.now().isoformat()
-        }
+        }}
         
         # Add to history (keep last 50 entries per device)
         if hostname not in self.bgp_history:
@@ -350,7 +350,7 @@ class BGPAnalyzer:
             "established_count": len([n for n in neighbors if n.state == BGPState.ESTABLISHED]),
             "down_count": len([n for n in neighbors if n.state in [BGPState.IDLE, BGPState.ACTIVE, BGPState.CONNECT]]),
             "neighbors": neighbor_dicts  # Use the same serialized data
-        }
+        }}
         
         self.bgp_history[hostname].append(history_entry)
         
@@ -383,7 +383,7 @@ class BGPAnalyzer:
                         "state": neighbor.state.value,
                         "health": health.value,
                         "uptime": neighbor.uptime
-                    })
+                    }}})
         
         return {
             "total_devices": total_devices,
@@ -393,7 +393,7 @@ class BGPAnalyzer:
             "problem_neighbors": problem_neighbors,
             "health_ratio": (total_established / total_neighbors * 100) if total_neighbors > 0 else 0,
             "timestamp": datetime.now().isoformat()
-        }
+        }}
     
     def detect_bgp_anomalies(self) -> List[Dict[str, Any]]:
         """Detect BGP anomalies and problems"""
@@ -417,9 +417,9 @@ class BGPAnalyzer:
                             "uptime": neighbor.uptime,
                             "asn": neighbor.asn,
                             "interface": neighbor.interface
-                        },
+                        }}},
                         "action": f"Check physical connectivity and BGP configuration for {neighbor.neighbor_name}"
-                    })
+                    }}})
                 
                 # Warning: High queue depths
                 elif neighbor.in_queue > self.thresholds["high_queue_threshold"] or \
@@ -434,9 +434,9 @@ class BGPAnalyzer:
                             "in_queue": neighbor.in_queue,
                             "out_queue": neighbor.out_queue,
                             "state": neighbor.state.value
-                        },
+                        }}},
                         "action": "Monitor for potential congestion or processing delays"
-                    })
+                    }}})
                 
                 # Warning: Low prefix count
                 elif neighbor.prefixes_received < self.thresholds["low_prefix_threshold"] and \
@@ -451,9 +451,9 @@ class BGPAnalyzer:
                             "prefixes_received": neighbor.prefixes_received,
                             "prefixes_sent": neighbor.prefixes_sent,
                             "state": neighbor.state.value
-                        },
+                        }}},
                         "action": "Verify route advertisements and filtering policies"
-                    })
+                    }}})
         
         return anomalies
     
@@ -485,47 +485,47 @@ class BGPAnalyzer:
             user-select: none;
             position: relative;
             padding-right: 20px;
-        }
+        }}
         
         .sortable:hover {{
             background-color: #f5f5f5;
-        }
+        }}
         
         .sort-arrow {{
             font-size: 10px;
             color: #999;
             margin-left: 5px;
             opacity: 0.5;
-        }
+        }}
         
         .sortable.asc .sort-arrow::before {{
             content: '▲';
             color: #b57614;
             opacity: 1;
-        }
+        }}
         
         .sortable.desc .sort-arrow::before {{
             content: '▼';
             color: #b57614;
             opacity: 1;
-        }
+        }}
         
         .sortable.asc .sort-arrow,
         .sortable.desc .sort-arrow {{
             opacity: 1;
-        }
+        }}
         .summary-grid {{ 
             display: grid; 
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
             gap: 15px; 
             margin: 20px 0; 
-        }
+        }}
         .summary-card {{ 
             background: #f8f9fa; 
             padding: 15px; 
             border-radius: 8px; 
             border-left: 4px solid #007bff; 
-        }
+        }}
         .metric {{ font-size: 24px; font-weight: bold; }}
         .state-established {{ color: #4caf50; font-weight: bold; }}
         .state-idle {{ color: #f44336; font-weight: bold; }}
@@ -538,16 +538,16 @@ class BGPAnalyzer:
         .summary-card {{
             cursor: pointer;
             transition: all 0.3s ease;
-        }
+        }}
         .summary-card:hover {{
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }
+        }}
         .summary-card.active {{
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.25);
             border-left-width: 6px;
-        }
+        }}
         
         .filter-info {{
             text-align: center;
@@ -557,7 +557,7 @@ class BGPAnalyzer:
             border-radius: 4px;
             color: #1976d2;
             display: none;
-        }
+        }}
     </style>
 </head>
 <body>
@@ -606,7 +606,7 @@ class BGPAnalyzer:
                     'hostname': hostname,
                     'neighbor': neighbor,
                     'health': health
-                }
+                }}
                 
                 all_neighbors.append(neighbor_info)
         
@@ -728,33 +728,33 @@ class BGPAnalyzer:
             
             // Initialize table sorting
             initTableSorting();
-        });
+        }});
         
         function setupCardEvents() {
             document.getElementById('total-devices-card').addEventListener('click', function() {
                 if (parseInt(document.getElementById('total-devices').textContent) > 0) {
                     filterNeighbors('TOTAL');
-                }
-            });
+                }}
+            }}});
             
             document.getElementById('total-neighbors-card').addEventListener('click', function() {
                 if (parseInt(document.getElementById('total-neighbors').textContent) > 0) {
                     filterNeighbors('TOTAL');
-                }
-            });
+                }}
+            }}});
             
             document.getElementById('established-card').addEventListener('click', function() {
                 if (parseInt(document.getElementById('established-neighbors').textContent) > 0) {
                     filterNeighbors('ESTABLISHED');
-                }
-            });
+                }}
+            }}});
             
             document.getElementById('down-card').addEventListener('click', function() {
                 if (parseInt(document.getElementById('down-neighbors').textContent) > 0) {
                     filterNeighbors('DOWN');
-                }
-            });
-        }
+                }}
+            }}});
+        }}
         
         function filterNeighbors(filterType) {
             currentFilter = filterType;
@@ -762,7 +762,7 @@ class BGPAnalyzer:
             // Clear active state from all cards
             document.querySelectorAll('.summary-card').forEach(card => {
                 card.classList.remove('active');
-            });
+            }}});
             
             let filteredRows = allRows;
             let filterText = '';
@@ -771,7 +771,7 @@ class BGPAnalyzer:
                 filteredRows = allRows.filter(row => row.dataset.state === 'established');
                 filterText = `Showing ${filteredRows.length} Established Neighbors`;
                 document.getElementById('established-card').classList.add('active');
-            } else if (filterType === 'DOWN') {
+            }} else if (filterType === 'DOWN') {
                 filteredRows = allRows.filter(row => 
                     row.dataset.state !== 'established' || 
                     row.dataset.health === 'critical' || 
@@ -779,53 +779,53 @@ class BGPAnalyzer:
                 );
                 filterText = `Showing ${filteredRows.length} Down/Problem Neighbors`;
                 document.getElementById('down-card').classList.add('active');
-            } else if (filterType === 'TOTAL') {
+            }} else if (filterType === 'TOTAL') {
                 filteredRows = allRows;
                 document.getElementById('total-neighbors-card').classList.add('active');
-            }
+            }}
             
             // Show filter info for all filters except TOTAL
             if (filterType !== 'ALL' && filterType !== 'TOTAL') {
                 document.getElementById('filter-info').style.display = 'block';
                 document.getElementById('filter-text').textContent = filterText;
-            } else {
+            }} else {
                 document.getElementById('filter-info').style.display = 'none';
-            }
+            }}
             
             // Hide all rows first
             allRows.forEach(row => row.style.display = 'none');
             
             // Show filtered rows
             filteredRows.forEach(row => row.style.display = '');
-        }
+        }}
         
         function clearFilter() {
             currentFilter = 'ALL';
             document.querySelectorAll('.summary-card').forEach(card => {
                 card.classList.remove('active');
-            });
+            }}});
             document.getElementById('filter-info').style.display = 'none';
             
             // Show all rows
             allRows.forEach(row => row.style.display = '');
-        }
+        }}
 
         // Generic table sorting functionality  
         let tableSortState = { column: -1, direction: 'asc' };
         
-        function initTableSorting() {
+        function initTableSorting() {{
             const headers = document.querySelectorAll('.sortable');
-            headers.forEach(header => {
-                header.addEventListener('click', function() {
+            headers.forEach(header => {{
+                header.addEventListener('click', function() {{
                     const column = parseInt(this.dataset.column);
                     const type = this.dataset.type;
                     
                     // Toggle sort direction
-                    if (tableSortState.column === column) {
+                    if (tableSortState.column === column) {{
                         tableSortState.direction = tableSortState.direction === 'asc' ? 'desc' : 'asc';
-                    } else {
+                    }}}} else {{
                         tableSortState.direction = 'asc';
-                    }
+                    }}}
                     tableSortState.column = column;
                     
                     // Update header styling
@@ -834,24 +834,24 @@ class BGPAnalyzer:
                     
                     // Sort table
                     sortBGPTable(column, tableSortState.direction, type);
-                });
-            });
-        }
+                }}});
+            }}});
+        }}
         
-        function sortBGPTable(columnIndex, direction, type) {
+        function sortBGPTable(columnIndex, direction, type) {{
             const table = document.getElementById('bgp-table');
             const tbody = table.querySelector('tbody');
             const rows = Array.from(tbody.rows);
             
-            rows.sort((a, b) => {
+            rows.sort((a, b) => {{
                 let aVal = a.cells[columnIndex].textContent.trim();
                 let bVal = b.cells[columnIndex].textContent.trim();
                 
                 // Extract actual text for status/health columns (remove HTML)
-                if (type === 'bgp-state' || type === 'bgp-health') {
+                if (type === 'bgp-state' || type === 'bgp-health') {{
                     aVal = a.cells[columnIndex].querySelector('span')?.textContent || aVal;
                     bVal = b.cells[columnIndex].querySelector('span')?.textContent || bVal;
-                }
+                }}
                 
                 let result = 0;
                 
@@ -878,35 +878,35 @@ class BGPAnalyzer:
                     default:
                         result = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' });
                         break;
-                }
+                }}
                 
                 return direction === 'desc' ? -result : result;
-            });
+            }}});
             
             // Clear tbody and add sorted rows back
             tbody.innerHTML = '';
             rows.forEach(row => tbody.appendChild(row));
-        }
+        }}
         
-        function comparePort(a, b) {
+        function comparePort(a, b) {{
             if (a === 'N/A') return 1;
             if (b === 'N/A') return -1;
             
             // Handle port sorting (swp1, swp10, swp1s0, etc.)
-            const extractPortNumber = (port) => {
+            const extractPortNumber = (port) => {{
                 const match = port.match(/swp(\\d+)(?:s(\\d+))?/);
-                if (match) {
+                if (match) {{
                     const mainPort = parseInt(match[1]);
                     const subPort = match[2] ? parseInt(match[2]) : 0;
                     return mainPort * 1000 + subPort;
-                }
-                return port.localeCompare(b, undefined, { numeric: true });
-            };
+                }}
+                return port.localeCompare(b, undefined, {{ numeric: true }});
+            }};
             
             return extractPortNumber(a) - extractPortNumber(b);
-        }
+        }}
         
-        function compareBGPUptime(a, b) {
+        function compareBGPUptime(a, b) {{
             if (a === 'never') return 1;
             if (b === 'never') return -1;
             
@@ -928,45 +928,45 @@ class BGPAnalyzer:
                 if (timeMatch) {{
                     minutes += parseInt(timeMatch[1]) * 60; // hours
                     minutes += parseInt(timeMatch[2]); // minutes
-                }
+                }}
                 
                 return minutes;
-            };
+            }};
             
             return parseUptime(a) - parseUptime(b);
-        }
+        }}
         
-        function compareBGPState(a, b) {
+        function compareBGPState(a, b) {{
             const priority = {{
                 'IDLE': 0,
                 'ACTIVE': 1,
                 'CONNECT': 2,
                 'ESTABLISHED': 3
-            };
+            }};
             
             return (priority[a] || 4) - (priority[b] || 4);
-        }
+        }}
         
-        function compareBGPHealth(a, b) {
+        function compareBGPHealth(a, b) {{
             const priority = {{
                 'CRITICAL': 0,
                 'WARNING': 1,
                 'GOOD': 2,
                 'EXCELLENT': 3
-            };
+            }};
             
             return (priority[a] || 4) - (priority[b] || 4);
-        }
+        }}
         
-        function compareRatio(a, b) {
+        function compareRatio(a, b) {{
             // Parse ratio like "100/200" and compare by first number
             const getRatioValue = (ratio) => {{
                 const parts = ratio.split('/');
                 return parseInt(parts[0]) || 0;
-            };
+            }};
             
             return getRatioValue(a) - getRatioValue(b);
-        }
+        }}
 
 
     </script>
