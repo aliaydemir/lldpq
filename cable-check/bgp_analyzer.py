@@ -725,6 +725,9 @@ class BGPAnalyzer:
             
             // Add click events to summary cards
             setupCardEvents();
+            
+            // Initialize table sorting
+            initTableSorting();
         });
         
         function setupCardEvents() {
@@ -965,17 +968,7 @@ class BGPAnalyzer:
             return getRatioValue(a) - getRatioValue(b);
         }}
 
-        // Initialize sorting when DOM is loaded
-        document.addEventListener('DOMContentLoaded', function() {{
-            // Store all table rows for filtering
-            allRows = Array.from(document.querySelectorAll('#bgp-data tr'));
-            
-            // Add click events to summary cards
-            setupCardEvents();
-            
-            // Initialize table sorting
-            initTableSorting();
-        }});
+
     </script>
 </body>
 </html>
