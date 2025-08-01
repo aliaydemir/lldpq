@@ -91,6 +91,15 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                 if "status                      : unplugged" in optical_data:
                     print(f"  {port_name}: Skipped (port unplugged/down)")
                     continue
+                
+                # Check for extremely low RX power indicating link down (even if status shows plugged)
+                rx_power_match = re.search(r'ch-\d+-rx-power\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', optical_data)
+                if rx_power_match:
+                    rx_power_dbm = float(rx_power_match.group(1))
+                    # If RX power is extremely low (< -20 dBm), this indicates no real signal/link down
+                    if rx_power_dbm < -20.0:
+                        print(f"  {port_name}: Skipped (link down - RX power {rx_power_dbm:.2f} dBm too low)")
+                        continue
                     
                 # Skip ports without optical modules
                 if ("No transceiver data available" in optical_data or
