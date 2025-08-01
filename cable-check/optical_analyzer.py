@@ -696,37 +696,37 @@ class OpticalAnalyzer:
             rows.forEach(row => tbody.appendChild(row));
         }
         
-        function comparePort(a, b) {{
+        function comparePort(a, b) {
             if (a === 'N/A') return 1;
             if (b === 'N/A') return -1;
             
             // Handle port sorting (swp1, swp10, swp1s0, etc.)
-            const extractPortNumber = (port) => {{
+            const extractPortNumber = (port) => {
                 const match = port.match(/swp(\\d+)(?:s(\\d+))?/);
-                if (match) {{
+                if (match) {
                     const mainPort = parseInt(match[1]);
                     const subPort = match[2] ? parseInt(match[2]) : 0;
                     return mainPort * 1000 + subPort;
-                }}
-                return port.localeCompare(b, undefined, {{ numeric: true }});
-            }};
+                }
+                return port.localeCompare(b, undefined, { numeric: true });
+            };
             
             return extractPortNumber(a) - extractPortNumber(b);
-        }}
+        }
         
-        function compareOpticalHealth(a, b) {{
-            const priority = {{
+        function compareOpticalHealth(a, b) {
+            const priority = {
                 'CRITICAL': 0,
                 'WARNING': 1,
                 'GOOD': 2,
                 'EXCELLENT': 3,
                 'UNKNOWN': 4
-            }};
+            };
             
             return (priority[a] || 5) - (priority[b] || 5);
-        }}
+        }
         
-        function compareOpticalValue(a, b) {{
+        function compareOpticalValue(a, b) {
             // Handle 'N/A' values
             if (a === 'N/A' && b === 'N/A') return 0;
             if (a === 'N/A') return 1;
@@ -741,7 +741,7 @@ class OpticalAnalyzer:
             if (isNaN(numB)) return -1;
             
             return numA - numB;
-        }}
+        }
     </script>
 </body>
 </html>"""
