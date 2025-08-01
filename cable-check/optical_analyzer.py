@@ -60,7 +60,7 @@ class OpticalAnalyzer:
                 "optical_history": self.optical_history,
                 "current_optical_stats": self.current_optical_stats,
                 "last_update": time.time()
-            }
+            }}
             with open(f"{self.data_dir}/optical_history.json", "w") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
@@ -74,7 +74,7 @@ class OpticalAnalyzer:
             'temperature_c': None,
             'voltage_v': None,
             'bias_current_ma': None
-        }
+        }}
         
         # Track channel data for averaging
         rx_powers = []
@@ -204,7 +204,7 @@ class OpticalAnalyzer:
             'link_margin_db': link_margin_db,
             'last_updated': time.time(),
             'raw_data': optical_data[:500]  # Store first 500 chars for debugging
-        }
+        }}
         
         # Store in history
         if port_name not in self.optical_history:
@@ -218,7 +218,7 @@ class OpticalAnalyzer:
             'tx_power_dbm': optical_params['tx_power_dbm'],
             'temperature_c': optical_params['temperature_c'],
             'link_margin_db': link_margin_db
-        }
+        }}
         
         self.optical_history[port_name].append(history_entry)
         if len(self.optical_history[port_name]) > 100:
@@ -233,7 +233,7 @@ class OpticalAnalyzer:
             "warning_ports": [],
             "critical_ports": [],
             "unknown_ports": []
-        }
+        }}
         
         for port_name, stats in self.current_optical_stats.items():
             health = stats.get('health_status', 'unknown')
@@ -247,7 +247,7 @@ class OpticalAnalyzer:
                 "link_margin_db": stats.get('link_margin_db'),
                 "voltage_v": stats.get('voltage_v'),
                 "bias_current_ma": stats.get('bias_current_ma')
-            }
+            }}
             
             if health == OpticalHealth.EXCELLENT.value:
                 summary["excellent_ports"].append(port_info)
@@ -288,7 +288,7 @@ class OpticalAnalyzer:
                         "message": f"RX power too low: {rx_power:.2f} dBm (threshold: {self.thresholds['rx_power_min_dbm']} dBm)",
                         "action": "Check fiber connection, clean connectors, or replace cable",
                         "rx_power_dbm": rx_power
-                    })
+                    }}})
                 
                 if temperature is not None and temperature > self.thresholds['temperature_max_c']:
                     anomalies.append({
@@ -298,7 +298,7 @@ class OpticalAnalyzer:
                         "message": f"SFP temperature too high: {temperature:.1f}°C (threshold: {self.thresholds['temperature_max_c']}°C)",
                         "action": "Check cooling, reduce load, or replace SFP module",
                         "temperature_c": temperature
-                    })
+                    }}})
             
             elif health == OpticalHealth.WARNING:
                 # Warning level issues
@@ -311,7 +311,7 @@ class OpticalAnalyzer:
                         "message": f"Low link margin: {link_margin:.2f} dB (threshold: {self.thresholds['link_margin_min_db']} dB)",
                         "action": "Monitor closely, schedule proactive maintenance",
                         "link_margin_db": link_margin
-                    })
+                    }}})
         
         return anomalies
     
@@ -361,13 +361,13 @@ class OpticalAnalyzer:
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
             gap: 15px; 
             margin: 20px 0; 
-        }}
+        }}}
         .summary-card {{ 
             background: #f8f9fa; 
             padding: 15px; 
             border-radius: 8px; 
             border-left: 4px solid #007bff; 
-        }}
+        }}}
         .metric {{ font-size: 24px; font-weight: bold; }}
         .optical-excellent {{ color: #4caf50; font-weight: bold; }}
         .optical-good {{ color: #8bc34a; font-weight: bold; }}
@@ -383,25 +383,25 @@ class OpticalAnalyzer:
             border-radius: 8px; 
             border-left: 4px solid #f44336; 
             background-color: #ffebee; 
-        }}
+        }}}
         .warning-card {{ 
             border-left-color: #ff9800; 
             background-color: #fff3e0; 
-        }}
+        }}}
         
         .summary-card {{
             cursor: pointer;
             transition: all 0.3s ease;
-        }}
+        }}}
         .summary-card:hover {{
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }}
+        }}}
         .summary-card.active {{
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.25);
             border-left-width: 6px;
-        }}
+        }}}
         
         .filter-info {{
             text-align: center;
@@ -411,7 +411,7 @@ class OpticalAnalyzer:
             border-radius: 4px;
             color: #1976d2;
             display: none;
-        }}
+        }}}
         
         /* Sortable table styling */
         .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
@@ -530,39 +530,39 @@ class OpticalAnalyzer:
             
             // Initialize table sorting
             initTableSorting();
-        }});
+        }}});
         
         function setupCardEvents() {{
             document.getElementById('total-ports-card').addEventListener('click', function() {{
                 if (parseInt(document.getElementById('total-ports').textContent) > 0) {{
                     filterPorts('TOTAL');
-                }}
-            }});
+                }}}
+            }}});
             
             document.getElementById('excellent-card').addEventListener('click', function() {{
                 if (parseInt(document.getElementById('excellent-ports').textContent) > 0) {{
                     filterPorts('EXCELLENT');
-                }}
-            }});
+                }}}
+            }}});
             
             document.getElementById('good-card').addEventListener('click', function() {{
                 if (parseInt(document.getElementById('good-ports').textContent) > 0) {{
                     filterPorts('GOOD');
-                }}
-            }});
+                }}}
+            }}});
             
             document.getElementById('warning-card').addEventListener('click', function() {{
                 if (parseInt(document.getElementById('warning-ports').textContent) > 0) {{
                     filterPorts('WARNING');
-                }}
-            }});
+                }}}
+            }}});
             
             document.getElementById('critical-card').addEventListener('click', function() {{
                 if (parseInt(document.getElementById('critical-ports').textContent) > 0) {{
                     filterPorts('CRITICAL');
-                }}
-            }});
-        }}
+                }}}
+            }}});
+        }}}
         
         function filterPorts(filterType) {{
             currentFilter = filterType;
@@ -570,7 +570,7 @@ class OpticalAnalyzer:
             // Clear active state from all cards
             document.querySelectorAll('.summary-card').forEach(card => {{
                 card.classList.remove('active');
-            }});
+            }}});
             
             let filteredRows = allRows;
             let filterText = '';
@@ -579,65 +579,65 @@ class OpticalAnalyzer:
                 filteredRows = allRows.filter(row => row.dataset.health === 'excellent');
                 filterText = `Showing ${{filteredRows.length}} Excellent Ports`;
                 document.getElementById('excellent-card').classList.add('active');
-            }} else if (filterType === 'GOOD') {{
+            }}} else if (filterType === 'GOOD') {{
                 filteredRows = allRows.filter(row => row.dataset.health === 'good');
                 filterText = `Showing ${{filteredRows.length}} Good Ports`;
                 document.getElementById('good-card').classList.add('active');
-            }} else if (filterType === 'WARNING') {{
+            }}} else if (filterType === 'WARNING') {{
                 filteredRows = allRows.filter(row => row.dataset.health === 'warning');
                 filterText = `Showing ${{filteredRows.length}} Warning Ports`;
                 document.getElementById('warning-card').classList.add('active');
-            }} else if (filterType === 'CRITICAL') {{
+            }}} else if (filterType === 'CRITICAL') {{
                 filteredRows = allRows.filter(row => row.dataset.health === 'critical');
                 filterText = `Showing ${{filteredRows.length}} Critical Ports`;
                 document.getElementById('critical-card').classList.add('active');
-            }} else if (filterType === 'TOTAL') {{
+            }}} else if (filterType === 'TOTAL') {{
                 filteredRows = allRows;
                 document.getElementById('total-ports-card').classList.add('active');
-            }}
+            }}}
             
             // Show filter info for all filters except TOTAL
             if (filterType !== 'ALL' && filterType !== 'TOTAL') {{
                 document.getElementById('filter-info').style.display = 'block';
                 document.getElementById('filter-text').textContent = filterText;
-            }} else {{
+            }}} else {{
                 document.getElementById('filter-info').style.display = 'none';
-            }}
+            }}}
             
             // Hide all rows first
             allRows.forEach(row => row.style.display = 'none');
             
             // Show filtered rows
             filteredRows.forEach(row => row.style.display = '');
-        }}
+        }}}
         
         function clearFilter() {{
             currentFilter = 'ALL';
             document.querySelectorAll('.summary-card').forEach(card => {{
                 card.classList.remove('active');
-            }});
+            }}});
             document.getElementById('filter-info').style.display = 'none';
             
             // Show all rows
             allRows.forEach(row => row.style.display = '');
-        }}
+        }}}
         
         // Generic table sorting functionality
-        let tableSortState = { column: -1, direction: 'asc' };
+        let tableSortState = {{ column: -1, direction: 'asc' }};
         
-        function initTableSorting() {
+        function initTableSorting() {{
             const headers = document.querySelectorAll('.sortable');
-            headers.forEach(header => {
-                header.addEventListener('click', function() {
+            headers.forEach(header => {{
+                header.addEventListener('click', function() {{
                     const column = parseInt(this.dataset.column);
                     const type = this.dataset.type;
                     
                     // Toggle sort direction
-                    if (tableSortState.column === column) {
+                    if (tableSortState.column === column) {{
                         tableSortState.direction = tableSortState.direction === 'asc' ? 'desc' : 'asc';
-                    } else {
+                    }}}} else {{
                         tableSortState.direction = 'asc';
-                    }
+                    }}}
                     tableSortState.column = column;
                     
                     // Update header styling
@@ -646,16 +646,16 @@ class OpticalAnalyzer:
                     
                     // Sort table
                     sortOpticalTable(column, tableSortState.direction, type);
-                });
-            });
-        }
+                }}});
+            }}});
+        }}
         
-        function sortOpticalTable(columnIndex, direction, type) {
+        function sortOpticalTable(columnIndex, direction, type) {{
             const table = document.getElementById('optical-table');
             const tbody = table.querySelector('tbody');
             const rows = Array.from(tbody.rows);
             
-            rows.sort((a, b) => {
+            rows.sort((a, b) => {{
                 let aVal = a.cells[columnIndex].textContent.trim();
                 let bVal = b.cells[columnIndex].textContent.trim();
                 
@@ -663,11 +663,11 @@ class OpticalAnalyzer:
                 if (type === 'optical-health') {
                     aVal = a.cells[columnIndex].querySelector('span')?.textContent || aVal;
                     bVal = b.cells[columnIndex].querySelector('span')?.textContent || bVal;
-                }
+                }}
                 
                 let result = 0;
                 
-                switch(type) {
+                switch(type) {{
                     case 'optical-power':
                     case 'temperature':
                     case 'voltage':
@@ -682,49 +682,49 @@ class OpticalAnalyzer:
                         break;
                     case 'string':
                     default:
-                        result = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' });
+                        result = aVal.localeCompare(bVal, undefined, {{ numeric: true, sensitivity: 'base' }});
                         break;
-                }
+                }}
                 
                 return direction === 'desc' ? -result : result;
-            });
+            }}});
             
             // Clear tbody and add sorted rows back
             tbody.innerHTML = '';
             rows.forEach(row => tbody.appendChild(row));
-        }
+        }}
         
-        function comparePort(a, b) {
+        function comparePort(a, b) {{
             if (a === 'N/A') return 1;
             if (b === 'N/A') return -1;
             
             // Handle port sorting (swp1, swp10, swp1s0, etc.)
-            const extractPortNumber = (port) => {
+            const extractPortNumber = (port) => {{
                 const match = port.match(/swp(\\d+)(?:s(\\d+))?/);
-                if (match) {
+                if (match) {{
                     const mainPort = parseInt(match[1]);
                     const subPort = match[2] ? parseInt(match[2]) : 0;
                     return mainPort * 1000 + subPort;
-                }
-                return port.localeCompare(b, undefined, { numeric: true });
-            };
+                }}
+                return port.localeCompare(b, undefined, {{ numeric: true }});
+            }};
             
             return extractPortNumber(a) - extractPortNumber(b);
-        }
+        }}
         
-        function compareOpticalHealth(a, b) {
-            const priority = {
+        function compareOpticalHealth(a, b) {{
+            const priority = {{
                 'CRITICAL': 0,
                 'WARNING': 1,
                 'GOOD': 2,
                 'EXCELLENT': 3,
                 'UNKNOWN': 4
-            };
+            }};
             
             return (priority[a] || 5) - (priority[b] || 5);
-        }
+        }}
         
-        function compareOpticalValue(a, b) {
+        function compareOpticalValue(a, b) {{
             // Handle 'N/A' values
             if (a === 'N/A' && b === 'N/A') return 0;
             if (a === 'N/A') return 1;
@@ -739,7 +739,7 @@ class OpticalAnalyzer:
             if (isNaN(numB)) return -1;
             
             return numA - numB;
-        }
+        }}
     </script>
 </body>
 </html>"""
