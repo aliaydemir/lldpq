@@ -207,6 +207,7 @@ while IFS= read -r line; do
     fi
 done < "$RESULTS_FILE"
 
+echo ""
 echo "NETWORK TOTALS"
 echo "=============="
 echo "Total devices checked: $total_devices"
@@ -220,12 +221,6 @@ echo ""
 echo "ANALYSIS"
 echo "========"
 if [[ $total_devices -gt 0 ]]; then
-    avg_base=$((base_only_sum / total_devices))
-    avg_transceivers=$((transceivers_sum / total_devices))
-    
-    echo "Average base interfaces per device: $avg_base"
-    echo "Average estimated transceivers per device: $avg_transceivers"
-    echo ""
     
     echo "EXPECTED MONITORING COUNTS"
     echo "========================="
@@ -235,7 +230,7 @@ if [[ $total_devices -gt 0 ]]; then
     echo ""
     
     # Compare with actual monitoring results if available
-    echo "ACTUAL MONITORING RESULTS COMPARISON"
+    echo "LLDPq MONITORING RESULTS COMPARISON"
     echo "==================================="
     
     # Check Link Flap results
