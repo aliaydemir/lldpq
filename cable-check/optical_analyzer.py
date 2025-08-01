@@ -380,13 +380,13 @@ class OpticalAnalyzer:
         /* Column width specifications */
         .optical-table th:nth-child(1), .optical-table td:nth-child(1) {{ width: 16%; }} /* Port */
         .optical-table th:nth-child(2), .optical-table td:nth-child(2) {{ width: 8%; }}  /* Health */
-        .optical-table th:nth-child(3), .optical-table td:nth-child(3) {{ width: 9%; }}  /* RX Power */
-        .optical-table th:nth-child(4), .optical-table td:nth-child(4) {{ width: 9%; }}  /* TX Power */
+        .optical-table th:nth-child(3), .optical-table td:nth-child(3) {{ width: 10%; }} /* RX Power */
+        .optical-table th:nth-child(4), .optical-table td:nth-child(4) {{ width: 10%; }} /* TX Power */
         .optical-table th:nth-child(5), .optical-table td:nth-child(5) {{ width: 8%; }}  /* Temperature */
         .optical-table th:nth-child(6), .optical-table td:nth-child(6) {{ width: 12%; }} /* Link Margin */
         .optical-table th:nth-child(7), .optical-table td:nth-child(7) {{ width: 9%; }}  /* Voltage */
-        .optical-table th:nth-child(8), .optical-table td:nth-child(8) {{ width: 11%; }} /* Bias Current */
-        .optical-table th:nth-child(9), .optical-table td:nth-child(9) {{ width: 18%; word-wrap: break-word; }} /* Recommended Action */
+        .optical-table th:nth-child(8), .optical-table td:nth-child(8) {{ width: 13%; }} /* Bias Current */
+        .optical-table th:nth-child(9), .optical-table td:nth-child(9) {{ width: 16%; word-wrap: break-word; }} /* Recommended Action */
         
         .optical-table th {{ background-color: #f2f2f2; font-weight: bold; }}
         .optical-table td {{ word-wrap: break-word; overflow-wrap: break-word; }}
