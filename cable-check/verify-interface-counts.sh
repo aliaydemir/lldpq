@@ -102,49 +102,47 @@ verify_device() {
         admin_up=$(echo "$interface_list" | grep -E "^swp[0-9]+\s" | grep -vE "swp[0-9]+s[0-9]+" | grep -c "up" || echo "0")
         echo "ADMIN_UP: $admin_up"
         
-        # Comprehensive transceiver detection - SINGLE SSH session for all
-        echo "TRANSCEIVER_DETECTION: Starting comprehensive check (may take time)..."
-        all_interfaces=$(echo "$interface_list" | grep -E "^swp[0-9]+\s" | grep -vE "swp[0-9]+s[0-9]+" | awk '{print $1}')
+        # Simple transceiver detection - get raw interface list and check each
+        echo "TRANSCEIVER_DETECTION: Starting simple check..."
+        interfaces_to_check=$(echo "$interface_list" | grep -E "^swp[0-9]+\s" | grep -vE "swp[0-9]+s[0-9]+" | awk '{print $1}')
         
-        # Use SINGLE SSH session to check ALL transceivers
-        transceiver_data=$(ssh $SSH_OPTS -q "$user@$device" "
-            actual_transceivers=0
-            plugged_transceivers=0
-            unplugged_transceivers=0
-            no_transceiver_slots=0
+        actual_transceivers=0
+        plugged_transceivers=0
+        unplugged_transceivers=0
+        no_transceiver_slots=0
+        
+        # Check first 20 interfaces to see if method works
+        interface_count=0
+        for iface in $interfaces_to_check; do
+            if [[ $interface_count -ge 20 ]]; then
+                break
+            fi
             
-            for iface in $all_interfaces; do
-                result=\$(nv show interface \$iface transceiver 2>/dev/null)
-                
-                if [[ -z \"\$result\" ]]; then
-                    ((no_transceiver_slots++))
-                elif [[ \"\$result\" == *\"Error: The requested item does not exist\"* ]]; then
-                    ((no_transceiver_slots++))
-                elif [[ \"\$result\" == *\"No transceiver data available\"* ]] || [[ \"\$result\" == *\"status\"*\"unplugged\"* ]]; then
-                    ((unplugged_transceivers++))
-                    ((actual_transceivers++))
-                else
-                    ((plugged_transceivers++))
-                    ((actual_transceivers++))
-                fi
-            done
+            if [[ -z "$iface" ]]; then continue; fi
             
-            echo \"SLOTS:\$actual_transceivers\"
-            echo \"PLUGGED:\$plugged_transceivers\"
-            echo \"UNPLUGGED:\$unplugged_transceivers\"
-            echo \"NO_SLOTS:\$no_transceiver_slots\"
-        " 2>/dev/null)
+            # Simple direct SSH call per interface  
+            result=$(ssh $SSH_OPTS -q "$user@$device" "nv show interface $iface transceiver 2>/dev/null" 2>/dev/null)
+            
+            if [[ -z "$result" ]]; then
+                ((no_transceiver_slots++))
+            elif [[ "$result" == *"Error: The requested item does not exist"* ]]; then
+                ((no_transceiver_slots++))
+            elif [[ "$result" == *"No transceiver data available"* ]] || [[ "$result" == *"status"*"unplugged"* ]]; then
+                ((unplugged_transceivers++))
+                ((actual_transceivers++))
+            else
+                ((plugged_transceivers++))
+                ((actual_transceivers++))
+            fi
+            
+            ((interface_count++))
+        done
         
-        # Parse results
-        actual_transceivers=$(echo "$transceiver_data" | grep "SLOTS:" | cut -d: -f2)
-        plugged_transceivers=$(echo "$transceiver_data" | grep "PLUGGED:" | cut -d: -f2)
-        unplugged_transceivers=$(echo "$transceiver_data" | grep "UNPLUGGED:" | cut -d: -f2)
-        no_transceiver_slots=$(echo "$transceiver_data" | grep "NO_SLOTS:" | cut -d: -f2)
-        
-        echo "TRANSCEIVER_SLOTS: ${actual_transceivers:-0}"
-        echo "PLUGGED_TRANSCEIVERS: ${plugged_transceivers:-0}"
-        echo "UNPLUGGED_TRANSCEIVERS: ${unplugged_transceivers:-0}"
-        echo "NO_TRANSCEIVER_SLOTS: ${no_transceiver_slots:-0}"
+        echo "TRANSCEIVER_SLOTS: $actual_transceivers"
+        echo "PLUGGED_TRANSCEIVERS: $plugged_transceivers"
+        echo "UNPLUGGED_TRANSCEIVERS: $unplugged_transceivers"
+        echo "NO_TRANSCEIVER_SLOTS: $no_transceiver_slots"
+        echo "SAMPLE_SIZE: $interface_count (testing method with first 20 interfaces)"
         
         echo "=== END_COUNTS ==="
     } >> "$RESULTS_FILE" 2>/dev/null &
@@ -218,6 +216,9 @@ while IFS= read -r line; do
     elif [[ $line == NO_TRANSCEIVER_SLOTS:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         no_transceiver_slots_sum=$((no_transceiver_slots_sum + count))
+    elif [[ $line == SAMPLE_SIZE:* ]]; then
+        # Just log for debugging, no counting needed
+        :
 
     elif [[ $line == ADMIN_UP:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
@@ -239,13 +240,13 @@ echo "Base interfaces only: $base_only_sum (REAL NETWORK - what should be monito
 echo "Breakout sub-interfaces: $breakout_subs_sum"
 echo "Admin up interfaces: $admin_up_sum"
 echo ""
-echo "TRANSCEIVER ANALYSIS (Comprehensive - All Interfaces Checked)"
-echo "============================================================="
+echo "TRANSCEIVER ANALYSIS (Sample-Based Detection)"
+echo "=============================================="
 echo "Total transceiver slots: $transceivers_slots_sum"
 echo "Plugged transceivers: $plugged_transceivers_sum"
 echo "Unplugged transceiver slots: $unplugged_transceivers_sum"
 echo "No transceiver capability: $no_transceiver_slots_sum"
-echo "Note: Every interface on every device checked for accurate validation"
+echo "Note: Sample of 20 interfaces per device to test detection method"
 echo ""
 
 echo "ANALYSIS"
@@ -259,8 +260,8 @@ if [[ $total_devices -gt 0 ]]; then
     echo "Average transceiver slots per device: $avg_transceiver_slots"
     echo "Average plugged transceivers per device: $avg_plugged"
     echo ""
-    echo "METHODOLOGY: Comprehensive validation - every transceiver slot on every device is checked."
-    echo "This ensures 100% accuracy for monitor.sh validation but takes longer to execute."
+    echo "METHODOLOGY: Sample-based detection - first 20 interfaces per device tested."
+    echo "This is to verify the transceiver detection method is working correctly."
     
     # Calculate percentages
     if [[ $transceivers_slots_sum -gt 0 ]]; then
@@ -271,9 +272,26 @@ if [[ $total_devices -gt 0 ]]; then
     
     echo "EXPECTED MONITORING COUNTS (Real Network)"
     echo "========================================="
+    # Extrapolate transceiver data from sample
+    if [[ $transceivers_slots_sum -gt 0 ]]; then
+        # 20 samples per device, extrapolate to all base interfaces
+        sample_per_device=20
+        total_sample_interfaces=$((total_devices * sample_per_device))
+        if [[ $total_sample_interfaces -gt 0 ]]; then
+            extrapolated_slots=$(( (transceivers_slots_sum * base_only_sum) / total_sample_interfaces ))
+            extrapolated_plugged=$(( (plugged_transceivers_sum * base_only_sum) / total_sample_interfaces ))
+        else
+            extrapolated_slots=0
+            extrapolated_plugged=0
+        fi
+    else
+        extrapolated_slots=0
+        extrapolated_plugged=0
+    fi
+    
     echo "Link Flap Total Ports: $base_only_sum (base interfaces)"
-    echo "Optical Total Ports: $transceivers_slots_sum (all transceiver slots - includes unplugged)"
-    echo "Optical Plugged Only: $plugged_transceivers_sum (only plugged transceivers)"
+    echo "Optical Total Ports: $extrapolated_slots (extrapolated from samples - all transceiver slots)"
+    echo "Optical Plugged Only: $extrapolated_plugged (extrapolated from samples - only plugged transceivers)"
     echo "BER Total Ports: ~$((base_only_sum * 85 / 100)) (estimated 85% with traffic)"
     echo ""
     
@@ -331,12 +349,12 @@ if [[ $total_devices -gt 0 ]]; then
             optical_actual=$(grep -A 10 "Total Ports" monitor-results/optical-analysis.html 2>/dev/null | grep -o ">[0-9]\+<" | grep -o '[0-9]\+' | head -1)
         fi
         if [[ -n "$optical_actual" ]]; then
-            # Compare with both total slots and plugged only
-            total_slots_diff=$((optical_actual - transceivers_slots_sum))
-            plugged_only_diff=$((optical_actual - plugged_transceivers_sum))
+            # Compare with extrapolated values  
+            total_slots_diff=$((optical_actual - extrapolated_slots))
+            plugged_only_diff=$((optical_actual - extrapolated_plugged))
             
-            echo "Optical Total Slots: Expected $transceivers_slots_sum, Actual $optical_actual (diff: $total_slots_diff)"
-            echo "Optical Plugged Only: Expected $plugged_transceivers_sum, Actual $optical_actual (diff: $plugged_only_diff)"
+            echo "Optical Total Slots: Expected $extrapolated_slots, Actual $optical_actual (diff: $total_slots_diff)"
+            echo "Optical Plugged Only: Expected $extrapolated_plugged, Actual $optical_actual (diff: $plugged_only_diff)"
             
             # Determine which expectation is closer
             if [[ ${plugged_only_diff#-} -lt ${total_slots_diff#-} ]]; then
