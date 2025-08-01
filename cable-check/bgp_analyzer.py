@@ -141,6 +141,7 @@ class BGPAnalyzer:
     def parse_bgp_output(self, bgp_data: str) -> List[BGPNeighbor]:
         """Parse BGP neighbor output from vtysh command"""
         neighbors = []
+        seen_neighbors = set()  # Track unique neighbors to avoid duplicates
         
         lines = bgp_data.strip().split('\n')
         current_vrf = "default"
@@ -201,26 +202,32 @@ class BGPAnalyzer:
                         else:
                             neighbor_ip = neighbor_name
                         
-                        neighbor = BGPNeighbor(
-                            hostname="",  # Will be set by caller
-                            neighbor_name=neighbor_name,
-                            neighbor_ip=neighbor_ip,
-                            version=version,
-                            asn=neighbor_asn,
-                            messages_received=msg_rcvd,
-                            messages_sent=msg_sent,
-                            table_version=tbl_ver,
-                            in_queue=in_q,
-                            out_queue=out_q,
-                            uptime=uptime,
-                            state=state,
-                            prefixes_received=pfx_rcvd,
-                            prefixes_sent=pfx_sent,
-                            description=description,
-                            interface=interface
-                        )
+                        # Create unique identifier to avoid duplicates
+                        unique_key = (neighbor_name, interface or 'N/A', state.value)
                         
-                        neighbors.append(neighbor)
+                        if unique_key not in seen_neighbors:
+                            seen_neighbors.add(unique_key)
+                            
+                            neighbor = BGPNeighbor(
+                                hostname="",  # Will be set by caller
+                                neighbor_name=neighbor_name,
+                                neighbor_ip=neighbor_ip,
+                                version=version,
+                                asn=neighbor_asn,
+                                messages_received=msg_rcvd,
+                                messages_sent=msg_sent,
+                                table_version=tbl_ver,
+                                in_queue=in_q,
+                                out_queue=out_q,
+                                uptime=uptime,
+                                state=state,
+                                prefixes_received=pfx_rcvd,
+                                prefixes_sent=pfx_sent,
+                                description=description,
+                                interface=interface
+                            )
+                            
+                            neighbors.append(neighbor)
                         
                     except (ValueError, IndexError) as e:
                         print(f"Error parsing BGP neighbor line: {line}, Error: {e}")
