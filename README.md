@@ -27,8 +27,8 @@ edit these 4 files:
 cable-check/devices.sh     # add your switches (ip + username + hostname)
 cable-check/topology.dot   # expected cable connections
 cable-check/hosts.ini      # optional: extra hostnames for topology  
-/etc/nccm.yml              # optional: ssh manager``` **zzh** ```
-/etc/ip_list               # optional: paralel ping to all devices``` **pping**
+/etc/nccm.yml              # optional: ssh manager ``` **zzh** ```
+/etc/ip_list               # optional: paralel ping to all devices ``` **pping**
 
 
 ## [03] cron jobs (auto setup)
