@@ -98,7 +98,7 @@ class BGPAnalyzer:
                 "bgp_history": self.bgp_history,
                 "current_bgp_stats": self.current_bgp_stats,
                 "last_update": time.time()
-            }}
+            }
             with open(f"{self.data_dir}/bgp_history.json", "w") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
@@ -338,7 +338,7 @@ class BGPAnalyzer:
             "established_neighbors": len([n for n in neighbors if n.state == BGPState.ESTABLISHED]),
             "down_neighbors": len([n for n in neighbors if n.state in [BGPState.IDLE, BGPState.ACTIVE, BGPState.CONNECT]]),
             "last_update": datetime.now().isoformat()
-        }}
+        }
         
         # Add to history (keep last 50 entries per device)
         if hostname not in self.bgp_history:
@@ -350,7 +350,7 @@ class BGPAnalyzer:
             "established_count": len([n for n in neighbors if n.state == BGPState.ESTABLISHED]),
             "down_count": len([n for n in neighbors if n.state in [BGPState.IDLE, BGPState.ACTIVE, BGPState.CONNECT]]),
             "neighbors": neighbor_dicts  # Use the same serialized data
-        }}
+        }
         
         self.bgp_history[hostname].append(history_entry)
         
@@ -383,7 +383,7 @@ class BGPAnalyzer:
                         "state": neighbor.state.value,
                         "health": health.value,
                         "uptime": neighbor.uptime
-                    }}})
+                    })
         
         return {
             "total_devices": total_devices,
@@ -393,7 +393,7 @@ class BGPAnalyzer:
             "problem_neighbors": problem_neighbors,
             "health_ratio": (total_established / total_neighbors * 100) if total_neighbors > 0 else 0,
             "timestamp": datetime.now().isoformat()
-        }}
+        }
     
     def detect_bgp_anomalies(self) -> List[Dict[str, Any]]:
         """Detect BGP anomalies and problems"""
@@ -417,9 +417,9 @@ class BGPAnalyzer:
                             "uptime": neighbor.uptime,
                             "asn": neighbor.asn,
                             "interface": neighbor.interface
-                        }}},
+                        },
                         "action": f"Check physical connectivity and BGP configuration for {neighbor.neighbor_name}"
-                    }}})
+                    })
                 
                 # Warning: High queue depths
                 elif neighbor.in_queue > self.thresholds["high_queue_threshold"] or \
@@ -434,9 +434,9 @@ class BGPAnalyzer:
                             "in_queue": neighbor.in_queue,
                             "out_queue": neighbor.out_queue,
                             "state": neighbor.state.value
-                        }}},
+                        },
                         "action": "Monitor for potential congestion or processing delays"
-                    }}})
+                    })
                 
                 # Warning: Low prefix count
                 elif neighbor.prefixes_received < self.thresholds["low_prefix_threshold"] and \
@@ -451,9 +451,9 @@ class BGPAnalyzer:
                             "prefixes_received": neighbor.prefixes_received,
                             "prefixes_sent": neighbor.prefixes_sent,
                             "state": neighbor.state.value
-                        }}},
+                        },
                         "action": "Verify route advertisements and filtering policies"
-                    }}})
+                    })
         
         return anomalies
     
