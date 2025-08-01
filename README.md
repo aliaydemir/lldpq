@@ -21,11 +21,11 @@ cd lldpq
 
 ## [02] analysis coverage
 
-- **bgp neighbors**            # state, uptime, prefix counts, health status 
-- **optical diagnostics**      # power levels, temperature, bias current, link margins  
-- **link flap detection**      # carrier transitions on all interfaces (including breakouts)
-- **bit error rate**           # comprehensive error statistics with industry thresholds
-- **topology validation**      # lldp neighbor verification against expected topology
+- **bgp neighbors**: state, uptime, prefix counts, health status
+- **optical diagnostics**: power levels, temperature, bias current, link margins  
+- **link flap detection**: carrier transitions on all interfaces (including breakouts)
+- **bit error rate**: comprehensive error statistics with industry thresholds
+- **topology validation**: lldp neighbor verification against expected topology
 
 ## [03] configuration files
 
