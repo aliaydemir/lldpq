@@ -810,8 +810,8 @@ class BGPAnalyzer:
             allRows.forEach(row => row.style.display = '');
         }
 
-        // Generic table sorting functionality
-        let currentSort = {{ column: -1, direction: 'asc' }};
+        // Generic table sorting functionality  
+        let tableSortState = { column: -1, direction: 'asc' };
         
         function initTableSorting() {{
             const headers = document.querySelectorAll('.sortable');
@@ -821,19 +821,19 @@ class BGPAnalyzer:
                     const type = this.dataset.type;
                     
                     // Toggle sort direction
-                    if (currentSort.column === column) {{
-                        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                    if (tableSortState.column === column) {{
+                        tableSortState.direction = tableSortState.direction === 'asc' ? 'desc' : 'asc';
                     }} else {{
-                        currentSort.direction = 'asc';
+                        tableSortState.direction = 'asc';
                     }}
-                    currentSort.column = column;
+                    tableSortState.column = column;
                     
                     // Update header styling
                     headers.forEach(h => h.classList.remove('asc', 'desc'));
-                    this.classList.add(currentSort.direction);
+                    this.classList.add(tableSortState.direction);
                     
                     // Sort table
-                    sortBGPTable(column, currentSort.direction, type);
+                    sortBGPTable(column, tableSortState.direction, type);
                 }});
             }});
         }}
