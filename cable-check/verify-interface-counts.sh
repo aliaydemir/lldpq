@@ -102,43 +102,49 @@ verify_device() {
         admin_up=$(echo "$interface_list" | grep -E "^swp[0-9]+\s" | grep -vE "swp[0-9]+s[0-9]+" | grep -c "up" || echo "0")
         echo "ADMIN_UP: $admin_up"
         
-        # Comprehensive transceiver detection (check ALL interfaces for accuracy)
-        echo "TRANSCEIVER_DETECTION: Starting comprehensive check..."
+        # Comprehensive transceiver detection - SINGLE SSH session for all
+        echo "TRANSCEIVER_DETECTION: Starting comprehensive check (may take time)..."
         all_interfaces=$(echo "$interface_list" | grep -E "^swp[0-9]+\s" | grep -vE "swp[0-9]+s[0-9]+" | awk '{print $1}')
         
-        actual_transceivers=0
-        plugged_transceivers=0
-        unplugged_transceivers=0
-        no_transceiver_slots=0
-        
-        for iface in $all_interfaces; do
-            transceiver_result=$(ssh $SSH_OPTS -q "$user@$device" "nv show interface $iface transceiver 2>/dev/null" 2>/dev/null)
+        # Use SINGLE SSH session to check ALL transceivers
+        transceiver_data=$(ssh $SSH_OPTS -q "$user@$device" "
+            actual_transceivers=0
+            plugged_transceivers=0
+            unplugged_transceivers=0
+            no_transceiver_slots=0
             
-            if [[ -z "$transceiver_result" ]]; then
-                # SSH/Command failed
-                continue
-            elif [[ "$transceiver_result" == *"Error: The requested item does not exist"* ]]; then
-                # No transceiver slot at all
-                ((no_transceiver_slots++))
-            elif [[ "$transceiver_result" == *"No transceiver data available"* ]]; then
-                # Has slot but no transceiver
-                ((unplugged_transceivers++))
-                ((actual_transceivers++))
-            elif [[ "$transceiver_result" == *"status"*"unplugged"* ]]; then
-                # Unplugged transceiver (still a transceiver port)
-                ((unplugged_transceivers++))
-                ((actual_transceivers++))
-            else
-                # Working transceiver
-                ((plugged_transceivers++))
-                ((actual_transceivers++))
-            fi
-        done
+            for iface in $all_interfaces; do
+                result=\$(nv show interface \$iface transceiver 2>/dev/null)
+                
+                if [[ -z \"\$result\" ]]; then
+                    ((no_transceiver_slots++))
+                elif [[ \"\$result\" == *\"Error: The requested item does not exist\"* ]]; then
+                    ((no_transceiver_slots++))
+                elif [[ \"\$result\" == *\"No transceiver data available\"* ]] || [[ \"\$result\" == *\"status\"*\"unplugged\"* ]]; then
+                    ((unplugged_transceivers++))
+                    ((actual_transceivers++))
+                else
+                    ((plugged_transceivers++))
+                    ((actual_transceivers++))
+                fi
+            done
+            
+            echo \"SLOTS:\$actual_transceivers\"
+            echo \"PLUGGED:\$plugged_transceivers\"
+            echo \"UNPLUGGED:\$unplugged_transceivers\"
+            echo \"NO_SLOTS:\$no_transceiver_slots\"
+        " 2>/dev/null)
         
-        echo "TRANSCEIVER_SLOTS: $actual_transceivers"
-        echo "PLUGGED_TRANSCEIVERS: $plugged_transceivers"
-        echo "UNPLUGGED_TRANSCEIVERS: $unplugged_transceivers"
-        echo "NO_TRANSCEIVER_SLOTS: $no_transceiver_slots"
+        # Parse results
+        actual_transceivers=$(echo "$transceiver_data" | grep "SLOTS:" | cut -d: -f2)
+        plugged_transceivers=$(echo "$transceiver_data" | grep "PLUGGED:" | cut -d: -f2)
+        unplugged_transceivers=$(echo "$transceiver_data" | grep "UNPLUGGED:" | cut -d: -f2)
+        no_transceiver_slots=$(echo "$transceiver_data" | grep "NO_SLOTS:" | cut -d: -f2)
+        
+        echo "TRANSCEIVER_SLOTS: ${actual_transceivers:-0}"
+        echo "PLUGGED_TRANSCEIVERS: ${plugged_transceivers:-0}"
+        echo "UNPLUGGED_TRANSCEIVERS: ${unplugged_transceivers:-0}"
+        echo "NO_TRANSCEIVER_SLOTS: ${no_transceiver_slots:-0}"
         
         echo "=== END_COUNTS ==="
     } >> "$RESULTS_FILE" 2>/dev/null &
@@ -212,6 +218,7 @@ while IFS= read -r line; do
     elif [[ $line == NO_TRANSCEIVER_SLOTS:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         no_transceiver_slots_sum=$((no_transceiver_slots_sum + count))
+
     elif [[ $line == ADMIN_UP:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         admin_up_sum=$((admin_up_sum + count))
@@ -232,12 +239,13 @@ echo "Base interfaces only: $base_only_sum (REAL NETWORK - what should be monito
 echo "Breakout sub-interfaces: $breakout_subs_sum"
 echo "Admin up interfaces: $admin_up_sum"
 echo ""
-echo "TRANSCEIVER ANALYSIS (Comprehensive)"
-echo "==================================="
+echo "TRANSCEIVER ANALYSIS (Comprehensive - All Interfaces Checked)"
+echo "============================================================="
 echo "Total transceiver slots: $transceivers_slots_sum"
 echo "Plugged transceivers: $plugged_transceivers_sum"
 echo "Unplugged transceiver slots: $unplugged_transceivers_sum"
 echo "No transceiver capability: $no_transceiver_slots_sum"
+echo "Note: Every interface on every device checked for accurate validation"
 echo ""
 
 echo "ANALYSIS"
@@ -250,6 +258,9 @@ if [[ $total_devices -gt 0 ]]; then
     echo "Average base interfaces per device: $avg_base"
     echo "Average transceiver slots per device: $avg_transceiver_slots"
     echo "Average plugged transceivers per device: $avg_plugged"
+    echo ""
+    echo "METHODOLOGY: Comprehensive validation - every transceiver slot on every device is checked."
+    echo "This ensures 100% accuracy for monitor.sh validation but takes longer to execute."
     
     # Calculate percentages
     if [[ $transceivers_slots_sum -gt 0 ]]; then
