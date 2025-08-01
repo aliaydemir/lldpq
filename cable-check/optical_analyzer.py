@@ -60,7 +60,7 @@ class OpticalAnalyzer:
                 "optical_history": self.optical_history,
                 "current_optical_stats": self.current_optical_stats,
                 "last_update": time.time()
-            }}
+            }
             with open(f"{self.data_dir}/optical_history.json", "w") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
@@ -74,7 +74,7 @@ class OpticalAnalyzer:
             'temperature_c': None,
             'voltage_v': None,
             'bias_current_ma': None
-        }}
+        }
         
         # Track channel data for averaging
         rx_powers = []
@@ -204,7 +204,7 @@ class OpticalAnalyzer:
             'link_margin_db': link_margin_db,
             'last_updated': time.time(),
             'raw_data': optical_data[:500]  # Store first 500 chars for debugging
-        }}
+        }
         
         # Store in history
         if port_name not in self.optical_history:
@@ -218,7 +218,7 @@ class OpticalAnalyzer:
             'tx_power_dbm': optical_params['tx_power_dbm'],
             'temperature_c': optical_params['temperature_c'],
             'link_margin_db': link_margin_db
-        }}
+        }
         
         self.optical_history[port_name].append(history_entry)
         if len(self.optical_history[port_name]) > 100:
@@ -233,7 +233,7 @@ class OpticalAnalyzer:
             "warning_ports": [],
             "critical_ports": [],
             "unknown_ports": []
-        }}
+        }
         
         for port_name, stats in self.current_optical_stats.items():
             health = stats.get('health_status', 'unknown')
@@ -247,7 +247,7 @@ class OpticalAnalyzer:
                 "link_margin_db": stats.get('link_margin_db'),
                 "voltage_v": stats.get('voltage_v'),
                 "bias_current_ma": stats.get('bias_current_ma')
-            }}
+            }
             
             if health == OpticalHealth.EXCELLENT.value:
                 summary["excellent_ports"].append(port_info)
