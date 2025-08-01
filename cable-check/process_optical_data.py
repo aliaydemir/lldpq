@@ -100,6 +100,14 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                     if rx_power_dbm < -20.0:
                         print(f"  {port_name}: Skipped (link down - RX power {rx_power_dbm:.2f} dBm too low)")
                         continue
+                
+                # Check for ports with no meaningful optical readings (N/A values, temp 0.0, etc.)
+                if (("temperature                 : 0.0" in optical_data or 
+                     "temperature                 : 0.00" in optical_data) and
+                    ("voltage                     : 0.0" in optical_data or
+                     "voltage                     : 0.00" in optical_data)):
+                    print(f"  {port_name}: Skipped (no meaningful optical readings - temp/voltage 0.0)")
+                    continue
                     
                 # Skip ports without optical modules
                 if ("No transceiver data available" in optical_data or
