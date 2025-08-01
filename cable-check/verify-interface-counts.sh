@@ -89,20 +89,21 @@ verify_device() {
         total_swp=$(echo "$interface_list" | grep -c "swp" || echo "0")
         echo "TOTAL_SWP: $total_swp"
         
-        # Base interfaces only (swp1, swp2, swp32 - no breakouts) - SAME AS MONITOR.SH
-        base_only=$(echo "$interface_list" | grep -E "^swp[0-9]+[^s]|^swp[0-9]+$" | wc -l || echo "0")
+        # Base interfaces only (swp1, swp2, swp32 - no breakouts, exclude mgmt/eth0)
+        # THIS IS THE REAL NETWORK STATE - what should be monitored
+        base_only=$(echo "$interface_list" | grep -E "^swp[0-9]+\s" | grep -vE "swp[0-9]+s[0-9]+" | wc -l || echo "0")
         echo "BASE_ONLY: $base_only"
         
         # Breakout sub-interfaces (swp1s0, swp1s1, etc)  
         breakout_subs=$(echo "$interface_list" | grep -cE "swp[0-9]+s[0-9]+" || echo "0")
         echo "BREAKOUT_SUBS: $breakout_subs"
         
-        # Admin up interfaces (base only - exclude breakouts) - SAME AS MONITOR.SH
-        admin_up=$(echo "$interface_list" | grep -E "^swp[0-9]+[^s]|^swp[0-9]+$" | grep -c "up" || echo "0")
+        # Admin up interfaces (base only - exclude breakouts)
+        admin_up=$(echo "$interface_list" | grep -E "^swp[0-9]+\s" | grep -vE "swp[0-9]+s[0-9]+" | grep -c "up" || echo "0")
         echo "ADMIN_UP: $admin_up"
         
-        # Quick sample check for transceivers (check first 5 interfaces) - SAME AS MONITOR.SH
-        sample_interfaces=$(echo "$interface_list" | grep -E "^swp[0-9]+[^s]|^swp[0-9]+$" | head -5 | awk '{print $1}')
+        # Quick sample check for transceivers (check first 5 interfaces)
+        sample_interfaces=$(echo "$interface_list" | grep -E "^swp[0-9]+\s" | grep -vE "swp[0-9]+s[0-9]+" | head -5 | awk '{print $1}')
         sample_transceivers=0
         for iface in $sample_interfaces; do
             transceiver_check=$(ssh $SSH_OPTS -q "$user@$device" "nv show interface $iface transceiver 2>/dev/null" 2>/dev/null)
@@ -172,6 +173,7 @@ while IFS= read -r line; do
     elif [[ $line == BASE_ONLY:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         base_only_sum=$((base_only_sum + count))
+
     elif [[ $line == BREAKOUT_SUBS:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         breakout_subs_sum=$((breakout_subs_sum + count))
@@ -194,7 +196,7 @@ echo "NETWORK TOTALS"
 echo "=============="
 echo "Total devices checked: $total_devices"
 echo "Total SWP interfaces: $total_swp_sum"
-echo "Base interfaces only: $base_only_sum" 
+echo "Base interfaces only: $base_only_sum (REAL NETWORK - what should be monitored)" 
 echo "Breakout sub-interfaces: $breakout_subs_sum"
 echo "Estimated interfaces with transceivers: $transceivers_sum"
 echo "Admin up interfaces: $admin_up_sum"
@@ -202,19 +204,24 @@ echo ""
 
 echo "ANALYSIS"
 echo "========"
-echo ""
 if [[ $total_devices -gt 0 ]]; then
+    avg_base=$((base_only_sum / total_devices))
+    avg_transceivers=$((transceivers_sum / total_devices))
     
-    echo "EXPECTED MONITORING COUNTS"
-    echo "========================="
+    echo "Average base interfaces per device: $avg_base"
+    echo "Average estimated transceivers per device: $avg_transceivers"
+    echo ""
+    
+    echo "EXPECTED MONITORING COUNTS (Real Network)"
+    echo "========================================="
     echo "Link Flap Total Ports: $base_only_sum (base interfaces)"
     echo "Optical Total Ports: $transceivers_sum (estimated transceivers)"
     echo "BER Total Ports: ~$((base_only_sum * 85 / 100)) (estimated 85% with traffic)"
     echo ""
     
-    # Compare with actual monitoring results if available
-    echo "LLDPq MONITORING RESULTS COMPARISON"
-    echo "==================================="
+    # Compare with actual monitoring results to validate monitor.sh
+    echo "MONITOR.SH VALIDATION RESULTS"
+    echo "============================="
     
     # Check Link Flap results with detailed analysis
     if [[ -f "monitor-results/link-flap-analysis.html" ]]; then
@@ -246,7 +253,14 @@ if [[ $total_devices -gt 0 ]]; then
                     done
                 fi
                 echo "  Flap Data Details: $flap_files devices, $total_flap_ports raw ports, $empty_files empty files"
-                echo "  Missing ports likely due to: SSH timeouts, interface detection, or data collection issues"
+                if [[ $flap_diff -lt 0 ]]; then
+                    echo "  MONITOR.SH ISSUE: Missing $((0 - flap_diff)) interfaces"
+                    echo "  Possible causes: SSH timeouts, /sys/class/net/ filtering, interface detection failures"
+                elif [[ $flap_diff -gt 0 ]]; then
+                    echo "  MONITOR.SH COLLECTING EXTRA: $flap_diff more interfaces than expected"
+                else
+                    echo "  MONITOR.SH STATUS: PERFECT MATCH!"
+                fi
             fi
         fi
     fi
@@ -281,9 +295,8 @@ if [[ $total_devices -gt 0 ]]; then
     
     if [[ $breakout_subs_sum -gt 0 ]]; then
         echo "WARNING: $breakout_subs_sum breakout sub-interfaces found!"
-        echo "This indicates monitor.sh may be including breakout interfaces."
-        echo "Total with breakouts: $total_swp_sum"
-        echo "Total base only: $base_only_sum"
+        echo "Monitor.sh should exclude these breakout sub-interfaces."
+        echo "Only base interfaces should be monitored: $base_only_sum"
         echo ""
     fi
     
