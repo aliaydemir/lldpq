@@ -24,18 +24,18 @@ cd lldpq
 edit these 4 files:
 
 ```
-cable-check/devices.sh     # add your switches (ip + hostname)
+cable-check/devices.sh     # add your switches (ip + username + hostname)
 cable-check/topology.dot   # expected cable connections
 cable-check/hosts.ini      # optional: extra hostnames for topology  
-/etc/nccm.yml              # optional: ssh manager [zzh]
-/etc/ip_list               # optional: paralel ping to all devices [pping]
+/etc/nccm.yml              # optional: ssh manager ['zzh']
+/etc/ip_list               # optional: paralel ping to all devices ['pping']
 ```
 
 ## [03] cron jobs (auto setup)
 
 ```
 */30 * * * * lldpq         # topology every 30min (0,30)
-15,45 * * * * monitor      # performance every 30min (15,45)  
+15,45 * * * * monitor      # performance monitor every 30min (15,45)  
 0 */12 * * * get-conf      # configs every 12 hours
 ```
 
@@ -86,7 +86,7 @@ cd ~/cable-check && ./send-key.sh   # auto-installs deps, generates key, prompts
 sudo crontab -l | grep lldpq
 
 # manual run
-cd ~/cable-check && ./monitor.sh
+cd ~/cable-check && ./assets.sh && ./check-lldp.sh && ./monitor.sh
 
 # check logs  
 ls -la /var/www/html/monitor-results/
