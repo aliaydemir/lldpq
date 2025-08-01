@@ -606,7 +606,7 @@ class BGPAnalyzer:
                     'hostname': hostname,
                     'neighbor': neighbor,
                     'health': health
-                }}
+                }
                 
                 all_neighbors.append(neighbor_info)
         
@@ -735,25 +735,25 @@ class BGPAnalyzer:
                 if (parseInt(document.getElementById('total-devices').textContent) > 0) {
                     filterNeighbors('TOTAL');
                 }}
-            }}});
+            }});
             
             document.getElementById('total-neighbors-card').addEventListener('click', function() {
                 if (parseInt(document.getElementById('total-neighbors').textContent) > 0) {
                     filterNeighbors('TOTAL');
                 }}
-            }}});
+            }});
             
             document.getElementById('established-card').addEventListener('click', function() {
                 if (parseInt(document.getElementById('established-neighbors').textContent) > 0) {
                     filterNeighbors('ESTABLISHED');
                 }}
-            }}});
+            }});
             
             document.getElementById('down-card').addEventListener('click', function() {
                 if (parseInt(document.getElementById('down-neighbors').textContent) > 0) {
                     filterNeighbors('DOWN');
                 }}
-            }}});
+            }});
         }}
         
         function filterNeighbors(filterType) {
@@ -762,7 +762,7 @@ class BGPAnalyzer:
             // Clear active state from all cards
             document.querySelectorAll('.summary-card').forEach(card => {
                 card.classList.remove('active');
-            }}});
+            }});
             
             let filteredRows = allRows;
             let filterText = '';
@@ -803,7 +803,7 @@ class BGPAnalyzer:
             currentFilter = 'ALL';
             document.querySelectorAll('.summary-card').forEach(card => {
                 card.classList.remove('active');
-            }}});
+            }});
             document.getElementById('filter-info').style.display = 'none';
             
             // Show all rows
@@ -823,9 +823,9 @@ class BGPAnalyzer:
                     // Toggle sort direction
                     if (tableSortState.column === column) {{
                         tableSortState.direction = tableSortState.direction === 'asc' ? 'desc' : 'asc';
-                    }}}} else {{
+                    }} else {{
                         tableSortState.direction = 'asc';
-                    }}}
+                    }}
                     tableSortState.column = column;
                     
                     // Update header styling
@@ -834,8 +834,8 @@ class BGPAnalyzer:
                     
                     // Sort table
                     sortBGPTable(column, tableSortState.direction, type);
-                }}});
-            }}});
+                }});
+            }});
         }}
         
         function sortBGPTable(columnIndex, direction, type) {{
@@ -881,7 +881,7 @@ class BGPAnalyzer:
                 }}
                 
                 return direction === 'desc' ? -result : result;
-            }}});
+            }});
             
             // Clear tbody and add sorted rows back
             tbody.innerHTML = '';
