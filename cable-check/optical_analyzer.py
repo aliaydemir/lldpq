@@ -383,10 +383,10 @@ class OpticalAnalyzer:
         .optical-table th:nth-child(3), .optical-table td:nth-child(3) {{ width: 9%; }}  /* RX Power */
         .optical-table th:nth-child(4), .optical-table td:nth-child(4) {{ width: 9%; }}  /* TX Power */
         .optical-table th:nth-child(5), .optical-table td:nth-child(5) {{ width: 8%; }}  /* Temperature */
-        .optical-table th:nth-child(6), .optical-table td:nth-child(6) {{ width: 10%; }} /* Link Margin */
+        .optical-table th:nth-child(6), .optical-table td:nth-child(6) {{ width: 12%; }} /* Link Margin */
         .optical-table th:nth-child(7), .optical-table td:nth-child(7) {{ width: 9%; }}  /* Voltage */
         .optical-table th:nth-child(8), .optical-table td:nth-child(8) {{ width: 11%; }} /* Bias Current */
-        .optical-table th:nth-child(9), .optical-table td:nth-child(9) {{ width: 20%; word-wrap: break-word; }} /* Recommended Action */
+        .optical-table th:nth-child(9), .optical-table td:nth-child(9) {{ width: 18%; word-wrap: break-word; }} /* Recommended Action */
         
         .optical-table th {{ background-color: #f2f2f2; font-weight: bold; }}
         .optical-table td {{ word-wrap: break-word; overflow-wrap: break-word; }}
