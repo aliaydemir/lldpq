@@ -121,11 +121,29 @@ EOF
         done
     ' > "monitor-results/${hostname}_combined_interface_data.txt" 2>/dev/null
     
-    # Extract individual data files from combined data
+    # DIRECT carrier transitions collection (no dependency on combined file)
+    echo "=== CARRIER TRANSITIONS ===" > "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
+    
+    # Get interface list for direct flap data collection
+    flap_interfaces=$(timeout 60 ssh $SSH_OPTS -q "$user@$device" 'nv show interface 2>/dev/null | grep "^swp[0-9]" | awk "{print \$1}"' 2>/dev/null)
+    
+    if [ -n "$flap_interfaces" ]; then
+        # Collect carrier transitions directly for each interface
+        for interface in $flap_interfaces; do
+            if timeout 10 ssh $SSH_OPTS -q "$user@$device" "[ -e '/sys/class/net/$interface' ]" 2>/dev/null; then
+                carrier_count=$(timeout 15 ssh $SSH_OPTS -q "$user@$device" "nv show interface $interface counters 2>/dev/null | grep 'carrier-transitions' | awk '{print \$2}'" 2>/dev/null)
+                if [ -z "$carrier_count" ] || [ "$carrier_count" = "" ]; then
+                    carrier_count=$(timeout 10 ssh $SSH_OPTS -q "$user@$device" "cat /sys/class/net/$interface/carrier_changes 2>/dev/null" 2>/dev/null || echo "0")
+                fi
+                if [ -n "$carrier_count" ] && [ "$carrier_count" != "" ]; then
+                    echo "$interface:$carrier_count" >> "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
+                fi
+            fi
+        done
+    fi
+    
+    # Extract individual data files from combined data (if exists)
     if [ -f "monitor-results/${hostname}_combined_interface_data.txt" ]; then
-        # Extract carrier transitions (ALL swp interfaces - base and breakout)
-        echo "=== CARRIER TRANSITIONS ===" > "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
-        grep -A1 "CARRIER_TRANSITIONS:" "monitor-results/${hostname}_combined_interface_data.txt" | grep -E "swp[0-9]+:" >> "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
         
         # Extract optical data with interface names
         echo "=== OPTICAL DIAGNOSTICS ===" > "monitor-results/optical-data/${hostname}_optical.txt"
