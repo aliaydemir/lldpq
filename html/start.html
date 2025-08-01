@@ -621,7 +621,7 @@
                 const totalDevices = assetsData.totalDevices || 0;
                 const totalInterfaces = Math.max(opticalData.totalPorts || 0, berData.totalPorts || 0);
                 
-                const criticalIssues = 
+            const criticalIssues = 
                     (assetsData.failed || 0) +
                     (lldpData.failed || 0) +
                     (lldpData.noInfo || 0) +
@@ -642,34 +642,34 @@
                     (opticalData.totalPorts || 0) + 
                     (flapData.totalPorts || 0);
                 
-                const overallHealth = totalAssessments > 0 ? Math.round((healthyItems / totalAssessments) * 100) : 0;
-                
-                // Update dashboard stats
-                document.getElementById('total-network-devices').textContent = totalDevices;
-                document.getElementById('total-interfaces').textContent = totalInterfaces;
-                document.getElementById('overall-health').textContent = overallHealth + '%';
-                document.getElementById('critical-issues').textContent = criticalIssues;
-                
-                // Color code the health percentage
-                const healthElement = document.getElementById('overall-health');
-                if (overallHealth >= 95) {
-                    healthElement.style.color = '#4caf50';
-                } else if (overallHealth >= 85) {
-                    healthElement.style.color = '#8bc34a';
-                } else if (overallHealth >= 70) {
-                    healthElement.style.color = '#ff9800';
-                } else {
-                    healthElement.style.color = '#f44336';
-                }
-                
-                // Color code critical issues
-                const criticalElement = document.getElementById('critical-issues');
-                if (criticalIssues === 0) {
-                    criticalElement.style.color = '#4caf50';
-                } else if (criticalIssues <= 5) {
-                    criticalElement.style.color = '#ff9800';
-                } else {
-                    criticalElement.style.color = '#f44336';
+            const overallHealth = totalAssessments > 0 ? Math.round((healthyItems / totalAssessments) * 100) : 0;
+            
+            // Update dashboard stats
+            document.getElementById('total-network-devices').textContent = totalDevices;
+            document.getElementById('total-interfaces').textContent = totalInterfaces;
+            document.getElementById('overall-health').textContent = overallHealth + '%';
+            document.getElementById('critical-issues').textContent = criticalIssues;
+            
+            // Color code the health percentage
+            const healthElement = document.getElementById('overall-health');
+            if (overallHealth >= 95) {
+                healthElement.style.color = '#4caf50';
+            } else if (overallHealth >= 85) {
+                healthElement.style.color = '#8bc34a';
+            } else if (overallHealth >= 70) {
+                healthElement.style.color = '#ff9800';
+            } else {
+                healthElement.style.color = '#f44336';
+            }
+            
+            // Color code critical issues
+            const criticalElement = document.getElementById('critical-issues');
+            if (criticalIssues === 0) {
+                criticalElement.style.color = '#4caf50';
+            } else if (criticalIssues <= 5) {
+                criticalElement.style.color = '#ff9800';
+            } else {
+                criticalElement.style.color = '#f44336';
                 }
                 
             } catch (error) {
