@@ -412,6 +412,14 @@ class OpticalAnalyzer:
             color: #1976d2;
             display: none;
         }}
+        
+        /* Sortable table styling */
+        .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
+        .sortable:hover {{ background-color: #f5f5f5; }}
+        .sort-arrow {{ font-size: 10px; color: #999; margin-left: 5px; opacity: 0.5; }}
+        .sortable.asc .sort-arrow::before {{ content: '▲'; color: #b57614; opacity: 1; }}
+        .sortable.desc .sort-arrow::before {{ content: '▼'; color: #b57614; opacity: 1; }}
+        .sortable.asc .sort-arrow, .sortable.desc .sort-arrow {{ opacity: 1; }}
     </style>
 </head>
 <body>
@@ -456,15 +464,15 @@ class OpticalAnalyzer:
     <table class="optical-table" id="optical-table">
         <thead>
         <tr>
-            <th>Port</th>
-            <th>Health</th>
-            <th>RX Power (dBm)</th>
-            <th>TX Power (dBm)</th>
-            <th>Temperature (°C)</th>
-            <th>Link Margin (dB)</th>
-            <th>Voltage (V)</th>
-            <th>Bias Current (mA)</th>
-            <th>Recommended Action</th>
+            <th class="sortable" data-column="0" data-type="port">Port <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="1" data-type="optical-health">Health <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="2" data-type="optical-power">RX Power (dBm) <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="3" data-type="optical-power">TX Power (dBm) <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="4" data-type="temperature">Temperature (°C) <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="5" data-type="optical-power">Link Margin (dB) <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="6" data-type="voltage">Voltage (V) <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="7" data-type="current">Bias Current (mA) <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="8" data-type="string">Recommended Action <span class="sort-arrow">▲▼</span></th>
         </tr>
         </thead>
         <tbody id="optical-data">"""
@@ -519,6 +527,9 @@ class OpticalAnalyzer:
             
             // Add click events to summary cards
             setupCardEvents();
+            
+            // Initialize table sorting
+            initTableSorting();
         }});
         
         function setupCardEvents() {{
@@ -610,6 +621,125 @@ class OpticalAnalyzer:
             // Show all rows
             allRows.forEach(row => row.style.display = '');
         }}
+        
+        // Generic table sorting functionality
+        let tableSortState = { column: -1, direction: 'asc' };
+        
+        function initTableSorting() {
+            const headers = document.querySelectorAll('.sortable');
+            headers.forEach(header => {
+                header.addEventListener('click', function() {
+                    const column = parseInt(this.dataset.column);
+                    const type = this.dataset.type;
+                    
+                    // Toggle sort direction
+                    if (tableSortState.column === column) {
+                        tableSortState.direction = tableSortState.direction === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        tableSortState.direction = 'asc';
+                    }
+                    tableSortState.column = column;
+                    
+                    // Update header styling
+                    headers.forEach(h => h.classList.remove('asc', 'desc'));
+                    this.classList.add(tableSortState.direction);
+                    
+                    // Sort table
+                    sortOpticalTable(column, tableSortState.direction, type);
+                });
+            });
+        }
+        
+        function sortOpticalTable(columnIndex, direction, type) {
+            const table = document.getElementById('optical-table');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.rows);
+            
+            rows.sort((a, b) => {
+                let aVal = a.cells[columnIndex].textContent.trim();
+                let bVal = b.cells[columnIndex].textContent.trim();
+                
+                // Extract actual text for health columns (remove HTML)
+                if (type === 'optical-health') {
+                    aVal = a.cells[columnIndex].querySelector('span')?.textContent || aVal;
+                    bVal = b.cells[columnIndex].querySelector('span')?.textContent || bVal;
+                }
+                
+                let result = 0;
+                
+                switch(type) {
+                    case 'optical-power':
+                    case 'temperature':
+                    case 'voltage':
+                    case 'current':
+                        result = compareOpticalValue(aVal, bVal);
+                        break;
+                    case 'port':
+                        result = comparePort(aVal, bVal);
+                        break;
+                    case 'optical-health':
+                        result = compareOpticalHealth(aVal, bVal);
+                        break;
+                    case 'string':
+                    default:
+                        result = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' });
+                        break;
+                }
+                
+                return direction === 'desc' ? -result : result;
+            });
+            
+            // Clear tbody and add sorted rows back
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+        }
+        
+        function comparePort(a, b) {
+            if (a === 'N/A') return 1;
+            if (b === 'N/A') return -1;
+            
+            // Handle port sorting (swp1, swp10, swp1s0, etc.)
+            const extractPortNumber = (port) => {
+                const match = port.match(/swp(\\d+)(?:s(\\d+))?/);
+                if (match) {
+                    const mainPort = parseInt(match[1]);
+                    const subPort = match[2] ? parseInt(match[2]) : 0;
+                    return mainPort * 1000 + subPort;
+                }
+                return port.localeCompare(b, undefined, { numeric: true });
+            };
+            
+            return extractPortNumber(a) - extractPortNumber(b);
+        }
+        
+        function compareOpticalHealth(a, b) {
+            const priority = {
+                'CRITICAL': 0,
+                'WARNING': 1,
+                'GOOD': 2,
+                'EXCELLENT': 3,
+                'UNKNOWN': 4
+            };
+            
+            return (priority[a] || 5) - (priority[b] || 5);
+        }
+        
+        function compareOpticalValue(a, b) {
+            // Handle 'N/A' values
+            if (a === 'N/A' && b === 'N/A') return 0;
+            if (a === 'N/A') return 1;
+            if (b === 'N/A') return -1;
+            
+            // Parse numerical values (handle negative numbers)
+            const numA = parseFloat(a);
+            const numB = parseFloat(b);
+            
+            if (isNaN(numA) && isNaN(numB)) return 0;
+            if (isNaN(numA)) return 1;
+            if (isNaN(numB)) return -1;
+            
+            return numA - numB;
+        }
     </script>
 </body>
 </html>"""
