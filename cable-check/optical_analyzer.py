@@ -530,39 +530,39 @@ class OpticalAnalyzer:
             
             // Initialize table sorting
             initTableSorting();
-        }}});
+        }});
         
         function setupCardEvents() {{
             document.getElementById('total-ports-card').addEventListener('click', function() {{
                 if (parseInt(document.getElementById('total-ports').textContent) > 0) {{
                     filterPorts('TOTAL');
-                }}}
-            }}});
+                }}
+            }});
             
             document.getElementById('excellent-card').addEventListener('click', function() {{
                 if (parseInt(document.getElementById('excellent-ports').textContent) > 0) {{
                     filterPorts('EXCELLENT');
-                }}}
-            }}});
+                }}
+            }});
             
             document.getElementById('good-card').addEventListener('click', function() {{
                 if (parseInt(document.getElementById('good-ports').textContent) > 0) {{
                     filterPorts('GOOD');
-                }}}
-            }}});
+                }}
+            }});
             
             document.getElementById('warning-card').addEventListener('click', function() {{
                 if (parseInt(document.getElementById('warning-ports').textContent) > 0) {{
                     filterPorts('WARNING');
-                }}}
-            }}});
+                }}
+            }});
             
             document.getElementById('critical-card').addEventListener('click', function() {{
                 if (parseInt(document.getElementById('critical-ports').textContent) > 0) {{
                     filterPorts('CRITICAL');
-                }}}
-            }}});
-        }}}
+                }}
+            }});
+        }}
         
         function filterPorts(filterType) {{
             currentFilter = filterType;
@@ -570,7 +570,7 @@ class OpticalAnalyzer:
             // Clear active state from all cards
             document.querySelectorAll('.summary-card').forEach(card => {{
                 card.classList.remove('active');
-            }}});
+            }});
             
             let filteredRows = allRows;
             let filterText = '';
@@ -579,48 +579,48 @@ class OpticalAnalyzer:
                 filteredRows = allRows.filter(row => row.dataset.health === 'excellent');
                 filterText = `Showing ${{filteredRows.length}} Excellent Ports`;
                 document.getElementById('excellent-card').classList.add('active');
-            }}} else if (filterType === 'GOOD') {{
+            }} else if (filterType === 'GOOD') {{
                 filteredRows = allRows.filter(row => row.dataset.health === 'good');
                 filterText = `Showing ${{filteredRows.length}} Good Ports`;
                 document.getElementById('good-card').classList.add('active');
-            }}} else if (filterType === 'WARNING') {{
+            }} else if (filterType === 'WARNING') {{
                 filteredRows = allRows.filter(row => row.dataset.health === 'warning');
                 filterText = `Showing ${{filteredRows.length}} Warning Ports`;
                 document.getElementById('warning-card').classList.add('active');
-            }}} else if (filterType === 'CRITICAL') {{
+            }} else if (filterType === 'CRITICAL') {{
                 filteredRows = allRows.filter(row => row.dataset.health === 'critical');
                 filterText = `Showing ${{filteredRows.length}} Critical Ports`;
                 document.getElementById('critical-card').classList.add('active');
-            }}} else if (filterType === 'TOTAL') {{
+            }} else if (filterType === 'TOTAL') {{
                 filteredRows = allRows;
                 document.getElementById('total-ports-card').classList.add('active');
-            }}}
+            }}
             
             // Show filter info for all filters except TOTAL
             if (filterType !== 'ALL' && filterType !== 'TOTAL') {{
                 document.getElementById('filter-info').style.display = 'block';
                 document.getElementById('filter-text').textContent = filterText;
-            }}} else {{
+            }} else {{
                 document.getElementById('filter-info').style.display = 'none';
-            }}}
+            }}
             
             // Hide all rows first
             allRows.forEach(row => row.style.display = 'none');
             
             // Show filtered rows
             filteredRows.forEach(row => row.style.display = '');
-        }}}
+        }}
         
         function clearFilter() {{
             currentFilter = 'ALL';
             document.querySelectorAll('.summary-card').forEach(card => {{
                 card.classList.remove('active');
-            }}});
+            }});
             document.getElementById('filter-info').style.display = 'none';
             
             // Show all rows
             allRows.forEach(row => row.style.display = '');
-        }}}
+        }}
         
         // Generic table sorting functionality
         let tableSortState = {{ column: -1, direction: 'asc' }};
@@ -635,9 +635,9 @@ class OpticalAnalyzer:
                     // Toggle sort direction
                     if (tableSortState.column === column) {{
                         tableSortState.direction = tableSortState.direction === 'asc' ? 'desc' : 'asc';
-                    }}}} else {{
+                    }} else {{
                         tableSortState.direction = 'asc';
-                    }}}
+                    }}
                     tableSortState.column = column;
                     
                     // Update header styling
@@ -646,8 +646,8 @@ class OpticalAnalyzer:
                     
                     // Sort table
                     sortOpticalTable(column, tableSortState.direction, type);
-                }}});
-            }}});
+                }});
+            }});
         }}
         
         function sortOpticalTable(columnIndex, direction, type) {{
@@ -687,7 +687,7 @@ class OpticalAnalyzer:
                 }}
                 
                 return direction === 'desc' ? -result : result;
-            }}});
+            }});
             
             // Clear tbody and add sorted rows back
             tbody.innerHTML = '';
