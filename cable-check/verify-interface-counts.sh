@@ -97,8 +97,8 @@ verify_device() {
         breakout_subs=$(echo "$interface_list" | grep -cE "swp[0-9]+s[0-9]+" || echo "0")
         echo "BREAKOUT_SUBS: $breakout_subs"
         
-        # Admin up interfaces
-        admin_up=$(echo "$interface_list" | grep -E "swp[0-9]+" | grep -c "up" || echo "0")
+        # Admin up interfaces (base only - exclude breakouts)
+        admin_up=$(echo "$interface_list" | grep -E "swp[0-9]+\s" | grep -vE "swp[0-9]+s[0-9]+" | grep -c "up" || echo "0")
         echo "ADMIN_UP: $admin_up"
         
         # Quick sample check for transceivers (check first 5 interfaces)
