@@ -1,8 +1,57 @@
 #!/bin/bash
-# Verify interface counts across all devices
+# Network Interface Count Analysis and Verification Tool
+# Analyzes interface counts across all devices and compares with monitoring results
 
-echo "🔍 Interface Count Verification Script"
-echo "======================================"
+show_usage() {
+    echo "Network Interface Count Analysis Tool"
+    echo "===================================="
+    echo ""
+    echo "USAGE:"
+    echo "  verify-interface-counts.sh [OPTIONS]"
+    echo ""
+    echo "OPTIONS:"
+    echo "  -h, --help     Show this help message"
+    echo "  -q, --quiet    Suppress device-by-device output"
+    echo "  -s, --summary  Show only summary and comparison"
+    echo ""
+    echo "DESCRIPTION:"
+    echo "  This tool analyzes network interface counts across all devices"
+    echo "  and compares them with actual monitoring results. It helps"
+    echo "  verify that monitoring systems are counting interfaces correctly."
+    echo ""
+}
+
+# Parse command line arguments
+QUIET_MODE=false
+SUMMARY_ONLY=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        -q|--quiet)
+            QUIET_MODE=true
+            shift
+            ;;
+        -s|--summary)
+            SUMMARY_ONLY=true
+            QUIET_MODE=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use -h or --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+if [[ "$SUMMARY_ONLY" == false ]]; then
+    echo "Network Interface Count Analysis"
+    echo "================================"
+fi
 
 # Load devices
 SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
@@ -20,7 +69,9 @@ verify_device() {
     local user=$2
     local hostname=$3
     
-    echo "📡 Checking $hostname..."
+    if [[ "$QUIET_MODE" == false ]]; then
+        echo "Checking $hostname..."
+    fi
     
     # Get interface list first
     interface_list=$(ssh $SSH_OPTS -q "$user@$device" 'nv show interface 2>/dev/null' 2>/dev/null)
@@ -72,8 +123,10 @@ verify_device() {
     } >> "$RESULTS_FILE" 2>/dev/null &
 }
 
-echo "🚀 Starting parallel verification..."
-echo ""
+if [[ "$QUIET_MODE" == false ]]; then
+    echo "Starting parallel verification..."
+    echo ""
+fi
 
 # Process all devices in parallel
 pids=()
@@ -84,18 +137,22 @@ for device in "${!devices[@]}"; do
 done
 
 # Wait for all to complete
-echo "⏳ Waiting for all devices to respond..."
+if [[ "$QUIET_MODE" == false ]]; then
+    echo "Waiting for all devices to respond..."
+fi
 for pid in "${pids[@]}"; do
     wait $pid
 done
 
-echo ""
-echo "✅ Verification completed! Processing results..."
-echo ""
+if [[ "$SUMMARY_ONLY" == false ]]; then
+    echo ""
+    echo "Verification completed! Processing results..."
+    echo ""
 
-# Analyze results
-echo "📊 INTERFACE COUNT SUMMARY"
-echo "=========================="
+    # Analyze results
+    echo "INTERFACE COUNT SUMMARY"
+    echo "======================="
+fi
 
 total_devices=0
 total_swp_sum=0
@@ -108,36 +165,50 @@ while IFS= read -r line; do
     if [[ $line == *"INTERFACE COUNTS FOR"* ]]; then
         hostname=$(echo "$line" | sed 's/.*FOR //' | sed 's/ ===$//')
         ((total_devices++))
-        echo "📍 Device: $hostname"
+        if [[ "$SUMMARY_ONLY" == false ]]; then
+            echo "Device: $hostname"
+        fi
     elif [[ $line == TOTAL_SWP:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         total_swp_sum=$((total_swp_sum + count))
-        echo "  Total SWP interfaces: $count"
+        if [[ "$SUMMARY_ONLY" == false ]]; then
+            echo "  Total SWP interfaces: $count"
+        fi
     elif [[ $line == BASE_ONLY:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         base_only_sum=$((base_only_sum + count))
-        echo "  Base interfaces only: $count"
+        if [[ "$SUMMARY_ONLY" == false ]]; then
+            echo "  Base interfaces only: $count"
+        fi
     elif [[ $line == BREAKOUT_SUBS:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         breakout_subs_sum=$((breakout_subs_sum + count))
-        echo "  Breakout sub-interfaces: $count"
+        if [[ "$SUMMARY_ONLY" == false ]]; then
+            echo "  Breakout sub-interfaces: $count"
+        fi
     elif [[ $line == ESTIMATED_TRANSCEIVERS:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         transceivers_sum=$((transceivers_sum + count))
-        echo "  Estimated transceivers: $count"
+        if [[ "$SUMMARY_ONLY" == false ]]; then
+            echo "  Estimated transceivers: $count"
+        fi
     elif [[ $line == ADMIN_UP:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         admin_up_sum=$((admin_up_sum + count))
-        echo "  Admin up: $count"
-        echo ""
+        if [[ "$SUMMARY_ONLY" == false ]]; then
+            echo "  Admin up: $count"
+            echo ""
+        fi
     elif [[ $line == *"ERROR"* ]]; then
-        echo "  ❌ $line"
-        echo ""
+        if [[ "$QUIET_MODE" == false ]]; then
+            echo "  ERROR: $line"
+            echo ""
+        fi
     fi
 done < "$RESULTS_FILE"
 
-echo "🎯 NETWORK TOTALS"
-echo "================="
+echo "NETWORK TOTALS"
+echo "=============="
 echo "Total devices checked: $total_devices"
 echo "Total SWP interfaces: $total_swp_sum"
 echo "Base interfaces only: $base_only_sum" 
@@ -146,8 +217,8 @@ echo "Estimated interfaces with transceivers: $transceivers_sum"
 echo "Admin up interfaces: $admin_up_sum"
 echo ""
 
-echo "🔍 ANALYSIS"
-echo "==========="
+echo "ANALYSIS"
+echo "========"
 if [[ $total_devices -gt 0 ]]; then
     avg_base=$((base_only_sum / total_devices))
     avg_transceivers=$((transceivers_sum / total_devices))
@@ -156,27 +227,73 @@ if [[ $total_devices -gt 0 ]]; then
     echo "Average estimated transceivers per device: $avg_transceivers"
     echo ""
     
-    echo "📈 EXPECTED DASHBOARD COUNTS AFTER FIX"
-    echo "====================================="
+    echo "EXPECTED MONITORING COUNTS"
+    echo "========================="
     echo "Link Flap Total Ports: $base_only_sum (base interfaces)"
     echo "Optical Total Ports: $transceivers_sum (estimated transceivers)"
-    echo "BER Total Ports: ~$((base_only_sum * 60 / 100)) (estimated 60% with traffic)"
+    echo "BER Total Ports: ~$((base_only_sum * 85 / 100)) (estimated 85% with traffic)"
     echo ""
     
-    echo "📊 CURRENT vs EXPECTED"
-    echo "====================="
-    echo "Current Flap: 4904 → Expected: $base_only_sum"
-    echo "Current BER: 2896 → Expected: ~$((base_only_sum * 60 / 100))"
-    echo "Current Optical: 1905 → Expected: $transceivers_sum"
+    # Compare with actual monitoring results if available
+    echo "ACTUAL MONITORING RESULTS COMPARISON"
+    echo "==================================="
+    
+    # Check Link Flap results
+    if [[ -f "monitor-results/link-flap-analysis.html" ]]; then
+        flap_actual=$(grep -o 'Total Ports[^0-9]*[0-9]\+' monitor-results/link-flap-analysis.html 2>/dev/null | grep -o '[0-9]\+' | head -1)
+        if [[ -n "$flap_actual" ]]; then
+            flap_diff=$((flap_actual - base_only_sum))
+            echo "Link Flap: Expected $base_only_sum, Actual $flap_actual (diff: $flap_diff)"
+        fi
+    fi
+    
+    # Check Optical results
+    if [[ -f "monitor-results/optical-analysis.html" ]]; then
+        optical_actual=$(grep -o 'Total Ports[^0-9]*[0-9]\+' monitor-results/optical-analysis.html 2>/dev/null | grep -o '[0-9]\+' | head -1)
+        if [[ -n "$optical_actual" ]]; then
+            optical_diff=$((optical_actual - transceivers_sum))
+            echo "Optical: Expected $transceivers_sum, Actual $optical_actual (diff: $optical_diff)"
+        fi
+    fi
+    
+    # Check BER results
+    if [[ -f "monitor-results/ber-analysis.html" ]]; then
+        ber_actual=$(grep -o 'Total Ports[^0-9]*[0-9]\+' monitor-results/ber-analysis.html 2>/dev/null | grep -o '[0-9]\+' | head -1)
+        if [[ -n "$ber_actual" ]]; then
+            ber_expected=$((base_only_sum * 85 / 100))
+            ber_diff=$((ber_actual - ber_expected))
+            echo "BER: Expected ~$ber_expected, Actual $ber_actual (diff: $ber_diff)"
+        fi
+    fi
     echo ""
     
     if [[ $breakout_subs_sum -gt 0 ]]; then
-        echo "⚠️  WARNING: $breakout_subs_sum breakout sub-interfaces found!"
-        echo "   This confirms monitor.sh was including breakouts before fix."
-        echo "   Old total included breakouts: $total_swp_sum"
-        echo "   New total should be base only: $base_only_sum"
+        echo "WARNING: $breakout_subs_sum breakout sub-interfaces found!"
+        echo "This indicates monitor.sh may be including breakout interfaces."
+        echo "Total with breakouts: $total_swp_sum"
+        echo "Total base only: $base_only_sum"
+        echo ""
+    fi
+    
+    # Generate summary
+    echo "ANALYSIS SUMMARY"
+    echo "==============="
+    echo "Total network devices: $total_devices"
+    echo "Total physical interfaces: $base_only_sum"
+    echo "Interfaces with transceivers: $transceivers_sum"
+    echo "Breakout sub-interfaces: $breakout_subs_sum"
+    echo "Admin up interfaces: $admin_up_sum"
+    
+    # Calculate percentages
+    if [[ $base_only_sum -gt 0 ]]; then
+        up_percentage=$((admin_up_sum * 100 / base_only_sum))
+        transceiver_percentage=$((transceivers_sum * 100 / base_only_sum))
+        echo "Interface utilization: $up_percentage% admin up"
+        echo "Optical density: $transceiver_percentage% with transceivers"
     fi
 fi
 
-echo "📄 Raw results saved to: $RESULTS_FILE"
-echo "🎉 Verification complete!"
+echo ""
+echo "Raw results saved to: $RESULTS_FILE"
+echo "Analysis completed at: $(date '+%Y-%m-%d %H:%M:%S')"
+echo ""
