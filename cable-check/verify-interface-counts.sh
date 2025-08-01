@@ -216,7 +216,7 @@ if [[ $total_devices -gt 0 ]]; then
     echo "LLDPq MONITORING RESULTS COMPARISON"
     echo "==================================="
     
-    # Check Link Flap results
+    # Check Link Flap results with detailed analysis
     if [[ -f "monitor-results/link-flap-analysis.html" ]]; then
         flap_actual=$(grep -A 10 "Total Ports" monitor-results/link-flap-analysis.html 2>/dev/null | grep -o 'id="total-ports">[0-9]\+' | grep -o '[0-9]\+' | head -1)
         if [[ -z "$flap_actual" ]]; then
@@ -226,6 +226,25 @@ if [[ $total_devices -gt 0 ]]; then
         if [[ -n "$flap_actual" ]]; then
             flap_diff=$((flap_actual - base_only_sum))
             echo "Link Flap: Expected $base_only_sum, Actual $flap_actual (diff: $flap_diff)"
+            
+            # Detailed analysis of flap data collection
+            if [[ -d "monitor-results/flap-data" ]]; then
+                flap_files=$(ls monitor-results/flap-data/*_carrier_transitions.txt 2>/dev/null | wc -l)
+                total_flap_ports=0
+                empty_files=0
+                for file in monitor-results/flap-data/*_carrier_transitions.txt 2>/dev/null; do
+                    if [[ -f "$file" ]]; then
+                        port_count=$(grep -c ":" "$file" 2>/dev/null || echo 0)
+                        if [[ $port_count -eq 0 ]]; then
+                            ((empty_files++))
+                        else
+                            total_flap_ports=$((total_flap_ports + port_count))
+                        fi
+                    fi
+                done
+                echo "  Flap Data Details: $flap_files devices, $total_flap_ports raw ports, $empty_files empty files"
+                echo "  Missing ports likely due to: SSH timeouts, interface detection, or data collection issues"
+            fi
         fi
     fi
     
