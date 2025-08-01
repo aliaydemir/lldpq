@@ -236,7 +236,11 @@ if [[ $total_devices -gt 0 ]]; then
     
     # Check Link Flap results
     if [[ -f "monitor-results/link-flap-analysis.html" ]]; then
-        flap_actual=$(grep -o 'Total Ports[^0-9]*[0-9]\+' monitor-results/link-flap-analysis.html 2>/dev/null | grep -o '[0-9]\+' | head -1)
+        flap_actual=$(grep -A 10 "Total Ports" monitor-results/link-flap-analysis.html 2>/dev/null | grep -o 'id="total-ports">[0-9]\+' | grep -o '[0-9]\+' | head -1)
+        if [[ -z "$flap_actual" ]]; then
+            # Fallback: look for any metric number after "Total Ports"
+            flap_actual=$(grep -A 10 "Total Ports" monitor-results/link-flap-analysis.html 2>/dev/null | grep -o ">[0-9]\+<" | grep -o '[0-9]\+' | head -1)
+        fi
         if [[ -n "$flap_actual" ]]; then
             flap_diff=$((flap_actual - base_only_sum))
             echo "Link Flap: Expected $base_only_sum, Actual $flap_actual (diff: $flap_diff)"
@@ -245,7 +249,11 @@ if [[ $total_devices -gt 0 ]]; then
     
     # Check Optical results
     if [[ -f "monitor-results/optical-analysis.html" ]]; then
-        optical_actual=$(grep -o 'Total Ports[^0-9]*[0-9]\+' monitor-results/optical-analysis.html 2>/dev/null | grep -o '[0-9]\+' | head -1)
+        optical_actual=$(grep -A 10 "Total Ports" monitor-results/optical-analysis.html 2>/dev/null | grep -o 'id="total-ports">[0-9]\+' | grep -o '[0-9]\+' | head -1)
+        if [[ -z "$optical_actual" ]]; then
+            # Fallback: look for any metric number after "Total Ports"
+            optical_actual=$(grep -A 10 "Total Ports" monitor-results/optical-analysis.html 2>/dev/null | grep -o ">[0-9]\+<" | grep -o '[0-9]\+' | head -1)
+        fi
         if [[ -n "$optical_actual" ]]; then
             optical_diff=$((optical_actual - transceivers_sum))
             echo "Optical: Expected $transceivers_sum, Actual $optical_actual (diff: $optical_diff)"
@@ -254,7 +262,11 @@ if [[ $total_devices -gt 0 ]]; then
     
     # Check BER results
     if [[ -f "monitor-results/ber-analysis.html" ]]; then
-        ber_actual=$(grep -o 'Total Ports[^0-9]*[0-9]\+' monitor-results/ber-analysis.html 2>/dev/null | grep -o '[0-9]\+' | head -1)
+        ber_actual=$(grep -A 10 "Total Ports" monitor-results/ber-analysis.html 2>/dev/null | grep -o 'id="total-ports">[0-9]\+' | grep -o '[0-9]\+' | head -1)
+        if [[ -z "$ber_actual" ]]; then
+            # Fallback: look for any metric number after "Total Ports"
+            ber_actual=$(grep -A 10 "Total Ports" monitor-results/ber-analysis.html 2>/dev/null | grep -o ">[0-9]\+<" | grep -o '[0-9]\+' | head -1)
+        fi
         if [[ -n "$ber_actual" ]]; then
             ber_expected=$((base_only_sum * 85 / 100))
             ber_diff=$((ber_actual - ber_expected))
