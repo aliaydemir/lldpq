@@ -288,7 +288,7 @@ class OpticalAnalyzer:
                         "message": f"RX power too low: {rx_power:.2f} dBm (threshold: {self.thresholds['rx_power_min_dbm']} dBm)",
                         "action": "Check fiber connection, clean connectors, or replace cable",
                         "rx_power_dbm": rx_power
-                    }}})
+                    })
                 
                 if temperature is not None and temperature > self.thresholds['temperature_max_c']:
                     anomalies.append({
@@ -298,7 +298,7 @@ class OpticalAnalyzer:
                         "message": f"SFP temperature too high: {temperature:.1f}°C (threshold: {self.thresholds['temperature_max_c']}°C)",
                         "action": "Check cooling, reduce load, or replace SFP module",
                         "temperature_c": temperature
-                    }}})
+                    })
             
             elif health == OpticalHealth.WARNING:
                 # Warning level issues
@@ -311,7 +311,7 @@ class OpticalAnalyzer:
                         "message": f"Low link margin: {link_margin:.2f} dB (threshold: {self.thresholds['link_margin_min_db']} dB)",
                         "action": "Monitor closely, schedule proactive maintenance",
                         "link_margin_db": link_margin
-                    }}})
+                    })
         
         return anomalies
     
