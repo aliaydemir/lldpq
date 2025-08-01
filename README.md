@@ -21,14 +21,15 @@ cd lldpq
 
 ## [02] configuration files
 
-edit these 4 files:
+edit these 6 files:
 
 ```
-cable-check/devices.sh     # add your switches (ip + username + hostname)
-cable-check/topology.dot   # expected cable connections
-cable-check/hosts.ini      # optional: extra hostnames for topology  
-/etc/nccm.yml              # optional: ssh manager [zzh]
-/etc/ip_list               # optional: paralel ping to all devices [pping]
+cable-check/devices.sh              # add your switches (ip + username + hostname)
+cable-check/topology.dot            # expected cable connections
+cable-check/topology_config.yaml    # optional: for customize device layers and icons at topology
+cable-check/hosts.ini               # optional: extra hostnames for topology  
+/etc/nccm.yml                       # optional: ssh manager [zzh]
+/etc/ip_list                        # optional: paralel ping to all devices [pping]
 ```
 
 ## [03] cron jobs (auto setup)
