@@ -220,6 +220,7 @@ echo ""
 
 echo "ANALYSIS"
 echo "========"
+echo ""
 if [[ $total_devices -gt 0 ]]; then
     
     echo "EXPECTED MONITORING COUNTS"
