@@ -838,17 +838,17 @@ class BGPAnalyzer:
             });
         }
         
-        function sortBGPTable(columnIndex, direction, type) {{
+        function sortBGPTable(columnIndex, direction, type) {
             const table = document.getElementById('bgp-table');
             const tbody = table.querySelector('tbody');
             const rows = Array.from(tbody.rows);
             
-            rows.sort((a, b) => {{
+            rows.sort((a, b) => {
                 let aVal = a.cells[columnIndex].textContent.trim();
                 let bVal = b.cells[columnIndex].textContent.trim();
                 
                 // Extract actual text for status/health columns (remove HTML)
-                if (type === 'bgp-state' || type === 'bgp-health') {{
+                if (type === 'bgp-state' || type === 'bgp-health') {
                     aVal = a.cells[columnIndex].querySelector('span')?.textContent || aVal;
                     bVal = b.cells[columnIndex].querySelector('span')?.textContent || bVal;
                 }
@@ -925,7 +925,7 @@ class BGPAnalyzer:
                 
                 // Handle HH:MM:SS format
                 const timeMatch = uptime.match(/(\\d+):(\\d+):(\\d+)/);
-                if (timeMatch) {{
+                if (timeMatch) {
                     minutes += parseInt(timeMatch[1]) * 60; // hours
                     minutes += parseInt(timeMatch[2]); // minutes
                 }
@@ -937,7 +937,7 @@ class BGPAnalyzer:
         }
         
         function compareBGPState(a, b) {
-            const priority = {{
+            const priority = {
                 'IDLE': 0,
                 'ACTIVE': 1,
                 'CONNECT': 2,
@@ -948,7 +948,7 @@ class BGPAnalyzer:
         }
         
         function compareBGPHealth(a, b) {
-            const priority = {{
+            const priority = {
                 'CRITICAL': 0,
                 'WARNING': 1,
                 'GOOD': 2,
@@ -960,7 +960,7 @@ class BGPAnalyzer:
         
         function compareRatio(a, b) {
             // Parse ratio like "100/200" and compare by first number
-            const getRatioValue = (ratio) => {{
+            const getRatioValue = (ratio) => {
                 const parts = ratio.split('/');
                 return parseInt(parts[0]) || 0;
             };
