@@ -82,6 +82,42 @@
             border-radius: 8px;
             margin: 20px 0;
         }
+        
+        /* Sortable table styling */
+        .sortable {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 20px;
+        }
+        
+        .sortable:hover {
+            background-color: #f5f5f5;
+        }
+        
+        .sort-arrow {
+            font-size: 10px;
+            color: #999;
+            margin-left: 5px;
+            opacity: 0.5;
+        }
+        
+        .sortable.asc .sort-arrow::before {
+            content: '▲';
+            color: #b57614;
+            opacity: 1;
+        }
+        
+        .sortable.desc .sort-arrow::before {
+            content: '▼';
+            color: #b57614;
+            opacity: 1;
+        }
+        
+        .sortable.asc .sort-arrow,
+        .sortable.desc .sort-arrow {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -125,16 +161,34 @@
         <p>Error loading LLDP data. Please check if the data file exists.</p>
     </div>
     <table class="lldp-table" id="lldp-table" style="display: none;">
+        <thead>
         <tr>
-            <th>Local Device</th>
-            <th>Local Port</th>
-            <th>Expected Neighbor</th>
-            <th>Expected Neighbor Port</th>
-            <th>Active Neighbor</th>
-            <th>Active Neighbor Port</th>
-            <th>Status</th>
-            <th>Connection Health</th>
+            <th class="sortable" data-column="0" data-type="string">
+                Local Device <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="1" data-type="port">
+                Local Port <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="2" data-type="string">
+                Expected Neighbor <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="3" data-type="port">
+                Expected Neighbor Port <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="4" data-type="string">
+                Active Neighbor <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="5" data-type="port">
+                Active Neighbor Port <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="6" data-type="lldp-status">
+                Status <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="7" data-type="string">
+                Connection Health <span class="sort-arrow">▲▼</span>
+            </th>
         </tr>
+        </thead>
         <tbody id="lldp-data">
         </tbody>
     </table>
@@ -457,10 +511,106 @@
                 });
         }
 
+        // Generic table sorting functionality
+        let currentSort = { column: -1, direction: 'asc' };
+        
+        function initTableSorting() {
+            const headers = document.querySelectorAll('.sortable');
+            headers.forEach(header => {
+                header.addEventListener('click', function() {
+                    const column = parseInt(this.dataset.column);
+                    const type = this.dataset.type;
+                    
+                    // Toggle sort direction
+                    if (currentSort.column === column) {
+                        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        currentSort.direction = 'asc';
+                    }
+                    currentSort.column = column;
+                    
+                    // Update header styling
+                    headers.forEach(h => h.classList.remove('asc', 'desc'));
+                    this.classList.add(currentSort.direction);
+                    
+                    // Sort table
+                    sortLLDPTable(column, currentSort.direction, type);
+                });
+            });
+        }
+        
+        function sortLLDPTable(columnIndex, direction, type) {
+            const table = document.getElementById('lldp-table');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.rows);
+            
+            rows.sort((a, b) => {
+                let aVal = a.cells[columnIndex].textContent.trim();
+                let bVal = b.cells[columnIndex].textContent.trim();
+                
+                // Extract actual text for status column (remove HTML)
+                if (type === 'lldp-status') {
+                    aVal = a.cells[columnIndex].querySelector('span')?.textContent || aVal;
+                    bVal = b.cells[columnIndex].querySelector('span')?.textContent || bVal;
+                }
+                
+                let result = 0;
+                
+                switch(type) {
+                    case 'port':
+                        result = comparePort(aVal, bVal);
+                        break;
+                    case 'lldp-status':
+                        result = compareLLDPStatus(aVal, bVal);
+                        break;
+                    case 'string':
+                    default:
+                        result = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' });
+                        break;
+                }
+                
+                return direction === 'desc' ? -result : result;
+            });
+            
+            // Clear tbody and add sorted rows back
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+        }
+        
+        function comparePort(a, b) {
+            if (a === 'N/A') return 1;
+            if (b === 'N/A') return -1;
+            
+            // Handle port sorting (swp1, swp10, swp1s0, etc.)
+            const extractPortNumber = (port) => {
+                const match = port.match(/swp(\d+)(?:s(\d+))?/);
+                if (match) {
+                    const mainPort = parseInt(match[1]);
+                    const subPort = match[2] ? parseInt(match[2]) : 0;
+                    return mainPort * 1000 + subPort; // swp1 = 1000, swp1s0 = 1000, swp1s1 = 1001
+                }
+                return port.localeCompare(b, undefined, { numeric: true });
+            };
+            
+            return extractPortNumber(a) - extractPortNumber(b);
+        }
+        
+        function compareLLDPStatus(a, b) {
+            const priority = {
+                'FAIL': 0,
+                'WARNING': 1,
+                'NO-INFO': 2,
+                'PASS': 3
+            };
+            
+            return (priority[a] || 4) - (priority[b] || 4);
+        }
+
         // Load data when page loads
         window.addEventListener('load', function() {
             setLastUpdated();
             loadLLDPData();
+            initTableSorting();
         });
     </script>
 </body>
