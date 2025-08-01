@@ -597,10 +597,10 @@
         
         function compareLLDPStatus(a, b) {
             const priority = {
-                'FAIL': 0,
+                'FAILED': 0,
                 'WARNING': 1,
-                'NO-INFO': 2,
-                'PASS': 3
+                'NO INFO': 2,
+                'SUCCESS': 3
             };
             
             return (priority[a] || 4) - (priority[b] || 4);
