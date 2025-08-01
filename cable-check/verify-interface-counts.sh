@@ -165,40 +165,22 @@ while IFS= read -r line; do
     if [[ $line == *"INTERFACE COUNTS FOR"* ]]; then
         hostname=$(echo "$line" | sed 's/.*FOR //' | sed 's/ ===$//')
         ((total_devices++))
-        if [[ "$SUMMARY_ONLY" == false ]]; then
-            echo "Device: $hostname"
-        fi
+        # Device details stored in results file only
     elif [[ $line == TOTAL_SWP:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         total_swp_sum=$((total_swp_sum + count))
-        if [[ "$SUMMARY_ONLY" == false ]]; then
-            echo "  Total SWP interfaces: $count"
-        fi
     elif [[ $line == BASE_ONLY:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         base_only_sum=$((base_only_sum + count))
-        if [[ "$SUMMARY_ONLY" == false ]]; then
-            echo "  Base interfaces only: $count"
-        fi
     elif [[ $line == BREAKOUT_SUBS:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         breakout_subs_sum=$((breakout_subs_sum + count))
-        if [[ "$SUMMARY_ONLY" == false ]]; then
-            echo "  Breakout sub-interfaces: $count"
-        fi
     elif [[ $line == ESTIMATED_TRANSCEIVERS:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         transceivers_sum=$((transceivers_sum + count))
-        if [[ "$SUMMARY_ONLY" == false ]]; then
-            echo "  Estimated transceivers: $count"
-        fi
     elif [[ $line == ADMIN_UP:* ]]; then
         count=$(echo "$line" | cut -d' ' -f2)
         admin_up_sum=$((admin_up_sum + count))
-        if [[ "$SUMMARY_ONLY" == false ]]; then
-            echo "  Admin up: $count"
-            echo ""
-        fi
     elif [[ $line == *"ERROR"* ]]; then
         if [[ "$QUIET_MODE" == false ]]; then
             echo "  ERROR: $line"
