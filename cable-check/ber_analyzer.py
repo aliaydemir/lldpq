@@ -393,9 +393,27 @@ class BERAnalyzer:
             background-color: #fff3e0;
             border-left-color: #ff9800;
         }}
-        .ber-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-        .ber-table th, .ber-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-        .ber-table th {{ background-color: #f2f2f2; }}
+        .ber-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
+        .ber-table th, .ber-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; word-wrap: break-word; }}
+        .ber-table th {{ background-color: #f2f2f2; font-weight: bold; }}
+        
+        /* Column width specifications */
+        .ber-table th:nth-child(1), .ber-table td:nth-child(1) {{ width: 15%; }} /* Device */
+        .ber-table th:nth-child(2), .ber-table td:nth-child(2) {{ width: 12%; }} /* Interface */
+        .ber-table th:nth-child(3), .ber-table td:nth-child(3) {{ width: 10%; }} /* Status */
+        .ber-table th:nth-child(4), .ber-table td:nth-child(4) {{ width: 12%; }} /* BER Value */
+        .ber-table th:nth-child(5), .ber-table td:nth-child(5) {{ width: 12%; }} /* Total Packets */
+        .ber-table th:nth-child(6), .ber-table td:nth-child(6) {{ width: 10%; }} /* RX Errors */
+        .ber-table th:nth-child(7), .ber-table td:nth-child(7) {{ width: 10%; }} /* TX Errors */
+        .ber-table th:nth-child(8), .ber-table td:nth-child(8) {{ width: 19%; }} /* Last Updated */
+        
+        /* Sortable table styling */
+        .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
+        .sortable:hover {{ background-color: #f5f5f5; }}
+        .sort-arrow {{ font-size: 10px; color: #999; margin-left: 5px; opacity: 0.5; }}
+        .sortable.asc .sort-arrow::before {{ content: '▲'; color: #b57614; opacity: 1; }}
+        .sortable.desc .sort-arrow::before {{ content: '▼'; color: #b57614; opacity: 1; }}
+        .sortable.asc .sort-arrow, .sortable.desc .sort-arrow {{ opacity: 1; }}
         
         .summary-card {{
             cursor: pointer;
@@ -481,14 +499,14 @@ class BERAnalyzer:
         <table class="ber-table" id="ber-table">
             <thead>
                 <tr>
-                    <th>Device</th>
-                    <th>Interface</th>
-                    <th>Status</th>
-                    <th>BER Value</th>
-                    <th>Total Packets</th>
-                    <th>RX Errors</th>
-                    <th>TX Errors</th>
-                    <th>Last Updated</th>
+                    <th class="sortable" data-column="0" data-type="string">Device <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="1" data-type="port">Interface <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="2" data-type="ber-status">Status <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="3" data-type="ber-value">BER Value <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="4" data-type="number">Total Packets <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="5" data-type="number">RX Errors <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="6" data-type="number">TX Errors <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="7" data-type="time">Last Updated <span class="sort-arrow">▲▼</span></th>
                 </tr>
             </thead>
             <tbody id="ber-data">
@@ -566,119 +584,248 @@ class BERAnalyzer:
             </ul>
         </div>
 
+"""
+        
+        html_content += """
     <script>
         // Filter functionality
         let currentFilter = 'ALL';
         let allRows = [];
         
-        document.addEventListener('DOMContentLoaded', function() {{
+        document.addEventListener('DOMContentLoaded', function() {
             // Store all table rows for filtering
             allRows = Array.from(document.querySelectorAll('#ber-data tr'));
             
             // Add click events to summary cards
             setupCardEvents();
-        }});
+            
+            // Initialize table sorting
+            initTableSorting();
+        });
         
-        function setupCardEvents() {{
+        function setupCardEvents() {
             console.log('BER: Setting up card events...');
             
             // Check if elements exist
             const totalPortsCard = document.getElementById('total-ports-card');
             console.log('BER: total-ports-card found?', totalPortsCard);
             
-            if (totalPortsCard) {{
-                totalPortsCard.addEventListener('click', function() {{
+            if (totalPortsCard) {
+                totalPortsCard.addEventListener('click', function() {
                     console.log('BER: Total ports clicked');
-                    if (parseInt(document.getElementById('total-ports').textContent) > 0) {{
+                    if (parseInt(document.getElementById('total-ports').textContent) > 0) {
                         filterPorts('TOTAL');
-                    }}
-                }});
-            }} else {{
+                    }
+                });
+            } else {
                 console.error('BER: total-ports-card not found!');
-            }}
+            }
             
-            document.getElementById('excellent-card').addEventListener('click', function() {{
-                if (parseInt(document.getElementById('excellent-ports').textContent) > 0) {{
+            document.getElementById('excellent-card').addEventListener('click', function() {
+                if (parseInt(document.getElementById('excellent-ports').textContent) > 0) {
                     filterPorts('EXCELLENT');
-                }}
-            }});
+                }
+            });
             
-            document.getElementById('good-card').addEventListener('click', function() {{
-                if (parseInt(document.getElementById('good-ports').textContent) > 0) {{
+            document.getElementById('good-card').addEventListener('click', function() {
+                if (parseInt(document.getElementById('good-ports').textContent) > 0) {
                     filterPorts('GOOD');
-                }}
-            }});
+                }
+            });
             
-            document.getElementById('warning-card').addEventListener('click', function() {{
-                if (parseInt(document.getElementById('warning-ports').textContent) > 0) {{
+            document.getElementById('warning-card').addEventListener('click', function() {
+                if (parseInt(document.getElementById('warning-ports').textContent) > 0) {
                     filterPorts('WARNING');
-                }}
-            }});
+                }
+            });
             
-            document.getElementById('critical-card').addEventListener('click', function() {{
-                if (parseInt(document.getElementById('critical-ports').textContent) > 0) {{
+            document.getElementById('critical-card').addEventListener('click', function() {
+                if (parseInt(document.getElementById('critical-ports').textContent) > 0) {
                     filterPorts('CRITICAL');
-                }}
-            }});
-        }}
+                }
+            });
+        }
         
-        function filterPorts(filterType) {{
+        function filterPorts(filterType) {
             currentFilter = filterType;
             
             // Clear active state from all cards
-            document.querySelectorAll('.summary-card').forEach(card => {{
+            document.querySelectorAll('.summary-card').forEach(card => {
                 card.classList.remove('active');
-            }});
+            });
             
             let filteredRows = allRows;
             let filterText = '';
             
-            if (filterType === 'EXCELLENT') {{
+            if (filterType === 'EXCELLENT') {
                 filteredRows = allRows.filter(row => row.dataset.status === 'excellent');
                 filterText = 'Showing ' + filteredRows.length + ' Excellent Ports';
                 document.getElementById('excellent-card').classList.add('active');
-            }} else if (filterType === 'GOOD') {{
+            } else if (filterType === 'GOOD') {
                 filteredRows = allRows.filter(row => row.dataset.status === 'good');
                 filterText = 'Showing ' + filteredRows.length + ' Good Ports';
                 document.getElementById('good-card').classList.add('active');
-            }} else if (filterType === 'WARNING') {{
+            } else if (filterType === 'WARNING') {
                 filteredRows = allRows.filter(row => row.dataset.status === 'warning');
                 filterText = 'Showing ' + filteredRows.length + ' Warning Ports';
                 document.getElementById('warning-card').classList.add('active');
-            }} else if (filterType === 'CRITICAL') {{
+            } else if (filterType === 'CRITICAL') {
                 filteredRows = allRows.filter(row => row.dataset.status === 'critical');
                 filterText = 'Showing ' + filteredRows.length + ' Critical Ports';
                 document.getElementById('critical-card').classList.add('active');
-            }} else if (filterType === 'TOTAL') {{
+            } else if (filterType === 'TOTAL') {
                 filteredRows = allRows;
                 document.getElementById('total-ports-card').classList.add('active');
-            }}
+            }
             
             // Show filter info for all filters except TOTAL
-            if (filterType !== 'ALL' && filterType !== 'TOTAL') {{
+            if (filterType !== 'ALL' && filterType !== 'TOTAL') {
                 document.getElementById('filter-info').style.display = 'block';
                 document.getElementById('filter-text').textContent = filterText;
-            }} else {{
+            } else {
                 document.getElementById('filter-info').style.display = 'none';
-            }}
+            }
             
             // Hide all rows first
             allRows.forEach(row => row.style.display = 'none');
             
             // Show filtered rows
             filteredRows.forEach(row => row.style.display = '');
-        }}
+        }
         
-        function clearFilter() {{
+        function clearFilter() {
             currentFilter = 'ALL';
-            document.querySelectorAll('.summary-card').forEach(card => {{
+            document.querySelectorAll('.summary-card').forEach(card => {
                 card.classList.remove('active');
-            }});
+            });
             document.getElementById('filter-info').style.display = 'none';
             
             // Show all rows
             allRows.forEach(row => row.style.display = '');
-        }}
+        }
+        
+        // Generic table sorting functionality
+        let tableSortState = { column: -1, direction: 'asc' };
+        
+        function initTableSorting() {
+            const headers = document.querySelectorAll('.sortable');
+            headers.forEach(header => {
+                header.addEventListener('click', function() {
+                    const column = parseInt(this.dataset.column);
+                    const type = this.dataset.type;
+                    
+                    // Toggle sort direction
+                    if (tableSortState.column === column) {
+                        tableSortState.direction = tableSortState.direction === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        tableSortState.direction = 'asc';
+                    }
+                    tableSortState.column = column;
+                    
+                    // Update header styling
+                    headers.forEach(h => h.classList.remove('asc', 'desc'));
+                    this.classList.add(tableSortState.direction);
+                    
+                    // Sort table
+                    sortBERTable(column, tableSortState.direction, type);
+                });
+            });
+        }
+        
+        function sortBERTable(columnIndex, direction, type) {
+            const table = document.getElementById('ber-table');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.rows);
+            
+            rows.sort((a, b) => {
+                let aVal = a.cells[columnIndex].textContent.trim();
+                let bVal = b.cells[columnIndex].textContent.trim();
+                
+                // Extract actual text for status columns (remove HTML)
+                if (type === 'ber-status') {
+                    aVal = a.cells[columnIndex].querySelector('span')?.textContent || aVal;
+                    bVal = b.cells[columnIndex].querySelector('span')?.textContent || bVal;
+                }
+                
+                let result = 0;
+                
+                switch(type) {
+                    case 'port':
+                        result = comparePort(aVal, bVal);
+                        break;
+                    case 'ber-status':
+                        result = compareBERStatus(aVal, bVal);
+                        break;
+                    case 'ber-value':
+                        result = compareBERValue(aVal, bVal);
+                        break;
+                    case 'number':
+                        const numA = parseInt(aVal.replace(/,/g, ''));
+                        const numB = parseInt(bVal.replace(/,/g, ''));
+                        result = numA - numB;
+                        break;
+                    case 'time':
+                        result = aVal.localeCompare(bVal);
+                        break;
+                    case 'string':
+                    default:
+                        result = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' });
+                        break;
+                }
+                
+                return direction === 'desc' ? -result : result;
+            });
+            
+            // Clear tbody and add sorted rows back
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+        }
+        
+        function comparePort(a, b) {
+            if (a === 'N/A') return 1;
+            if (b === 'N/A') return -1;
+            
+            // Handle port sorting (swp1, swp10, swp1s0, etc.)
+            const extractPortNumber = (port) => {
+                const match = port.match(/swp(\\d+)(?:s(\\d+))?/);
+                if (match) {
+                    const mainPort = parseInt(match[1]);
+                    const subPort = match[2] ? parseInt(match[2]) : 0;
+                    return mainPort * 1000 + subPort;
+                }
+                return port.localeCompare(b, undefined, { numeric: true });
+            };
+            
+            return extractPortNumber(a) - extractPortNumber(b);
+        }
+        
+        function compareBERStatus(a, b) {
+            const priority = {
+                'CRITICAL': 0,
+                'WARNING': 1,
+                'GOOD': 2,
+                'EXCELLENT': 3,
+                'UNKNOWN': 4
+            };
+            
+            return (priority[a] || 5) - (priority[b] || 5);
+        }
+        
+        function compareBERValue(a, b) {
+            // Handle scientific notation (1.23e-5) and plain numbers
+            if (a === '0' && b === '0') return 0;
+            if (a === '0') return 1; // 0 is best (excellent)
+            if (b === '0') return -1;
+            
+            const numA = parseFloat(a);
+            const numB = parseFloat(b);
+            
+            if (isNaN(numA) && isNaN(numB)) return 0;
+            if (isNaN(numA)) return 1;
+            if (isNaN(numB)) return -1;
+            
+            return numA - numB;
+        }
     </script>
 </body>
 </html>"""
