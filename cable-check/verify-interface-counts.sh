@@ -89,20 +89,20 @@ verify_device() {
         total_swp=$(echo "$interface_list" | grep -c "swp" || echo "0")
         echo "TOTAL_SWP: $total_swp"
         
-        # Base interfaces only (swp1, swp2, swp32 - no breakouts)
-        base_only=$(echo "$interface_list" | grep -E "swp[0-9]+\s" | grep -vE "swp[0-9]+s[0-9]+" | wc -l || echo "0")
+        # Base interfaces only (swp1, swp2, swp32 - no breakouts) - SAME AS MONITOR.SH
+        base_only=$(echo "$interface_list" | grep -E "^swp[0-9]+[^s]|^swp[0-9]+$" | wc -l || echo "0")
         echo "BASE_ONLY: $base_only"
         
         # Breakout sub-interfaces (swp1s0, swp1s1, etc)  
         breakout_subs=$(echo "$interface_list" | grep -cE "swp[0-9]+s[0-9]+" || echo "0")
         echo "BREAKOUT_SUBS: $breakout_subs"
         
-        # Admin up interfaces (base only - exclude breakouts)
-        admin_up=$(echo "$interface_list" | grep -E "swp[0-9]+\s" | grep -vE "swp[0-9]+s[0-9]+" | grep -c "up" || echo "0")
+        # Admin up interfaces (base only - exclude breakouts) - SAME AS MONITOR.SH
+        admin_up=$(echo "$interface_list" | grep -E "^swp[0-9]+[^s]|^swp[0-9]+$" | grep -c "up" || echo "0")
         echo "ADMIN_UP: $admin_up"
         
-        # Quick sample check for transceivers (check first 5 interfaces)
-        sample_interfaces=$(echo "$interface_list" | grep -E "swp[0-9]+\s" | head -5 | awk '{print $1}')
+        # Quick sample check for transceivers (check first 5 interfaces) - SAME AS MONITOR.SH
+        sample_interfaces=$(echo "$interface_list" | grep -E "^swp[0-9]+[^s]|^swp[0-9]+$" | head -5 | awk '{print $1}')
         sample_transceivers=0
         for iface in $sample_interfaces; do
             transceiver_check=$(ssh $SSH_OPTS -q "$user@$device" "nv show interface $iface transceiver 2>/dev/null" 2>/dev/null)
