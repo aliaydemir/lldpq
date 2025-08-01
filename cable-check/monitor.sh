@@ -84,7 +84,7 @@ EOF
     ssh $SSH_OPTS -q "$user@$device" "sudo vtysh -c \"show bgp vrf all sum\"" 2>/dev/null > "monitor-results/bgp-data/${hostname}_bgp.txt"
     
     # OPTIMIZED: Single SSH session for all interface data collection
-    timeout 300 ssh $SSH_OPTS -q "$user@$device" '
+    timeout 600 ssh $SSH_OPTS -q "$user@$device" '
         echo "=== OPTIMIZED INTERFACE DATA COLLECTION ==="
         
         # Get interface list once (include ALL swp interfaces - base and breakout)
@@ -125,7 +125,7 @@ EOF
     echo "=== CARRIER TRANSITIONS ===" > "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
     
     # Single SSH session for ALL carrier transitions data
-    timeout 120 ssh $SSH_OPTS -q "$user@$device" '
+    timeout 300 ssh $SSH_OPTS -q "$user@$device" '
         # Get all swp interfaces (base + breakout)
         all_interfaces=$(nv show interface 2>/dev/null | grep "^swp[0-9]" | awk "{print \$1}")
         
@@ -170,7 +170,7 @@ EOF
     fi
     
     # BER data collection (interface error statistics) - keep separate as it's fast
-    timeout 30 ssh $SSH_OPTS -q "$user@$device" '
+    timeout 120 ssh $SSH_OPTS -q "$user@$device" '
         cat /proc/net/dev 2>/dev/null
     ' > "monitor-results/ber-data/${hostname}_interface_errors.txt" 2>/dev/null
     
@@ -251,6 +251,6 @@ SECONDS=$((DURATION % 60))
 
 echo ""
 echo "⚡ Optimized monitoring completed successfully"
-echo "⏱️  Total execution time: ${MINUTES}m ${SECONDS}s"
+echo "⏱️ Total execution time: ${MINUTES}m ${SECONDS}s"
 echo "🌐 Results available at web interface"
 exit 0
