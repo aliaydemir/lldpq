@@ -96,13 +96,10 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                 rx_power_match = re.search(r'ch-\d+-rx-power\s*:\s*[\d.]+\s*mW\s*/\s*([-\d.]+)\s*dBm', optical_data)
                 if rx_power_match:
                     rx_power_dbm = float(rx_power_match.group(1))
-                    print(f"  {port_name}: DEBUG - Found RX power {rx_power_dbm:.2f} dBm")
                     # If RX power is extremely low (< -20 dBm), this indicates no real signal/link down
                     if rx_power_dbm < -20.0:
                         print(f"  {port_name}: Skipped (link down - RX power {rx_power_dbm:.2f} dBm too low)")
                         continue
-                else:
-                    print(f"  {port_name}: DEBUG - No RX power match found in data")
                     
                 # Skip ports without optical modules
                 if ("No transceiver data available" in optical_data or
