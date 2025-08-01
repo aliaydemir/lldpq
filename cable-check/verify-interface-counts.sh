@@ -232,16 +232,19 @@ if [[ $total_devices -gt 0 ]]; then
                 flap_files=$(ls monitor-results/flap-data/*_carrier_transitions.txt 2>/dev/null | wc -l)
                 total_flap_ports=0
                 empty_files=0
-                for file in monitor-results/flap-data/*_carrier_transitions.txt 2>/dev/null; do
-                    if [[ -f "$file" ]]; then
-                        port_count=$(grep -c ":" "$file" 2>/dev/null || echo 0)
-                        if [[ $port_count -eq 0 ]]; then
-                            ((empty_files++))
-                        else
-                            total_flap_ports=$((total_flap_ports + port_count))
+                # Process flap data files safely
+                if ls monitor-results/flap-data/*_carrier_transitions.txt >/dev/null 2>&1; then
+                    for file in monitor-results/flap-data/*_carrier_transitions.txt; do
+                        if [[ -f "$file" ]]; then
+                            port_count=$(grep -c ":" "$file" 2>/dev/null || echo 0)
+                            if [[ $port_count -eq 0 ]]; then
+                                ((empty_files++))
+                            else
+                                total_flap_ports=$((total_flap_ports + port_count))
+                            fi
                         fi
-                    fi
-                done
+                    done
+                fi
                 echo "  Flap Data Details: $flap_files devices, $total_flap_ports raw ports, $empty_files empty files"
                 echo "  Missing ports likely due to: SSH timeouts, interface detection, or data collection issues"
             fi
