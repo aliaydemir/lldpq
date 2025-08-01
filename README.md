@@ -80,6 +80,12 @@ setup ssh keys to all switches:
 cd ~/cable-check && ./send-key.sh   # auto-installs deps, generates key, prompts password
 ```
 
+setup passwordless sudo on all switches:
+
+```
+cd ~/cable-check && ./sudo-fix.sh   # configures passwordless sudo for cumulus user
+```
+
 ## [09] troubleshooting
 
 ```
