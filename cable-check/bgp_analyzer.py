@@ -113,7 +113,7 @@ class BGPAnalyzer:
             if hostname in self.bgp_history:
                 self.bgp_history[hostname] = [
                     entry for entry in self.bgp_history[hostname]
-                    if current_time - entry.get('timestamp', 0) <= retention_seconds
+                    if current_time - float(entry.get('timestamp', 0)) <= retention_seconds
                 ]
                 
                 # Remove hostname if no history left
