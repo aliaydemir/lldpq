@@ -515,13 +515,15 @@ class OpticalAnalyzer:
         <tr><td>Link Margin</td><td>{self.thresholds['link_margin_min_db']} dB</td><td>-</td><td>Minimum acceptable link budget margin</td></tr>
         <tr><td>Bias Current</td><td>-</td><td>{self.thresholds['bias_current_max_ma']} mA</td><td>Maximum laser bias current</td></tr>
     </table>
-
+"""
+        
+        html_content += """
     <script>
         // Filter functionality
         let currentFilter = 'ALL';
         let allRows = [];
         
-        document.addEventListener('DOMContentLoaded', function() {{
+        document.addEventListener('DOMContentLoaded', function() {
             // Store all table rows for filtering
             allRows = Array.from(document.querySelectorAll('#optical-data tr'));
             
@@ -530,114 +532,114 @@ class OpticalAnalyzer:
             
             // Initialize table sorting
             initTableSorting();
-        }});
+        });
         
-        function setupCardEvents() {{
-            document.getElementById('total-ports-card').addEventListener('click', function() {{
-                if (parseInt(document.getElementById('total-ports').textContent) > 0) {{
+        function setupCardEvents() {
+            document.getElementById('total-ports-card').addEventListener('click', function() {
+                if (parseInt(document.getElementById('total-ports').textContent) > 0) {
                     filterPorts('TOTAL');
-                }}
-            }});
+                }
+            });
             
-            document.getElementById('excellent-card').addEventListener('click', function() {{
-                if (parseInt(document.getElementById('excellent-ports').textContent) > 0) {{
+            document.getElementById('excellent-card').addEventListener('click', function() {
+                if (parseInt(document.getElementById('excellent-ports').textContent) > 0) {
                     filterPorts('EXCELLENT');
-                }}
-            }});
+                }
+            });
             
-            document.getElementById('good-card').addEventListener('click', function() {{
-                if (parseInt(document.getElementById('good-ports').textContent) > 0) {{
+            document.getElementById('good-card').addEventListener('click', function() {
+                if (parseInt(document.getElementById('good-ports').textContent) > 0) {
                     filterPorts('GOOD');
-                }}
-            }});
+                }
+            });
             
-            document.getElementById('warning-card').addEventListener('click', function() {{
-                if (parseInt(document.getElementById('warning-ports').textContent) > 0) {{
+            document.getElementById('warning-card').addEventListener('click', function() {
+                if (parseInt(document.getElementById('warning-ports').textContent) > 0) {
                     filterPorts('WARNING');
-                }}
-            }});
+                }
+            });
             
-            document.getElementById('critical-card').addEventListener('click', function() {{
-                if (parseInt(document.getElementById('critical-ports').textContent) > 0) {{
+            document.getElementById('critical-card').addEventListener('click', function() {
+                if (parseInt(document.getElementById('critical-ports').textContent) > 0) {
                     filterPorts('CRITICAL');
-                }}
-            }});
-        }}
+                }
+            });
+        }
         
-        function filterPorts(filterType) {{
+        function filterPorts(filterType) {
             currentFilter = filterType;
             
             // Clear active state from all cards
-            document.querySelectorAll('.summary-card').forEach(card => {{
+            document.querySelectorAll('.summary-card').forEach(card => {
                 card.classList.remove('active');
-            }});
+            });
             
             let filteredRows = allRows;
             let filterText = '';
             
-            if (filterType === 'EXCELLENT') {{
+            if (filterType === 'EXCELLENT') {
                 filteredRows = allRows.filter(row => row.dataset.health === 'excellent');
-                filterText = `Showing ${{filteredRows.length}} Excellent Ports`;
+                filterText = `Showing ${filteredRows.length} Excellent Ports`;
                 document.getElementById('excellent-card').classList.add('active');
-            }} else if (filterType === 'GOOD') {{
+            } else if (filterType === 'GOOD') {
                 filteredRows = allRows.filter(row => row.dataset.health === 'good');
-                filterText = `Showing ${{filteredRows.length}} Good Ports`;
+                filterText = `Showing ${filteredRows.length} Good Ports`;
                 document.getElementById('good-card').classList.add('active');
-            }} else if (filterType === 'WARNING') {{
+            } else if (filterType === 'WARNING') {
                 filteredRows = allRows.filter(row => row.dataset.health === 'warning');
-                filterText = `Showing ${{filteredRows.length}} Warning Ports`;
+                filterText = `Showing ${filteredRows.length} Warning Ports`;
                 document.getElementById('warning-card').classList.add('active');
-            }} else if (filterType === 'CRITICAL') {{
+            } else if (filterType === 'CRITICAL') {
                 filteredRows = allRows.filter(row => row.dataset.health === 'critical');
-                filterText = `Showing ${{filteredRows.length}} Critical Ports`;
+                filterText = `Showing ${filteredRows.length} Critical Ports`;
                 document.getElementById('critical-card').classList.add('active');
-            }} else if (filterType === 'TOTAL') {{
+            } else if (filterType === 'TOTAL') {
                 filteredRows = allRows;
                 document.getElementById('total-ports-card').classList.add('active');
-            }}
+            }
             
             // Show filter info for all filters except TOTAL
-            if (filterType !== 'ALL' && filterType !== 'TOTAL') {{
+            if (filterType !== 'ALL' && filterType !== 'TOTAL') {
                 document.getElementById('filter-info').style.display = 'block';
                 document.getElementById('filter-text').textContent = filterText;
-            }} else {{
+            } else {
                 document.getElementById('filter-info').style.display = 'none';
-            }}
+            }
             
             // Hide all rows first
             allRows.forEach(row => row.style.display = 'none');
             
             // Show filtered rows
             filteredRows.forEach(row => row.style.display = '');
-        }}
+        }
         
-        function clearFilter() {{
+        function clearFilter() {
             currentFilter = 'ALL';
-            document.querySelectorAll('.summary-card').forEach(card => {{
+            document.querySelectorAll('.summary-card').forEach(card => {
                 card.classList.remove('active');
-            }});
+            });
             document.getElementById('filter-info').style.display = 'none';
             
             // Show all rows
             allRows.forEach(row => row.style.display = '');
-        }}
+        }
         
         // Generic table sorting functionality
-        let tableSortState = {{ column: -1, direction: 'asc' }};
+        let tableSortState = { column: -1, direction: 'asc' };
         
-        function initTableSorting() {{
+        function initTableSorting() {
             const headers = document.querySelectorAll('.sortable');
-            headers.forEach(header => {{
-                header.addEventListener('click', function() {{
+            headers.forEach(header => {
+                header.addEventListener('click', function() {
                     const column = parseInt(this.dataset.column);
                     const type = this.dataset.type;
                     
                     // Toggle sort direction
-                    if (tableSortState.column === column) {{
+                    if (tableSortState.column === column) {
                         tableSortState.direction = tableSortState.direction === 'asc' ? 'desc' : 'asc';
-                    }} else {{
+                    } else {
                         tableSortState.direction = 'asc';
-                    }}
+                    }
                     tableSortState.column = column;
                     
                     // Update header styling
@@ -646,16 +648,16 @@ class OpticalAnalyzer:
                     
                     // Sort table
                     sortOpticalTable(column, tableSortState.direction, type);
-                }});
-            }});
-        }}
+                });
+            });
+        }
         
-        function sortOpticalTable(columnIndex, direction, type) {{
+        function sortOpticalTable(columnIndex, direction, type) {
             const table = document.getElementById('optical-table');
             const tbody = table.querySelector('tbody');
             const rows = Array.from(tbody.rows);
             
-            rows.sort((a, b) => {{
+            rows.sort((a, b) => {
                 let aVal = a.cells[columnIndex].textContent.trim();
                 let bVal = b.cells[columnIndex].textContent.trim();
                 
@@ -663,11 +665,11 @@ class OpticalAnalyzer:
                 if (type === 'optical-health') {
                     aVal = a.cells[columnIndex].querySelector('span')?.textContent || aVal;
                     bVal = b.cells[columnIndex].querySelector('span')?.textContent || bVal;
-                }}
+                }
                 
                 let result = 0;
                 
-                switch(type) {{
+                switch(type) {
                     case 'optical-power':
                     case 'temperature':
                     case 'voltage':
@@ -682,17 +684,17 @@ class OpticalAnalyzer:
                         break;
                     case 'string':
                     default:
-                        result = aVal.localeCompare(bVal, undefined, {{ numeric: true, sensitivity: 'base' }});
+                        result = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' });
                         break;
-                }}
+                }
                 
                 return direction === 'desc' ? -result : result;
-            }});
+            });
             
             // Clear tbody and add sorted rows back
             tbody.innerHTML = '';
             rows.forEach(row => tbody.appendChild(row));
-        }}
+        }
         
         function comparePort(a, b) {{
             if (a === 'N/A') return 1;
