@@ -378,15 +378,15 @@ class OpticalAnalyzer:
         .optical-table th, .optical-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
         
         /* Column width specifications */
-        .optical-table th:nth-child(1), .optical-table td:nth-child(1) {{ width: 14%; }} /* Port */
+        .optical-table th:nth-child(1), .optical-table td:nth-child(1) {{ width: 16%; }} /* Port */
         .optical-table th:nth-child(2), .optical-table td:nth-child(2) {{ width: 8%; }}  /* Health */
-        .optical-table th:nth-child(3), .optical-table td:nth-child(3) {{ width: 10%; }} /* RX Power */
-        .optical-table th:nth-child(4), .optical-table td:nth-child(4) {{ width: 10%; }} /* TX Power */
-        .optical-table th:nth-child(5), .optical-table td:nth-child(5) {{ width: 10%; }} /* Temperature */
+        .optical-table th:nth-child(3), .optical-table td:nth-child(3) {{ width: 9%; }}  /* RX Power */
+        .optical-table th:nth-child(4), .optical-table td:nth-child(4) {{ width: 9%; }}  /* TX Power */
+        .optical-table th:nth-child(5), .optical-table td:nth-child(5) {{ width: 8%; }}  /* Temperature */
         .optical-table th:nth-child(6), .optical-table td:nth-child(6) {{ width: 10%; }} /* Link Margin */
         .optical-table th:nth-child(7), .optical-table td:nth-child(7) {{ width: 9%; }}  /* Voltage */
         .optical-table th:nth-child(8), .optical-table td:nth-child(8) {{ width: 11%; }} /* Bias Current */
-        .optical-table th:nth-child(9), .optical-table td:nth-child(9) {{ width: 18%; word-wrap: break-word; }} /* Recommended Action */
+        .optical-table th:nth-child(9), .optical-table td:nth-child(9) {{ width: 20%; word-wrap: break-word; }} /* Recommended Action */
         
         .optical-table th {{ background-color: #f2f2f2; font-weight: bold; }}
         .optical-table td {{ word-wrap: break-word; overflow-wrap: break-word; }}
@@ -479,9 +479,9 @@ class OpticalAnalyzer:
         <tr>
             <th class="sortable" data-column="0" data-type="port">Port <span class="sort-arrow">▲▼</span></th>
             <th class="sortable" data-column="1" data-type="optical-health">Health <span class="sort-arrow">▲▼</span></th>
-            <th class="sortable" data-column="2" data-type="optical-power">RX Power (dBm) <span class="sort-arrow">▲▼</span></th>
-            <th class="sortable" data-column="3" data-type="optical-power">TX Power (dBm) <span class="sort-arrow">▲▼</span></th>
-            <th class="sortable" data-column="4" data-type="temperature">Temperature (°C) <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="2" data-type="optical-power">Rx Pwr (dBm) <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="3" data-type="optical-power">Tx Pwr (dBm) <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="4" data-type="temperature">Temp(°C) <span class="sort-arrow">▲▼</span></th>
             <th class="sortable" data-column="5" data-type="optical-power">Link Margin (dB) <span class="sort-arrow">▲▼</span></th>
             <th class="sortable" data-column="6" data-type="voltage">Voltage (V) <span class="sort-arrow">▲▼</span></th>
             <th class="sortable" data-column="7" data-type="current">Bias Current (mA) <span class="sort-arrow">▲▼</span></th>
