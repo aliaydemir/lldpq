@@ -49,3 +49,12 @@ device_categories:
 default:
   layer: 9
   icon: "server"
+
+# Special conditional rules for devices with complex logic
+special_rules:
+  - pattern: "LF"
+    type: "even_odd_suffix"
+    even_layer: 8
+    odd_layer: 7
+    icon: "switch"
+    description: "LF devices: even numbers -> layer 8, odd numbers -> layer 7"

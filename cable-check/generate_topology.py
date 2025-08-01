@@ -35,23 +35,24 @@ def categorize_device(device_name, config):
     """Categorize device based on configuration"""
     lower = device_name.lower()
     
-    # Check each pattern in order
+    # Check special rules first
+    for rule in config.get("special_rules", []):
+        if rule["pattern"] in device_name:
+            if rule.get("type") == "even_odd_suffix":
+                try:
+                    device_number = int(device_name.split("-")[-1])
+                    if device_number % 2 == 0:
+                        return rule["even_layer"], rule["icon"]
+                    else:
+                        return rule["odd_layer"], rule["icon"]
+                except (ValueError, IndexError):
+                    # If parsing fails, continue to regular patterns
+                    break
+    
+    # Check each regular pattern in order
     for category in config.get("device_categories", []):
         if category["pattern"] in lower:
             return category["layer"], category["icon"]
-    
-#    # Special logic for LF devices
-#    if "LF" in device_name:
-#        try:
-#            device_number = int(device_name.split("-")[-1])
-#            if device_number % 2 == 0:
-#                layer_sort_preference = 8
-#            else:
-#                layer_sort_preference = 7
-#            return layer_sort_preference, "switch"
-#        except (ValueError, IndexError):
-#            # If parsing fails, continue to default
-#            pass
     
     # Return default if no pattern matches
     default = config.get("default", {"layer": 9, "icon": "server"})
