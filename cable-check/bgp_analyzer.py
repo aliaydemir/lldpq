@@ -478,6 +478,42 @@ class BGPAnalyzer:
         .bgp-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
         .bgp-table th, .bgp-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
         .bgp-table th {{ background-color: #f2f2f2; }}
+        
+        /* Sortable table styling */
+        .sortable {{
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 20px;
+        }}
+        
+        .sortable:hover {{
+            background-color: #f5f5f5;
+        }}
+        
+        .sort-arrow {{
+            font-size: 10px;
+            color: #999;
+            margin-left: 5px;
+            opacity: 0.5;
+        }}
+        
+        .sortable.asc .sort-arrow::before {{
+            content: '▲';
+            color: #b57614;
+            opacity: 1;
+        }}
+        
+        .sortable.desc .sort-arrow::before {{
+            content: '▼';
+            color: #b57614;
+            opacity: 1;
+        }}
+        
+        .sortable.asc .sort-arrow,
+        .sortable.desc .sort-arrow {{
+            opacity: 1;
+        }}
         .summary-grid {{ 
             display: grid; 
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
@@ -599,16 +635,36 @@ class BGPAnalyzer:
     <table class="bgp-table" id="bgp-table">
         <thead>
         <tr>
-            <th>Device</th>
-            <th>Neighbor</th>
-            <th>Interface</th>
-            <th>State</th>
-            <th>ASN</th>
-            <th>Uptime</th>
-            <th>Prefixes RX/TX</th>
-            <th>Messages RX/TX</th>
-            <th>Queue In/Out</th>
-            <th>Health</th>
+            <th class="sortable" data-column="0" data-type="string">
+                Device <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="1" data-type="string">
+                Neighbor <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="2" data-type="port">
+                Interface <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="3" data-type="bgp-state">
+                State <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="4" data-type="number">
+                ASN <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="5" data-type="uptime">
+                Uptime <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="6" data-type="ratio">
+                Prefixes RX/TX <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="7" data-type="ratio">
+                Messages RX/TX <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="8" data-type="ratio">
+                Queue In/Out <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="9" data-type="bgp-health">
+                Health <span class="sort-arrow">▲▼</span>
+            </th>
         </tr>
         </thead>
         <tbody id="bgp-data">
@@ -750,6 +806,176 @@ class BGPAnalyzer:
             // Show all rows
             allRows.forEach(row => row.style.display = '');
         }
+
+        // Generic table sorting functionality
+        let currentSort = {{ column: -1, direction: 'asc' }};
+        
+        function initTableSorting() {{
+            const headers = document.querySelectorAll('.sortable');
+            headers.forEach(header => {{
+                header.addEventListener('click', function() {{
+                    const column = parseInt(this.dataset.column);
+                    const type = this.dataset.type;
+                    
+                    // Toggle sort direction
+                    if (currentSort.column === column) {{
+                        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                    }} else {{
+                        currentSort.direction = 'asc';
+                    }}
+                    currentSort.column = column;
+                    
+                    // Update header styling
+                    headers.forEach(h => h.classList.remove('asc', 'desc'));
+                    this.classList.add(currentSort.direction);
+                    
+                    // Sort table
+                    sortBGPTable(column, currentSort.direction, type);
+                }});
+            }});
+        }}
+        
+        function sortBGPTable(columnIndex, direction, type) {{
+            const table = document.getElementById('bgp-table');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.rows);
+            
+            rows.sort((a, b) => {{
+                let aVal = a.cells[columnIndex].textContent.trim();
+                let bVal = b.cells[columnIndex].textContent.trim();
+                
+                // Extract actual text for status/health columns (remove HTML)
+                if (type === 'bgp-state' || type === 'bgp-health') {{
+                    aVal = a.cells[columnIndex].querySelector('span')?.textContent || aVal;
+                    bVal = b.cells[columnIndex].querySelector('span')?.textContent || bVal;
+                }}
+                
+                let result = 0;
+                
+                switch(type) {{
+                    case 'number':
+                        result = parseInt(aVal) - parseInt(bVal);
+                        break;
+                    case 'port':
+                        result = comparePort(aVal, bVal);
+                        break;
+                    case 'uptime':
+                        result = compareBGPUptime(aVal, bVal);
+                        break;
+                    case 'bgp-state':
+                        result = compareBGPState(aVal, bVal);
+                        break;
+                    case 'bgp-health':
+                        result = compareBGPHealth(aVal, bVal);
+                        break;
+                    case 'ratio':
+                        result = compareRatio(aVal, bVal);
+                        break;
+                    case 'string':
+                    default:
+                        result = aVal.localeCompare(bVal, undefined, {{ numeric: true, sensitivity: 'base' }});
+                        break;
+                }}
+                
+                return direction === 'desc' ? -result : result;
+            }});
+            
+            // Clear tbody and add sorted rows back
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+        }}
+        
+        function comparePort(a, b) {{
+            if (a === 'N/A') return 1;
+            if (b === 'N/A') return -1;
+            
+            // Handle port sorting (swp1, swp10, swp1s0, etc.)
+            const extractPortNumber = (port) => {{
+                const match = port.match(/swp(\\d+)(?:s(\\d+))?/);
+                if (match) {{
+                    const mainPort = parseInt(match[1]);
+                    const subPort = match[2] ? parseInt(match[2]) : 0;
+                    return mainPort * 1000 + subPort;
+                }}
+                return port.localeCompare(b, undefined, {{ numeric: true }});
+            }};
+            
+            return extractPortNumber(a) - extractPortNumber(b);
+        }}
+        
+        function compareBGPUptime(a, b) {{
+            if (a === 'never') return 1;
+            if (b === 'never') return -1;
+            
+            // Parse BGP uptime format (e.g., "1d23h", "00:30:45", etc.)
+            const parseUptime = (uptime) => {{
+                let minutes = 0;
+                
+                // Handle format like "1d23h", "2w3d", etc.
+                const weekMatch = uptime.match(/(\\d+)w/);
+                const dayMatch = uptime.match(/(\\d+)d/);
+                const hourMatch = uptime.match(/(\\d+)h/);
+                
+                if (weekMatch) minutes += parseInt(weekMatch[1]) * 7 * 24 * 60;
+                if (dayMatch) minutes += parseInt(dayMatch[1]) * 24 * 60;
+                if (hourMatch) minutes += parseInt(hourMatch[1]) * 60;
+                
+                // Handle HH:MM:SS format
+                const timeMatch = uptime.match(/(\\d+):(\\d+):(\\d+)/);
+                if (timeMatch) {{
+                    minutes += parseInt(timeMatch[1]) * 60; // hours
+                    minutes += parseInt(timeMatch[2]); // minutes
+                }}
+                
+                return minutes;
+            }};
+            
+            return parseUptime(a) - parseUptime(b);
+        }}
+        
+        function compareBGPState(a, b) {{
+            const priority = {{
+                'IDLE': 0,
+                'ACTIVE': 1,
+                'CONNECT': 2,
+                'ESTABLISHED': 3
+            }};
+            
+            return (priority[a] || 4) - (priority[b] || 4);
+        }}
+        
+        function compareBGPHealth(a, b) {{
+            const priority = {{
+                'CRITICAL': 0,
+                'WARNING': 1,
+                'GOOD': 2,
+                'EXCELLENT': 3
+            }};
+            
+            return (priority[a] || 4) - (priority[b] || 4);
+        }}
+        
+        function compareRatio(a, b) {{
+            // Parse ratio like "100/200" and compare by first number
+            const getRatioValue = (ratio) => {{
+                const parts = ratio.split('/');
+                return parseInt(parts[0]) || 0;
+            }};
+            
+            return getRatioValue(a) - getRatioValue(b);
+        }}
+
+        // Initialize sorting when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {{
+            // Store all table rows for filtering
+            allRows = Array.from(document.querySelectorAll('#bgp-data tr'));
+            
+            // Add click events to summary cards
+            setupCardEvents();
+            
+            // Initialize table sorting
+            initTableSorting();
+        }});
     </script>
 </body>
 </html>
