@@ -307,6 +307,14 @@ class LinkFlapAnalyzer:
         .transition-good {{ color: #4caf50; }}
         .transition-warning {{ color: #ff9800; }}
         .transition-critical {{ color: #f44336; }}
+        
+        /* Sortable table styling */
+        .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
+        .sortable:hover {{ background-color: #f5f5f5; }}
+        .sort-arrow {{ font-size: 10px; color: #999; margin-left: 5px; opacity: 0.5; }}
+        .sortable.asc .sort-arrow::before {{ content: '▲'; color: #b57614; opacity: 1; }}
+        .sortable.desc .sort-arrow::before {{ content: '▼'; color: #b57614; opacity: 1; }}
+        .sortable.asc .sort-arrow, .sortable.desc .sort-arrow {{ opacity: 1; }}
     </style>
 </head>
 <body>
@@ -380,16 +388,16 @@ class LinkFlapAnalyzer:
     <table class="flap-table" id="flap-table">
         <thead>
         <tr>
-            <th>Device</th>
-            <th>Interface</th>
-            <th>Status</th>
-            <th>30s Flaps</th>
-            <th>1m Flaps</th>
-            <th>5m Flaps</th>
-            <th>1h Flaps</th>
-            <th>12h Flaps</th>
-            <th>24h Flaps</th>
-            <th>Total Transitions</th>
+            <th class="sortable" data-column="0" data-type="string">Device <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="1" data-type="port">Interface <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="2" data-type="flap-status">Status <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="3" data-type="number">30s Flaps <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="4" data-type="number">1m Flaps <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="5" data-type="number">5m Flaps <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="6" data-type="number">1h Flaps <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="7" data-type="number">12h Flaps <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="8" data-type="number">24h Flaps <span class="sort-arrow">▲▼</span></th>
+            <th class="sortable" data-column="9" data-type="number">Total Transitions <span class="sort-arrow">▲▼</span></th>
         </tr>
         </thead>
         <tbody id="flap-data">
@@ -451,6 +459,9 @@ class LinkFlapAnalyzer:
             
             // Add click events to summary cards
             setupCardEvents();
+            
+            // Initialize table sorting
+            initTableSorting();
         });
         
         function setupCardEvents() {
@@ -541,6 +552,103 @@ class LinkFlapAnalyzer:
             
             // Show all rows
             allRows.forEach(row => row.style.display = '');
+        }
+        
+        // Generic table sorting functionality
+        let tableSortState = { column: -1, direction: 'asc' };
+        
+        function initTableSorting() {
+            const headers = document.querySelectorAll('.sortable');
+            headers.forEach(header => {
+                header.addEventListener('click', function() {
+                    const column = parseInt(this.dataset.column);
+                    const type = this.dataset.type;
+                    
+                    // Toggle sort direction
+                    if (tableSortState.column === column) {
+                        tableSortState.direction = tableSortState.direction === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        tableSortState.direction = 'asc';
+                    }
+                    tableSortState.column = column;
+                    
+                    // Update header styling
+                    headers.forEach(h => h.classList.remove('asc', 'desc'));
+                    this.classList.add(tableSortState.direction);
+                    
+                    // Sort table
+                    sortFlapTable(column, tableSortState.direction, type);
+                });
+            });
+        }
+        
+        function sortFlapTable(columnIndex, direction, type) {
+            const table = document.getElementById('flap-table');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.rows);
+            
+            rows.sort((a, b) => {
+                let aVal = a.cells[columnIndex].textContent.trim();
+                let bVal = b.cells[columnIndex].textContent.trim();
+                
+                // Extract actual text for status columns (remove HTML)
+                if (type === 'flap-status') {
+                    aVal = a.cells[columnIndex].querySelector('span')?.textContent || aVal;
+                    bVal = b.cells[columnIndex].querySelector('span')?.textContent || bVal;
+                }
+                
+                let result = 0;
+                
+                switch(type) {
+                    case 'number':
+                        result = parseInt(aVal) - parseInt(bVal);
+                        break;
+                    case 'port':
+                        result = comparePort(aVal, bVal);
+                        break;
+                    case 'flap-status':
+                        result = compareFlapStatus(aVal, bVal);
+                        break;
+                    case 'string':
+                    default:
+                        result = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' });
+                        break;
+                }
+                
+                return direction === 'desc' ? -result : result;
+            });
+            
+            // Clear tbody and add sorted rows back
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+        }
+        
+        function comparePort(a, b) {
+            if (a === 'N/A') return 1;
+            if (b === 'N/A') return -1;
+            
+            // Handle port sorting (swp1, swp10, swp1s0, etc.)
+            const extractPortNumber = (port) => {
+                const match = port.match(/swp(\\d+)(?:s(\\d+))?/);
+                if (match) {
+                    const mainPort = parseInt(match[1]);
+                    const subPort = match[2] ? parseInt(match[2]) : 0;
+                    return mainPort * 1000 + subPort;
+                }
+                return port.localeCompare(b, undefined, { numeric: true });
+            };
+            
+            return extractPortNumber(a) - extractPortNumber(b);
+        }
+        
+        function compareFlapStatus(a, b) {
+            const priority = {
+                'FLAPPING': 0,
+                'FLAPPED': 1,
+                'OK': 2
+            };
+            
+            return (priority[a] || 3) - (priority[b] || 3);
         }
     </script>
 </body>
