@@ -40,6 +40,19 @@ def categorize_device(device_name, config):
         if category["pattern"] in lower:
             return category["layer"], category["icon"]
     
+#    # Special logic for LF devices
+#    if "LF" in device_name:
+#        try:
+#            device_number = int(device_name.split("-")[-1])
+#            if device_number % 2 == 0:
+#                layer_sort_preference = 8
+#            else:
+#                layer_sort_preference = 7
+#            return layer_sort_preference, "switch"
+#        except (ValueError, IndexError):
+#            # If parsing fails, continue to default
+#            pass
+    
     # Return default if no pattern matches
     default = config.get("default", {"layer": 9, "icon": "server"})
     return default["layer"], default["icon"]
