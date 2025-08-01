@@ -87,8 +87,8 @@ EOF
     timeout 300 ssh $SSH_OPTS -q "$user@$device" '
         echo "=== OPTIMIZED INTERFACE DATA COLLECTION ==="
         
-        # Get interface list once (exclude breakout sub-interfaces)
-        all_interfaces=$(nv show interface 2>/dev/null | grep -E "^swp[0-9]+[^s]|^swp[0-9]+$" | awk "{print \$1}" || ls /sys/class/net/swp[0-9]* 2>/dev/null | grep -v "s[0-9]" | xargs -n1 basename)
+        # Get interface list once (include ALL swp interfaces - base and breakout)
+        all_interfaces=$(nv show interface 2>/dev/null | grep "^swp[0-9]" | awk "{print \$1}" || ls /sys/class/net/swp[0-9]* 2>/dev/null | xargs -n1 basename)
         
         # Collect ALL interface data in single loop
         for interface in $all_interfaces; do
@@ -123,9 +123,9 @@ EOF
     
     # Extract individual data files from combined data
     if [ -f "monitor-results/${hostname}_combined_interface_data.txt" ]; then
-        # Extract carrier transitions (base interfaces only - no breakouts)
+        # Extract carrier transitions (ALL swp interfaces - base and breakout)
         echo "=== CARRIER TRANSITIONS ===" > "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
-        grep -A1 "CARRIER_TRANSITIONS:" "monitor-results/${hostname}_combined_interface_data.txt" | grep -E "swp[0-9]+:" | grep -vE "swp[0-9]+s[0-9]+:" >> "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
+        grep -A1 "CARRIER_TRANSITIONS:" "monitor-results/${hostname}_combined_interface_data.txt" | grep -E "swp[0-9]+:" >> "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
         
         # Extract optical data with interface names
         echo "=== OPTICAL DIAGNOSTICS ===" > "monitor-results/optical-data/${hostname}_optical.txt"
@@ -141,9 +141,9 @@ EOF
         flag && interface != "" { print }
         ' "monitor-results/${hostname}_combined_interface_data.txt" >> "monitor-results/optical-data/${hostname}_optical.txt"
         
-        # Extract BER detailed counters (base interfaces only - no breakouts)
+        # Extract BER detailed counters (ALL swp interfaces - base and breakout)
         echo "=== DETAILED INTERFACE COUNTERS ===" > "monitor-results/ber-data/${hostname}_detailed_counters.txt"
-        awk '/=== INTERFACE: /{interface=$3} /BER_COUNTERS:/ && interface !~ /s[0-9]+$/ {print "Interface: " interface; getline; print}' "monitor-results/${hostname}_combined_interface_data.txt" >> "monitor-results/ber-data/${hostname}_detailed_counters.txt"
+        awk '/=== INTERFACE: /{interface=$3} /BER_COUNTERS:/ {print "Interface: " interface; getline; print}' "monitor-results/${hostname}_combined_interface_data.txt" >> "monitor-results/ber-data/${hostname}_detailed_counters.txt"
         
         # Clean up combined file
         rm -f "monitor-results/${hostname}_combined_interface_data.txt"
