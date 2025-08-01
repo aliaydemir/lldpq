@@ -573,16 +573,16 @@ class BERAnalyzer:
             </tbody>
         </table>
         
-        <div style="margin-top: 30px; padding: 15px; background-color: #f8f9fa; border-radius: 4px;">
-            <h3>📊 BER Analysis Information</h3>
-            <ul>
-                <li><strong>Excellent:</strong> Zero bit errors detected</li>
-                <li><strong>Good:</strong> BER &lt; 1×10⁻⁶ (industry standard)</li>
-                <li><strong>Warning:</strong> BER between 1×10⁻⁶ and 1×10⁻⁵</li>
-                <li><strong>Critical:</strong> BER &gt; 1×10⁻⁵ (requires immediate attention)</li>
-                <li><strong>Analysis:</strong> Based on interface error statistics and packet counters</li>
-            </ul>
-        </div>
+    
+    <h2>BER Analysis Thresholds</h2>
+    <table class="ber-table">
+        <tr><th>Parameter</th><th>Threshold</th><th>Description</th></tr>
+        <tr><td>Excellent</td><td>Zero errors</td><td>Zero bit errors detected</td></tr>
+        <tr><td>Good</td><td>&lt; 1×10⁻⁶</td><td>Industry standard acceptable BER level</td></tr>
+        <tr><td>Warning</td><td>1×10⁻⁶ to 1×10⁻⁵</td><td>Elevated error rate requiring monitoring</td></tr>
+        <tr><td>Critical</td><td>&gt; 1×10⁻⁵</td><td>Unacceptable error rate, immediate attention required</td></tr>
+        <tr><td>Analysis Method</td><td>Interface statistics</td><td>Based on error counters and packet statistics</td></tr>
+    </table>
 
 """
         
