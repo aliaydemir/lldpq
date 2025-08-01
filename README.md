@@ -19,7 +19,15 @@ cd lldpq
 - shows network topology with lldp
 - web dashboard with real-time stats
 
-## [02] configuration files
+## [02] analysis coverage
+
+- **bgp neighbors**            # state, uptime, prefix counts, health status 
+- **optical diagnostics**      # power levels, temperature, bias current, link margins  
+- **link flap detection**      # carrier transitions on all interfaces (including breakouts)
+- **bit error rate**           # comprehensive error statistics with industry thresholds
+- **topology validation**      # lldp neighbor verification against expected topology
+
+## [03] configuration files
 
 edit these 6 files:
 
@@ -32,22 +40,13 @@ cable-check/hosts.ini               # optional: extra hostnames for topology
 /etc/ip_list                        # optional: paralel ping to all devices [pping]
 ```
 
-## [03] cron jobs (auto setup)
+## [04] cron jobs (auto setup)
 
 ```
 */30 * * * * lldpq         # topology every 30min (0,30)
 15,45 * * * * monitor      # performance monitor every 30min (15,45)  
 0 */12 * * * get-conf      # configs every 12 hours
 ```
-
-## [04] web pages  
-
-- `http://server/` - main dashboard
-- `http://server/lldp.html` - topology problems
-- `http://server/monitor-results/bgp-analysis.html` - bgp neighbors
-- `http://server/monitor-results/optical-analysis.html` - sfp health
-- `http://server/monitor-results/ber-analysis.html` - bit errors
-- `http://server/monitor-results/link-flap-analysis.html` - unstable links
 
 ## [05] update
 
