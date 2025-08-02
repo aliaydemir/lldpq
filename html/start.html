@@ -447,18 +447,26 @@
                 let summaryData = {};
                 
                 if (dataType === 'assets') {
-                    // Parse assets.ini directly (space/tab delimited, no STATUS column)
-                    const response = await fetch('assets.ini');
+                    // Parse assets.html to get real device status counts
+                    const response = await fetch('assets.html');
                     const text = await response.text();
-                    const lines = text.split('\n').filter(line => line.trim() && !line.startsWith('DEVICE-NAME'));
                     
-                    // Parse assets.ini file
+                    // Parse HTML to extract summary data
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(text, 'text/html');
                     
-                    summaryData.totalDevices = lines.length;
-                    summaryData.successful = lines.length; // All devices are successful since they're in the file
-                    summaryData.failed = 0;
-                    summaryData.warning = 0;
-                    summaryData.noInfo = 0;
+                    // Get summary counts from the assets.html summary cards
+                    const totalElement = doc.getElementById('total-devices');
+                    const successElement = doc.getElementById('success-count');
+                    const failElement = doc.getElementById('fail-count');
+                    const warningElement = doc.getElementById('warning-count');
+                    const noInfoElement = doc.getElementById('no-info-count');
+                    
+                    summaryData.totalDevices = totalElement ? parseInt(totalElement.textContent) || 0 : 0;
+                    summaryData.successful = successElement ? parseInt(successElement.textContent) || 0 : 0;
+                    summaryData.failed = failElement ? parseInt(failElement.textContent) || 0 : 0;
+                    summaryData.warning = warningElement ? parseInt(warningElement.textContent) || 0 : 0;
+                    summaryData.noInfo = noInfoElement ? parseInt(noInfoElement.textContent) || 0 : 0;
                     
                 } else if (dataType === 'lldp') {
                     // Parse lldp_results.ini directly (structured text format)
