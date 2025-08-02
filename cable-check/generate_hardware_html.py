@@ -200,20 +200,45 @@ def calculate_device_health_grade(device_name, device_data):
 def generate_hardware_html():
     """Generate hardware analysis HTML using existing data"""
     
-    # Read existing hardware history
+    # Read existing hardware history (create empty if doesn't exist)
+    hardware_history = {}
     try:
         with open("monitor-results/hardware_history.json", "r") as f:
             data = json.load(f)
             hardware_history = data.get("hardware_history", {})
-    except:
-        print("❌ Could not read hardware_history.json")
-        return
+        print("📊 Loaded existing hardware history data")
+    except FileNotFoundError:
+        print("📝 No hardware_history.json found - creating initial report with current data")
+        hardware_history = {}
+    except Exception as e:
+        print(f"⚠️  Warning: Could not read hardware_history.json: {e}")
+        print("📝 Proceeding with empty history data")
+        hardware_history = {}
     
     # Get latest data for each device
     latest_devices = {}
     for device_name, history in hardware_history.items():
         if history:  # If device has history entries
             latest_devices[device_name] = history[-1]  # Get the most recent entry
+    
+    # If no historical data, create basic entries from current hardware files
+    if not latest_devices:
+        print("📂 No historical data - analyzing current hardware files directly")
+        hardware_data_dir = "monitor-results/hardware-data"
+        if os.path.exists(hardware_data_dir):
+            for filename in os.listdir(hardware_data_dir):
+                if filename.endswith('_hardware.txt'):
+                    device_name = filename.replace('_hardware.txt', '')
+                    # Create basic device entry with minimal data for initial run
+                    latest_devices[device_name] = {
+                        'device': device_name,
+                        'timestamp': datetime.now().isoformat(),
+                        'fans': {},  # Will be filled if needed
+                        'memory_usage': 'N/A',
+                        'cpu_load': 'N/A',
+                        'uptime': 'N/A'
+                    }
+            print(f"📊 Created basic entries for {len(latest_devices)} devices")
     
     # Calculate summary
     summary = {
