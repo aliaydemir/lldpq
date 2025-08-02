@@ -259,8 +259,6 @@ EOF
                 # Highlight numbers  
                 s/\b\([0-9]\+\)\b/<span class="number">\1<\/span>/g;
             }
-            
-
         ' >> monitor-results/${hostname}.html
         
         echo "</div>" >> monitor-results/${hostname}.html
