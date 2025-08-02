@@ -447,26 +447,36 @@
                 let summaryData = {};
                 
                 if (dataType === 'assets') {
-                    // Parse assets.html to get real device status counts
-                    const response = await fetch('assets.html');
-                    const text = await response.text();
+                    // Parse assets.ini file to get device list
+                    const assetsResponse = await fetch('assets.ini');
+                    const assetsText = await assetsResponse.text();
+                    const assetsLines = assetsText.split('\n').filter(line => line.trim() && !line.startsWith('DEVICE-NAME'));
                     
-                    // Parse HTML to extract summary data
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(text, 'text/html');
+                    summaryData.totalDevices = assetsLines.length;
+                    summaryData.successful = 0;
+                    summaryData.failed = 0;
+                    summaryData.warning = 0;
+                    summaryData.noInfo = 0;
                     
-                    // Get summary counts from the assets.html summary cards
-                    const totalElement = doc.getElementById('total-devices');
-                    const successElement = doc.getElementById('success-count');
-                    const failElement = doc.getElementById('fail-count');
-                    const warningElement = doc.getElementById('warning-count');
-                    const noInfoElement = doc.getElementById('no-info-count');
-                    
-                    summaryData.totalDevices = totalElement ? parseInt(totalElement.textContent) || 0 : 0;
-                    summaryData.successful = successElement ? parseInt(successElement.textContent) || 0 : 0;
-                    summaryData.failed = failElement ? parseInt(failElement.textContent) || 0 : 0;
-                    summaryData.warning = warningElement ? parseInt(warningElement.textContent) || 0 : 0;
-                    summaryData.noInfo = noInfoElement ? parseInt(noInfoElement.textContent) || 0 : 0;
+                    // Check each device for monitoring data to determine success/failure
+                    for (const line of assetsLines) {
+                        const parts = line.trim().split(/\s+/);
+                        const deviceName = parts[0];
+                        
+                        if (deviceName) {
+                            try {
+                                // Try to fetch device-specific monitoring page
+                                const deviceResponse = await fetch(`monitor-results/${deviceName}.html`, { method: 'HEAD' });
+                                if (deviceResponse.ok) {
+                                    summaryData.successful++;
+                                } else {
+                                    summaryData.failed++;
+                                }
+                            } catch (error) {
+                                summaryData.failed++;
+                            }
+                        }
+                    }
                     
                 } else if (dataType === 'lldp') {
                     // Parse lldp_results.ini directly (structured text format)
