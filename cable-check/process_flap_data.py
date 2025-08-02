@@ -68,26 +68,7 @@ def process_carrier_transition_files(data_dir="monitor-results/flap-data"):
                 continue
     
     if processed_devices == 0:
-        print("No carrier transition files found. Creating sample data for testing...")
-        # Create sample data for testing
-        sample_data_dir = "monitor-results/flap-data"
-        os.makedirs(sample_data_dir, exist_ok=True)
-        
-        # Create a sample file for testing
-        sample_file = os.path.join(sample_data_dir, "test_device_carrier_transitions.txt")
-        with open(sample_file, "w") as f:
-            f.write("=== CARRIER TRANSITIONS ===\n")
-            f.write("swp1:5\n")
-            f.write("swp2:12\n")
-            f.write("swp3:0\n")
-            f.write("swp48:22\n")
-        
-        # Process the sample file
-        flap_analyzer.update_carrier_transitions("test_device:swp1", 5)
-        flap_analyzer.update_carrier_transitions("test_device:swp2", 12) 
-        flap_analyzer.update_carrier_transitions("test_device:swp3", 0)
-        flap_analyzer.update_carrier_transitions("test_device:swp48", 22)
-        print("Created sample carrier transition data for testing")
+        print("No carrier transition files found. Flap monitoring data will be generated when monitor.sh runs.")
     
     # Check for flapping
     if flap_analyzer.check_flapping():
