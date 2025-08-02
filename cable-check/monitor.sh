@@ -48,16 +48,21 @@ execute_commands_optimized() {
     <title>Monitor Results - ${hostname}</title>
     <link rel="stylesheet" type="text/css" href="/css/styles2.css">
     <style>
-        /* Syntax highlighting for config content */
-        .config-container {
-            background-color: #1e1e1e;
-            border: 1px solid #444;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 10px 0;
+        /* Exact styling from dev-conf.html */
+        .config-content {
+            background: #1a1a1a;
+            border: 1px solid #43453B;
+            border-radius: 12px;
+            margin: 30px 0;
+            padding: 25px;
+            min-height: 400px;
+            font-family: 'Fira Code', 'Courier New', Courier, monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             overflow-x: auto;
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            line-height: 1.4;
         }
         
         .config-line {
@@ -226,16 +231,32 @@ EOF
     # Check if nv-set config exists and add it with syntax highlighting
     if [ -f "/var/www/html/configs/${hostname}.txt" ]; then
         echo "<h2><font color='steelblue'>NV Set Commands</font></h2>" >> monitor-results/${hostname}.html
-        echo "<div class='config-container' id='config-content'>" >> monitor-results/${hostname}.html
+        echo "<div class='config-content' id='config-content'>" >> monitor-results/${hostname}.html
         
-        # Apply syntax highlighting using sed
+        # Apply enhanced syntax highlighting using multiple sed passes
         cat "/var/www/html/configs/${hostname}.txt" | sed '
+            # Escape HTML characters first
             s/</\&lt;/g; s/>/\&gt;/g;
+            
+            # Handle full-line comments first
             s/^#.*/<span class="comment">&<\/span>/;
-            s/\bnv set\b/<span class="keyword">nv set<\/span>/g;
-            s/\b\(swp[0-9]\+\|bond[0-9]\+\|vlan[0-9]\+\|eth[0-9]\+\|lo[0-9]*\|br[0-9]\+\)\b/<span class="interface">\1<\/span>/g;
-            s/\b\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\b/<span class="ip-number">\1<\/span>.<span class="ip-number">\2<\/span>.<span class="ip-number">\3<\/span>.<span class="ip-number">\4<\/span>/g;
+            
+            # Handle description lines specially (description keyword + comment content)
+            s/\(.*\)\(description\s\+\)\(.*\)$/\1<span class="keyword">\2<\/span><span class="comment">\3<\/span>/;
+            
+            # Highlight nv set commands
+            s/^\(\s*\)\(nv\s\+set\)\b/\1<span class="keyword">\2<\/span>/;
+            
+            # Highlight interface names (more comprehensive)
+            s/\b\(swp[0-9]\+\(-[0-9]\+\)*\|bond[0-9_a-zA-Z-]\+\|vlan[0-9]\+\|eth[0-9]\+\|lo[0-9]*\|br[0-9]\+\|peerlink\)\b/<span class="interface">\1<\/span>/g;
+            
+            # Highlight IP addresses with CIDR
+            s/\b\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\(\/[0-9]\{1,2\}\)\?/<span class="ip-number">\1<\/span>.<span class="ip-number">\2<\/span>.<span class="ip-number">\3<\/span>.<span class="ip-number">\4<\/span><span class="ip-number">\5<\/span>/g;
+            
+            # Highlight standalone numbers (avoid IP parts)
             s/\b\([0-9]\+\)\b/<span class="number">\1<\/span>/g;
+            
+            # Wrap each line with default styling
             s/^\(.*\)$/<span class="config-line default">\1<\/span>/
         ' >> monitor-results/${hostname}.html
         
