@@ -187,6 +187,22 @@ EOF
         uptime 2>/dev/null || echo "No uptime info available"
     ' > "monitor-results/hardware-data/${hostname}_hardware.txt" 2>/dev/null
     
+    # Add Device Configuration section to HTML
+    cat >> monitor-results/${hostname}.html << EOF
+
+<h1></h1><h1><font color="#b57614">Device Configuration - ${hostname}</font></h1><h3></h3>
+EOF
+
+    # Check if nv-set config exists and add it
+    if [ -f "/var/www/html/configs/${hostname}.txt" ]; then
+        echo "<h2><font color='steelblue'>NV Set Commands</font></h2>" >> monitor-results/${hostname}.html
+        echo "<pre style='background-color: #f5f5f5; padding: 10px; border-left: 4px solid #b57614; margin: 10px 0;'>" >> monitor-results/${hostname}.html
+        cat "/var/www/html/configs/${hostname}.txt" | sed 's/</\&lt;/g; s/>/\&gt;/g' >> monitor-results/${hostname}.html
+        echo "</pre>" >> monitor-results/${hostname}.html
+    else
+        echo "<p><span style='color: orange;'>⚠️  NV Set configuration not available for ${hostname}</span></p>" >> monitor-results/${hostname}.html
+    fi
+    
     # Close HTML
     cat >> monitor-results/${hostname}.html << EOF
     </pre>
