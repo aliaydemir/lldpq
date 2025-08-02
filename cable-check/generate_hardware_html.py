@@ -65,14 +65,42 @@ def parse_psu_efficiency_from_hardware_file(device_name):
         total_input_power = 0.0
         total_output_power = 0.0
         
-        # Parse input power: "PMIC-X ... (in):  12.00 W"
-        input_matches = re.findall(r'PMIC-\d+.*\(in\):\s*(\d+\.?\d*)\s*W', content)
-        for power_str in input_matches:
+        # Parse input power: Multiple formats
+        # Format 1: "PMIC-X ... (in): 12.00 W"
+        input_matches_w = re.findall(r'PMIC-\d+.*\(in\):\s*(\d+\.?\d*)\s*W', content)
+        input_matches_mw = re.findall(r'PMIC-\d+.*\(in\):\s*(\d+\.?\d*)\s*mW', content)
+        # Format 2: "PSU-X ... Pwr(in): 52.25 W"
+        psu_input_matches_w = re.findall(r'PSU-\d+.*Pwr\(in\):\s*(\d+\.?\d*)\s*W', content)
+        # Format 3: "VR IC ... pwr(in): 25.00 W"
+        vr_input_matches_w = re.findall(r'VR IC.*pwr\(in\):\s*(\d+\.?\d*)\s*W', content)
+        
+        # Sum all input power sources
+        for power_str in input_matches_w:
+            total_input_power += float(power_str)
+        for power_str in input_matches_mw:
+            total_input_power += float(power_str) / 1000.0  # Convert mW to W
+        for power_str in psu_input_matches_w:
+            total_input_power += float(power_str)
+        for power_str in vr_input_matches_w:
             total_input_power += float(power_str)
         
-        # Parse output power: "PMIC-X ... Pwr (out):  5.00 W"
-        output_matches = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*W', content)
-        for power_str in output_matches:
+        # Parse output power: Multiple formats
+        # Format 1: "PMIC-X ... Pwr (out1): 5.00 W"
+        output_matches_w = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*W', content)
+        output_matches_mw = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*mW', content)
+        # Format 2: "PSU-X ... Pwr(out): 45.88 W"
+        psu_output_matches_w = re.findall(r'PSU-\d+.*Pwr\(out\):\s*(\d+\.?\d*)\s*W', content)
+        # Format 3: "... Rail Pwr(out): 21.00 W"
+        rail_output_matches_w = re.findall(r'.*Rail Pwr\(out\):\s*(\d+\.?\d*)\s*W', content)
+        
+        # Sum all output power sources
+        for power_str in output_matches_w:
+            total_output_power += float(power_str)
+        for power_str in output_matches_mw:
+            total_output_power += float(power_str) / 1000.0  # Convert mW to W
+        for power_str in psu_output_matches_w:
+            total_output_power += float(power_str)
+        for power_str in rail_output_matches_w:
             total_output_power += float(power_str)
         
         # Calculate efficiency if we have both input and output
