@@ -3,7 +3,7 @@ set -euo pipefail
 
 #### CONFIGURATION
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-source "$SCRIPT_DIR/devices.sh"
+eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 
 TMPFILE="$SCRIPT_DIR/assets.tmp"
 UNREACH="$SCRIPT_DIR/unreachable.tmp"

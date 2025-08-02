@@ -32,7 +32,7 @@ cd lldpq
 edit these 6 files:
 
 ```
-cable-check/devices.sh              # add your switches (ip + username + hostname)
+cable-check/devices.yaml            # add your switches (ip + username + hostname)
 cable-check/topology.dot            # expected cable connections
 cable-check/topology_config.yaml    # optional: customize device layers/icons at topology
 cable-check/hosts.ini               # optional: extra hostnames for topology  
@@ -43,7 +43,7 @@ cable-check/hosts.ini               # optional: extra hostnames for topology
 ## [04] cron jobs (auto setup)
 
 ```
-*/30 * * * * lldpq         # topology every 30min (0,30)
+*/10 * * * * lldpq         # topology every 10min
 15,45 * * * * monitor      # performance monitor every 30min (15,45)  
 0 */12 * * * get-conf      # configs every 12 hours
 ```
@@ -58,7 +58,7 @@ git pull                    # get latest code
 ./update.sh                 # keeps your configs, updates everything else
 ```
 
-your devices.sh, hosts.ini, topology.dot topology_config.yaml files stay untouched.
+your devices.yaml, hosts.ini, topology.dot topology_config.yaml files stay untouched.
 
 ## [06] requirements
 

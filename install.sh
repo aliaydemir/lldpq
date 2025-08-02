@@ -50,7 +50,7 @@ echo "   You need to manually edit these files with your network details:"
 echo ""
 echo "   1. sudo nano /etc/ip_list           # Add your device IP addresses"
 echo "   2. sudo nano /etc/nccm.yml          # Configure SSH connection details"
-echo "   3. nano ~/cable-check/devices.sh    # Define your network devices"
+echo "   3. nano ~/cable-check/devices.yaml  # Define your network devices"
 echo "   4. nano ~/cable-check/topology.dot  # Define your network topology"
 echo ""
 echo "   See README.md for examples of each file format"
@@ -66,11 +66,11 @@ echo "[05] Adding cron jobs..."
 sudo sed -i '/lldpq\|monitor\|get-conf/d' /etc/crontab
 
 # Add new cron jobs
-echo "*/30 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab
+echo "*/10 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab
 echo "15,45 * * * * $(whoami) /usr/local/bin/monitor" | sudo tee -a /etc/crontab  
 echo "0 */12 * * * $(whoami) /usr/local/bin/get-conf" | sudo tee -a /etc/crontab
 echo "Cron jobs added:"
-echo "   - lldpq:    every 30 minutes (0,30)"
+echo "   - lldpq:    every 10 minutes"
 echo "   - monitor:  every 30 minutes (15,45)"  
 echo "   - get-conf: every 12 hours"
 

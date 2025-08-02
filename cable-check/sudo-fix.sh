@@ -17,7 +17,7 @@ show_usage() {
     echo ""
     echo "DESCRIPTION:"
     echo "  This tool configures passwordless sudo for the specified user"
-    echo "  on all devices listed in devices.sh"
+    echo "  on all devices listed in devices.yaml"
     echo ""
 }
 
@@ -55,16 +55,16 @@ done
 
 # Load devices
 SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
-if [[ ! -f "$SCRIPT_DIR/devices.sh" ]]; then
-    echo "ERROR: devices.sh not found in $SCRIPT_DIR"
+if [[ ! -f "$SCRIPT_DIR/devices.yaml" ]]; then
+    echo "ERROR: devices.yaml not found in $SCRIPT_DIR"
     exit 1
 fi
 
-source "$SCRIPT_DIR/devices.sh"
+eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 
 # Check if devices are available
 if [[ ${#devices[@]} -eq 0 ]]; then
-    echo "ERROR: No devices found in devices.sh"
+    echo "ERROR: No devices found in devices.yaml"
     exit 1
 fi
 

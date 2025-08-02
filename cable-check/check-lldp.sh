@@ -2,7 +2,7 @@
 DATE=$(date '+%Y-%m-%d--%H-%M')
 
 SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
-source "$SCRIPT_DIR/devices.sh"
+eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 
 unreachable_hosts_file=$(mktemp)
 

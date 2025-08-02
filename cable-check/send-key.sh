@@ -5,7 +5,7 @@
 # =============================================================================
 #
 # PURPOSE:
-#   Distributes SSH public keys to all devices defined in devices.sh
+#   Distributes SSH public keys to all devices defined in devices.yaml
 #   Uses sshpass for initial password authentication, then enables passwordless SSH
 #
 # USAGE:
@@ -16,12 +16,12 @@
 #   - SSH public key (auto-generated if missing)
 #   - sshpass package (auto-installed if missing)  
 #   - Initial password access to all target devices
-#   - devices.sh configured with all target devices
+#   - devices.yaml configured with all target devices
 #
 # =============================================================================
 
 SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
-source "$SCRIPT_DIR/devices.sh"
+eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 
 # Default values
 SSH_KEY="$HOME/.ssh/id_rsa.pub"
@@ -45,7 +45,7 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [-p password]"
             echo "  -p, --password    SSH password for initial authentication"
             echo ""
-            echo "Distributes SSH keys to all devices defined in devices.sh"
+            echo "Distributes SSH keys to all devices defined in devices.yaml"
             exit 0
             ;;
         *)
@@ -86,7 +86,7 @@ check_dependencies() {
 # Get password if not provided
 get_password() {
     if [ -z "$PASSWORD" ]; then
-        echo -e "${YELLOW}This script will distribute SSH keys to all devices in devices.sh${NC}"
+        echo -e "${YELLOW}This script will distribute SSH keys to all devices in devices.yaml${NC}"
         echo -e "${YELLOW}Enter SSH password (will be used for all switches):${NC}"
         read -s PASSWORD
         echo ""

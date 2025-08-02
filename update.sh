@@ -58,9 +58,9 @@ cp -r cable-check/* "$temp_dir/"
 if [[ -d "$HOME/cable-check" ]]; then
     echo "   - Preserving configuration files:"
     
-    if [[ -f "$HOME/cable-check/devices.sh" ]]; then
-        echo "     • devices.sh"
-        cp "$HOME/cable-check/devices.sh" "$temp_dir/"
+    if [[ -f "$HOME/cable-check/devices.yaml" ]]; then
+        echo "     • devices.yaml"
+        cp "$HOME/cable-check/devices.yaml" "$temp_dir/"
     fi
     
     if [[ -f "$HOME/cable-check/hosts.ini" ]]; then
@@ -96,7 +96,7 @@ echo "[05] Configuration files preserved:"
 echo "   The following files were NOT updated (your settings preserved):"
 echo "   - /etc/ip_list"
 echo "   - /etc/nccm.yml"
-echo "   - ~/cable-check/devices.sh"
+echo "   - ~/cable-check/devices.yaml"
 echo "   - ~/cable-check/hosts.ini"
 echo "   - ~/cable-check/topology.dot"
 echo "   - ~/cable-check/topology_config.yaml"
