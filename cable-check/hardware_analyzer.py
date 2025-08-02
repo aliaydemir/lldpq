@@ -730,6 +730,17 @@ class HardwareAnalyzer:
         
         print(f"📄 Hardware analysis report generated: {output_file}")
         return total_devices
+    
+    def generate_html_report(self, output_file: str):
+        """Compatibility method - same as export_hardware_data_for_web"""
+        return self.export_hardware_data_for_web(output_file)
+    
+    def update_device_hardware(self, device_name: str, sensors_output: str = "", 
+                              memory_info: str = "", cpu_info: str = "", uptime_info: str = ""):
+        """Compatibility method for processing device hardware data"""
+        # This is a simplified version for compatibility
+        self.process_device_hardware(device_name, f"{sensors_output}\n{memory_info}\n{cpu_info}\n{uptime_info}")
+        return self.current_hardware_stats.get(device_name, {})
 
 # For compatibility
 def analyze_hardware_health(data_dir="monitor-results"):
