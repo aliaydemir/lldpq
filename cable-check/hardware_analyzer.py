@@ -579,14 +579,14 @@ class HardwareAnalyzer:
         .hardware-table th {{ background-color: #f2f2f2; font-weight: bold; }}
         
         /* Column width specifications */
-        .hardware-table th:nth-child(1), .hardware-table td:nth-child(1) {{ width: 20%; }} /* Device */
+        .hardware-table th:nth-child(1), .hardware-table td:nth-child(1) {{ width: 15%; }} /* Device */
         .hardware-table th:nth-child(2), .hardware-table td:nth-child(2) {{ width: 12%; }} /* Health */
         .hardware-table th:nth-child(3), .hardware-table td:nth-child(3) {{ width: 12%; }} /* CPU Temp */
         .hardware-table th:nth-child(4), .hardware-table td:nth-child(4) {{ width: 12%; }} /* ASIC Temp */
         .hardware-table th:nth-child(5), .hardware-table td:nth-child(5) {{ width: 12%; }} /* Memory */
         .hardware-table th:nth-child(6), .hardware-table td:nth-child(6) {{ width: 12%; }} /* CPU Load */
-        .hardware-table th:nth-child(7), .hardware-table td:nth-child(7) {{ width: 10%; }} /* PSU Efficiency */
-        .hardware-table th:nth-child(8), .hardware-table td:nth-child(8) {{ width: 10%; }} /* Uptime */
+        .hardware-table th:nth-child(7), .hardware-table td:nth-child(7) {{ width: 12%; }} /* PSU Efficiency */
+        .hardware-table th:nth-child(8), .hardware-table td:nth-child(8) {{ width: 13%; }} /* Uptime */
         
         /* Sortable table styling */
         .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
