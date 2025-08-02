@@ -447,7 +447,7 @@
                 let summaryData = {};
                 
                 if (dataType === 'assets') {
-                    // Parse assets.ini file to get device list
+                    // Parse assets.ini file with same logic as assets.html
                     const assetsResponse = await fetch('assets.ini');
                     const assetsText = await assetsResponse.text();
                     const assetsLines = assetsText.split('\n').filter(line => line.trim() && !line.startsWith('DEVICE-NAME'));
@@ -458,25 +458,38 @@
                     summaryData.warning = 0;
                     summaryData.noInfo = 0;
                     
-                    // Check each device for monitoring data to determine success/failure
-                    for (const line of assetsLines) {
-                        const parts = line.trim().split(/\s+/);
-                        const deviceName = parts[0];
+                    // Parse each line using same logic as assets.html
+                    assetsLines.forEach(line => {
+                        if (!line.trim()) return;
                         
-                        if (deviceName) {
-                            try {
-                                // Try to fetch device-specific monitoring page
-                                const deviceResponse = await fetch(`monitor-results/${deviceName}.html`, { method: 'HEAD' });
-                                if (deviceResponse.ok) {
-                                    summaryData.successful++;
-                                } else {
-                                    summaryData.failed++;
-                                }
-                            } catch (error) {
-                                summaryData.failed++;
-                            }
+                        const parts = line.trim().split(/\s+/);
+                        if (parts.length < 6) return;
+                        
+                        const deviceName = parts[0];
+                        const ipAddress = parts[1];
+                        const macAddress = parts[2];
+                        const serialNumber = parts[3];
+                        const model = parts[4];
+                        const release = parts[5];
+                        const uptime = parts.slice(6).join(' ');
+                        
+                        // Use exact same status determination logic as assets.html
+                        const lineText = line.toLowerCase();
+                        
+                        if (lineText.includes('fail') || lineText.includes('error') || lineText.includes('timeout')) {
+                            summaryData.failed++;
+                        } else if (lineText.includes('no-info') || lineText.includes('no info') || 
+                                   (!ipAddress || ipAddress === 'N/A' || !macAddress || macAddress === 'N/A')) {
+                            summaryData.noInfo++;
+                        } else if (lineText.includes('reated') || lineText.includes('partial') || lineText.includes('warning')) {
+                            summaryData.warning++;
+                        } else if (uptime && uptime.includes('up-') && ipAddress && macAddress && 
+                                   ipAddress !== 'N/A' && macAddress !== 'N/A') {
+                            summaryData.successful++;
+                        } else {
+                            summaryData.warning++;
                         }
-                    }
+                    });
                     
                 } else if (dataType === 'lldp') {
                     // Parse lldp_results.ini directly (structured text format)
