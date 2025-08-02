@@ -252,6 +252,13 @@ else
     echo -e "\e[0;33mWarning: BER analysis failed\e[0m"
 fi
 
+echo -e "\n\e[0;34mRunning Hardware Health Analysis...\e[0m"
+if python3 process_hardware_data.py; then
+    echo -e "\e[0;32mHardware health analysis completed\e[0m"
+else
+    echo -e "\e[0;33mWarning: Hardware health analysis failed\e[0m"
+fi
+
 sudo cp -r monitor-results/ /var/www/html/
 sudo chmod 644 /var/www/html/monitor-results/*
 rm -f "$unreachable_hosts_file"
