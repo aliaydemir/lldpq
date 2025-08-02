@@ -517,7 +517,7 @@ class HardwareAnalyzer:
             )
         )
         
-        html_content = f"""<!DOCTYPE html>
+                html_content = f"""<!DOCTYPE html>
 <html>
 <head>
     <title>Hardware Health Analysis</title>
@@ -535,140 +535,159 @@ class HardwareAnalyzer:
             border-radius: 8px; 
             border-left: 4px solid #007bff; 
         }}
+        .card-excellent {{ border-left-color: #4caf50; }}
+        .card-good {{ border-left-color: #8bc34a; }}
+        .card-warning {{ border-left-color: #ff9800; }}
+        .card-critical {{ border-left-color: #f44336; }}
+        .card-total {{ border-left-color: #2196f3; }}
         .metric {{ font-size: 24px; font-weight: bold; }}
+        
+        /* Colored card values */
+        .card-excellent .metric {{ color: #4caf50; }}
+        .card-good .metric {{ color: #8bc34a; }}
+        .card-warning .metric {{ color: #ff9800; }}
+        .card-critical .metric {{ color: #f44336; }}
+        .card-total .metric {{ color: #333; }}
+        .card-info .metric {{ color: #2196f3; }}
         .hardware-excellent {{ color: #4caf50; font-weight: bold; }}
         .hardware-good {{ color: #8bc34a; font-weight: bold; }}
         .hardware-warning {{ color: #ff9800; font-weight: bold; }}
         .hardware-critical {{ color: #f44336; font-weight: bold; }}
-        .hardware-unknown {{ color: gray; }}
+        .anomaly-section {{
+            margin: 30px 0;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        .anomaly-item {{
+            margin: 15px 0;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid;
+        }}
+        .anomaly-critical {{
+            background-color: #ffebee;
+            border-left-color: #f44336;
+        }}
+        .anomaly-warning {{
+            background-color: #fff3e0;
+            border-left-color: #ff9800;
+        }}
         .hardware-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
-        .hardware-table th, .hardware-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-        .hardware-table th {{ background-color: #f2f2f2; }}
+        .hardware-table th, .hardware-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; word-wrap: break-word; }}
+        .hardware-table th {{ background-color: #f2f2f2; font-weight: bold; }}
         
         /* Column width specifications */
-        .hardware-table th:nth-child(1) {{ width: 20%; }}  /* Device */
-        .hardware-table th:nth-child(2) {{ width: 12%; }}  /* Health */
-        .hardware-table th:nth-child(3) {{ width: 12%; }}  /* CPU Temp */
-        .hardware-table th:nth-child(4) {{ width: 12%; }}  /* ASIC Temp */
-        .hardware-table th:nth-child(5) {{ width: 12%; }}  /* Memory */
-        .hardware-table th:nth-child(6) {{ width: 12%; }}  /* CPU Load */
-        .hardware-table th:nth-child(7) {{ width: 10%; }}  /* PSU Efficiency */
-        .hardware-table th:nth-child(8) {{ width: 10%; }}  /* Uptime */
-        
-        .hardware-table td {{ word-wrap: break-word; overflow-wrap: break-word; }}
+        .hardware-table th:nth-child(1), .hardware-table td:nth-child(1) {{ width: 20%; }} /* Device */
+        .hardware-table th:nth-child(2), .hardware-table td:nth-child(2) {{ width: 12%; }} /* Health */
+        .hardware-table th:nth-child(3), .hardware-table td:nth-child(3) {{ width: 12%; }} /* CPU Temp */
+        .hardware-table th:nth-child(4), .hardware-table td:nth-child(4) {{ width: 12%; }} /* ASIC Temp */
+        .hardware-table th:nth-child(5), .hardware-table td:nth-child(5) {{ width: 12%; }} /* Memory */
+        .hardware-table th:nth-child(6), .hardware-table td:nth-child(6) {{ width: 12%; }} /* CPU Load */
+        .hardware-table th:nth-child(7), .hardware-table td:nth-child(7) {{ width: 10%; }} /* PSU Efficiency */
+        .hardware-table th:nth-child(8), .hardware-table td:nth-child(8) {{ width: 10%; }} /* Uptime */
         
         /* Sortable table styling */
-        .sortable {{
+        .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
+        .sortable:hover {{ background-color: #f5f5f5; }}
+        .sort-arrow {{ font-size: 10px; color: #999; margin-left: 5px; opacity: 0.5; }}
+        .sortable.asc .sort-arrow::before {{ content: '▲'; color: #b57614; opacity: 1; }}
+        .sortable.desc .sort-arrow::before {{ content: '▼'; color: #b57614; opacity: 1; }}
+        .sortable.asc .sort-arrow, .sortable.desc .sort-arrow {{ opacity: 1; }}
+        
+        .summary-card {{
             cursor: pointer;
-            user-select: none;
-            position: relative;
-            padding-right: 20px;
+            transition: all 0.3s ease;
+        }}
+        .summary-card:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }}
+        .summary-card.active {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            border-left-width: 6px;
         }}
         
-        .sortable:hover {{
-            background-color: #f5f5f5;
-        }}
-        
-        .sort-arrow {{
-            font-size: 10px;
-            color: #999;
-            margin-left: 5px;
-            opacity: 0.5;
-        }}
-        
-        .sortable.asc .sort-arrow::before {{
-            content: '▲';
-            color: #b57614;
-            opacity: 1;
-        }}
-        
-        .sortable.desc .sort-arrow::before {{
-            content: '▼';
-            color: #b57614;
-            opacity: 1;
-        }}
-        
-        .sortable.asc .sort-arrow,
-        .sortable.desc .sort-arrow {{
-            opacity: 1;
+        .filter-info {{
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            background: #e8f4fd;
+            border-radius: 4px;
+            color: #1976d2;
+            display: none;
         }}
     </style>
-</head>
-<body>
-    <center><h1><font color="#b57614">Hardware Health Analysis</font></h1></center>
-    <div style="text-align: center; color: #666; margin-bottom: 20px;">
-        Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-    </div>
-    
-    <div class="summary-grid">
-        <div class="summary-card">
-            <h3>Total Devices</h3>
-            <div class="metric">{summary['total_devices']}</div>
+  </head>
+  <body>
+    <h1></h1>
+    <h1><font color="#b57614">Hardware Health Analysis</font></h1>
+        <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        
+        <h2>Network Summary</h2>
+        <div class="summary-grid">
+            <div class="summary-card card-total" id="total-devices-card">
+                <div class="metric" id="total-devices">{summary['total_devices']}</div>
+                <div>Total Devices</div>
+            </div>
+            <div class="summary-card card-excellent" id="excellent-card">
+                <div class="metric" id="excellent-devices">{summary['excellent_health']}</div>
+                <div>Excellent</div>
+            </div>
+            <div class="summary-card card-good" id="good-card">
+                <div class="metric" id="good-devices">{summary['good_health']}</div>
+                <div>Good</div>
+            </div>
+            <div class="summary-card card-warning" id="warning-card">
+                <div class="metric" id="warning-devices">{summary['warning_level']}</div>
+                <div>Warning</div>
+            </div>
+            <div class="summary-card card-critical" id="critical-card">
+                <div class="metric" id="critical-devices">{summary['critical_issues']}</div>
+                <div>Critical</div>
+            </div>
         </div>
-        <div class="summary-card">
-            <h3>Excellent Health</h3>
-            <div class="metric hardware-excellent">{summary['excellent_health']}</div>
+        
+        <div id="filter-info" class="filter-info">
+            <span id="filter-text"></span>
+            <button onclick="clearFilter()" style="margin-left: 10px; padding: 2px 8px; background: #1976d2; color: white; border: none; border-radius: 3px; cursor: pointer;">Show All</button>
         </div>
-        <div class="summary-card">
-            <h3>Good Health</h3>
-            <div class="metric hardware-good">{summary['good_health']}</div>
-        </div>
-        <div class="summary-card">
-            <h3>Warning Level</h3>
-            <div class="metric hardware-warning">{summary['warning_level']}</div>
-        </div>
-        <div class="summary-card">
-            <h3>Critical Issues</h3>
-            <div class="metric hardware-critical">{summary['critical_issues']}</div>
-        </div>
-    </div>"""
+"""
 
-        # Add anomalies section
+        # Add anomalies section if any
         if anomalies:
             html_content += f"""
-    <h2><font color="#b57614">Hardware Anomalies Detected ({len(anomalies)})</font></h2>
-    <table class="hardware-table">
-        <thead>
-            <tr>
-                <th>Device</th>
-                <th>Component</th>
-                <th>Type</th>
-                <th>Message</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>"""
-            
+        <div class="anomaly-section">
+            <h2>🔧 Hardware Anomalies Detected ({len(anomalies)})</h2>
+"""
             for anomaly in anomalies[:10]:  # Show top 10 anomalies
-                severity_class = f"hardware-{anomaly['severity']}" if anomaly['severity'] == 'critical' else "hardware-warning"
+                severity_class = f"anomaly-{anomaly['severity']}"
                 html_content += f"""
-            <tr>
-                <td>{anomaly['device']}</td>
-                <td>{anomaly['component']}</td>
-                <td><span class="{severity_class}">{anomaly['type']}</span></td>
-                <td>{anomaly['message']}</td>
-                <td>{anomaly['action']}</td>
-            </tr>"""
-            
+            <div class="anomaly-item {severity_class}">
+                <strong>{anomaly['device']}</strong> - {anomaly['message']}<br>
+                <small><strong>Action:</strong> {anomaly['action']}</small>
+            </div>
+"""
             html_content += """
-        </tbody>
-    </table>"""
+        </div>
+"""
 
-        # Add device hardware status table
-        html_content += f"""
-    <h2><font color="#b57614">Device Hardware Status ({len(sorted_devices)} devices)</font></h2>
-    
-    <table class="hardware-table sortable">
-        <thead>
-            <tr>
-                <th class="sortable" data-column="0" data-type="string">Device</th>
-                <th class="sortable" data-column="1" data-type="health">Health</th>
-                <th class="sortable" data-column="2" data-type="number">CPU Temp (°C)</th>
-                <th class="sortable" data-column="3" data-type="number">ASIC Temp (°C)</th>
-                <th class="sortable" data-column="4" data-type="number">Memory (%)</th>
-                <th class="sortable" data-column="5" data-type="number">CPU Load</th>
-                <th class="sortable" data-column="6" data-type="number">PSU Efficiency (%)</th>
-                <th class="sortable" data-column="7" data-type="string">Uptime</th>
+        # Add detailed table  
+        html_content += """
+        <h2>Device Hardware Status</h2>
+        <table class="hardware-table" id="hardware-table">
+            <thead>
+                <tr>
+                    <th class="sortable" data-column="0" data-type="string">Device <span class="sort-arrow"></span></th>
+                    <th class="sortable" data-column="1" data-type="health">Health <span class="sort-arrow"></span></th>
+                    <th class="sortable" data-column="2" data-type="number">CPU Temp (°C) <span class="sort-arrow"></span></th>
+                    <th class="sortable" data-column="3" data-type="number">ASIC Temp (°C) <span class="sort-arrow"></span></th>
+                    <th class="sortable" data-column="4" data-type="number">Memory (%) <span class="sort-arrow"></span></th>
+                    <th class="sortable" data-column="5" data-type="number">CPU Load <span class="sort-arrow"></span></th>
+                    <th class="sortable" data-column="6" data-type="number">PSU Efficiency (%) <span class="sort-arrow"></span></th>
+                    <th class="sortable" data-column="7" data-type="string">Uptime <span class="sort-arrow"></span></th>
             </tr>
         </thead>
         <tbody>"""
