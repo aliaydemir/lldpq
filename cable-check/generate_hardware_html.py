@@ -207,14 +207,15 @@ def generate_hardware_html():
         .hardware-table th {{ background-color: #f2f2f2; font-weight: bold; }}
         
         /* Column width specifications */
-        .hardware-table th:nth-child(1), .hardware-table td:nth-child(1) {{ width: 15%; }} /* Device */
-        .hardware-table th:nth-child(2), .hardware-table td:nth-child(2) {{ width: 12%; }} /* Health */
-        .hardware-table th:nth-child(3), .hardware-table td:nth-child(3) {{ width: 12%; }} /* CPU Temp */
-        .hardware-table th:nth-child(4), .hardware-table td:nth-child(4) {{ width: 12%; }} /* ASIC Temp */
-        .hardware-table th:nth-child(5), .hardware-table td:nth-child(5) {{ width: 12%; }} /* Memory */
-        .hardware-table th:nth-child(6), .hardware-table td:nth-child(6) {{ width: 12%; }} /* CPU Load */
-        .hardware-table th:nth-child(7), .hardware-table td:nth-child(7) {{ width: 12%; }} /* PSU Efficiency */
-        .hardware-table th:nth-child(8), .hardware-table td:nth-child(8) {{ width: 13%; }} /* Uptime */
+        .hardware-table th:nth-child(1), .hardware-table td:nth-child(1) {{ width: 13%; }} /* Device */
+        .hardware-table th:nth-child(2), .hardware-table td:nth-child(2) {{ width: 10%; }} /* Health */
+        .hardware-table th:nth-child(3), .hardware-table td:nth-child(3) {{ width: 10%; }} /* CPU Temp */
+        .hardware-table th:nth-child(4), .hardware-table td:nth-child(4) {{ width: 10%; }} /* ASIC Temp */
+        .hardware-table th:nth-child(5), .hardware-table td:nth-child(5) {{ width: 10%; }} /* Memory */
+        .hardware-table th:nth-child(6), .hardware-table td:nth-child(6) {{ width: 10%; }} /* CPU Load */
+        .hardware-table th:nth-child(7), .hardware-table td:nth-child(7) {{ width: 11%; }} /* Fan Status */
+        .hardware-table th:nth-child(8), .hardware-table td:nth-child(8) {{ width: 13%; }} /* PSU Efficiency */
+        .hardware-table th:nth-child(9), .hardware-table td:nth-child(9) {{ width: 13%; }} /* Uptime */
         
         /* Sortable table styling */
         .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
@@ -293,8 +294,9 @@ def generate_hardware_html():
                     <th class="sortable" data-column="3" data-type="number">ASIC Temp (°C) <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="4" data-type="number">Memory (%) <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="5" data-type="number">CPU Load <span class="sort-arrow">▲▼</span></th>
-                    <th class="sortable" data-column="6" data-type="number">PSU Efficiency (%) <span class="sort-arrow">▲▼</span></th>
-                    <th class="sortable" data-column="7" data-type="string">Uptime <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="6" data-type="hardware-status">Fan Status <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="7" data-type="number">PSU Efficiency (%) <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="8" data-type="string">Uptime <span class="sort-arrow">▲▼</span></th>
                 </tr>
             </thead>
             <tbody id="hardware-data">
@@ -324,7 +326,20 @@ def generate_hardware_html():
         psu_efficiency_parsed = parse_psu_efficiency_from_hardware_file(device_name)
         psu_efficiency = psu_efficiency_parsed if psu_efficiency_parsed is not None else 0.0
         
+        # Get fan status from JSON data
+        fan_grades = device_data.get("fan_grades", {})
+        if fan_grades:
+            # Get overall fan status (worst case from all fans)
+            fan_statuses = list(fan_grades.values())
+            priority = {"CRITICAL": 4, "WARNING": 3, "GOOD": 2, "EXCELLENT": 1, "UNKNOWN": 0}
+            worst_status = max(fan_statuses, key=lambda x: priority.get(x, 0))
+            fan_status = worst_status
+        else:
+            fan_status = "N/A"
+        
         health_class = f"hardware-{health_grade.lower()}"
+        
+        fan_class = f"hardware-{fan_status.lower()}" if fan_status != "N/A" else ""
         
         html_content += f"""
                 <tr data-status="{health_grade.lower()}">
@@ -334,6 +349,7 @@ def generate_hardware_html():
                     <td>{asic_temp_str}</td>
                     <td>{memory_usage:.1f}%</td>
                     <td>{cpu_load:.2f}</td>
+                    <td><span class="{fan_class}">{fan_status}</span></td>
                     <td>{psu_efficiency:.1f}%</td>
                     <td>{uptime}</td>
                 </tr>
