@@ -331,11 +331,11 @@ def generate_hardware_html():
         if fans:
             fan_grades_calculated = []
             for fan_name, fan_speed in fans.items():
-                if fan_speed > 5000:
+                if fan_speed > 4000:
                     grade = "EXCELLENT"
-                elif fan_speed >= 3500:  # Lowered from 4000 to 3500
+                elif fan_speed >= 3000:
                     grade = "GOOD"  
-                elif fan_speed >= 1500:  # Lowered from 2000 to 1500
+                elif fan_speed >= 1000:
                     grade = "WARNING"
                 else:
                     grade = "CRITICAL"
@@ -378,7 +378,7 @@ def generate_hardware_html():
         <tr><td>ASIC Temperature</td><td>&lt; 70°C</td><td>70-80°C</td><td>80-90°C</td><td>&gt; 90°C</td></tr>
         <tr><td>Memory Usage</td><td>&lt; 60%</td><td>60-75%</td><td>75-85%</td><td>&gt; 85%</td></tr>
         <tr><td>CPU Load (5min avg)</td><td>&lt; 1.0</td><td>1.0-2.0</td><td>2.0-3.0</td><td>&gt; 3.0</td></tr>
-        <tr><td>Fan Speed</td><td>&gt; 5000 RPM</td><td>3500-5000 RPM</td><td>1500-3500 RPM</td><td>&lt; 1500 RPM</td></tr>
+        <tr><td>Fan Speed</td><td>&gt; 4000 RPM</td><td>3000-4000 RPM</td><td>1000-3000 RPM</td><td>&lt; 1000 RPM</td></tr>
         <tr><td>PSU Efficiency</td><td>&gt; 90%</td><td>85-90%</td><td>80-85%</td><td>&lt; 80%</td></tr>
     </table>
 
