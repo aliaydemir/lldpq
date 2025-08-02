@@ -326,13 +326,24 @@ def generate_hardware_html():
         psu_efficiency_parsed = parse_psu_efficiency_from_hardware_file(device_name)
         psu_efficiency = psu_efficiency_parsed if psu_efficiency_parsed is not None else 0.0
         
-        # Get fan status from JSON data
-        fan_grades = device_data.get("fan_grades", {})
-        if fan_grades:
+        # Calculate fan status using our own thresholds
+        fans = device_data.get("fans", {})
+        if fans:
+            fan_grades_calculated = []
+            for fan_name, fan_speed in fans.items():
+                if fan_speed > 5000:
+                    grade = "EXCELLENT"
+                elif fan_speed >= 4000:
+                    grade = "GOOD"  
+                elif fan_speed >= 2000:
+                    grade = "WARNING"
+                else:
+                    grade = "CRITICAL"
+                fan_grades_calculated.append(grade)
+            
             # Get overall fan status (worst case from all fans)
-            fan_statuses = list(fan_grades.values())
-            priority = {"CRITICAL": 4, "WARNING": 3, "GOOD": 2, "EXCELLENT": 1, "UNKNOWN": 0}
-            worst_status = max(fan_statuses, key=lambda x: priority.get(x, 0))
+            priority = {"CRITICAL": 4, "WARNING": 3, "GOOD": 2, "EXCELLENT": 1}
+            worst_status = max(fan_grades_calculated, key=lambda x: priority.get(x, 0))
             fan_status = worst_status
         else:
             fan_status = "N/A"
