@@ -5,7 +5,39 @@ Simple script to generate BER-style HTML from existing hardware data
 
 import json
 import os
+import re
 from datetime import datetime
+
+def parse_temperature_from_hardware_file(device_name):
+    """Parse CPU and ASIC temperatures from raw hardware file"""
+    
+    cpu_temp = None
+    asic_temp = None
+    
+    hardware_file = f"monitor-results/hardware-data/{device_name}_hardware.txt"
+    
+    if not os.path.exists(hardware_file):
+        return cpu_temp, asic_temp
+    
+    try:
+        with open(hardware_file, 'r') as f:
+            content = f.read()
+        
+        # Parse ASIC temperature: "Ambient ASIC Temp:  +50.0°C"
+        asic_match = re.search(r'Ambient ASIC Temp:\s*\+?(-?\d+\.?\d*)[°C]', content)
+        if asic_match:
+            asic_temp = float(asic_match.group(1))
+        
+        # Parse CPU temperature: "temp1:        +47.0°C" (usually from drivetemp-scsi adapter)
+        cpu_matches = re.findall(r'temp1:\s*\+?(-?\d+\.?\d*)[°C]', content)
+        if cpu_matches:
+            # Take the first valid CPU temperature
+            cpu_temp = float(cpu_matches[0])
+        
+    except Exception as e:
+        print(f"Warning: Could not parse temperatures for {device_name}: {e}")
+    
+    return cpu_temp, asic_temp
 
 def generate_hardware_html():
     """Generate hardware analysis HTML using existing data"""
@@ -32,6 +64,12 @@ def generate_hardware_html():
         'warning_devices': [],
         'critical_devices': []
     }
+    
+    # Count devices with current hardware files
+    hardware_data_dir = "monitor-results/hardware-data"
+    current_device_files = 0
+    if os.path.exists(hardware_data_dir):
+        current_device_files = len([f for f in os.listdir(hardware_data_dir) if f.endswith('_hardware.txt')])
     
     for device_name, device_data in latest_devices.items():
         overall_grade = device_data.get("overall_grade", "UNKNOWN")
@@ -146,6 +184,7 @@ def generate_hardware_html():
             <div class="summary-card card-total" id="total-devices-card">
                 <div class="metric" id="total-devices">{total_devices}</div>
                 <div>Total Devices</div>
+                <small>({current_device_files} with current data)</small>
             </div>
             <div class="summary-card card-excellent" id="excellent-card">
                 <div class="metric" id="excellent-devices">{len(summary['excellent_devices'])}</div>
@@ -197,8 +236,11 @@ def generate_hardware_html():
         device_data = device_info['data']
         
         # Extract key metrics
-        cpu_temp_str = "N/A"
-        asic_temp_str = "N/A"
+        # Parse actual temperature data from hardware files
+        cpu_temp, asic_temp = parse_temperature_from_hardware_file(device_name)
+        
+        cpu_temp_str = f"{cpu_temp:.1f}°C" if cpu_temp is not None else "N/A"
+        asic_temp_str = f"{asic_temp:.1f}°C" if asic_temp is not None else "N/A"
         
         memory_usage = device_data.get("resources", {}).get("memory", {}).get("usage_percent", 0)
         cpu_load = device_data.get("resources", {}).get("cpu", {}).get("load_5min", 0)
