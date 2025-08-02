@@ -58,17 +58,11 @@ execute_commands_optimized() {
             min-height: 400px;
             font-family: 'Fira Code', 'Courier New', Courier, monospace;
             font-size: 14px;
-            line-height: 1.8;
+            line-height: 1.6;
             white-space: pre-wrap;
             word-wrap: break-word;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             overflow-x: auto;
-        }
-        
-        .config-line {
-            display: block;
-            margin: 4px 0;
-            padding: 1px 0;
         }
         
         .comment { color: #6a9955; font-style: italic; }
@@ -266,8 +260,7 @@ EOF
                 s/\b\([0-9]\+\)\b/<span class="number">\1<\/span>/g;
             }
             
-            # Wrap each line with better spacing
-            s/^\(.*\)$/<div class="config-line"><span class="default">\1<\/span><\/div>/;
+
         ' >> monitor-results/${hostname}.html
         
         echo "</div>" >> monitor-results/${hostname}.html
