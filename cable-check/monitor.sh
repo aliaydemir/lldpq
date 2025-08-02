@@ -15,6 +15,7 @@ mkdir -p "$SCRIPT_DIR/monitor-results/flap-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/bgp-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/optical-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/ber-data"
+mkdir -p "$SCRIPT_DIR/monitor-results/hardware-data"
 
 unreachable_hosts_file=$(mktemp)
 
@@ -173,6 +174,18 @@ EOF
     timeout 120 ssh $SSH_OPTS -q "$user@$device" '
         cat /proc/net/dev 2>/dev/null
     ' > "monitor-results/ber-data/${hostname}_interface_errors.txt" 2>/dev/null
+    
+    # Hardware health data collection (sensors, memory, CPU, uptime)
+    timeout 180 ssh $SSH_OPTS -q "$user@$device" '
+        echo "HARDWARE_HEALTH:"
+        sensors 2>/dev/null || echo "No sensors available"
+        echo "MEMORY_INFO:"  
+        free -h 2>/dev/null || echo "No memory info available"
+        echo "CPU_INFO:"
+        cat /proc/loadavg 2>/dev/null || echo "No CPU info available"
+        echo "UPTIME_INFO:"
+        uptime 2>/dev/null || echo "No uptime info available"
+    ' > "monitor-results/hardware-data/${hostname}_hardware.txt" 2>/dev/null
     
     # Close HTML
     cat >> monitor-results/${hostname}.html << EOF
