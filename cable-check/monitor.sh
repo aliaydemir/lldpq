@@ -248,7 +248,7 @@ EOF
             # For non-description lines
             /description/! {
                 # Highlight nv set commands
-                s/^\(\s*\)\(nv\s\+set\)\b/\1<span class="keyword">\2<\/span>/;
+                #s/^\(\s*\)\(nv\s\+set\)\b/\1<span class="keyword">\2<\/span>/;
                 
                 # Highlight interfaces (comprehensive pattern)
                 s/\b\(swp[0-9]\+\(s[0-9]\+\)\?\(-[0-9]\+\)\?\|bond[0-9_a-zA-Z-]\+\|vlan[0-9]\+\|eth[0-9]\+\|lo[0-9]*\|br[0-9]\+\|peerlink\)\b/<span class="interface">\1<\/span>/g;
