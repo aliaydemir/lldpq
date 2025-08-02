@@ -308,8 +308,10 @@ def generate_hardware_html():
     
     for device_info in all_devices:
         device_name = device_info['device']
-        health_grade = device_info['health_grade']
         device_data = device_info['data']
+        
+        # Calculate our own overall health instead of using JSON's overall_grade
+        health_grades = []
         
         # Extract key metrics
         # Parse actual temperature data from hardware files
@@ -318,9 +320,52 @@ def generate_hardware_html():
         cpu_temp_str = f"{cpu_temp:.1f}°C" if cpu_temp is not None else "N/A"
         asic_temp_str = f"{asic_temp:.1f}°C" if asic_temp is not None else "N/A"
         
+        # Calculate individual component grades
+        # CPU Temperature grade
+        if cpu_temp is not None:
+            if cpu_temp < 60:
+                health_grades.append("EXCELLENT")
+            elif cpu_temp < 70:
+                health_grades.append("GOOD")
+            elif cpu_temp < 80:
+                health_grades.append("WARNING")
+            else:
+                health_grades.append("CRITICAL")
+        
+        # ASIC Temperature grade  
+        if asic_temp is not None:
+            if asic_temp < 70:
+                health_grades.append("EXCELLENT")
+            elif asic_temp < 80:
+                health_grades.append("GOOD")
+            elif asic_temp < 90:
+                health_grades.append("WARNING")
+            else:
+                health_grades.append("CRITICAL")
+        
         memory_usage = device_data.get("resources", {}).get("memory", {}).get("usage_percent", 0)
         cpu_load = device_data.get("resources", {}).get("cpu", {}).get("load_5min", 0)
         uptime = device_data.get("resources", {}).get("uptime", "N/A")
+        
+        # Memory usage grade
+        if memory_usage < 60:
+            health_grades.append("EXCELLENT")
+        elif memory_usage < 75:
+            health_grades.append("GOOD")
+        elif memory_usage < 85:
+            health_grades.append("WARNING")
+        else:
+            health_grades.append("CRITICAL")
+            
+        # CPU Load grade
+        if cpu_load < 1.0:
+            health_grades.append("EXCELLENT")
+        elif cpu_load < 2.0:
+            health_grades.append("GOOD")
+        elif cpu_load < 3.0:
+            health_grades.append("WARNING")
+        else:
+            health_grades.append("CRITICAL")
         
         # Parse PSU efficiency from hardware files
         psu_efficiency_parsed = parse_psu_efficiency_from_hardware_file(device_name)
