@@ -518,152 +518,34 @@ class HardwareAnalyzer:
         )
         
         html_content = f"""<!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hardware Health Analysis</title>
+    <link rel="stylesheet" type="text/css" href="/css/styles2.css">
     <style>
-        body {{
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #0d1117;
-            color: #c9d1d9;
-            margin: 0;
-            padding: 20px;
-            line-height: 1.6;
+        .summary-grid {{ 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+            margin: 20px 0; 
         }}
-        
-        .header {{
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #21262d;
-            padding-bottom: 20px;
+        .summary-card {{ 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 8px; 
+            border-left: 4px solid #007bff; 
         }}
+        .metric {{ font-size: 24px; font-weight: bold; }}
+        .hardware-excellent {{ color: #4caf50; font-weight: bold; }}
+        .hardware-good {{ color: #8bc34a; font-weight: bold; }}
+        .hardware-warning {{ color: #ff9800; font-weight: bold; }}
+        .hardware-critical {{ color: #f44336; font-weight: bold; }}
+        .hardware-unknown {{ color: gray; }}
+        .hardware-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
+        .hardware-table th, .hardware-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        .hardware-table th {{ background-color: #f2f2f2; }}
         
-        .header h1 {{
-            color: #f0883e;
-            font-size: 2.5em;
-            margin: 0;
-            text-shadow: 0 0 10px rgba(240, 136, 62, 0.3);
-        }}
-        
-        .last-updated {{
-            color: #8b949e;
-            font-size: 0.9em;
-            margin-top: 10px;
-        }}
-        
-        .summary-cards {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }}
-        
-        .summary-card {{
-            background: linear-gradient(135deg, #161b22 0%, #21262d 100%);
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-        }}
-        
-        .summary-card h3 {{
-            margin: 0 0 10px 0;
-            color: #58a6ff;
-            font-size: 0.9em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }}
-        
-        .summary-card .value {{
-            font-size: 2em;
-            font-weight: bold;
-            margin: 10px 0;
-        }}
-        
-        .excellent {{ color: #7c3aed; }}
-        .good {{ color: #10b981; }}
-        .warning {{ color: #f59e0b; }}
-        .critical {{ color: #ef4444; }}
-        
-        .anomalies-section {{
-            margin: 30px 0;
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            overflow: hidden;
-        }}
-        
-        .anomalies-header {{
-            background: #ef4444;
-            color: white;
-            padding: 15px 20px;
-            font-weight: bold;
-            font-size: 1.1em;
-        }}
-        
-        .anomaly-item {{
-            padding: 15px 20px;
-            border-bottom: 1px solid #30363d;
-            background: #0d1117;
-        }}
-        
-        .anomaly-item:last-child {{
-            border-bottom: none;
-        }}
-        
-        .anomaly-device {{
-            font-weight: bold;
-            color: #58a6ff;
-            margin-bottom: 5px;
-        }}
-        
-        .anomaly-message {{
-            color: #f85149;
-            margin-bottom: 5px;
-        }}
-        
-        .anomaly-action {{
-            color: #f0883e;
-            font-style: italic;
-            font-size: 0.9em;
-        }}
-        
-        .hardware-table {{
-            width: 100%;
-            border-collapse: collapse;
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 8px;
-            overflow: hidden;
-            margin: 20px 0;
-            table-layout: fixed;
-        }}
-        
-        .hardware-table th {{
-            background: linear-gradient(135deg, #21262d 0%, #30363d 100%);
-            color: #f0f6fc;
-            padding: 15px 10px;
-            text-align: left;
-            font-weight: 600;
-            border-bottom: 2px solid #21262d;
-            cursor: pointer;
-            user-select: none;
-            position: relative;
-        }}
-        
-        .hardware-table th:hover {{
-            background: linear-gradient(135deg, #30363d 0%, #21262d 100%);
-        }}
-        
-        .hardware-table th.sortable:after {{
-            content: ' ↕';
-            opacity: 0.5;
-            font-size: 0.8em;
-        }}
-        
+        /* Column width specifications */
         .hardware-table th:nth-child(1) {{ width: 20%; }}  /* Device */
         .hardware-table th:nth-child(2) {{ width: 12%; }}  /* Health */
         .hardware-table th:nth-child(3) {{ width: 12%; }}  /* CPU Temp */
@@ -673,112 +555,108 @@ class HardwareAnalyzer:
         .hardware-table th:nth-child(7) {{ width: 10%; }}  /* PSU Efficiency */
         .hardware-table th:nth-child(8) {{ width: 10%; }}  /* Uptime */
         
-        .hardware-table td {{
-            padding: 12px 10px;
-            border-bottom: 1px solid #21262d;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
+        .hardware-table td {{ word-wrap: break-word; overflow-wrap: break-word; }}
+        
+        /* Sortable table styling */
+        .sortable {{
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-right: 20px;
         }}
         
-        .hardware-table tbody tr:hover {{
-            background-color: #21262d;
+        .sortable:hover {{
+            background-color: #f5f5f5;
         }}
         
-        .health-badge {{
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            font-weight: bold;
-            text-transform: uppercase;
+        .sort-arrow {{
+            font-size: 10px;
+            color: #999;
+            margin-left: 5px;
+            opacity: 0.5;
         }}
         
-        .health-excellent {{
-            background-color: #7c3aed;
-            color: white;
+        .sortable.asc .sort-arrow::before {{
+            content: '▲';
+            color: #b57614;
+            opacity: 1;
         }}
         
-        .health-good {{
-            background-color: #10b981;
-            color: white;
+        .sortable.desc .sort-arrow::before {{
+            content: '▼';
+            color: #b57614;
+            opacity: 1;
         }}
         
-        .health-warning {{
-            background-color: #f59e0b;
-            color: black;
-        }}
-        
-        .health-critical {{
-            background-color: #ef4444;
-            color: white;
-        }}
-        
-        .section-title {{
-            color: #f0883e;
-            font-size: 1.5em;
-            margin: 30px 0 15px 0;
-            border-bottom: 2px solid #21262d;
-            padding-bottom: 10px;
-        }}
-        
-        .no-data {{
-            text-align: center;
-            color: #8b949e;
-            font-style: italic;
-            padding: 40px;
+        .sortable.asc .sort-arrow,
+        .sortable.desc .sort-arrow {{
+            opacity: 1;
         }}
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🔧 Hardware Health Analysis</h1>
-        <div class="last-updated">Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</div>
+    <center><h1><font color="#b57614">Hardware Health Analysis</font></h1></center>
+    <div style="text-align: center; color: #666; margin-bottom: 20px;">
+        Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     </div>
     
-    <div class="summary-cards">
+    <div class="summary-grid">
         <div class="summary-card">
             <h3>Total Devices</h3>
-            <div class="value">{summary['total_devices']}</div>
+            <div class="metric">{summary['total_devices']}</div>
         </div>
         <div class="summary-card">
             <h3>Excellent Health</h3>
-            <div class="value excellent">{summary['excellent_health']}</div>
+            <div class="metric hardware-excellent">{summary['excellent_health']}</div>
         </div>
         <div class="summary-card">
             <h3>Good Health</h3>
-            <div class="value good">{summary['good_health']}</div>
+            <div class="metric hardware-good">{summary['good_health']}</div>
         </div>
         <div class="summary-card">
             <h3>Warning Level</h3>
-            <div class="value warning">{summary['warning_level']}</div>
+            <div class="metric hardware-warning">{summary['warning_level']}</div>
         </div>
         <div class="summary-card">
             <h3>Critical Issues</h3>
-            <div class="value critical">{summary['critical_issues']}</div>
+            <div class="metric hardware-critical">{summary['critical_issues']}</div>
         </div>
     </div>"""
 
         # Add anomalies section
         if anomalies:
             html_content += f"""
-    <div class="anomalies-section">
-        <div class="anomalies-header">
-            🚨 Hardware Anomalies Detected ({len(anomalies)})
-        </div>"""
+    <h2><font color="#b57614">Hardware Anomalies Detected ({len(anomalies)})</font></h2>
+    <table class="hardware-table">
+        <thead>
+            <tr>
+                <th>Device</th>
+                <th>Component</th>
+                <th>Type</th>
+                <th>Message</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>"""
             
             for anomaly in anomalies[:10]:  # Show top 10 anomalies
+                severity_class = f"hardware-{anomaly['severity']}" if anomaly['severity'] == 'critical' else "hardware-warning"
                 html_content += f"""
-        <div class="anomaly-item">
-            <div class="anomaly-device">{anomaly['device']}:{anomaly['component']}</div>
-            <div class="anomaly-message">{anomaly['message']}</div>
-            <div class="anomaly-action">Action: {anomaly['action']}</div>
-        </div>"""
+            <tr>
+                <td>{anomaly['device']}</td>
+                <td>{anomaly['component']}</td>
+                <td><span class="{severity_class}">{anomaly['type']}</span></td>
+                <td>{anomaly['message']}</td>
+                <td>{anomaly['action']}</td>
+            </tr>"""
             
             html_content += """
-    </div>"""
+        </tbody>
+    </table>"""
 
         # Add device hardware status table
         html_content += f"""
-    <h2 class="section-title">Device Hardware Status ({len(sorted_devices)} devices)</h2>
+    <h2><font color="#b57614">Device Hardware Status ({len(sorted_devices)} devices)</font></h2>
     
     <table class="hardware-table sortable">
         <thead>
@@ -811,12 +689,12 @@ class HardwareAnalyzer:
             psu_efficiencies = [psu["efficiency"] for psu in stats["power_analysis"].values()]
             avg_efficiency = sum(psu_efficiencies) / len(psu_efficiencies) if psu_efficiencies else 0
             
-            health_class = f"health-{stats['overall_grade'].lower()}"
+            health_class = f"hardware-{stats['overall_grade'].lower()}"
             
             html_content += f"""
             <tr>
                 <td>{device_name}</td>
-                <td><span class="health-badge {health_class}">{stats['overall_grade']}</span></td>
+                <td><span class="{health_class}">{stats['overall_grade']}</span></td>
                 <td>{cpu_temp_str}</td>
                 <td>{asic_temp_str}</td>
                 <td>{memory_usage:.1f}%</td>
