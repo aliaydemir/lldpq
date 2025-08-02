@@ -310,7 +310,7 @@ class HardwareAnalyzer:
                     "input_power": input_power,
                     "output_power": output_power,
                     "efficiency": efficiency,
-                    "grade": grade
+                    "grade": grade.value  # Convert enum to string
                 }
         
         return power_analysis
@@ -359,7 +359,7 @@ class HardwareAnalyzer:
         
         # Calculate overall device health
         all_grades = list(temp_grades.values()) + list(fan_grades.values()) + list(resource_grades.values())
-        all_grades += [psu["grade"] for psu in power_analysis.values()]
+        all_grades += [HardwareGrade(psu["grade"]) for psu in power_analysis.values()]
         
         critical_count = sum(1 for grade in all_grades if grade == HardwareGrade.CRITICAL)
         warning_count = sum(1 for grade in all_grades if grade == HardwareGrade.WARNING)
@@ -464,7 +464,7 @@ class HardwareAnalyzer:
             
             # Power efficiency alerts
             for psu_name, psu_data in stats["power_analysis"].items():
-                if psu_data["grade"] == HardwareGrade.WARNING:
+                if psu_data["grade"] == HardwareGrade.WARNING.value:
                     efficiency = psu_data["efficiency"]
                     anomalies.append({
                         "device": device_name,
