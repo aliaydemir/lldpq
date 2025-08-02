@@ -69,10 +69,10 @@ def parse_psu_efficiency_from_hardware_file(device_name):
         # Format 1: "PMIC-X ... (in): 12.00 W"
         input_matches_w = re.findall(r'PMIC-\d+.*\(in\):\s*(\d+\.?\d*)\s*W', content)
         input_matches_mw = re.findall(r'PMIC-\d+.*\(in\):\s*(\d+\.?\d*)\s*mW', content)
-        # Format 2: "PSU-X ... Pwr(in): 52.25 W"
-        psu_input_matches_w = re.findall(r'PSU-\d+.*Pwr\(in\):\s*(\d+\.?\d*)\s*W', content)
+        # Format 2: "PSU-X ... Pwr(in): 52.25 W" or "PSU-X ... Pwr (in): 94.62 W"
+        psu_input_matches_w = re.findall(r'PSU-\d+.*Pwr\s*\(in\):\s*(\d+\.?\d*)\s*W', content)
         # Format 3: "VR IC ... pwr(in): 25.00 W"
-        vr_input_matches_w = re.findall(r'VR IC.*pwr\(in\):\s*(\d+\.?\d*)\s*W', content)
+        vr_input_matches_w = re.findall(r'VR IC.*pwr\s*\(in\):\s*(\d+\.?\d*)\s*W', content)
         
         # Sum all input power sources
         for power_str in input_matches_w:
@@ -88,10 +88,10 @@ def parse_psu_efficiency_from_hardware_file(device_name):
         # Format 1: "PMIC-X ... Pwr (out1): 5.00 W"
         output_matches_w = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*W', content)
         output_matches_mw = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*mW', content)
-        # Format 2: "PSU-X ... Pwr(out): 45.88 W"
-        psu_output_matches_w = re.findall(r'PSU-\d+.*Pwr\(out\):\s*(\d+\.?\d*)\s*W', content)
+        # Format 2: "PSU-X ... Pwr(out): 45.88 W" or "PSU-X ... Pwr (out): 69.50 W"
+        psu_output_matches_w = re.findall(r'PSU-\d+.*Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content)
         # Format 3: "... Rail Pwr(out): 21.00 W"
-        rail_output_matches_w = re.findall(r'.*Rail Pwr\(out\):\s*(\d+\.?\d*)\s*W', content)
+        rail_output_matches_w = re.findall(r'.*Rail Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content)
         
         # Sum all output power sources
         for power_str in output_matches_w:
