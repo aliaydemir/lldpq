@@ -367,7 +367,7 @@ def generate_hardware_html():
         <tr><td>ASIC Temperature</td><td>&lt; 70°C</td><td>70-80°C</td><td>80-90°C</td><td>&gt; 90°C</td></tr>
         <tr><td>Memory Usage</td><td>&lt; 60%</td><td>60-75%</td><td>75-85%</td><td>&gt; 85%</td></tr>
         <tr><td>CPU Load (5min avg)</td><td>&lt; 1.0</td><td>1.0-2.0</td><td>2.0-3.0</td><td>&gt; 3.0</td></tr>
-        <tr><td>Fan Speed</td><td>&gt; 3000 RPM</td><td>2000-3000 RPM</td><td>1000-2000 RPM</td><td>&lt; 1000 RPM</td></tr>
+        <tr><td>Fan Speed</td><td>&gt; 5000 RPM</td><td>4000-5000 RPM</td><td>2000-4000 RPM</td><td>&lt; 2000 RPM</td></tr>
         <tr><td>PSU Efficiency</td><td>&gt; 90%</td><td>85-90%</td><td>80-85%</td><td>&lt; 80%</td></tr>
     </table>
 
