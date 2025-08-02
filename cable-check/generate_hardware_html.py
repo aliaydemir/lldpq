@@ -208,11 +208,11 @@ def generate_hardware_html():
         
         /* Column width specifications */
         .hardware-table th:nth-child(1), .hardware-table td:nth-child(1) {{ width: 13%; }} /* Device */
-        .hardware-table th:nth-child(2), .hardware-table td:nth-child(2) {{ width: 10%; }} /* Health */
-        .hardware-table th:nth-child(3), .hardware-table td:nth-child(3) {{ width: 10%; }} /* CPU Temp */
-        .hardware-table th:nth-child(4), .hardware-table td:nth-child(4) {{ width: 10%; }} /* ASIC Temp */
+        .hardware-table th:nth-child(2), .hardware-table td:nth-child(2) {{ width: 8%; }} /* Health */
+        .hardware-table th:nth-child(3), .hardware-table td:nth-child(3) {{ width: 12%; }} /* CPU Temp */
+        .hardware-table th:nth-child(4), .hardware-table td:nth-child(4) {{ width: 12%; }} /* ASIC Temp */
         .hardware-table th:nth-child(5), .hardware-table td:nth-child(5) {{ width: 10%; }} /* Memory */
-        .hardware-table th:nth-child(6), .hardware-table td:nth-child(6) {{ width: 10%; }} /* CPU Load */
+        .hardware-table th:nth-child(6), .hardware-table td:nth-child(6) {{ width: 8%; }} /* CPU Load */
         .hardware-table th:nth-child(7), .hardware-table td:nth-child(7) {{ width: 11%; }} /* Fan Status */
         .hardware-table th:nth-child(8), .hardware-table td:nth-child(8) {{ width: 13%; }} /* PSU Efficiency */
         .hardware-table th:nth-child(9), .hardware-table td:nth-child(9) {{ width: 13%; }} /* Uptime */
@@ -367,6 +367,7 @@ def generate_hardware_html():
         <tr><td>ASIC Temperature</td><td>&lt; 70°C</td><td>70-80°C</td><td>80-90°C</td><td>&gt; 90°C</td></tr>
         <tr><td>Memory Usage</td><td>&lt; 60%</td><td>60-75%</td><td>75-85%</td><td>&gt; 85%</td></tr>
         <tr><td>CPU Load (5min avg)</td><td>&lt; 1.0</td><td>1.0-2.0</td><td>2.0-3.0</td><td>&gt; 3.0</td></tr>
+        <tr><td>Fan Speed</td><td>&gt; 3000 RPM</td><td>2000-3000 RPM</td><td>1000-2000 RPM</td><td>&lt; 1000 RPM</td></tr>
         <tr><td>PSU Efficiency</td><td>&gt; 90%</td><td>85-90%</td><td>80-85%</td><td>&lt; 80%</td></tr>
     </table>
 
