@@ -15,7 +15,7 @@ cd lldpq
 ## [01] what it does
 
 - monitors switches every 30 minutes  
-- collects bgp, optical, ber, link flap data
+- collects bgp, optical, ber, link flap, hardware health data
 - shows network topology with lldp
 - web dashboard with real-time stats
 
@@ -25,6 +25,7 @@ cd lldpq
 - **optical diagnostics**: power levels, temperature, bias current, link margins  
 - **link flap detection**: carrier transitions on all interfaces (including breakouts)
 - **bit error rate**: comprehensive error statistics with industry thresholds
+- **hardware health**: cpu/asic temperatures, memory usage, fan speeds, psu efficiency
 - **topology validation**: lldp neighbor verification against expected topology
 
 ## [03] configuration files
@@ -32,12 +33,12 @@ cd lldpq
 edit these 6 files:
 
 ```
-cable-check/devices.yaml            # add your switches (ip + username + hostname)
-cable-check/topology.dot            # expected cable connections
-cable-check/topology_config.yaml    # optional: customize device layers/icons at topology
-cable-check/hosts.ini               # optional: extra hostnames for topology  
-/etc/nccm.yml                       # optional: ssh manager [zzh]
-/etc/ip_list                        # optional: paralel ping to all devices [pping]
+~/cable-check/devices.yaml            # add your switches (ip + username + hostname)
+~/cable-check/topology.dot            # expected cable connections
+~/cable-check/topology_config.yaml    # optional: customize device layers/icons at topology
+~/cable-check/hosts.ini               # optional: extra hostnames for topology  
+/etc/nccm.yml                         # optional: ssh manager [zzh]
+/etc/ip_list                          # optional: paralel ping to all devices [pping]
 ```
 
 ## [04] cron jobs (auto setup)
