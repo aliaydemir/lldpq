@@ -90,8 +90,8 @@ def parse_psu_efficiency_from_hardware_file(device_name):
         output_matches_mw = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*mW', content)
         # Format 2: "PSU-X ... Pwr(out): 45.88 W" or "PSU-X ... Pwr (out): 69.50 W"
         psu_output_matches_w = re.findall(r'PSU-\d+.*Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content)
-        # Format 3: "... Rail Pwr(out): 21.00 W"
-        rail_output_matches_w = re.findall(r'.*Rail Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content)
+        # Format 3: VR IC and special rail outputs (avoid PSU double counting)
+        vr_output_matches_w = re.findall(r'(?:ASIC|VR|VCORE).*Rail Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content)
         
         # Sum all output power sources
         for power_str in output_matches_w:
@@ -100,7 +100,7 @@ def parse_psu_efficiency_from_hardware_file(device_name):
             total_output_power += float(power_str) / 1000.0  # Convert mW to W
         for power_str in psu_output_matches_w:
             total_output_power += float(power_str)
-        for power_str in rail_output_matches_w:
+        for power_str in vr_output_matches_w:
             total_output_power += float(power_str)
         
         # Calculate efficiency if we have both input and output
