@@ -163,7 +163,8 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
             "primaryIP": info.get("primaryIP", "N/A"),
             "model": info.get("model", "N/A"),
             "serial_number": info.get("serial_number", "N/A"),
-            "version": info.get("version", "N/A")
+            "version": info.get("version", "N/A"),
+            "dcimDeviceLink": f"/monitor-results/{device_name}.html"
         }
         topology_data["nodes"].append(device_node)
         device_nodes[device_name] = device_id
