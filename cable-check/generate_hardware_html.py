@@ -28,16 +28,62 @@ def parse_temperature_from_hardware_file(device_name):
         if asic_match:
             asic_temp = float(asic_match.group(1))
         
-        # Parse CPU temperature: "temp1:        +47.0°C" (usually from drivetemp-scsi adapter)
+        # Parse CPU temperature: multiple possible formats
+        # Pattern 1: "temp1:        +47.0°C" (some devices)
         cpu_matches = re.findall(r'temp1:\s*\+?(-?\d+\.?\d*)[°C]', content)
         if cpu_matches:
-            # Take the first valid CPU temperature
             cpu_temp = float(cpu_matches[0])
+        else:
+            # Pattern 2: "CPU ACPI temp:  +27.8°C" (other devices)
+            cpu_acpi_matches = re.findall(r'CPU ACPI temp:\s*\+?(-?\d+\.?\d*)[°C]', content)
+            if cpu_acpi_matches:
+                cpu_temp = float(cpu_acpi_matches[0])
+            else:
+                # Pattern 3: Average of CPU cores "Core 0:        +40.0°C"
+                core_matches = re.findall(r'Core \d+:\s*\+?(-?\d+\.?\d*)[°C]', content)
+                if core_matches:
+                    core_temps = [float(temp) for temp in core_matches]
+                    cpu_temp = sum(core_temps) / len(core_temps)  # Average
         
     except Exception as e:
         print(f"Warning: Could not parse temperatures for {device_name}: {e}")
     
     return cpu_temp, asic_temp
+
+def parse_psu_efficiency_from_hardware_file(device_name):
+    """Parse PSU efficiency from raw hardware file"""
+    
+    hardware_file = f"monitor-results/hardware-data/{device_name}_hardware.txt"
+    
+    if not os.path.exists(hardware_file):
+        return None
+    
+    try:
+        with open(hardware_file, 'r') as f:
+            content = f.read()
+        
+        total_input_power = 0.0
+        total_output_power = 0.0
+        
+        # Parse input power: "PMIC-X ... (in):  12.00 W"
+        input_matches = re.findall(r'PMIC-\d+.*\(in\):\s*(\d+\.?\d*)\s*W', content)
+        for power_str in input_matches:
+            total_input_power += float(power_str)
+        
+        # Parse output power: "PMIC-X ... Pwr (out):  5.00 W"
+        output_matches = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*W', content)
+        for power_str in output_matches:
+            total_output_power += float(power_str)
+        
+        # Calculate efficiency if we have both input and output
+        if total_input_power > 0 and total_output_power > 0:
+            efficiency = (total_output_power / total_input_power) * 100
+            return min(efficiency, 100.0)  # Cap at 100%
+        
+    except Exception as e:
+        print(f"Warning: Could not parse PSU efficiency for {device_name}: {e}")
+    
+    return None
 
 def generate_hardware_html():
     """Generate hardware analysis HTML using existing data"""
@@ -88,7 +134,8 @@ def generate_hardware_html():
         elif overall_grade == "CRITICAL":
             summary['critical_devices'].append(device_info)
     
-    total_devices = len(latest_devices)
+    # Use current device files count instead of historical count
+    total_devices = current_device_files
     
     # Generate BER-style HTML
     html_content = f"""<!DOCTYPE html>
@@ -184,7 +231,6 @@ def generate_hardware_html():
             <div class="summary-card card-total" id="total-devices-card">
                 <div class="metric" id="total-devices">{total_devices}</div>
                 <div>Total Devices</div>
-                <small>({current_device_files} with current data)</small>
             </div>
             <div class="summary-card card-excellent" id="excellent-card">
                 <div class="metric" id="excellent-devices">{len(summary['excellent_devices'])}</div>
@@ -246,8 +292,9 @@ def generate_hardware_html():
         cpu_load = device_data.get("resources", {}).get("cpu", {}).get("load_5min", 0)
         uptime = device_data.get("resources", {}).get("uptime", "N/A")
         
-        # PSU Efficiency (placeholder)
-        psu_efficiency = 0.0
+        # Parse PSU efficiency from hardware files
+        psu_efficiency_parsed = parse_psu_efficiency_from_hardware_file(device_name)
+        psu_efficiency = psu_efficiency_parsed if psu_efficiency_parsed is not None else 0.0
         
         health_class = f"hardware-{health_grade.lower()}"
         
