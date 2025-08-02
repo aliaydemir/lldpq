@@ -47,6 +47,36 @@ execute_commands_optimized() {
 <head>
     <title>Monitor Results - ${hostname}</title>
     <link rel="stylesheet" type="text/css" href="/css/styles2.css">
+    <style>
+        /* Syntax highlighting for config content */
+        .config-container {
+            background-color: #1e1e1e;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            line-height: 1.4;
+        }
+        
+        .config-line {
+            display: block;
+            margin: 2px 0;
+        }
+        
+        .comment { color: #6a9955; font-style: italic; }
+        .keyword { color: #569cd6; font-weight: bold; }
+        .string { color: #ce9178; }
+        .number { color: #d7ba7d; }
+        .ip-number { color: #ffffff; }
+        .variable { color: #9cdcfe; }
+        .operator { color: #d4d4d4; }
+        .section { color: #dcdcaa; font-weight: bold; }
+        .interface { color: #4ec9b0; }
+        .ip-address { color: #ffffff; }
+        .default { color: #569cd6; }
+    </style>
 </head>
 <body>
     <h1><font color="#b57614">Monitor Results - ${hostname}</font></h1>
@@ -193,12 +223,23 @@ EOF
 <h1></h1><h1><font color="#b57614">Device Configuration - ${hostname}</font></h1><h3></h3>
 EOF
 
-    # Check if nv-set config exists and add it
+    # Check if nv-set config exists and add it with syntax highlighting
     if [ -f "/var/www/html/configs/${hostname}.txt" ]; then
         echo "<h2><font color='steelblue'>NV Set Commands</font></h2>" >> monitor-results/${hostname}.html
-        echo "<pre style='background-color: #f5f5f5; padding: 10px; border-left: 4px solid #b57614; margin: 10px 0;'>" >> monitor-results/${hostname}.html
-        cat "/var/www/html/configs/${hostname}.txt" | sed 's/</\&lt;/g; s/>/\&gt;/g' >> monitor-results/${hostname}.html
-        echo "</pre>" >> monitor-results/${hostname}.html
+        echo "<div class='config-container' id='config-content'>" >> monitor-results/${hostname}.html
+        
+        # Apply syntax highlighting using sed
+        cat "/var/www/html/configs/${hostname}.txt" | sed '
+            s/</\&lt;/g; s/>/\&gt;/g;
+            s/^#.*/<span class="comment">&<\/span>/;
+            s/\bnv set\b/<span class="keyword">nv set<\/span>/g;
+            s/\b\(swp[0-9]\+\|bond[0-9]\+\|vlan[0-9]\+\|eth[0-9]\+\|lo[0-9]*\|br[0-9]\+\)\b/<span class="interface">\1<\/span>/g;
+            s/\b\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\b/<span class="ip-number">\1<\/span>.<span class="ip-number">\2<\/span>.<span class="ip-number">\3<\/span>.<span class="ip-number">\4<\/span>/g;
+            s/\b\([0-9]\+\)\b/<span class="number">\1<\/span>/g;
+            s/^\(.*\)$/<span class="config-line default">\1<\/span>/
+        ' >> monitor-results/${hostname}.html
+        
+        echo "</div>" >> monitor-results/${hostname}.html
     else
         echo "<p><span style='color: orange;'>⚠️  NV Set configuration not available for ${hostname}</span></p>" >> monitor-results/${hostname}.html
     fi
