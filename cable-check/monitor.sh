@@ -239,7 +239,7 @@ EOF
             # Handle description lines: highlight everything before description normally, then description content as comment
             /description/ {
                 # First highlight interfaces in the command part (comprehensive pattern)
-                s/\b\(swp[0-9]\+\(s[0-9]\+\)\?\(-[0-9]\+\)\?\|bond[0-9_a-zA-Z-]\+\|vlan[0-9]\+\|eth[0-9]\+\|lo[0-9]*\|br[0-9]\+\|peerlink\)\b/<span class="interface">\1<\/span>/g;
+                #s/\b\(swp[0-9]\+\(s[0-9]\+\)\?\(-[0-9]\+\)\?\|bond[0-9_a-zA-Z-]\+\|vlan[0-9]\+\|eth[0-9]\+\|lo[0-9]*\|br[0-9]\+\|peerlink\)\b/<span class="interface">\1<\/span>/g;
                 
                 # Then split at description and make the content after it a comment (capture everything after description)
                 s/\(.*\)\(description\s\+\)\(.*\)$/\1\2<span class="comment">\3<\/span>/;
@@ -251,13 +251,13 @@ EOF
                 #s/^\(\s*\)\(nv\s\+set\)\b/\1<span class="keyword">\2<\/span>/;
                 
                 # Highlight interfaces (comprehensive pattern)
-                s/\b\(swp[0-9]\+\(s[0-9]\+\)\?\(-[0-9]\+\)\?\|bond[0-9_a-zA-Z-]\+\|vlan[0-9]\+\|eth[0-9]\+\|lo[0-9]*\|br[0-9]\+\|peerlink\)\b/<span class="interface">\1<\/span>/g;
+                #s/\b\(swp[0-9]\+\(s[0-9]\+\)\?\(-[0-9]\+\)\?\|bond[0-9_a-zA-Z-]\+\|vlan[0-9]\+\|eth[0-9]\+\|lo[0-9]*\|br[0-9]\+\|peerlink\)\b/<span class="interface">\1<\/span>/g;
                 
                 # Highlight IP addresses
-                s/\b\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)/<span class="ip-number">\1<\/span>.<span class="ip-number">\2<\/span>.<span class="ip-number">\3<\/span>.<span class="ip-number">\4<\/span>/g;
+                #s/\b\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)/<span class="ip-number">\1<\/span>.<span class="ip-number">\2<\/span>.<span class="ip-number">\3<\/span>.<span class="ip-number">\4<\/span>/g;
                 
                 # Highlight numbers  
-                s/\b\([0-9]\+\)\b/<span class="number">\1<\/span>/g;
+                #s/\b\([0-9]\+\)\b/<span class="number">\1<\/span>/g;
             }
         ' >> monitor-results/${hostname}.html
         
