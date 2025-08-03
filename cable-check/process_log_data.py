@@ -239,7 +239,7 @@ class LogAnalyzer:
         .card-total .metric {{ color: #333; }}
         .card-info .metric {{ color: #2196f3; }}
         
-        /* Card labels light theme */
+        /* Card labels - visible on light card background */
         .summary-card div:not(.metric) {{ color: #666; }}
         
         .log-excellent {{ color: #4caf50; font-weight: bold; }}
