@@ -132,6 +132,7 @@ class LLDPqAlerts:
     def send_teams_message(self, title, message, color, device, timestamp, webhook):
         """Send message to Microsoft Teams"""
         try:
+            server_url = self.config.get('notifications', {}).get('server_url', 'http://localhost')
             payload = {
                 "title": title,
                 "text": message,
@@ -140,7 +141,7 @@ class LLDPqAlerts:
                     "facts": [
                         {"name": "Device", "value": device},
                         {"name": "Time", "value": timestamp},
-                        {"name": "Dashboard", "value": f"[View Details](http://localhost/monitor-results/{device}.html)"}
+                        {"name": "Dashboard", "value": f"[View Details]({server_url}/monitor-results/{device}.html)"}
                     ]
                 }]
             }
@@ -157,6 +158,7 @@ class LLDPqAlerts:
     def send_slack_message(self, title, message, color, device, timestamp, slack_config):
         """Send message to Slack"""
         try:
+            server_url = self.config.get('notifications', {}).get('server_url', 'http://localhost')
             payload = {
                 "channel": slack_config.get('channel', '#network-alerts'),
                 "username": slack_config.get('username', 'LLDPq Bot'),
@@ -172,7 +174,7 @@ class LLDPqAlerts:
                     "actions": [{
                         "type": "button",
                         "text": "View Details",
-                        "url": f"http://localhost/monitor-results/{device}.html"
+                        "url": f"{server_url}/monitor-results/{device}.html"
                     }]
                 }]
             }
@@ -469,7 +471,11 @@ class LLDPqAlerts:
             print("ℹ️  Notifications disabled or config error")
             return
             
-        print(f"🔍 Checking alerts for all devices...")
+        # Get alert strategy
+        alert_strategy = self.config.get('alert_strategy', {})
+        mode = alert_strategy.get('mode', 'summary')
+        
+        print(f"🔍 Checking alerts for all devices (mode: {mode})...")
         
         # Get list of devices from hardware data
         hardware_dir = self.monitor_results / "hardware-data"
@@ -486,6 +492,150 @@ class LLDPqAlerts:
             
         print(f"📊 Found {len(devices)} devices to check")
         
+        if mode == "summary":
+            self.send_summary_alert(devices)
+        elif mode == "change_only":
+            self.check_changes_only(devices)  
+        else:
+            # Immediate mode (original behavior)
+            for device in devices:
+                print(f"  📍 Checking {device}...")
+                try:
+                    self.check_hardware_alerts(device)
+                    self.check_network_alerts(device)
+                    self.check_log_alerts(device)
+                except Exception as e:
+                    print(f"    ❌ Error checking {device}: {e}")
+                    continue
+        
+        print("✅ Alert check completed")
+
+    def send_summary_alert(self, devices):
+        """Send dashboard-style summary alert"""
+        print("📊 Generating network health summary...")
+        
+        # Collect summary statistics
+        total_devices = len(devices)
+        hardware_stats = {"excellent": 0, "good": 0, "warnings": 0, "critical": 0}
+        log_stats = {"critical": 0, "warnings": 0, "errors": 0, "info": 0}
+        critical_issues = []
+        
+        for device in devices:
+            try:
+                # Check hardware status
+                hw_status = self.get_device_hardware_status(device)
+                if hw_status:
+                    hardware_stats[hw_status.lower()] += 1
+                    if hw_status.lower() == "critical":
+                        critical_issues.append(f"🔥 {device}: Critical hardware issue")
+                
+                # Check log status  
+                log_counts = self.get_device_log_counts(device)
+                if log_counts:
+                    log_stats["critical"] += log_counts.get("critical", 0)
+                    log_stats["warnings"] += log_counts.get("warnings", 0)
+                    log_stats["errors"] += log_counts.get("errors", 0)
+                    log_stats["info"] += log_counts.get("info", 0)
+                    
+                    if log_counts.get("critical", 0) > 0:
+                        critical_issues.append(f"📋 {device}: {log_counts['critical']} critical logs")
+                        
+            except Exception as e:
+                print(f"    ❌ Error checking {device}: {e}")
+                continue
+        
+        # Send summary if there are issues or it's scheduled time
+        if critical_issues or self.is_summary_time():
+            server_url = self.config.get('notifications', {}).get('server_url', 'http://localhost')
+            
+            # Create dashboard-style message
+            title = "🌐 Network Health Summary"
+            message = f"""
+**Network Overview:**
+• 📱 Total Devices: {total_devices}
+• 🟢 Excellent: {hardware_stats['excellent']} | 🔵 Good: {hardware_stats['good']}
+• 🟡 Warnings: {hardware_stats['warnings']} | 🔴 Critical: {hardware_stats['critical']}
+
+**Log Analysis:**
+• 🔴 Critical: {log_stats['critical']} | ⚠️ Warnings: {log_stats['warnings']}
+• ❌ Errors: {log_stats['errors']} | ℹ️ Info: {log_stats['info']}
+"""
+            
+            if critical_issues:
+                message += f"\n**🚨 Critical Issues:**\n" + "\n".join(critical_issues[:5])
+                if len(critical_issues) > 5:
+                    message += f"\n... and {len(critical_issues) - 5} more issues"
+                    
+            message += f"\n\n[📊 View Full Dashboard]({server_url})"
+            
+            # Send notification
+            color = "#FF0000" if critical_issues else "#00AA00"
+            severity = "CRITICAL" if critical_issues else "INFO"
+            self.send_notification(title, message, severity, "Network Summary")
+            
+        print(f"📊 Summary: {total_devices} devices, {len(critical_issues)} critical issues")
+
+    def get_device_hardware_status(self, device):
+        """Get hardware health status for a device"""
+        try:
+            hardware_file = self.monitor_results / "hardware-data" / f"{device}_hardware.txt"
+            if not hardware_file.exists():
+                return None
+                
+            with open(hardware_file, 'r') as f:
+                hardware_data = f.read()
+            
+            # Simple status check based on temperature
+            cpu_temp_match = re.search(r'CPU ACPI temp:\s*\+?([0-9.]+)°C', hardware_data)
+            if cpu_temp_match:
+                cpu_temp = float(cpu_temp_match.group(1))
+                if cpu_temp >= 85:
+                    return "CRITICAL"
+                elif cpu_temp >= 75:
+                    return "WARNINGS"
+                elif cpu_temp >= 65:
+                    return "GOOD"
+                else:
+                    return "EXCELLENT"
+            return "GOOD"
+        except:
+            return None
+
+    def get_device_log_counts(self, device):
+        """Get log severity counts for a device"""
+        try:
+            log_file = self.monitor_results / "log-data" / f"{device}_logs.txt"
+            if not log_file.exists():
+                return None
+                
+            with open(log_file, 'r') as f:
+                log_data = f.read()
+            
+            counts = {"critical": 0, "warnings": 0, "errors": 0, "info": 0}
+            
+            # Count different severity levels
+            counts["critical"] = len(re.findall(r'CRITICAL|CRIT|ALERT|EMERG', log_data, re.IGNORECASE))
+            counts["warnings"] = len(re.findall(r'WARNING|WARN', log_data, re.IGNORECASE))
+            counts["errors"] = len(re.findall(r'ERROR|ERR', log_data, re.IGNORECASE))
+            counts["info"] = len(re.findall(r'INFO|NOTICE', log_data, re.IGNORECASE))
+            
+            return counts
+        except:
+            return None
+
+    def is_summary_time(self):
+        """Check if it's time for scheduled summary"""
+        strategy = self.config.get('alert_strategy', {})
+        summary_times = strategy.get('summary_times', ['09:00', '17:00'])
+        
+        current_time = datetime.datetime.now().strftime("%H:%M")
+        return current_time in summary_times
+
+    def check_changes_only(self, devices):
+        """Check and alert only on significant changes"""
+        # This would compare with previous state and only alert on changes
+        # For now, fall back to immediate mode
+        print("🔄 Change-only mode not fully implemented, using immediate mode")
         for device in devices:
             print(f"  📍 Checking {device}...")
             try:
@@ -495,8 +645,6 @@ class LLDPqAlerts:
             except Exception as e:
                 print(f"    ❌ Error checking {device}: {e}")
                 continue
-        
-        print("✅ Alert check completed")
 
 def main():
     """Main function"""
