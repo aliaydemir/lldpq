@@ -518,6 +518,10 @@ class LLDPqAlerts:
         total_devices = len(devices)
         hardware_stats = {"excellent": 0, "good": 0, "warnings": 0, "critical": 0}
         log_stats = {"critical": 0, "warnings": 0, "errors": 0, "info": 0}
+        bgp_stats = {"established": 0, "down": 0}
+        asset_stats = {"successful": 0, "failed": 0}
+        ber_stats = {"good": 0, "warnings": 0, "critical": 0}
+        flap_stats = {"stable": 0, "warnings": 0, "critical": 0}
         critical_issues = []
         
         for device in devices:
@@ -539,13 +543,42 @@ class LLDPqAlerts:
                     
                     if log_counts.get("critical", 0) > 0:
                         critical_issues.append(f"📋 {device}: {log_counts['critical']} critical logs")
+                
+                # Check BGP status
+                bgp_status = self.get_device_bgp_status(device)
+                if bgp_status == "down":
+                    bgp_stats["down"] += 1
+                    critical_issues.append(f"🔴 {device}: BGP neighbors down")
+                else:
+                    bgp_stats["established"] += 1
+                
+                # Check asset status
+                asset_status = self.get_device_asset_status(device)
+                if asset_status == "failed":
+                    asset_stats["failed"] += 1
+                else:
+                    asset_stats["successful"] += 1
+                
+                # Check BER status (simplified)
+                ber_status = self.get_device_ber_status(device)
+                if ber_status:
+                    ber_stats[ber_status.lower()] += 1
+                else:
+                    ber_stats["good"] += 1
+                
+                # Check flap status (simplified)
+                flap_status = self.get_device_flap_status(device)
+                if flap_status:
+                    flap_stats[flap_status.lower()] += 1
+                else:
+                    flap_stats["stable"] += 1
                         
             except Exception as e:
                 print(f"    ❌ Error checking {device}: {e}")
                 continue
         
         # Create summary signature for state tracking
-        summary_signature = f"{total_devices}_{hardware_stats['excellent']}_{hardware_stats['good']}_{hardware_stats['warnings']}_{hardware_stats['critical']}_{log_stats['critical']}_{log_stats['warnings']}"
+        summary_signature = f"{total_devices}_{hardware_stats['excellent']}_{hardware_stats['good']}_{hardware_stats['warnings']}_{hardware_stats['critical']}_{log_stats['critical']}_{log_stats['warnings']}_{bgp_stats['down']}_{asset_stats['failed']}_{ber_stats['critical']}_{flap_stats['critical']}"
         
         # Check if summary changed or it's scheduled time
         if self.should_send_summary_alert(summary_signature) or critical_issues:
@@ -563,7 +596,23 @@ Hardware Health Analysis:
 
 Log Analysis Results:
 
-🔴 Critical: {log_stats['critical']}     🟡 Warnings: {log_stats['warnings']}     🔴 Errors: {log_stats['errors']}     🔵 Info: {log_stats['info']}"""
+🔴 Critical: {log_stats['critical']}     🟡 Warnings: {log_stats['warnings']}     🔵 Errors: {log_stats['errors']}     🟢 Info: {log_stats['info']}
+
+BGP Analysis Results:
+
+🟢 Established: {bgp_stats['established']}     🔴 Down: {bgp_stats['down']}
+
+Asset Analysis Results:
+
+🟢 Successful: {asset_stats['successful']}     🔴 Failed: {asset_stats['failed']}
+
+BER Analysis Results:
+
+🟢 Good: {ber_stats['good']}     🟡 Warnings: {ber_stats['warnings']}     🔴 Critical: {ber_stats['critical']}
+
+Link Flap Analysis Results:
+
+🟢 Stable: {flap_stats['stable']}     🟡 Warnings: {flap_stats['warnings']}     🔴 Critical: {flap_stats['critical']}"""
 
 
             if critical_issues:
@@ -649,6 +698,83 @@ Log Analysis Results:
             return counts
         except:
             return None
+
+    def get_device_bgp_status(self, device):
+        """Get BGP status for a device"""
+        try:
+            bgp_file = self.monitor_results / "bgp-data" / f"{device}_bgp.txt"
+            if not bgp_file.exists():
+                return "established"
+                
+            with open(bgp_file, 'r') as f:
+                bgp_data = f.read()
+            
+            # Check for down BGP neighbors
+            down_patterns = ['Active', 'Idle', 'Connect']
+            for pattern in down_patterns:
+                if pattern in bgp_data:
+                    return "down"
+            
+            return "established"
+        except:
+            return "established"
+
+    def get_device_asset_status(self, device):
+        """Get asset status for a device"""
+        try:
+            # Check if device exists in monitoring results (simple check)
+            device_file = self.monitor_results / f"{device}.html"
+            if device_file.exists():
+                return "successful"
+            else:
+                return "failed"
+        except:
+            return "failed"
+
+    def get_device_ber_status(self, device):
+        """Get BER status for a device"""
+        try:
+            ber_file = self.monitor_results / "ber-data" / f"{device}_ber.txt"
+            if not ber_file.exists():
+                return "good"
+                
+            with open(ber_file, 'r') as f:
+                ber_data = f.read()
+            
+            # Simple BER check - look for high error rates
+            if re.search(r'ERROR|CRITICAL|HIGH.*ERROR', ber_data, re.IGNORECASE):
+                return "critical"
+            elif re.search(r'WARNING|WARN', ber_data, re.IGNORECASE):
+                return "warnings"
+            
+            return "good"
+        except:
+            return "good"
+
+    def get_device_flap_status(self, device):
+        """Get link flap status for a device"""
+        try:
+            flap_files = glob.glob(str(self.monitor_results / "flap-data" / f"{device}_*_transitions.txt"))
+            if not flap_files:
+                return "stable"
+            
+            max_flaps = 0
+            for flap_file in flap_files:
+                try:
+                    with open(flap_file, 'r') as f:
+                        flap_count = len(f.readlines())
+                    max_flaps = max(max_flaps, flap_count)
+                except:
+                    continue
+            
+            if max_flaps >= 20:
+                return "critical"
+            elif max_flaps >= 10:
+                return "warnings"
+            
+            return "stable"
+        except:
+            return "stable"
 
     def is_summary_time(self):
         """Check if it's time for scheduled summary"""
