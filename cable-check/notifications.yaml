@@ -1,0 +1,122 @@
+# LLDPq Notification Configuration
+# Copyright (c) 2024 LLDPq Project - Licensed under MIT License
+#
+# =============================================================================
+# WEBHOOK SETUP GUIDE:
+# =============================================================================
+#
+# 🔹 MICROSOFT TEAMS:
+# 1. Go to your Teams channel
+# 2. Click ⋯ (three dots) → Connectors
+# 3. Find "Incoming Webhook" → Configure
+# 4. Name: "LLDPq Network Alerts" → Create
+# 5. Copy the webhook URL (starts with https://outlook.office.com/webhook/)
+#
+# 🔹 SLACK:
+# 1. Go to https://api.slack.com/apps
+# 2. Create New App → From scratch
+# 3. App Name: "LLDPq" → Select workspace
+# 4. Go to "Incoming Webhooks" → Activate
+# 5. "Add New Webhook to Workspace" → Choose channel
+# 6. Copy the webhook URL (starts with https://hooks.slack.com/services/)
+#
+# =============================================================================
+
+notifications:
+  # Global enable/disable switch
+  enabled: false
+  
+  # Microsoft Teams integration
+  teams:
+    enabled: false
+    webhook: ""
+    # Example: "https://outlook.office.com/webhook/xxx-xxx-xxx/IncomingWebhook/yyy-yyy-yyy"
+  
+  # Slack integration  
+  slack:
+    enabled: false
+    webhook: ""
+    # Example: "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+    channel: "#network-alerts"
+    username: "LLDPq Bot"
+    icon_emoji: ":warning:"
+
+# =============================================================================
+# ALERT THRESHOLDS - Adjust these based on your environment
+# =============================================================================
+
+thresholds:
+  # Hardware monitoring
+  hardware:
+    cpu_temp_critical: 85      # °C - Critical CPU temperature
+    cpu_temp_warning: 75       # °C - Warning CPU temperature
+    asic_temp_critical: 90     # °C - Critical ASIC temperature  
+    asic_temp_warning: 80      # °C - Warning ASIC temperature
+    fan_rpm_critical: 3000     # RPM - Minimum fan speed (critical)
+    fan_rpm_warning: 4000      # RPM - Minimum fan speed (warning)
+    memory_usage_critical: 90  # % - Critical memory usage
+    memory_usage_warning: 80   # % - Warning memory usage
+    psu_efficiency_warning: 80 # % - Minimum PSU efficiency
+    
+  # Network monitoring
+  network:
+    bgp_down_minutes: 5       # Minutes - BGP neighbor down threshold
+    link_flaps_per_hour: 10   # Count - Link flaps in 1 hour (warning)
+    link_flaps_critical: 20   # Count - Link flaps in 1 hour (critical)
+    optical_power_margin: 3   # dBm - Minimum optical power margin
+    ber_error_rate: 1e-12     # BER threshold for errors
+    
+  # System monitoring  
+  system:
+    disk_usage_warning: 80    # % - Disk usage warning
+    disk_usage_critical: 90   # % - Disk usage critical
+    load_average_warning: 8   # Load average warning (adjust for your CPUs)
+    load_average_critical: 12 # Load average critical
+    uptime_minimum_hours: 1   # Hours - Alert if device rebooted recently
+
+# =============================================================================
+# ALERT FREQUENCY CONTROL
+# =============================================================================
+
+frequency:
+  # Minimum time between same alert (prevents spam)
+  min_interval_minutes: 30
+  
+  # Send recovery notifications when problems resolve
+  send_recovery: true
+  
+  # Send daily summary (00:00 UTC)
+  daily_summary: true
+  
+  # Send weekly health report (Sunday 00:00 UTC)
+  weekly_report: false
+
+# =============================================================================
+# ALERT TYPES - Enable/disable specific alert categories
+# =============================================================================
+
+alert_types:
+  hardware_alerts: true      # CPU/ASIC temp, fans, PSU, memory
+  network_alerts: true       # BGP, link flaps, optical power
+  system_alerts: true        # Disk, load, uptime
+  topology_alerts: true      # LLDP mismatches
+  log_alerts: true           # Critical system logs
+  
+# =============================================================================
+# MESSAGE TEMPLATES - Customize alert messages
+# =============================================================================
+
+templates:
+  critical: "🔥 CRITICAL"
+  warning: "⚠️ WARNING" 
+  info: "ℹ️ INFO"
+  recovery: "✅ RECOVERED"
+  
+# =============================================================================
+# EXAMPLE USAGE:
+# =============================================================================
+# 1. Set enabled: true
+# 2. Add your webhook URLs
+# 3. Adjust thresholds for your environment
+# 4. Test with: python3 test_alerts.py
+# 5. Alerts will be sent every 10 minutes via lldpq cron job

@@ -115,7 +115,41 @@ cd cable-check && sudo ./webauth.sh     # interactive menu: enable/disable/updat
 
 when enabled, all web pages require authentication. when disabled, everything is open access.
 
-## [11] troubleshooting
+## [11] alerts & notifications
+
+get real-time alerts for network issues via Teams/Slack:
+
+```
+cd cable-check
+nano notifications.yaml                              # add webhook URLs + enable alerts
+python3 test_alerts.py                               # test configuration
+```
+
+### setup webhooks:
+
+**microsoft teams:**
+1. go to teams channel → ⋯ → connectors → incoming webhook
+2. name: "lldpq alerts" → create → copy webhook url
+
+**slack:**  
+1. go to https://api.slack.com/apps → create app → incoming webhooks
+2. activate → add to workspace → choose channel → copy webhook url
+
+### alert types:
+- 🔥 **hardware**: cpu/asic temp, fan failures, memory usage, psu issues
+- 🔴 **network**: bgp neighbors down, excessive link flaps, optical power
+- 📋 **system**: critical logs, disk usage, high load average
+- ✅ **recovery**: automatic notifications when issues resolve
+
+### how it works:
+- **smart detection**: only alerts on state changes (no spam)
+- **10-minute checks**: runs with lldpq cron job every 10 minutes
+- **customizable**: adjust thresholds in notifications.yaml
+- **state tracking**: prevents duplicate alerts, tracks recovery
+
+alerts automatically start working once webhooks are configured. check `cable-check/alert_states/` for alert history.
+
+## [12] troubleshooting
 
 ```
 # check if cron is running
@@ -128,7 +162,7 @@ cd ~/cable-check && ./assets.sh && ./check-lldp.sh && ./monitor.sh
 ls -la /var/www/html/monitor-results/
 ```
 
-## [12] license
+## [13] license
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 

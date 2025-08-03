@@ -24,12 +24,16 @@ if [[ ! -f "README.md" ]] || [[ ! -d "cable-check" ]]; then
 fi
 
 echo ""
-echo "[01] Installing and enabling nginx..."
+echo "[01] Installing required packages..."
 sudo apt update
-sudo apt install -y nginx
+sudo apt install -y nginx python3 python3-pip python3-yaml
 sudo systemctl enable nginx
 sudo systemctl start nginx
-echo "nginx installed and started"
+
+# Install Python packages for alert system
+echo "   - Installing Python packages for alerts..."
+pip3 install --user requests >/dev/null 2>&1 || echo "   ⚠️  requests already installed"
+echo "Required packages installed"
 
 echo ""
 echo "[02] Copying files to system directories..."
