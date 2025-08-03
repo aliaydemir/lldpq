@@ -253,9 +253,9 @@ class LogAnalyzer:
         .total-warning {{ color: #ff9800; font-weight: bold; }}
         .total-critical {{ color: #f44336; font-weight: bold; }}
         
-        /* Sortable table styling - light theme like other analysis pages */
+        /* Sortable table styling - dark theme like other analysis pages */
         .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
-        .sortable:hover {{ background-color: #f5f5f5; }}
+        .sortable:hover {{ background-color: #3a3a3a; }}
         .sort-arrow {{ font-size: 10px; color: #999; margin-left: 5px; opacity: 0.5; }}
         .sortable.asc .sort-arrow::before {{ content: '▲'; color: #b57614; opacity: 1; }}
         .sortable.desc .sort-arrow::before {{ content: '▼'; color: #b57614; opacity: 1; }}
