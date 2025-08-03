@@ -509,8 +509,9 @@ class LogAnalyzer:
         // Initialize page functionality
         document.addEventListener('DOMContentLoaded', function() {
             initSummaryCardFilters();
-            initTableSorting();
+            // initTableSorting();  // TEMPORARILY DISABLED FOR TESTING
             initLogDetailsClickHandlers();
+            console.log('🔥 Testing: Table sorting disabled, only log clicks enabled');
         });
         
         function initLogDetailsClickHandlers() {
