@@ -12,13 +12,23 @@
 # 4. Name: "LLDPq Network Alerts" → Create
 # 5. Copy the webhook URL (starts with https://outlook.office.com/webhook/)
 #
-# 🔹 SLACK:
+# 🔹 SLACK (Detailed Steps):
 # 1. Go to https://api.slack.com/apps
-# 2. Create New App → From scratch
-# 3. App Name: "LLDPq" → Select workspace
-# 4. Go to "Incoming Webhooks" → Activate
-# 5. "Add New Webhook to Workspace" → Choose channel
-# 6. Copy the webhook URL (starts with https://hooks.slack.com/services/)
+# 2. "Create New App" → "From scratch"
+# 3. App Name: "LLDPq" → Select your workspace → "Create App"
+# 4. Left sidebar → "Incoming Webhooks" → Toggle "Activate Incoming Webhooks" to ON
+# 5. Click "Add New Webhook to Workspace" 
+# 6. Slack will ask for permissions → Click "Allow"
+# 7. Bot will send you a message → Click the message
+# 8. Click "Add to Slack" → "Install to [Your Workspace]"
+# 9. Choose channel:
+#    • RECOMMENDED: Create new channel first (e.g., #lldpq-alerts, #network-monitoring)
+#    • OR use existing channel (e.g., #network-alerts)
+#    • Click "Allow" after selecting channel
+# 10. Copy the webhook URL that appears (starts with https://hooks.slack.com/services/)
+#
+# 💡 TIP: Creating a dedicated channel prevents spam in existing channels and keeps
+#         network alerts organized for the right team members.
 #
 # =============================================================================
 
