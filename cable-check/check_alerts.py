@@ -544,25 +544,21 @@ class LLDPqAlerts:
                 print(f"    ❌ Error checking {device}: {e}")
                 continue
         
-        # Send summary if there are issues or it's scheduled time
-        if critical_issues or self.is_summary_time():
+        # Create summary signature for state tracking
+        summary_signature = f"{total_devices}_{hardware_stats['excellent']}_{hardware_stats['good']}_{hardware_stats['warnings']}_{hardware_stats['critical']}_{log_stats['critical']}_{log_stats['warnings']}"
+        
+        # Check if summary changed or it's scheduled time
+        if self.should_send_summary_alert(summary_signature) or critical_issues:
             server_url = self.config.get('notifications', {}).get('server_url', 'http://localhost')
             
-            # Create dashboard-style message
-            title = "🌐 Network Health Summary"
-            message = f"""
-**Network Overview:**
-• 📱 Total Devices: {total_devices}
-• 🟢 Excellent: {hardware_stats['excellent']} | 🔵 Good: {hardware_stats['good']}
-• 🟡 Warnings: {hardware_stats['warnings']} | 🔴 Critical: {hardware_stats['critical']}
-
-**Log Analysis:**
-• 🔴 Critical: {log_stats['critical']} | ⚠️ Warnings: {log_stats['warnings']}
-• ❌ Errors: {log_stats['errors']} | ℹ️ Info: {log_stats['info']}
-"""
+            # Create clean dashboard-style message
+            title = "Network Health Summary"
+            message = f"""• Total Devices: {total_devices}
+• 🟢 Excellent: {hardware_stats['excellent']} | 🔵 Good: {hardware_stats['good']} | 🟡 Warnings: {hardware_stats['warnings']} | 🔴 Critical: {hardware_stats['critical']}
+• 🔴 Critical Logs: {log_stats['critical']} | ⚠️ Warning Logs: {log_stats['warnings']} | ❌ Error Logs: {log_stats['errors']} | ℹ️ Info Logs: {log_stats['info']}"""
             
             if critical_issues:
-                message += f"\n**🚨 Critical Issues:**\n" + "\n".join(critical_issues[:5])
+                message += f"\n\n**🚨 Critical Issues:**\n" + "\n".join(critical_issues[:5])
                 if len(critical_issues) > 5:
                     message += f"\n... and {len(critical_issues) - 5} more issues"
                     
@@ -573,7 +569,29 @@ class LLDPqAlerts:
             severity = "CRITICAL" if critical_issues else "INFO"
             self.send_notification(title, message, severity, "Network Summary")
             
+            # Save summary state
+            self.set_alert_state("network_summary", "last_summary", summary_signature)
+            
         print(f"📊 Summary: {total_devices} devices, {len(critical_issues)} critical issues")
+
+    def should_send_summary_alert(self, current_signature):
+        """Check if summary should be sent based on changes or schedule"""
+        last_signature = self.get_alert_state("network_summary", "last_summary")
+        
+        # Send if data changed
+        if current_signature != last_signature:
+            return True
+            
+        # Send if it's scheduled time and hasn't been sent recently
+        if self.is_summary_time():
+            last_summary_time = self.get_alert_state("network_summary", "last_summary_time")
+            current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            
+            if current_time != last_summary_time:
+                self.set_alert_state("network_summary", "last_summary_time", current_time)
+                return True
+                
+        return False
 
     def get_device_hardware_status(self, device):
         """Get hardware health status for a device"""
