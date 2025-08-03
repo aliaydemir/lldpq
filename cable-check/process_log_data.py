@@ -514,10 +514,16 @@ class LogAnalyzer:
             // Event delegation for severity count clicks (survives table sorting)
             const table = document.getElementById('log-table');
             table.addEventListener('click', function(event) {
+                console.log('Table clicked:', event.target);
+                console.log('Classes:', event.target.classList);
+                console.log('Has severity-count class:', event.target.classList.contains('severity-count'));
+                
                 if (event.target.classList.contains('severity-count') && !event.target.classList.contains('zero')) {
                     const deviceName = event.target.getAttribute('data-device');
                     const severity = event.target.getAttribute('data-severity');
+                    console.log('Device:', deviceName, 'Severity:', severity);
                     if (deviceName && severity) {
+                        console.log('Calling toggleLogDetails...');
                         toggleLogDetails(deviceName, severity);
                     }
                 }
