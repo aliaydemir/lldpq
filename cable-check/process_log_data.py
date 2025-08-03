@@ -699,9 +699,6 @@ class LogAnalyzer:
             const tbody = table.querySelector('tbody');
             const rows = Array.from(tbody.rows).filter(row => !row.classList.contains('log-details'));
             
-            // Save all log-details rows before clearing tbody
-            const allLogDetailsRows = Array.from(tbody.rows).filter(row => row.classList.contains('log-details'));
-            
             rows.sort((a, b) => {
                 let aVal, bVal;
                 
@@ -732,19 +729,18 @@ class LogAnalyzer:
                 return direction === 'desc' ? -result : result;
             });
             
-            // Clear tbody and add sorted rows back
-            tbody.innerHTML = '';
-            rows.forEach(row => {
-                tbody.appendChild(row);
-                // Re-append saved log details rows that belong to this device
+            // DIFFERENT APPROACH: Move existing DOM nodes instead of destroying them
+            rows.forEach((row, index) => {
                 const deviceName = row.cells[0].textContent.trim();
-                const deviceLogDetailsRows = allLogDetailsRows.filter(
+                
+                // Move the device row to its new position
+                tbody.appendChild(row);
+                
+                // Move the associated log-details rows right after the device row
+                const logDetailsRows = Array.from(tbody.querySelectorAll('.log-details')).filter(
                     detailRow => detailRow.id.includes(deviceName)
                 );
-                deviceLogDetailsRows.forEach(detailRow => tbody.appendChild(detailRow));
-                
-                // Re-attach click handlers after sorting
-                reattachClickHandlers(row, deviceName);
+                logDetailsRows.forEach(detailRow => tbody.appendChild(detailRow));
             });
         }
         
