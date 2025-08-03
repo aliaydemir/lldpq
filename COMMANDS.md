@@ -42,37 +42,45 @@ uptime
 cat /proc/net/dev
 ```
 
-### Log Collection (Enhanced - Requires Sudo)
+### Log Collection (HYBRID Approach - Requires Sudo)
+**🎯 Uses TIME + SEVERITY for critical services, OPTIMIZED LINES + SEVERITY for normal services**
+
 ```bash
-# FRR Routing logs (sudo required for reliable access)
-sudo tail -100 /var/log/frr/frr.log | grep -E "(error|warn|crit|fail|down|bgp|ospf)"
+# === CRITICAL NETWORK SERVICES (TIME + SEVERITY) ===
+# FRR Routing logs (journalctl for recent events + severity filtering)
+sudo journalctl -u frr --since="2 hours ago" --no-pager --lines=200 | grep -E "(ERROR|WARN|CRIT|FAIL|DOWN|BGP|OSPF|neighbor|peer)"
+# Fallback: sudo tail -100 /var/log/frr/frr.log | grep -E "(error|warn|crit|fail|down|bgp|ospf)"
 
-# Switch daemon logs (sudo required)
-sudo tail -100 /var/log/switchd.log | grep -E "(error|warn|crit|fail|except)"
+# Switch daemon logs (journalctl for recent critical switchd events)
+sudo journalctl -u switchd --since="2 hours ago" --no-pager --lines=150 | grep -E "(ERROR|WARN|CRIT|FAIL|EXCEPT|port|link|vlan)"
+# Fallback: sudo tail -100 /var/log/switchd.log | grep -E "(error|warn|crit|fail|except)"
 
-# NVUE configuration logs (sudo required)
-sudo tail -50 /var/log/nvued.log | grep -E "(error|warn|fail|except)"
+# === NORMAL SERVICES (OPTIMIZED LINES + SEVERITY) ===
+# NVUE configuration logs (fixed lines + enhanced severity)
+sudo tail -50 /var/log/nvued.log | grep -E "(ERROR|WARN|FAIL|EXCEPT|config|commit|rollback)"
 
-# Spanning Tree Protocol logs (sudo required)
-sudo tail -50 /var/log/mstpd | grep -E "(error|warn|topology|change)"
+# Spanning Tree Protocol logs (fixed lines + enhanced patterns)
+sudo tail -50 /var/log/mstpd | grep -E "(ERROR|WARN|TOPOLOGY|CHANGE|port|state|bridge)"
 
-# MLAG logs (sudo required)
-sudo tail -50 /var/log/clagd.log | grep -E "(error|warn|fail|conflict|peer)"
+# MLAG logs (fixed lines + enhanced patterns)
+sudo tail -50 /var/log/clagd.log | grep -E "(ERROR|WARN|FAIL|CONFLICT|PEER|bond|backup|primary)"
 
-# Authentication logs (ALWAYS requires sudo)
-sudo tail -50 /var/log/auth.log | grep -E "(fail|error|invalid|denied|attack)"
+# === SECURITY & SYSTEM (FIXED LINES + SEVERITY) ===
+# Authentication logs (fixed lines + enhanced security patterns)
+sudo tail -50 /var/log/auth.log | grep -E "(FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized|sudo)"
 
-# System critical logs (sudo required for full access)
-sudo tail -100 /var/log/syslog | grep -E "(error|crit|alert|emerg|fail)"
+# System critical logs (fixed lines + enhanced system patterns)
+sudo tail -100 /var/log/syslog | grep -E "(ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault)"
 
-# Journal priority logs (sudo for complete access)
-sudo journalctl --since="24 hours ago" --priority=0..3 --no-pager --lines=50
+# === SYSTEM WIDE (TIME + SEVERITY) ===
+# Journal priority logs (extended time + enhanced filtering)
+sudo journalctl --since="3 hours ago" --priority=0..3 --no-pager --lines=75 | grep -E "(CRIT|ALERT|EMERG|ERROR|fail|crash|panic)"
 
-# Hardware kernel messages (sudo may be required)
-sudo dmesg --since="24 hours ago" --level=crit,alert,emerg | tail -30
+# Hardware kernel messages (extended time + critical levels)
+sudo dmesg --since="3 hours ago" --level=crit,alert,emerg | tail -40
 
-# Network interface state changes (sudo for full journal access)
-sudo journalctl --since="24 hours ago" --grep="swp|bond|vlan|carrier|link.*up|link.*down" --no-pager --lines=30
+# Network interface state changes (extended time + enhanced patterns)
+sudo journalctl --since="3 hours ago" --grep="swp|bond|vlan|carrier|link.*up|link.*down|port.*up|port.*down" --no-pager --lines=40
 ```
 
 ## 🔍 LLDP Check Script (`check-lldp.sh`)

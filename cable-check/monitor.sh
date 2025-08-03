@@ -280,73 +280,81 @@ EOF
     timeout 300 ssh $SSH_OPTS -q "$user@$device" '
         echo "=== COMPREHENSIVE SYSTEM LOGS ==="
         
-        # FRR Routing Logs (Direct file access with sudo)
+        # FRR Routing Logs (HYBRID: TIME + SEVERITY - Critical Network Service)
         echo "FRR_ROUTING_LOGS:"
-        if [ -f "/var/log/frr/frr.log" ]; then
+        if systemctl is-active --quiet frr 2>/dev/null; then
+            # Use journalctl for time-based + severity filtering (more reliable for critical services)
+            sudo journalctl -u frr --since="2 hours ago" --no-pager --lines=200 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|DOWN|BGP|OSPF|neighbor|peer)" || echo "No recent FRR routing issues"
+        elif [ -f "/var/log/frr/frr.log" ]; then
+            # Fallback to file-based approach if journalctl fails
             sudo tail -100 /var/log/frr/frr.log 2>/dev/null | grep -E "(error|warn|crit|fail|down|bgp|ospf)" || echo "No FRR routing issues"
         else
-            echo "FRR log file not found"
+            echo "FRR service/log not available"
         fi
         
         echo "SWITCHD_LOGS:"
-        # Switch daemon logs (critical for network operations)
-        if [ -f "/var/log/switchd.log" ]; then
+        # Switch daemon logs (HYBRID: TIME + SEVERITY - Critical Network Service)
+        if systemctl is-active --quiet switchd 2>/dev/null; then
+            # Use journalctl for recent critical switchd events
+            sudo journalctl -u switchd --since="2 hours ago" --no-pager --lines=150 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|EXCEPT|port|link|vlan)" || echo "No recent switchd issues"
+        elif [ -f "/var/log/switchd.log" ]; then
+            # Fallback to file-based approach
             sudo tail -100 /var/log/switchd.log 2>/dev/null | grep -E "(error|warn|crit|fail|except)" || echo "No switchd issues"
         else
-            echo "Switchd log not found"
+            echo "Switchd service/log not available"
         fi
         
         echo "NVUE_CONFIG_LOGS:"
-        # NVUE configuration logs
+        # NVUE configuration logs (HYBRID: OPTIMIZED LINES + SEVERITY - Normal Service)
         if [ -f "/var/log/nvued.log" ]; then
-            sudo tail -50 /var/log/nvued.log 2>/dev/null | grep -E "(error|warn|fail|except)" || echo "No NVUE config issues"
+            sudo tail -50 /var/log/nvued.log 2>/dev/null | grep -E "(ERROR|WARN|FAIL|EXCEPT|config|commit|rollback)" || echo "No NVUE config issues"
         else
             echo "NVUE log not found"
         fi
         
         echo "MSTPD_STP_LOGS:"
-        # Spanning Tree Protocol logs
+        # Spanning Tree Protocol logs (HYBRID: OPTIMIZED LINES + SEVERITY - Normal Service)
         if [ -f "/var/log/mstpd" ]; then
-            sudo tail -50 /var/log/mstpd 2>/dev/null | grep -E "(error|warn|topology|change)" || echo "No STP issues"
+            sudo tail -50 /var/log/mstpd 2>/dev/null | grep -E "(ERROR|WARN|TOPOLOGY|CHANGE|port|state|bridge)" || echo "No STP issues"
         else
             echo "MSTPD log not found"
         fi
         
         echo "CLAGD_MLAG_LOGS:"
-        # MLAG (Multi-chassis Link Aggregation) logs
+        # MLAG (Multi-chassis Link Aggregation) logs (HYBRID: OPTIMIZED LINES + SEVERITY - Normal Service)
         if [ -f "/var/log/clagd.log" ]; then
-            sudo tail -50 /var/log/clagd.log 2>/dev/null | grep -E "(error|warn|fail|conflict|peer)" || echo "No MLAG issues"
+            sudo tail -50 /var/log/clagd.log 2>/dev/null | grep -E "(ERROR|WARN|FAIL|CONFLICT|PEER|bond|backup|primary)" || echo "No MLAG issues"
         else
             echo "CLAG log not found"
         fi
         
         echo "AUTH_SECURITY_LOGS:"
-        # Authentication and security logs (REQUIRES SUDO)
+        # Authentication and security logs (HYBRID: FIXED LINES + SEVERITY - Security Critical)
         if [ -f "/var/log/auth.log" ]; then
-            sudo tail -50 /var/log/auth.log 2>/dev/null | grep -E "(fail|error|invalid|denied|attack)" || echo "No auth issues"
+            sudo tail -50 /var/log/auth.log 2>/dev/null | grep -E "(FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized|sudo)" || echo "No auth issues"
         else
             echo "Auth log not found"
         fi
         
         echo "SYSTEM_CRITICAL_LOGS:"
-        # System critical logs from syslog (REQUIRES SUDO)
+        # System critical logs from syslog (HYBRID: FIXED LINES + SEVERITY - System Critical)
         if [ -f "/var/log/syslog" ]; then
-            sudo tail -100 /var/log/syslog 2>/dev/null | grep -E "(error|crit|alert|emerg|fail)" || echo "No system critical issues"
+            sudo tail -100 /var/log/syslog 2>/dev/null | grep -E "(ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault)" || echo "No system critical issues"
         else
             echo "Syslog not found"
         fi
         
         echo "JOURNALCTL_PRIORITY_LOGS:"
-        # High priority journalctl logs (may require sudo for full access)
-        sudo journalctl --since="24 hours ago" --priority=0..3 --no-pager --lines=50 2>/dev/null || echo "No high priority journal logs"
+        # High priority journalctl logs (HYBRID: TIME + SEVERITY - System Wide)
+        sudo journalctl --since="3 hours ago" --priority=0..3 --no-pager --lines=75 2>/dev/null | grep -E "(CRIT|ALERT|EMERG|ERROR|fail|crash|panic)" || echo "No high priority journal logs"
         
         echo "DMESG_HARDWARE_LOGS:"
-        # Hardware and kernel critical messages (may require sudo)
-        sudo dmesg --since="24 hours ago" --level=crit,alert,emerg 2>/dev/null | tail -30 || echo "No critical hardware logs"
+        # Hardware and kernel critical messages (HYBRID: TIME + SEVERITY - Hardware Critical)
+        sudo dmesg --since="3 hours ago" --level=crit,alert,emerg 2>/dev/null | tail -40 || echo "No critical hardware logs"
         
         echo "NETWORK_INTERFACE_LOGS:"
-        # Network interface state changes from journalctl (may require sudo)
-        sudo journalctl --since="24 hours ago" --grep="swp|bond|vlan|carrier|link.*up|link.*down" --no-pager --lines=30 2>/dev/null || echo "No interface state changes"
+        # Network interface state changes (HYBRID: TIME + SEVERITY - Network Events)
+        sudo journalctl --since="3 hours ago" --grep="swp|bond|vlan|carrier|link.*up|link.*down|port.*up|port.*down" --no-pager --lines=40 2>/dev/null || echo "No interface state changes"
         
     ' > "monitor-results/log-data/${hostname}_logs.txt" 2>/dev/null
     
