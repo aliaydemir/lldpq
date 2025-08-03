@@ -632,7 +632,7 @@ Link Flap Analysis Results:
                 if len(critical_issues) > 5:
                     message += f"\n... and {len(critical_issues) - 5} more issues"
                     
-            message += f"\n\n[📊 View Full Dashboard]({server_url})"
+            message += f"\n\n─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─\n\n[📊 View Full Dashboard]({server_url})"
             
             # Send notification
             color = "#FF0000" if critical_issues else "#00AA00"
