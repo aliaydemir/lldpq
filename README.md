@@ -2,7 +2,7 @@
 
 # 🚀️ LLDPq
 
-simple network monitoring tool for cumulus switches
+simple network monitoring tool for nvidia cumulus switches
 
 ## [00] quick start  
 
@@ -86,7 +86,15 @@ setup passwordless sudo on all switches:
 cd ~/cable-check && ./sudo-fix.sh   # configures passwordless sudo for cumulus user
 ```
 
-## [09] troubleshooting
+## [09] commands reference
+
+see all commands executed on devices:
+
+```
+cat COMMANDS.md     # complete list of ssh commands, sudo requirements, security notes
+```
+
+## [10] troubleshooting
 
 ```
 # check if cron is running

@@ -247,6 +247,35 @@
             </div>
         </div>
 
+        <!-- Log Analysis Section -->
+        <div class="analysis-section">
+            <div class="section-header">
+                <h2 class="section-title" onclick="window.location.href='/monitor-results/log-analysis.html'">Log Analysis</h2>
+            </div>
+            <div class="summary-grid">
+                <div class="summary-card card-total" onclick="window.location.href='/monitor-results/log-analysis.html'">
+                    <div class="card-value" id="log-devices">--</div>
+                    <div class="card-label">Total Devices</div>
+                </div>
+                <div class="summary-card card-critical" onclick="window.location.href='/monitor-results/log-analysis.html'">
+                    <div class="card-value status-critical" id="log-critical">--</div>
+                    <div class="card-label">Critical</div>
+                </div>
+                <div class="summary-card card-warning" onclick="window.location.href='/monitor-results/log-analysis.html'">
+                    <div class="card-value status-warning" id="log-warnings">--</div>
+                    <div class="card-label">Warnings</div>
+                </div>
+                <div class="summary-card card-info" onclick="window.location.href='/monitor-results/log-analysis.html'">
+                    <div class="card-value status-info" id="log-errors">--</div>
+                    <div class="card-label">Errors</div>
+                </div>
+                <div class="summary-card card-good" onclick="window.location.href='/monitor-results/log-analysis.html'">
+                    <div class="card-value status-good" id="log-info">--</div>
+                    <div class="card-label">Info Messages</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Assets Analysis Section -->
         <div class="analysis-section">
             <div class="section-header">
@@ -574,6 +603,42 @@
                     summaryData.warning = warningElement ? parseInt(warningElement.textContent) : 0;
                     summaryData.critical = criticalElement ? parseInt(criticalElement.textContent) : 0;
                     
+                } else if (dataType === 'log') {
+                    // Parse log summary data from log_summary.json
+                    try {
+                        const response = await fetch('monitor-results/log_summary.json');
+                        
+                        if (!response.ok) {
+                            // Return default values if log summary doesn't exist yet
+                            return {
+                                totalDevices: 0,
+                                critical: 0,
+                                warning: 0,
+                                error: 0,
+                                info: 0
+                            };
+                        }
+                        
+                        const logSummaryData = await response.json();
+                        
+                        summaryData.totalDevices = logSummaryData.total_devices || 0;
+                        summaryData.critical = logSummaryData.totals?.critical || 0;
+                        summaryData.warning = logSummaryData.totals?.warning || 0;
+                        summaryData.error = logSummaryData.totals?.error || 0;
+                        summaryData.info = logSummaryData.totals?.info || 0;
+                        
+                    } catch (error) {
+                        console.warn('Failed to fetch log summary data:', error);
+                        // Return default values
+                        summaryData = {
+                            totalDevices: 0,
+                            critical: 0,
+                            warning: 0,
+                            error: 0,
+                            info: 0
+                        };
+                    }
+                    
                 } else {
                     // For other analysis pages (BGP, BER, Link Flap), parse table data
                     const pageMap = {
@@ -654,14 +719,15 @@
         async function updateNetworkStats() {
             try {
                 // Fetch data directly from raw data files
-                const [assetsData, lldpData, bgpData, opticalData, berData, flapData, hardwareData] = await Promise.all([
+                const [assetsData, lldpData, bgpData, opticalData, berData, flapData, hardwareData, logData] = await Promise.all([
                     fetchRawDataSummary('assets'),
                     fetchRawDataSummary('lldp'), 
                     fetchRawDataSummary('bgp'),
                     fetchRawDataSummary('optical'),
                     fetchRawDataSummary('ber'),
                     fetchRawDataSummary('flap'),
-                    fetchRawDataSummary('hardware')
+                    fetchRawDataSummary('hardware'),
+                    fetchRawDataSummary('log')
                 ]);
                 
                 // Data fetched successfully
@@ -709,6 +775,12 @@
                 updateDashboardCard('hardware-warnings', hardwareData.warning);
                 updateDashboardCard('hardware-critical', hardwareData.critical);
 
+                updateDashboardCard('log-devices', logData.totalDevices);
+                updateDashboardCard('log-critical', logData.critical);
+                updateDashboardCard('log-warnings', logData.warning);
+                updateDashboardCard('log-errors', logData.error);
+                updateDashboardCard('log-info', logData.info);
+
                 // Calculate overall network statistics
                 const totalDevices = assetsData.totalDevices || 0;
                 const totalInterfaces = Math.max(opticalData.totalPorts || 0, berData.totalPorts || 0);
@@ -722,7 +794,9 @@
                     (berData.critical || 0) +
                     (flapData.problematic || 0) +
                     (hardwareData.critical || 0) +
-                    (hardwareData.warning || 0);
+                    (hardwareData.warning || 0) +
+                    (logData.critical || 0) +
+                    (logData.warning || 0);
                 
                 const healthyItems = 
                     (assetsData.successful || 0) +
@@ -730,14 +804,16 @@
                     (opticalData.excellent || 0) +
                     (flapData.stable || 0) +
                     (hardwareData.excellent || 0) +
-                    (hardwareData.good || 0);
+                    (hardwareData.good || 0) +
+                    (logData.info || 0);
                 
                 const totalAssessments = 
                     totalDevices + 
                     (lldpData.totalConnections || 0) + 
                     (opticalData.totalPorts || 0) + 
                     (flapData.totalPorts || 0) +
-                    (hardwareData.totalDevices || 0);
+                    (hardwareData.totalDevices || 0) +
+                    ((logData.critical || 0) + (logData.warning || 0) + (logData.error || 0) + (logData.info || 0));
                 
             const overallHealth = totalAssessments > 0 ? Math.round((healthyItems / totalAssessments) * 100) : 0;
             

@@ -1,0 +1,631 @@
+#!/usr/bin/env python3
+"""
+Log Analysis Script
+Processes collected log data and generates severity-based analysis
+"""
+
+import os
+import re
+import json
+from datetime import datetime, timedelta
+from collections import defaultdict
+
+class LogAnalyzer:
+    def __init__(self, data_dir="monitor-results"):
+        self.data_dir = data_dir
+        self.log_data_dir = os.path.join(data_dir, "log-data")
+        self.log_analysis = defaultdict(lambda: {"critical": [], "warning": [], "error": [], "info": []})
+        self.log_counts = defaultdict(lambda: {"critical": 0, "warning": 0, "error": 0, "info": 0})
+        
+        # Enhanced severity patterns for network infrastructure
+        self.severity_patterns = {
+            'critical': [
+                r'\b(critical|emergency|panic|fatal|disaster|catastrophic)\b',
+                r'\b(failed|failure|error|exception|crash|abort)\b.*\b(critical|severe)\b',
+                r'\b(down|offline|unreachable|disconnected)\b.*\b(interface|link|connection|peer|neighbor)\b',
+                r'\b(kernel panic|segmentation fault|out of memory|disk full)\b',
+                r'priority:\s*[0-2]',  # Emergency, Alert, Critical
+                # Network-specific critical patterns
+                r'\b(bgp.*down|ospf.*down|routing.*failed|switching.*failed)\b',
+                r'\b(mlag.*failed|clag.*conflict|spanning.*tree.*blocked)\b',
+                r'\b(switchd.*died|nvued.*crashed|frr.*stopped)\b',
+                r'\b(hardware.*fault|transceiver.*failed|port.*failed)\b',
+            ],
+            'warning': [
+                r'\b(warning|warn|caution|alert)\b',
+                r'\b(high|elevated|unusual|abnormal)\b.*\b(usage|load|temperature|traffic)\b',
+                r'\b(timeout|retry|retransmit|flap|unstable)\b',
+                r'\b(deprecat|obsolet|unsupport)\b',
+                r'priority:\s*[3-4]',  # Error, Warning
+                # Network-specific warning patterns
+                r'\b(bgp.*flap|neighbor.*timeout|routing.*convergence)\b',
+                r'\b(stp.*topology.*change|vlan.*inconsistent)\b',
+                r'\b(mlag.*mismatch|bond.*degraded|link.*unstable)\b',
+                r'\b(high.*utilization|buffer.*full|queue.*overflow)\b',
+                r'\b(authentication.*failed|permission.*denied)\b',
+            ],
+            'error': [
+                r'\b(error|err|exception|fault|fail)\b',
+                r'\b(invalid|illegal|unauthorized|forbidden|denied)\b',
+                r'\b(corrupt|damaged|broken|malformed)\b',
+                r'\b(cannot|unable|refused|rejected)\b',
+                r'priority:\s*[5-6]',  # Notice, Info (errors in context)
+                # Network-specific error patterns
+                r'\b(config.*error|nv.*set.*failed|commit.*failed)\b',
+                r'\b(route.*unreachable|arp.*failed|mac.*learning.*failed)\b',
+                r'\b(vxlan.*error|tunnel.*failed|encap.*error)\b',
+            ],
+            'info': [
+                r'\b(info|information|notice|debug|trace)\b',
+                r'\b(start|started|stop|stopped|restart|reload)\b',
+                r'\b(up|online|connected|established|ready)\b',
+                r'\b(configured|enabled|disabled|updated)\b',
+                r'priority:\s*[7]',  # Debug
+                # Network-specific info patterns
+                r'\b(bgp.*established|neighbor.*up|route.*learned)\b',
+                r'\b(interface.*up|link.*up|carrier.*detected)\b',
+                r'\b(mlag.*sync|clag.*active|stp.*forwarding)\b',
+                r'\b(config.*applied|nv.*set.*success|commit.*complete)\b',
+            ]
+        }
+    
+    def categorize_log_line(self, line):
+        """Categorize a log line by severity"""
+        line_lower = line.lower()
+        
+        # Check critical patterns first (highest priority)
+        for pattern in self.severity_patterns['critical']:
+            if re.search(pattern, line_lower):
+                return 'critical'
+        
+        # Then warning patterns
+        for pattern in self.severity_patterns['warning']:
+            if re.search(pattern, line_lower):
+                return 'warning'
+        
+        # Then error patterns
+        for pattern in self.severity_patterns['error']:
+            if re.search(pattern, line_lower):
+                return 'error'
+        
+        # Default to info if no specific pattern matches
+        return 'info'
+    
+    def parse_timestamp(self, line):
+        """Extract timestamp from log line if available"""
+        # Common timestamp patterns
+        timestamp_patterns = [
+            r'(\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})',  # Nov 15 14:30:22
+            r'(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})',  # 2024-11-15T14:30:22
+            r'(\d{2}:\d{2}:\d{2})',                     # 14:30:22
+        ]
+        
+        for pattern in timestamp_patterns:
+            match = re.search(pattern, line)
+            if match:
+                return match.group(1)
+        return None
+    
+    def process_device_logs(self, device_name, log_file_path):
+        """Process logs for a single device"""
+        if not os.path.exists(log_file_path):
+            print(f"⚠️  Log file not found: {log_file_path}")
+            return
+        
+        print(f"📊 Processing logs for {device_name}")
+        
+        try:
+            with open(log_file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+            # Split into sections based on log type markers
+            sections = {
+                'FRR_ROUTING_LOGS': [],
+                'SWITCHD_LOGS': [],
+                'NVUE_CONFIG_LOGS': [],
+                'MSTPD_STP_LOGS': [],
+                'CLAGD_MLAG_LOGS': [],
+                'AUTH_SECURITY_LOGS': [],
+                'SYSTEM_CRITICAL_LOGS': [],
+                'JOURNALCTL_PRIORITY_LOGS': [],
+                'DMESG_HARDWARE_LOGS': [],
+                'NETWORK_INTERFACE_LOGS': []
+            }
+            
+            current_section = None
+            for line in content.split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # Check for section markers
+                if line.startswith('===') or line.endswith(':'):
+                    if 'FRR_ROUTING_LOGS' in line:
+                        current_section = 'FRR_ROUTING_LOGS'
+                    elif 'SWITCHD_LOGS' in line:
+                        current_section = 'SWITCHD_LOGS'
+                    elif 'NVUE_CONFIG_LOGS' in line:
+                        current_section = 'NVUE_CONFIG_LOGS'
+                    elif 'MSTPD_STP_LOGS' in line:
+                        current_section = 'MSTPD_STP_LOGS'
+                    elif 'CLAGD_MLAG_LOGS' in line:
+                        current_section = 'CLAGD_MLAG_LOGS'
+                    elif 'AUTH_SECURITY_LOGS' in line:
+                        current_section = 'AUTH_SECURITY_LOGS'
+                    elif 'SYSTEM_CRITICAL_LOGS' in line:
+                        current_section = 'SYSTEM_CRITICAL_LOGS'
+                    elif 'JOURNALCTL_PRIORITY_LOGS' in line:
+                        current_section = 'JOURNALCTL_PRIORITY_LOGS'
+                    elif 'DMESG_HARDWARE_LOGS' in line:
+                        current_section = 'DMESG_HARDWARE_LOGS'
+                    elif 'NETWORK_INTERFACE_LOGS' in line:
+                        current_section = 'NETWORK_INTERFACE_LOGS'
+                    continue
+                
+                # Skip non-informative lines
+                if line.startswith('No ') or line == '' or len(line) < 10:
+                    continue
+                
+                if current_section:
+                    sections[current_section].append(line)
+            
+            # Process each section
+            for section_name, lines in sections.items():
+                for line in lines:
+                    if len(line.strip()) < 5:  # Skip very short lines
+                        continue
+                    
+                    severity = self.categorize_log_line(line)
+                    timestamp = self.parse_timestamp(line)
+                    
+                    log_entry = {
+                        'timestamp': timestamp,
+                        'section': section_name,
+                        'message': line.strip(),
+                        'severity': severity
+                    }
+                    
+                    self.log_analysis[device_name][severity].append(log_entry)
+                    self.log_counts[device_name][severity] += 1
+        
+        except Exception as e:
+            print(f"❌ Error processing logs for {device_name}: {e}")
+    
+    def generate_html_report(self):
+        """Generate HTML report for log analysis"""
+        print("🎨 Generating log analysis HTML report...")
+        
+        # Calculate totals
+        total_devices = len(self.log_counts)
+        totals = {"critical": 0, "warning": 0, "error": 0, "info": 0}
+        
+        for device_counts in self.log_counts.values():
+            for severity in totals:
+                totals[severity] += device_counts[severity]
+        
+        html_content = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Analysis Report</title>
+    <link rel="stylesheet" type="text/css" href="/css/styles2.css">
+    <style>
+        .log-analysis-container {{
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }}
+        
+        .summary-cards {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }}
+        
+        .summary-card {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            color: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }}
+        
+        .summary-card:hover {{
+            transform: translateY(-5px);
+        }}
+        
+        .summary-card.critical {{ background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); }}
+        .summary-card.warning {{ background: linear-gradient(135deg, #feca57 0%, #ff9ff3 100%); }}
+        .summary-card.error {{ background: linear-gradient(135deg, #ff7675 0%, #fd79a8 100%); }}
+        .summary-card.info {{ background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%); }}
+        
+        .summary-card h3 {{
+            margin: 0 0 10px 0;
+            font-size: 1.1em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }}
+        
+        .summary-card .count {{
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 10px 0;
+        }}
+        
+        .log-table {{
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }}
+        
+        .log-table table {{
+            width: 100%;
+            border-collapse: collapse;
+        }}
+        
+        .log-table th {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        
+        .log-table td {{
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+            vertical-align: middle;
+        }}
+        
+        .log-table tr:last-child td {{
+            border-bottom: none;
+        }}
+        
+        .log-table tr:nth-child(even) {{
+            background-color: #f8f9fa;
+        }}
+        
+        .device-name {{
+            font-weight: 600;
+            color: #2d3748;
+        }}
+        
+        .severity-count {{
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 30px;
+            text-align: center;
+        }}
+        
+        .severity-count:hover {{
+            transform: scale(1.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }}
+        
+        .severity-count.critical {{
+            background: #fee;
+            color: #c53030;
+            border: 2px solid #fc8181;
+        }}
+        
+        .severity-count.warning {{
+            background: #fffbeb;
+            color: #d69e2e;
+            border: 2px solid #f6e05e;
+        }}
+        
+        .severity-count.error {{
+            background: #fef5e7;
+            color: #dd6b20;
+            border: 2px solid #fbb6ce;
+        }}
+        
+        .severity-count.info {{
+            background: #ebf8ff;
+            color: #3182ce;
+            border: 2px solid #90cdf4;
+        }}
+        
+        .severity-count.zero {{
+            background: #f7fafc;
+            color: #a0aec0;
+            border: 2px solid #e2e8f0;
+            cursor: default;
+        }}
+        
+        .log-details {{
+            display: none;
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin: 10px 0;
+            max-height: 400px;
+            overflow-y: auto;
+        }}
+        
+        .log-entry {{
+            padding: 10px 15px;
+            border-bottom: 1px solid #e2e8f0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }}
+        
+        .log-entry:last-child {{
+            border-bottom: none;
+        }}
+        
+        .log-timestamp {{
+            color: #666;
+            margin-right: 10px;
+        }}
+        
+        .log-section {{
+            background: #e2e8f0;
+            color: #2d3748;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            margin-right: 10px;
+        }}
+        
+        .stats-summary {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            text-align: center;
+        }}
+        
+        .stats-summary h2 {{
+            margin: 0 0 10px 0;
+        }}
+    </style>
+</head>
+<body>
+    <div class="log-analysis-container">
+        <div class="stats-summary">
+            <h2>📊 Log Analysis Summary</h2>
+            <p>Analysis of {total_devices} devices • Total logs processed: {sum(totals.values())} entries</p>
+            <p>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+        </div>
+        
+        <div class="summary-cards">
+            <div class="summary-card critical">
+                <h3>Critical</h3>
+                <div class="count">{totals['critical']}</div>
+                <p>Critical Issues</p>
+            </div>
+            <div class="summary-card warning">
+                <h3>Warning</h3>
+                <div class="count">{totals['warning']}</div>
+                <p>Warning Messages</p>
+            </div>
+            <div class="summary-card error">
+                <h3>Error</h3>
+                <div class="count">{totals['error']}</div>
+                <p>Error Messages</p>
+            </div>
+            <div class="summary-card info">
+                <h3>Info</h3>
+                <div class="count">{totals['info']}</div>
+                <p>Info Messages</p>
+            </div>
+        </div>
+        
+        <div class="log-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Device Name</th>
+                        <th>Critical</th>
+                        <th>Warning</th>
+                        <th>Error</th>
+                        <th>Info</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>"""
+        
+        # Sort devices by total log count (descending)
+        sorted_devices = sorted(self.log_counts.items(), 
+                              key=lambda x: sum(x[1].values()), reverse=True)
+        
+        for device_name, counts in sorted_devices:
+            total_count = sum(counts.values())
+            
+            html_content += f"""
+                    <tr>
+                        <td class="device-name">{device_name}</td>
+                        <td>
+                            <span class="severity-count critical {'zero' if counts['critical'] == 0 else ''}" 
+                                  onclick="toggleLogDetails('{device_name}', 'critical')" 
+                                  id="critical-{device_name}">
+                                {counts['critical']}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="severity-count warning {'zero' if counts['warning'] == 0 else ''}" 
+                                  onclick="toggleLogDetails('{device_name}', 'warning')"
+                                  id="warning-{device_name}">
+                                {counts['warning']}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="severity-count error {'zero' if counts['error'] == 0 else ''}" 
+                                  onclick="toggleLogDetails('{device_name}', 'error')"
+                                  id="error-{device_name}">
+                                {counts['error']}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="severity-count info {'zero' if counts['info'] == 0 else ''}" 
+                                  onclick="toggleLogDetails('{device_name}', 'info')"
+                                  id="info-{device_name}">
+                                {counts['info']}
+                            </span>
+                        </td>
+                        <td><strong>{total_count}</strong></td>
+                    </tr>
+                    <tr id="details-{device_name}-critical" class="log-details">
+                        <td colspan="6">
+                            <div id="content-{device_name}-critical"></div>
+                        </td>
+                    </tr>
+                    <tr id="details-{device_name}-warning" class="log-details">
+                        <td colspan="6">
+                            <div id="content-{device_name}-warning"></div>
+                        </td>
+                    </tr>
+                    <tr id="details-{device_name}-error" class="log-details">
+                        <td colspan="6">
+                            <div id="content-{device_name}-error"></div>
+                        </td>
+                    </tr>
+                    <tr id="details-{device_name}-info" class="log-details">
+                        <td colspan="6">
+                            <div id="content-{device_name}-info"></div>
+                        </td>
+                    </tr>"""
+        
+        html_content += """
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        // Log data embedded in the page
+        const logData = """ + json.dumps(dict(self.log_analysis), indent=2) + """;
+        
+        function toggleLogDetails(deviceName, severity) {
+            const detailsRow = document.getElementById(`details-${deviceName}-${severity}`);
+            const contentDiv = document.getElementById(`content-${deviceName}-${severity}`);
+            
+            // Hide all other details first
+            document.querySelectorAll('.log-details').forEach(row => {
+                if (row.id !== `details-${deviceName}-${severity}`) {
+                    row.style.display = 'none';
+                }
+            });
+            
+            if (detailsRow.style.display === 'table-row') {
+                detailsRow.style.display = 'none';
+                return;
+            }
+            
+            // Check if logs exist for this severity
+            const logs = logData[deviceName] && logData[deviceName][severity];
+            if (!logs || logs.length === 0) {
+                return; // Don't show anything for zero counts
+            }
+            
+            // Populate content if not already done
+            if (contentDiv.innerHTML === '') {
+                contentDiv.innerHTML = logs.map(log => `
+                    <div class="log-entry">
+                        ${log.timestamp ? `<span class="log-timestamp">${log.timestamp}</span>` : ''}
+                        <span class="log-section">${log.section}</span>
+                        <span class="log-message">${log.message}</span>
+                    </div>
+                `).join('');
+            }
+            
+            detailsRow.style.display = 'table-row';
+        }
+    </script>
+</body>
+</html>"""
+        
+        # Write HTML file
+        output_file = os.path.join(self.data_dir, "log-analysis.html")
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        
+        print(f"✅ Log analysis HTML generated: {output_file}")
+    
+    def save_summary_data(self):
+        """Save summary data for dashboard integration"""
+        summary_data = {
+            "timestamp": datetime.now().isoformat(),
+            "total_devices": len(self.log_counts),
+            "totals": {
+                "critical": sum(device["critical"] for device in self.log_counts.values()),
+                "warning": sum(device["warning"] for device in self.log_counts.values()),
+                "error": sum(device["error"] for device in self.log_counts.values()),
+                "info": sum(device["info"] for device in self.log_counts.values())
+            },
+            "device_counts": dict(self.log_counts)
+        }
+        
+        summary_file = os.path.join(self.data_dir, "log_summary.json")
+        with open(summary_file, 'w') as f:
+            json.dump(summary_data, f, indent=2)
+        
+        print(f"✅ Log summary data saved: {summary_file}")
+    
+    def run_analysis(self):
+        """Main analysis function"""
+        print("🚀 Starting log analysis...")
+        
+        if not os.path.exists(self.log_data_dir):
+            print(f"❌ Log data directory not found: {self.log_data_dir}")
+            return False
+        
+        # Process all log files
+        log_files = [f for f in os.listdir(self.log_data_dir) if f.endswith('_logs.txt')]
+        
+        if not log_files:
+            print("⚠️  No log files found")
+            return False
+        
+        for log_file in log_files:
+            device_name = log_file.replace('_logs.txt', '')
+            log_file_path = os.path.join(self.log_data_dir, log_file)
+            self.process_device_logs(device_name, log_file_path)
+        
+        print(f"📊 Processed {len(log_files)} devices")
+        
+        # Generate outputs
+        self.generate_html_report()
+        self.save_summary_data()
+        
+        # Print summary
+        total_logs = sum(sum(device.values()) for device in self.log_counts.values())
+        total_critical = sum(device["critical"] for device in self.log_counts.values())
+        total_warning = sum(device["warning"] for device in self.log_counts.values())
+        
+        print(f"📈 Analysis complete:")
+        print(f"   • Total devices: {len(self.log_counts)}")
+        print(f"   • Total log entries: {total_logs}")
+        print(f"   • Critical issues: {total_critical}")
+        print(f"   • Warnings: {total_warning}")
+        
+        return True
+
+def main():
+    """Main entry point"""
+    try:
+        analyzer = LogAnalyzer()
+        success = analyzer.run_analysis()
+        return 0 if success else 1
+    except Exception as e:
+        print(f"❌ Log analysis failed: {e}")
+        return 1
+
+if __name__ == "__main__":
+    exit(main())

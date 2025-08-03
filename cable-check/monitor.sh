@@ -16,6 +16,7 @@ mkdir -p "$SCRIPT_DIR/monitor-results/bgp-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/optical-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/ber-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/hardware-data"
+mkdir -p "$SCRIPT_DIR/monitor-results/log-data"
 
 unreachable_hosts_file=$(mktemp)
 
@@ -217,6 +218,80 @@ EOF
         uptime 2>/dev/null || echo "No uptime info available"
     ' > "monitor-results/hardware-data/${hostname}_hardware.txt" 2>/dev/null
     
+    # Enhanced log data collection (comprehensive /var/log analysis)
+    timeout 300 ssh $SSH_OPTS -q "$user@$device" '
+        echo "=== COMPREHENSIVE SYSTEM LOGS ==="
+        
+        # FRR Routing Logs (Direct file access with sudo)
+        echo "FRR_ROUTING_LOGS:"
+        if [ -f "/var/log/frr/frr.log" ]; then
+            sudo tail -100 /var/log/frr/frr.log 2>/dev/null | grep -E "(error|warn|crit|fail|down|bgp|ospf)" || echo "No FRR routing issues"
+        else
+            echo "FRR log file not found"
+        fi
+        
+        echo "SWITCHD_LOGS:"
+        # Switch daemon logs (critical for network operations)
+        if [ -f "/var/log/switchd.log" ]; then
+            sudo tail -100 /var/log/switchd.log 2>/dev/null | grep -E "(error|warn|crit|fail|except)" || echo "No switchd issues"
+        else
+            echo "Switchd log not found"
+        fi
+        
+        echo "NVUE_CONFIG_LOGS:"
+        # NVUE configuration logs
+        if [ -f "/var/log/nvued.log" ]; then
+            sudo tail -50 /var/log/nvued.log 2>/dev/null | grep -E "(error|warn|fail|except)" || echo "No NVUE config issues"
+        else
+            echo "NVUE log not found"
+        fi
+        
+        echo "MSTPD_STP_LOGS:"
+        # Spanning Tree Protocol logs
+        if [ -f "/var/log/mstpd" ]; then
+            sudo tail -50 /var/log/mstpd 2>/dev/null | grep -E "(error|warn|topology|change)" || echo "No STP issues"
+        else
+            echo "MSTPD log not found"
+        fi
+        
+        echo "CLAGD_MLAG_LOGS:"
+        # MLAG (Multi-chassis Link Aggregation) logs
+        if [ -f "/var/log/clagd.log" ]; then
+            sudo tail -50 /var/log/clagd.log 2>/dev/null | grep -E "(error|warn|fail|conflict|peer)" || echo "No MLAG issues"
+        else
+            echo "CLAG log not found"
+        fi
+        
+        echo "AUTH_SECURITY_LOGS:"
+        # Authentication and security logs (REQUIRES SUDO)
+        if [ -f "/var/log/auth.log" ]; then
+            sudo tail -50 /var/log/auth.log 2>/dev/null | grep -E "(fail|error|invalid|denied|attack)" || echo "No auth issues"
+        else
+            echo "Auth log not found"
+        fi
+        
+        echo "SYSTEM_CRITICAL_LOGS:"
+        # System critical logs from syslog (REQUIRES SUDO)
+        if [ -f "/var/log/syslog" ]; then
+            sudo tail -100 /var/log/syslog 2>/dev/null | grep -E "(error|crit|alert|emerg|fail)" || echo "No system critical issues"
+        else
+            echo "Syslog not found"
+        fi
+        
+        echo "JOURNALCTL_PRIORITY_LOGS:"
+        # High priority journalctl logs (may require sudo for full access)
+        sudo journalctl --since="24 hours ago" --priority=0..3 --no-pager --lines=50 2>/dev/null || echo "No high priority journal logs"
+        
+        echo "DMESG_HARDWARE_LOGS:"
+        # Hardware and kernel critical messages (may require sudo)
+        sudo dmesg --since="24 hours ago" --level=crit,alert,emerg 2>/dev/null | tail -30 || echo "No critical hardware logs"
+        
+        echo "NETWORK_INTERFACE_LOGS:"
+        # Network interface state changes from journalctl (may require sudo)
+        sudo journalctl --since="24 hours ago" --grep="swp|bond|vlan|carrier|link.*up|link.*down" --no-pager --lines=30 2>/dev/null || echo "No interface state changes"
+        
+    ' > "monitor-results/log-data/${hostname}_logs.txt" 2>/dev/null
+    
     # Add Device Configuration section to HTML
     cat >> monitor-results/${hostname}.html << EOF
 
@@ -336,6 +411,13 @@ if python3 process_hardware_data.py; then
     echo -e "\e[0;32mHardware health analysis completed\e[0m"
 else
     echo -e "\e[0;33mWarning: Hardware health analysis failed\e[0m"
+fi
+
+echo -e "\n\e[0;34mRunning Log Analysis...\e[0m"
+if python3 process_log_data.py; then
+    echo -e "\e[0;32mLog analysis completed\e[0m"
+else
+    echo -e "\e[0;33mWarning: Log analysis failed\e[0m"
 fi
 
 sudo cp -r monitor-results/ /var/www/html/
