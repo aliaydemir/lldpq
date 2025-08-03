@@ -262,7 +262,7 @@ class LogAnalyzer:
         .sortable.asc .sort-arrow, .sortable.desc .sort-arrow {{ opacity: 1; }}
         
         .log-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
-        .log-table th, .log-table td {{ border: 1px solid #ddd; padding: 4px 8px; text-align: left; word-wrap: break-word; }}
+        .log-table th, .log-table td {{ border: 1px solid #ddd; padding: 5px 8px; text-align: left; word-wrap: break-word; }}
         .log-table th {{ background-color: #f2f2f2; font-weight: bold; }}
         
         /* Column width specifications */
