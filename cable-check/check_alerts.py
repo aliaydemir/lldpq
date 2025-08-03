@@ -590,37 +590,37 @@ class LLDPqAlerts:
 
 Total Devices: {total_devices}
 
-─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 
 Asset Analysis Results:
 
 🟢 Successful: {asset_stats['successful']}     🔴 Failed: {asset_stats['failed']}
 
-─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 
 Hardware Health Analysis:
 
 🟢 Excellent: {hardware_stats['excellent']}     🔵 Good: {hardware_stats['good']}     🟡 Warnings: {hardware_stats['warnings']}     🔴 Critical: {hardware_stats['critical']}
 
-─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 
 Log Analysis Results:
 
 🔴 Critical: {log_stats['critical']}     🟡 Warnings: {log_stats['warnings']}     🔵 Errors: {log_stats['errors']}     🟢 Info: {log_stats['info']}
 
-─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 
 BGP Analysis Results:
 
 🟢 Established: {bgp_stats['established']}     🔴 Down: {bgp_stats['down']}
 
-─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 
 BER Analysis Results:
 
 🟢 Good: {ber_stats['good']}     🟡 Warnings: {ber_stats['warnings']}     🔴 Critical: {ber_stats['critical']}
 
-─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 
 Link Flap Analysis Results:
 
@@ -628,11 +628,11 @@ Link Flap Analysis Results:
 
 
             if critical_issues:
-                message += f"\n\n─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─\n\nCritical Issues:\n" + "\n".join(critical_issues[:5])
+                message += f"\n\n─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─\n\nCritical Issues:\n" + "\n".join(critical_issues[:5])
                 if len(critical_issues) > 5:
                     message += f"\n... and {len(critical_issues) - 5} more issues"
                     
-            message += f"\n\n─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─\n\n[📊 View Full Dashboard]({server_url})"
+            message += f"\n\n─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─\n\n[📊 View Full Dashboard]({server_url})"
             
             # Send notification
             color = "#FF0000" if critical_issues else "#00AA00"
