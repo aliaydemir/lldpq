@@ -92,7 +92,7 @@ case $choice in
             exit 1
         fi
         
-        chmod 600 /etc/nginx/.htpasswd
+        chmod 644 /etc/nginx/.htpasswd
         echo "✅ Password file created: /etc/nginx/.htpasswd"
         
         echo ""
