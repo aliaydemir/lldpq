@@ -253,9 +253,9 @@ class LogAnalyzer:
         .total-warning {{ color: #ff9800; font-weight: bold; }}
         .total-critical {{ color: #f44336; font-weight: bold; }}
         
-        /* Sortable table styling - dark theme like other analysis pages */
+        /* Sortable table styling - same as Hardware Analysis */
         .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
-        .sortable:hover {{ background-color: #3a3a3a; }}
+        .sortable:hover {{ background-color: #f5f5f5; }}
         .sort-arrow {{ font-size: 10px; color: #999; margin-left: 5px; opacity: 0.5; }}
         .sortable.asc .sort-arrow::before {{ content: '▲'; color: #b57614; opacity: 1; }}
         .sortable.desc .sort-arrow::before {{ content: '▼'; color: #b57614; opacity: 1; }}
@@ -344,8 +344,8 @@ class LogAnalyzer:
         
         .log-details {{
             display: none;
-            background: #1a1a1a;
-            border: 1px solid #43453B;
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
             border-radius: 8px;
             margin: 10px 0;
             max-height: 400px;
@@ -354,10 +354,9 @@ class LogAnalyzer:
         
         .log-entry {{
             padding: 10px 15px;
-            border-bottom: 1px solid #43453B;
+            border-bottom: 1px solid #e2e8f0;
             font-family: 'Courier New', monospace;
             font-size: 0.9em;
-            color: #cccccc;
         }}
         
         .log-entry:last-child {{
@@ -365,13 +364,13 @@ class LogAnalyzer:
         }}
         
         .log-timestamp {{
-            color: #888888;
+            color: #666;
             margin-right: 10px;
         }}
         
         .log-section {{
-            background: #43453B;
-            color: #ffffff;
+            background: #e2e8f0;
+            color: #2d3748;
             padding: 2px 6px;
             border-radius: 4px;
             font-size: 0.8em;
