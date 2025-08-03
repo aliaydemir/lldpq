@@ -187,8 +187,8 @@ cat /sys/class/net/$interface/carrier_changes
 |--------|---------|----------------|-----------|
 | `monitor.sh` | Full monitoring | ~25 commands | Manual/Cron |
 | `check-lldp.sh` | LLDP topology | ~5 commands | Manual/Cron |
-| `get-configs.sh` | Configuration | ~3 commands | Manual |
-| `assets.sh` | Asset inventory | ~8 commands | Manual |
+| `get-configs.sh` | Configuration | ~3 commands | Manual/Cron |
+| `assets.sh` | Asset inventory | ~8 commands | Manual/Cron |
 | `send-key.sh` | SSH setup | ~2 commands | Once |
 | `sudo-fix.sh` | Sudo setup | ~2 commands | Once |
 
@@ -213,7 +213,7 @@ cat /sys/class/net/$interface/carrier_changes
 ### Required Sudo Access for Log Monitoring
 ```bash
 # Critical logs that REQUIRE sudo access:
-/var/log/auth.log          # Authentication events (ALWAYS restricted)
+/var/log/auth.log         # Authentication events (ALWAYS restricted)
 /var/log/syslog           # System-wide logging (adm group)
 /var/log/frr/frr.log      # FRR routing daemon logs
 /var/log/switchd.log      # Switch daemon logs (critical)
