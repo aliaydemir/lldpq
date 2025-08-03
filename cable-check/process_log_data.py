@@ -698,6 +698,9 @@ class LogAnalyzer:
             const tbody = table.querySelector('tbody');
             const rows = Array.from(tbody.rows).filter(row => !row.classList.contains('log-details'));
             
+            // Save all log-details rows before clearing tbody
+            const allLogDetailsRows = Array.from(tbody.rows).filter(row => row.classList.contains('log-details'));
+            
             rows.sort((a, b) => {
                 let aVal, bVal;
                 
@@ -732,12 +735,12 @@ class LogAnalyzer:
             tbody.innerHTML = '';
             rows.forEach(row => {
                 tbody.appendChild(row);
-                // Re-append any log details rows that belong to this device
+                // Re-append saved log details rows that belong to this device
                 const deviceName = row.cells[0].textContent.trim();
-                const detailRows = Array.from(document.querySelectorAll('.log-details')).filter(
+                const deviceLogDetailsRows = allLogDetailsRows.filter(
                     detailRow => detailRow.id.includes(deviceName)
                 );
-                detailRows.forEach(detailRow => tbody.appendChild(detailRow));
+                deviceLogDetailsRows.forEach(detailRow => tbody.appendChild(detailRow));
                 
                 // Re-attach click handlers after sorting
                 reattachClickHandlers(row, deviceName);
