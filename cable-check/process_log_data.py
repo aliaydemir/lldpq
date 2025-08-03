@@ -264,6 +264,8 @@ class LogAnalyzer:
         .log-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
         .log-table th, .log-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; word-wrap: break-word; }}
         .log-table th {{ background-color: #f2f2f2; font-weight: bold; }}
+        .log-table tbody tr {{ background-color: #ffffff; }}
+        .log-table tbody tr:nth-child(even) {{ background-color: #f9f9f9; }}
         
         /* Column width specifications */
         .log-table th:nth-child(1), .log-table td:nth-child(1) {{ width: 20%; }} /* Device */
@@ -273,7 +275,18 @@ class LogAnalyzer:
         .log-table th:nth-child(5), .log-table td:nth-child(5) {{ width: 15%; }} /* Info */
         .log-table th:nth-child(6), .log-table td:nth-child(6) {{ width: 20%; }} /* Total */
         
-        /* Table uses default text color from styles2.css */
+        .device-name {{
+            font-weight: 600;
+            color: #2d3748;
+        }}
+        .log-table td {{
+            color: #333333;
+            background-color: inherit; /* Ensures background from tr is used */
+        }}
+        .log-table .device-name {{
+            color: #2d3748;
+            font-weight: 600;
+        }}
         
         .severity-count {{
             display: inline-block;
@@ -445,7 +458,7 @@ class LogAnalyzer:
             
             html_content += f"""
                     <tr>
-                        <td>{device_name}</td>
+                        <td class="device-name">{device_name}</td>
                         <td>
                             <span class="severity-count critical {'zero' if counts['critical'] == 0 else ''}" 
                                   onclick="toggleLogDetails('{device_name}', 'critical')" 
