@@ -1,6 +1,9 @@
 #!/bin/bash
 # LLDPq Update Script
 # Updates system files while preserving configuration
+# 
+# Copyright (c) 2024 LLDPq Project
+# Licensed under MIT License - see LICENSE file for details
 
 set -e
 
@@ -49,7 +52,30 @@ sudo chmod +x /usr/local/bin/*
 echo "System files updated"
 
 echo ""
-echo "[03] Updating cable-check directory (preserving configs)..."
+echo "[03] Backup monitoring data?"
+backup_data_dir=""
+if [[ -d "$HOME/cable-check/monitor-results" ]] || [[ -d "$HOME/cable-check/lldp-results" ]]; then
+    echo "   Found existing monitoring data directories:"
+    [[ -d "$HOME/cable-check/monitor-results" ]] && echo "     • monitor-results/ (contains all analysis results)"
+    [[ -d "$HOME/cable-check/lldp-results" ]] && echo "     • lldp-results/ (contains LLDP topology data)"
+    echo ""
+    read -p "Backup and preserve monitoring data? [Y/n]: " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        echo "   ⚠️  Monitoring data will be LOST during update!"
+    else
+        backup_data_dir=$(mktemp -d)
+        echo "   📦 Backing up monitoring data..."
+        [[ -d "$HOME/cable-check/monitor-results" ]] && cp -r "$HOME/cable-check/monitor-results" "$backup_data_dir/"
+        [[ -d "$HOME/cable-check/lldp-results" ]] && cp -r "$HOME/cable-check/lldp-results" "$backup_data_dir/"
+        echo "   ✅ Monitoring data backed up to temporary location"
+    fi
+else
+    echo "   No existing monitoring data found"
+fi
+
+echo ""
+echo "[04] Updating cable-check directory (preserving configs)..."
 # Create temp directory for selective copy
 temp_dir=$(mktemp -d)
 cp -r cable-check/* "$temp_dir/"
@@ -86,23 +112,40 @@ fi
 mv "$temp_dir" "$HOME/cable-check"
 echo "cable-check directory updated with preserved configs"
 
+# Restore monitoring data if backed up
+if [[ -n "$backup_data_dir" ]] && [[ -d "$backup_data_dir" ]]; then
+    echo ""
+    echo "   📁 Restoring monitoring data..."
+    [[ -d "$backup_data_dir/monitor-results" ]] && cp -r "$backup_data_dir/monitor-results" "$HOME/cable-check/"
+    [[ -d "$backup_data_dir/lldp-results" ]] && cp -r "$backup_data_dir/lldp-results" "$HOME/cable-check/"
+    echo "   ✅ Monitoring data restored successfully"
+    # Clean up temporary backup
+    rm -rf "$backup_data_dir"
+fi
+
 echo ""
-echo "[04] Restarting nginx service..."
+echo "[05] Restarting nginx service..."
 sudo systemctl restart nginx
 echo "nginx restarted"
 
 echo ""
-echo "[05] Configuration files preserved:"
-echo "   The following files were NOT updated (your settings preserved):"
-echo "   - /etc/ip_list"
-echo "   - /etc/nccm.yml"
-echo "   - ~/cable-check/devices.yaml"
-echo "   - ~/cable-check/hosts.ini"
-echo "   - ~/cable-check/topology.dot"
-echo "   - ~/cable-check/topology_config.yaml"
+echo "[06] Data preservation summary:"
+echo "   The following files/directories were preserved:"
+echo "   Configuration files:"
+echo "     • /etc/ip_list"
+echo "     • /etc/nccm.yml"
+echo "     • ~/cable-check/devices.yaml"
+echo "     • ~/cable-check/hosts.ini"
+echo "     • ~/cable-check/topology.dot"
+echo "     • ~/cable-check/topology_config.yaml"
+if [[ -n "$backup_data_dir" ]] || [[ -d "$HOME/cable-check/monitor-results" ]] || [[ -d "$HOME/cable-check/lldp-results" ]]; then
+    echo "   Monitoring data directories:"
+    [[ -d "$HOME/cable-check/monitor-results" ]] && echo "     • monitor-results/ (all analysis results preserved)"
+    [[ -d "$HOME/cable-check/lldp-results" ]] && echo "     • lldp-results/ (LLDP topology data preserved)"
+fi
 
 echo ""
-echo "[06] Testing updated tools..."
+echo "[07] Testing updated tools..."
 echo "   You can test the updated tools:"
 echo "   - lldpq"
 echo "   - monitor"
@@ -112,10 +155,13 @@ echo "   - pping"
 
 echo ""
 echo "Update Complete!"
-echo "   New features:"
+echo "   Features available:"
 echo "   - BGP Neighbor Analysis"
-echo "   - Link Flap Detection" 
+echo "   - Link Flap Detection"
+echo "   - Hardware Health Analysis"
+echo "   - Log Analysis with Severity Filtering"
 echo "   - Enhanced monitoring capabilities"
+echo "   - Data preservation during updates"
 echo ""
 echo "   Web interface: http://$(hostname -I | awk '{print $1}')"
 echo ""

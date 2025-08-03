@@ -56,10 +56,15 @@ when lldpq gets new features via git:
 ```
 cd lldpq
 git pull                    # get latest code
-./update.sh                 # keeps your configs, updates everything else
+./update.sh                 # smart update with data preservation
 ```
 
-your devices.yaml, hosts.ini, topology.dot topology_config.yaml files stay untouched.
+### what gets preserved:
+- **config files**: devices.yaml, hosts.ini, topology.dot, topology_config.yaml
+- **monitoring data**: monitor-results/, lldp-results/ (optional backup)
+- **system configs**: /etc/ip_list, /etc/nccm.yml  
+
+update.sh will ask if you want to backup existing monitoring data before updating. choose 'y' to keep all your historical analysis results, hardware health data, and network topology information.
 
 ## [06] requirements
 
