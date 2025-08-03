@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 generate_topology_full.py - LLDP Topology Generator for LLDPq
 ===========================================================

@@ -1,5 +1,5 @@
 #!/bin/bash
-# LLDP Topology Check Script  
+# LLDPq Topology Check Script  
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 
 DATE=$(date '+%Y-%m-%d--%H-%M')
