@@ -514,16 +514,10 @@ class LogAnalyzer:
             // Event delegation for severity count clicks (survives table sorting)
             const table = document.getElementById('log-table');
             table.addEventListener('click', function(event) {
-                console.log('Table clicked:', event.target);
-                console.log('Classes:', event.target.classList);
-                console.log('Has severity-count class:', event.target.classList.contains('severity-count'));
-                
                 if (event.target.classList.contains('severity-count') && !event.target.classList.contains('zero')) {
                     const deviceName = event.target.getAttribute('data-device');
                     const severity = event.target.getAttribute('data-severity');
-                    console.log('Device:', deviceName, 'Severity:', severity);
                     if (deviceName && severity) {
-                        console.log('Calling toggleLogDetails...');
                         toggleLogDetails(deviceName, severity);
                     }
                 }
@@ -630,6 +624,12 @@ class LogAnalyzer:
             const detailsRow = document.getElementById(`details-${deviceName}-${severity}`);
             const contentDiv = document.getElementById(`content-${deviceName}-${severity}`);
             
+            // Check if elements exist
+            if (!detailsRow || !contentDiv) {
+                console.error('Log details elements not found for:', deviceName, severity);
+                return;
+            }
+            
             // Hide all other details first
             document.querySelectorAll('.log-details').forEach(row => {
                 if (row.id !== `details-${deviceName}-${severity}`) {
@@ -735,6 +735,22 @@ class LogAnalyzer:
                     detailRow => detailRow.id.includes(deviceName)
                 );
                 detailRows.forEach(detailRow => tbody.appendChild(detailRow));
+                
+                // Re-attach click handlers after sorting
+                reattachClickHandlers(row, deviceName);
+            });
+        }
+        
+        function reattachClickHandlers(row, deviceName) {
+            // Re-attach click events to severity count spans
+            const spans = row.querySelectorAll('.severity-count:not(.zero)');
+            spans.forEach(span => {
+                const severity = span.getAttribute('data-severity');
+                if (severity) {
+                    span.onclick = function() {
+                        toggleLogDetails(deviceName, severity);
+                    };
+                }
             });
         }
     </script>
