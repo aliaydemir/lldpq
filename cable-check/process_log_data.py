@@ -511,7 +511,6 @@ class LogAnalyzer:
             initSummaryCardFilters();
             initTableSorting();
             initLogDetailsClickHandlers();
-            console.log('✅ Both sorting and log clicks enabled');
         });
         
         function initLogDetailsClickHandlers() {
@@ -628,9 +627,8 @@ class LogAnalyzer:
             const detailsRow = document.getElementById(`details-${deviceName}-${severity}`);
             const contentDiv = document.getElementById(`content-${deviceName}-${severity}`);
             
-            // Check if elements exist
+            // Check if elements exist (should always exist now)
             if (!detailsRow || !contentDiv) {
-                console.error('Log details elements not found for:', deviceName, severity);
                 return;
             }
             
@@ -744,18 +742,7 @@ class LogAnalyzer:
             });
         }
         
-        function reattachClickHandlers(row, deviceName) {
-            // Re-attach click events to severity count spans
-            const spans = row.querySelectorAll('.severity-count:not(.zero)');
-            spans.forEach(span => {
-                const severity = span.getAttribute('data-severity');
-                if (severity) {
-                    span.onclick = function() {
-                        toggleLogDetails(deviceName, severity);
-                    };
-                }
-            });
-        }
+        // reattachClickHandlers function removed - no longer needed since we don't destroy DOM nodes
     </script>
 </body>
 </html>"""
