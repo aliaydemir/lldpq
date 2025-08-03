@@ -250,6 +250,8 @@ class LogAnalyzer:
         .log-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
         .log-table th, .log-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; word-wrap: break-word; }}
         .log-table th {{ background-color: #f2f2f2; font-weight: bold; }}
+        .log-table tbody tr {{ background-color: #ffffff; }}
+        .log-table tbody tr:nth-child(even) {{ background-color: #f9f9f9; }}
         
         /* Column width specifications */
         .log-table th:nth-child(1), .log-table td:nth-child(1) {{ width: 20%; }} /* Device */
@@ -262,6 +264,11 @@ class LogAnalyzer:
         .device-name {{
             font-weight: 600;
             color: #2d3748;
+        }}
+        
+        /* Ensure all table text is dark on light background */
+        .log-table td {{
+            color: #333333;
         }}
         
         .severity-count {{
