@@ -99,7 +99,23 @@ see all commands executed on devices:
 cat COMMANDS.md     # complete list of ssh commands, sudo requirements, security notes
 ```
 
-## [10] troubleshooting
+## [10] authentication (optional)
+
+to secure the web interface with login:
+
+```
+cd cable-check && sudo ./webauth.sh     # interactive menu: enable/disable/update auth
+```
+
+### how it works:
+- **nginx basic auth**: server-level security (no javascript bypass)
+- **encrypted passwords**: bcrypt hashed, stored in /etc/nginx/.htpasswd
+- **browser integration**: remember credentials, works with all browsers
+- **zero backend**: no php/python needed, pure nginx feature
+
+when enabled, all web pages require authentication. when disabled, everything is open access.
+
+## [11] troubleshooting
 
 ```
 # check if cron is running
@@ -112,7 +128,7 @@ cd ~/cable-check && ./assets.sh && ./check-lldp.sh && ./monitor.sh
 ls -la /var/www/html/monitor-results/
 ```
 
-## [11] license
+## [12] license
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
