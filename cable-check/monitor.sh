@@ -39,6 +39,10 @@ execute_commands_optimized() {
     local user=$2
     local hostname=$3
     
+    # Arrays to store timing data for summary
+    declare -a section_names
+    declare -a section_times
+    
     # Timing helper functions
     start_section() {
         local section_name="$1"
@@ -52,6 +56,10 @@ execute_commands_optimized() {
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
         echo "✅ [$hostname] $section_name completed in ${duration}s"
+        
+        # Store timing data for summary
+        section_names+=("$section_name")
+        section_times+=("$duration")
     }
     
     echo "🚀 Processing $hostname..."
@@ -400,6 +408,23 @@ EOF
     
     end_section "Configuration Section" "$config_start"
     
+    # Display timing summary
+    echo ""
+    echo "📊 [$hostname] Section Timing Summary:"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    local total_time=0
+    for i in "${!section_names[@]}"; do
+        local section="${section_names[i]}"
+        local time="${section_times[i]}"
+        total_time=$((total_time + time))
+        printf "%-25s : %3ds\n" "$section" "$time"
+    done
+    
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    printf "%-25s : %3ds\n" "TOTAL DEVICE TIME" "$total_time"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
     echo "🎉 [$hostname] All sections completed successfully!"
 }
 
@@ -430,14 +455,22 @@ echo -e "\e[1;34mOptimized monitoring completed...\e[0m"
 # Run analyses with timing
 echo -e "\n🔬 \e[1;34mStarting Analysis Phase...\e[0m"
 
+# Arrays to store analysis timing data
+declare -a analysis_names
+declare -a analysis_times
+
 echo -e "🔄 Running BGP Analysis..."
 bgp_start=$(date +%s)
 if python3 process_bgp_data.py; then
     bgp_end=$(date +%s)
     bgp_duration=$((bgp_end - bgp_start))
     echo -e "✅ BGP analysis completed in ${bgp_duration}s"
+    analysis_names+=("BGP Analysis")
+    analysis_times+=("$bgp_duration")
 else
     echo -e "⚠️  Warning: BGP analysis failed"
+    analysis_names+=("BGP Analysis")
+    analysis_times+=("FAILED")
 fi
 
 echo -e "🔄 Running Link Flap Analysis..."
@@ -446,8 +479,12 @@ if python3 process_flap_data.py; then
     flap_end=$(date +%s)
     flap_duration=$((flap_end - flap_start))
     echo -e "✅ Link Flap analysis completed in ${flap_duration}s"
+    analysis_names+=("Link Flap Analysis")
+    analysis_times+=("$flap_duration")
 else
     echo -e "⚠️  Warning: Link Flap analysis failed"
+    analysis_names+=("Link Flap Analysis")
+    analysis_times+=("FAILED")
 fi
 
 echo -e "🔄 Running Optical Analysis..."
@@ -456,8 +493,12 @@ if python3 process_optical_data.py; then
     optical_end=$(date +%s)
     optical_duration=$((optical_end - optical_start))
     echo -e "✅ Optical analysis completed in ${optical_duration}s"
+    analysis_names+=("Optical Analysis")
+    analysis_times+=("$optical_duration")
 else
     echo -e "⚠️  Warning: Optical analysis failed"
+    analysis_names+=("Optical Analysis")
+    analysis_times+=("FAILED")
 fi
 
 echo -e "🔄 Running BER Analysis..."
@@ -466,8 +507,12 @@ if python3 process_ber_data.py; then
     ber_end=$(date +%s)
     ber_duration=$((ber_end - ber_start))
     echo -e "✅ BER analysis completed in ${ber_duration}s"
+    analysis_names+=("BER Analysis")
+    analysis_times+=("$ber_duration")
 else
     echo -e "⚠️  Warning: BER analysis failed"
+    analysis_names+=("BER Analysis")
+    analysis_times+=("FAILED")
 fi
 
 echo -e "🔄 Running Hardware Health Analysis..."
@@ -476,8 +521,12 @@ if python3 process_hardware_data.py; then
     hardware_end=$(date +%s)
     hardware_duration=$((hardware_end - hardware_start))
     echo -e "✅ Hardware health analysis completed in ${hardware_duration}s"
+    analysis_names+=("Hardware Analysis")
+    analysis_times+=("$hardware_duration")
 else
     echo -e "⚠️  Warning: Hardware health analysis failed"
+    analysis_names+=("Hardware Analysis")
+    analysis_times+=("FAILED")
 fi
 
 echo -e "🔄 Running Log Analysis..."
@@ -486,9 +535,34 @@ if python3 process_log_data.py; then
     log_analysis_end=$(date +%s)
     log_analysis_duration=$((log_analysis_end - log_analysis_start))
     echo -e "✅ Log analysis completed in ${log_analysis_duration}s"
+    analysis_names+=("Log Analysis")
+    analysis_times+=("$log_analysis_duration")
 else
     echo -e "⚠️  Warning: Log analysis failed"
+    analysis_names+=("Log Analysis")
+    analysis_times+=("FAILED")
 fi
+
+# Display analysis timing summary
+echo ""
+echo "🔬 Analysis Phase Timing Summary:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+local total_analysis_time=0
+for i in "${!analysis_names[@]}"; do
+    local analysis="${analysis_names[i]}"
+    local time="${analysis_times[i]}"
+    if [ "$time" != "FAILED" ]; then
+        total_analysis_time=$((total_analysis_time + time))
+        printf "%-25s : %3ds\n" "$analysis" "$time"
+    else
+        printf "%-25s : %s\n" "$analysis" "FAILED"
+    fi
+done
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+printf "%-25s : %3ds\n" "TOTAL ANALYSIS TIME" "$total_analysis_time"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 sudo cp -r monitor-results/ /var/www/html/
 sudo chmod 644 /var/www/html/monitor-results/*
@@ -503,7 +577,7 @@ SECONDS=$((DURATION % 60))
 echo ""
 echo "🎉 ==============================================="
 echo "⚡ Enhanced monitoring completed successfully!"
-echo "⏱️  Total execution time: ${MINUTES}m ${SECONDS}s"
+echo "⏱️ Total execution time: ${MINUTES}m ${SECONDS}s"
 echo "📊 All device sections completed with timing"
 echo "🔬 All analysis phases completed with timing"  
 echo "🌐 Results available at web interface"
