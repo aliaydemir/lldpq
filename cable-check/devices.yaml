@@ -23,8 +23,8 @@
 #     username: admin
 #
 # SSH REQUIREMENTS:
-#   - SSH key-based authentication configured
-#   - User must have sudo privileges on devices
+#   - SSH key-based authentication configured. You can use send-keys.sh to send the key to the devices.
+#   - User must have sudo privileges on devices. You can use sudo-fix.sh to fix the sudoers file.
 #   - Network connectivity to management IPs
 #
 # =======================================================
