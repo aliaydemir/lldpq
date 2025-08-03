@@ -37,9 +37,10 @@ notifications:
   enabled: false
   
   # 🔗 SERVER URL - Fix for broken device links in alerts
-  # PROBLEM SOLVED: Alert messages were showing "http://localhost/..." links
   # which don't work from other machines. Now uses your actual server IP.
+  
   server_url: "http://100.64.1.1"  # ⚠️ CHANGE TO YOUR LLDPQ SERVER IP
+  
   # Examples:
   # • Internal network: "http://192.168.1.100"  
   # • VPN/corporate: "http://10.0.1.50"
