@@ -205,95 +205,46 @@ class LogAnalyzer:
         
         html_content = f"""
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Log Analysis Report</title>
+    <title>Log Analysis Results</title>
     <link rel="stylesheet" type="text/css" href="/css/styles2.css">
     <style>
-        .log-analysis-container {{
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        .summary-grid {{ 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+            margin: 20px 0; 
         }}
-        
-        .summary-cards {{
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+        .summary-card {{ 
+            background: #f8f9fa; 
+            padding: 15px; 
+            border-radius: 8px; 
+            border-left: 4px solid #007bff; 
         }}
+        .card-excellent {{ border-left-color: #4caf50; }}
+        .card-good {{ border-left-color: #8bc34a; }}
+        .card-warning {{ border-left-color: #ff9800; }}
+        .card-critical {{ border-left-color: #f44336; }}
+        .card-total {{ border-left-color: #2196f3; }}
+        .metric {{ font-size: 24px; font-weight: bold; }}
         
-        .summary-card {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            color: white;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
-        }}
+        /* Colored card values */
+        .card-excellent .metric {{ color: #4caf50; }}
+        .card-good .metric {{ color: #8bc34a; }}
+        .card-warning .metric {{ color: #ff9800; }}
+        .card-critical .metric {{ color: #f44336; }}
+        .card-total .metric {{ color: #333; }}
+        .card-info .metric {{ color: #2196f3; }}
         
-        .summary-card:hover {{
-            transform: translateY(-5px);
-        }}
+        .log-excellent {{ color: #4caf50; font-weight: bold; }}
+        .log-good {{ color: #8bc34a; font-weight: bold; }}
+        .log-warning {{ color: #ff9800; font-weight: bold; }}
+        .log-critical {{ color: #f44336; font-weight: bold; }}
         
-        .summary-card.critical {{ background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%); }}
-        .summary-card.warning {{ background: linear-gradient(135deg, #feca57 0%, #ff9ff3 100%); }}
-        .summary-card.error {{ background: linear-gradient(135deg, #ff7675 0%, #fd79a8 100%); }}
-        .summary-card.info {{ background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%); }}
-        
-        .summary-card h3 {{
-            margin: 0 0 10px 0;
-            font-size: 1.1em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }}
-        
-        .summary-card .count {{
-            font-size: 2.5em;
-            font-weight: bold;
-            margin: 10px 0;
-        }}
-        
-        .log-table {{
-            background: white;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            margin: 20px 0;
-        }}
-        
-        .log-table table {{
-            width: 100%;
-            border-collapse: collapse;
-        }}
-        
-        .log-table th {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 15px;
-            text-align: left;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }}
-        
-        .log-table td {{
-            padding: 12px 15px;
-            border-bottom: 1px solid #eee;
-            vertical-align: middle;
-        }}
-        
-        .log-table tr:last-child td {{
-            border-bottom: none;
-        }}
-        
-        .log-table tr:nth-child(even) {{
-            background-color: #f8f9fa;
-        }}
+        .log-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
+        .log-table th, .log-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        .log-table th {{ background-color: #f2f2f2; font-weight: bold; }}
         
         .device-name {{
             font-weight: 600;
@@ -302,48 +253,48 @@ class LogAnalyzer:
         
         .severity-count {{
             display: inline-block;
-            padding: 6px 12px;
-            border-radius: 20px;
+            padding: 4px 8px;
+            border-radius: 4px;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
-            min-width: 30px;
+            min-width: 25px;
             text-align: center;
         }}
         
         .severity-count:hover {{
-            transform: scale(1.1);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transform: scale(1.05);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }}
         
         .severity-count.critical {{
-            background: #fee;
-            color: #c53030;
-            border: 2px solid #fc8181;
+            background: #ffebee;
+            color: #f44336;
+            border: 1px solid #f44336;
         }}
         
         .severity-count.warning {{
-            background: #fffbeb;
-            color: #d69e2e;
-            border: 2px solid #f6e05e;
+            background: #fff3e0;
+            color: #ff9800;
+            border: 1px solid #ff9800;
         }}
         
         .severity-count.error {{
-            background: #fef5e7;
-            color: #dd6b20;
-            border: 2px solid #fbb6ce;
+            background: #fff3e0;
+            color: #ff9800;
+            border: 1px solid #ff9800;
         }}
         
         .severity-count.info {{
-            background: #ebf8ff;
-            color: #3182ce;
-            border: 2px solid #90cdf4;
+            background: #e3f2fd;
+            color: #2196f3;
+            border: 1px solid #2196f3;
         }}
         
         .severity-count.zero {{
-            background: #f7fafc;
-            color: #a0aec0;
-            border: 2px solid #e2e8f0;
+            background: #f5f5f5;
+            color: #9e9e9e;
+            border: 1px solid #e0e0e0;
             cursor: default;
         }}
         
@@ -382,64 +333,66 @@ class LogAnalyzer:
             margin-right: 10px;
         }}
         
-        .stats-summary {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+        .anomaly-section {{
+            margin: 30px 0;
             padding: 20px;
-            border-radius: 12px;
-            margin-bottom: 30px;
-            text-align: center;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }}
         
-        .stats-summary h2 {{
-            margin: 0 0 10px 0;
+        .summary-card {{
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }}
+        .summary-card:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }}
     </style>
 </head>
 <body>
-    <div class="log-analysis-container">
-        <div class="stats-summary">
-            <h2>📊 Log Analysis Summary</h2>
-            <p>Analysis of {total_devices} devices • Total logs processed: {sum(totals.values())} entries</p>
-            <p>Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+    <h1><font color="#b57614">Log Analysis Results</font></h1>
+    <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+    <p><strong>Analysis Summary:</strong> {total_devices} devices • {sum(totals.values())} log entries processed</p>
+    
+    <h2>Log Summary</h2>
+    <div class="summary-grid">
+        <div class="summary-card card-total">
+            <div class="metric" id="total-devices">{total_devices}</div>
+            <div>Total Devices</div>
         </div>
-        
-        <div class="summary-cards">
-            <div class="summary-card critical">
-                <h3>Critical</h3>
-                <div class="count">{totals['critical']}</div>
-                <p>Critical Issues</p>
-            </div>
-            <div class="summary-card warning">
-                <h3>Warning</h3>
-                <div class="count">{totals['warning']}</div>
-                <p>Warning Messages</p>
-            </div>
-            <div class="summary-card error">
-                <h3>Error</h3>
-                <div class="count">{totals['error']}</div>
-                <p>Error Messages</p>
-            </div>
-            <div class="summary-card info">
-                <h3>Info</h3>
-                <div class="count">{totals['info']}</div>
-                <p>Info Messages</p>
-            </div>
+        <div class="summary-card card-critical">
+            <div class="metric log-critical" id="critical-logs">{totals['critical']}</div>
+            <div>Critical Issues</div>
         </div>
-        
-        <div class="log-table">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Device Name</th>
-                        <th>Critical</th>
-                        <th>Warning</th>
-                        <th>Error</th>
-                        <th>Info</th>
-                        <th>Total</th>
-                    </tr>
-                </thead>
-                <tbody>"""
+        <div class="summary-card card-warning">
+            <div class="metric log-warning" id="warning-logs">{totals['warning']}</div>
+            <div>Warning Messages</div>
+        </div>
+        <div class="summary-card card-warning">
+            <div class="metric log-warning" id="error-logs">{totals['error']}</div>
+            <div>Error Messages</div>
+        </div>
+        <div class="summary-card card-excellent">
+            <div class="metric log-good" id="info-logs">{totals['info']}</div>
+            <div>Info Messages</div>
+        </div>
+    </div>
+    
+    <h2>Device Log Details</h2>
+    <table class="log-table">
+        <thead>
+            <tr>
+                <th>Device Name</th>
+                <th>Critical</th>
+                <th>Warning</th>
+                <th>Error</th>
+                <th>Info</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>"""
         
         # Sort devices by total log count (descending)
         sorted_devices = sorted(self.log_counts.items(), 
@@ -503,10 +456,8 @@ class LogAnalyzer:
                     </tr>"""
         
         html_content += """
-                </tbody>
-            </table>
-        </div>
-    </div>
+        </tbody>
+    </table>
     
     <script>
         // Log data embedded in the page
