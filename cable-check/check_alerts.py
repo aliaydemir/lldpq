@@ -554,12 +554,18 @@ class LLDPqAlerts:
             # Create clean dashboard-style message with spacing
             title = "Network Health Summary"
             message = f"""
+
 Total Devices: {total_devices}
+
+Hardware Health Analysis:
 
 🟢 Excellent: {hardware_stats['excellent']}     🔵 Good: {hardware_stats['good']}     🟡 Warnings: {hardware_stats['warnings']}     🔴 Critical: {hardware_stats['critical']}
 
-🔴 Critical: {log_stats['critical']}     ⚠️ Warnings: {log_stats['warnings']}     ❌ Errors: {log_stats['errors']}     ℹ️ Info: {log_stats['info']}"""
-            
+Log Analysis Results:
+
+🔴 Critical: {log_stats['critical']}     🟡 Warnings: {log_stats['warnings']}     🔴 Errors: {log_stats['errors']}     🔵 Info: {log_stats['info']}"""
+
+
             if critical_issues:
                 message += f"\n\n\n\nCritical Issues:\n" + "\n".join(critical_issues[:5])
                 if len(critical_issues) > 5:
