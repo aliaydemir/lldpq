@@ -248,10 +248,10 @@ class LogAnalyzer:
         .log-critical {{ color: #f44336; font-weight: bold; }}
         
         .log-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
-        .log-table th, .log-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; word-wrap: break-word; }}
-        .log-table th {{ background-color: #f2f2f2; font-weight: bold; }}
-        .log-table tbody tr {{ background-color: #ffffff; }}
-        .log-table tbody tr:nth-child(even) {{ background-color: #f9f9f9; }}
+        .log-table th, .log-table td {{ border: 1px solid #43453B; padding: 8px; text-align: left; word-wrap: break-word; }}
+        .log-table th {{ background-color: #2a2a2a; font-weight: bold; color: #cccccc; }}
+        .log-table tbody tr {{ background-color: #1a1a1a; }}
+        .log-table tbody tr:nth-child(even) {{ background-color: #252525; }}
         
         /* Column width specifications */
         .log-table th:nth-child(1), .log-table td:nth-child(1) {{ width: 20%; }} /* Device */
