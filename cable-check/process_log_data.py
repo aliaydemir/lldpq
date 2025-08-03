@@ -262,10 +262,8 @@ class LogAnalyzer:
         .sortable.asc .sort-arrow, .sortable.desc .sort-arrow {{ opacity: 1; }}
         
         .log-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
-        .log-table th, .log-table td {{ border: 1px solid #43453B; padding: 8px; text-align: left; word-wrap: break-word; }}
-        .log-table th {{ background-color: #2a2a2a; font-weight: bold; color: #cccccc; }}
-        .log-table tbody tr {{ background-color: #1a1a1a; }}
-        .log-table tbody tr:nth-child(even) {{ background-color: #252525; }}
+        .log-table th, .log-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; word-wrap: break-word; }}
+        .log-table th {{ background-color: #f2f2f2; font-weight: bold; }}
         
         /* Column width specifications */
         .log-table th:nth-child(1), .log-table td:nth-child(1) {{ width: 20%; }} /* Device */
@@ -275,10 +273,7 @@ class LogAnalyzer:
         .log-table th:nth-child(5), .log-table td:nth-child(5) {{ width: 15%; }} /* Info */
         .log-table th:nth-child(6), .log-table td:nth-child(6) {{ width: 20%; }} /* Total */
         
-        /* Default table text color - same as Interface Flapping Status */
-        .log-table td {{
-            color: #cccccc;
-        }}
+        /* Table uses default text color from styles2.css */
         
         .severity-count {{
             display: inline-block;
