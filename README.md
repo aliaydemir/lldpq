@@ -36,6 +36,7 @@ edit these 6 files:
 ~/cable-check/devices.yaml            # add your switches (ip + username + hostname)
 ~/cable-check/topology.dot            # expected cable connections
 ~/cable-check/topology_config.yaml    # optional: customize device layers/icons at topology
+~/cable-check/notifications.yaml      # optional: teams/slack alerts + thresholds
 ~/cable-check/hosts.ini               # optional: extra hostnames for topology  
 /etc/nccm.yml                         # optional: ssh manager [zzh]
 /etc/ip_list                          # optional: paralel ping to all devices [pping]
@@ -147,7 +148,7 @@ python3 test_alerts.py                               # test configuration
 - **customizable**: adjust thresholds in notifications.yaml
 - **state tracking**: prevents duplicate alerts, tracks recovery
 
-alerts automatically start working once webhooks are configured. check `cable-check/alert_states/` for alert history.
+alerts automatically start working once webhooks are configured. check `cable-check/alert-states/` for alert history.
 
 ## [12] troubleshooting
 

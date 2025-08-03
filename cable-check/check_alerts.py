@@ -22,7 +22,7 @@ class LLDPqAlerts:
     def __init__(self, script_dir):
         self.script_dir = Path(script_dir)
         self.config_file = self.script_dir / "notifications.yaml"
-        self.state_dir = self.script_dir / "alert_states"
+        self.state_dir = self.script_dir / "alert-states"
         self.monitor_results = self.script_dir / "monitor-results"
         
         # Create state directory if it doesn't exist

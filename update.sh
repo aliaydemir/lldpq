@@ -54,10 +54,11 @@ echo "System files updated"
 echo ""
 echo "[03] Backup monitoring data?"
 backup_data_dir=""
-if [[ -d "$HOME/cable-check/monitor-results" ]] || [[ -d "$HOME/cable-check/lldp-results" ]]; then
+if [[ -d "$HOME/cable-check/monitor-results" ]] || [[ -d "$HOME/cable-check/lldp-results" ]] || [[ -d "$HOME/cable-check/alert-states" ]]; then
     echo "   Found existing monitoring data directories:"
     [[ -d "$HOME/cable-check/monitor-results" ]] && echo "     • monitor-results/ (contains all analysis results)"
     [[ -d "$HOME/cable-check/lldp-results" ]] && echo "     • lldp-results/ (contains LLDP topology data)"
+    [[ -d "$HOME/cable-check/alert-states" ]] && echo "     • alert-states/ (contains alert history and state tracking)"
     echo ""
     read -p "Backup and preserve monitoring data? [Y/n]: " -n 1 -r
     echo ""
@@ -68,6 +69,7 @@ if [[ -d "$HOME/cable-check/monitor-results" ]] || [[ -d "$HOME/cable-check/lldp
         echo "   📦 Backing up monitoring data..."
         [[ -d "$HOME/cable-check/monitor-results" ]] && cp -r "$HOME/cable-check/monitor-results" "$backup_data_dir/"
         [[ -d "$HOME/cable-check/lldp-results" ]] && cp -r "$HOME/cable-check/lldp-results" "$backup_data_dir/"
+        [[ -d "$HOME/cable-check/alert-states" ]] && cp -r "$HOME/cable-check/alert-states" "$backup_data_dir/"
         echo "   ✅ Monitoring data backed up to temporary location"
     fi
 else
@@ -104,6 +106,11 @@ if [[ -d "$HOME/cable-check" ]]; then
         cp "$HOME/cable-check/topology_config.yaml" "$temp_dir/"
     fi
     
+    if [[ -f "$HOME/cable-check/notifications.yaml" ]]; then
+        echo "     • notifications.yaml"
+        cp "$HOME/cable-check/notifications.yaml" "$temp_dir/"
+    fi
+    
     # Remove old cable-check
     rm -rf "$HOME/cable-check"
 fi
@@ -118,6 +125,7 @@ if [[ -n "$backup_data_dir" ]] && [[ -d "$backup_data_dir" ]]; then
     echo "   📁 Restoring monitoring data..."
     [[ -d "$backup_data_dir/monitor-results" ]] && cp -r "$backup_data_dir/monitor-results" "$HOME/cable-check/"
     [[ -d "$backup_data_dir/lldp-results" ]] && cp -r "$backup_data_dir/lldp-results" "$HOME/cable-check/"
+    [[ -d "$backup_data_dir/alert-states" ]] && cp -r "$backup_data_dir/alert-states" "$HOME/cable-check/"
     echo "   ✅ Monitoring data restored successfully"
     # Clean up temporary backup
     rm -rf "$backup_data_dir"
@@ -138,10 +146,12 @@ echo "     • ~/cable-check/devices.yaml"
 echo "     • ~/cable-check/hosts.ini"
 echo "     • ~/cable-check/topology.dot"
 echo "     • ~/cable-check/topology_config.yaml"
-if [[ -n "$backup_data_dir" ]] || [[ -d "$HOME/cable-check/monitor-results" ]] || [[ -d "$HOME/cable-check/lldp-results" ]]; then
+echo "     • ~/cable-check/notifications.yaml"
+if [[ -n "$backup_data_dir" ]] || [[ -d "$HOME/cable-check/monitor-results" ]] || [[ -d "$HOME/cable-check/lldp-results" ]] || [[ -d "$HOME/cable-check/alert-states" ]]; then
     echo "   Monitoring data directories:"
     [[ -d "$HOME/cable-check/monitor-results" ]] && echo "     • monitor-results/ (all analysis results preserved)"
     [[ -d "$HOME/cable-check/lldp-results" ]] && echo "     • lldp-results/ (LLDP topology data preserved)"
+    [[ -d "$HOME/cable-check/alert-states" ]] && echo "     • alert-states/ (alert history and state tracking preserved)"
 fi
 
 echo ""

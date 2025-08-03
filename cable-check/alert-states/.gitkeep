@@ -1,0 +1,3 @@
+# This file ensures the alert-states directory is tracked by git
+# Alert state files are created here to track notification history
+# and prevent duplicate alerts
