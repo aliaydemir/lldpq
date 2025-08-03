@@ -284,10 +284,10 @@ EOF
         echo "FRR_ROUTING_LOGS:"
         if systemctl is-active --quiet frr 2>/dev/null; then
             # Use journalctl for time-based + severity filtering (more reliable for critical services)
-            sudo journalctl -u frr --since="2 hours ago" --no-pager --lines=200 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|DOWN|BGP|OSPF|neighbor|peer)" || echo "No recent FRR routing issues"
+            sudo journalctl -u frr --since="2 hours ago" --no-pager --lines=200 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|DOWN|BGP|neighbor|peer)" || echo "No recent FRR routing issues"
         elif [ -f "/var/log/frr/frr.log" ]; then
             # Fallback to file-based approach if journalctl fails
-            sudo tail -100 /var/log/frr/frr.log 2>/dev/null | grep -E "(error|warn|crit|fail|down|bgp|ospf)" || echo "No FRR routing issues"
+            sudo tail -100 /var/log/frr/frr.log 2>/dev/null | grep -E "(error|warn|crit|fail|down|bgp)" || echo "No FRR routing issues"
         else
             echo "FRR service/log not available"
         fi

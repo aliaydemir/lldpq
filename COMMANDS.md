@@ -48,8 +48,8 @@ cat /proc/net/dev
 ```bash
 # === CRITICAL NETWORK SERVICES (TIME + SEVERITY) ===
 # FRR Routing logs (journalctl for recent events + severity filtering)
-sudo journalctl -u frr --since="2 hours ago" --no-pager --lines=200 | grep -E "(ERROR|WARN|CRIT|FAIL|DOWN|BGP|OSPF|neighbor|peer)"
-# Fallback: sudo tail -100 /var/log/frr/frr.log | grep -E "(error|warn|crit|fail|down|bgp|ospf)"
+sudo journalctl -u frr --since="2 hours ago" --no-pager --lines=200 | grep -E "(ERROR|WARN|CRIT|FAIL|DOWN|BGP|neighbor|peer)"
+# Fallback: sudo tail -100 /var/log/frr/frr.log | grep -E "(error|warn|crit|fail|down|bgp)"
 
 # Switch daemon logs (journalctl for recent critical switchd events)
 sudo journalctl -u switchd --since="2 hours ago" --no-pager --lines=150 | grep -E "(ERROR|WARN|CRIT|FAIL|EXCEPT|port|link|vlan)"
