@@ -253,19 +253,17 @@ class LogAnalyzer:
         .total-warning {{ color: #ff9800; font-weight: bold; }}
         .total-critical {{ color: #f44336; font-weight: bold; }}
         
-        /* Sortable table styling - dark theme */
+        /* Sortable table styling - light theme like other analysis pages */
         .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
-        .sortable:hover {{ background-color: #3a3a3a; }}
+        .sortable:hover {{ background-color: #f5f5f5; }}
         .sort-arrow {{ font-size: 10px; color: #999; margin-left: 5px; opacity: 0.5; }}
         .sortable.asc .sort-arrow::before {{ content: '▲'; color: #b57614; opacity: 1; }}
         .sortable.desc .sort-arrow::before {{ content: '▼'; color: #b57614; opacity: 1; }}
         .sortable.asc .sort-arrow, .sortable.desc .sort-arrow {{ opacity: 1; }}
         
         .log-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
-        .log-table th, .log-table td {{ border: 1px solid #43453B; padding: 8px; text-align: left; word-wrap: break-word; }}
-        .log-table th {{ background-color: #2a2a2a; font-weight: bold; color: #cccccc; }}
-        .log-table tbody tr {{ background-color: #1a1a1a; }}
-        .log-table tbody tr:nth-child(even) {{ background-color: #252525; }}
+        .log-table th, .log-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; word-wrap: break-word; }}
+        .log-table th {{ background-color: #f2f2f2; font-weight: bold; }}
         
         /* Column width specifications */
         .log-table th:nth-child(1), .log-table td:nth-child(1) {{ width: 20%; }} /* Device */
@@ -277,15 +275,13 @@ class LogAnalyzer:
         
         .device-name {{
             font-weight: 600;
-            color: #ffffff;
+            color: #2d3748;
         }}
         
-        /* Ensure all table text is light on dark background */
+        /* Ensure all table text is dark on light background - like other analysis pages */
         .log-table td {{
-            color: #cccccc;
+            color: #333333;
         }}
-        
-        /* Remove generic total styling - using color-coded classes instead */
         
         .severity-count {{
             display: inline-block;
