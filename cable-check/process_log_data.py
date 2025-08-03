@@ -263,12 +263,18 @@ class LogAnalyzer:
         
         .device-name {{
             font-weight: 600;
-            color: #2d3748;
+            color: #ffffff;
         }}
         
-        /* Ensure all table text is dark on light background */
+        /* Ensure all table text is light on dark background */
         .log-table td {{
-            color: #333333;
+            color: #cccccc;
+        }}
+        
+        /* Total numbers should be visible on dark background */
+        .log-table td:last-child {{
+            color: #ffffff;
+            font-weight: bold;
         }}
         
         .severity-count {{
