@@ -43,6 +43,24 @@ fi
 
 echo ""
 echo "[02] Updating system files..."
+
+# Backup user's system config files before overwriting
+echo "   - Backing up user system configs..."
+system_config_backup=$(mktemp -d)
+[[ -f "/etc/ip_list" ]] && cp "/etc/ip_list" "$system_config_backup/" && echo "     • /etc/ip_list backed up"
+[[ -f "/etc/nccm.yml" ]] && cp "/etc/nccm.yml" "$system_config_backup/" && echo "     • /etc/nccm.yml backed up"
+
+echo "   - Updating etc/* to /etc/"
+sudo cp -r etc/* /etc/
+
+# Restore user's system config files
+echo "   - Restoring user system configs..."
+[[ -f "$system_config_backup/ip_list" ]] && sudo cp "$system_config_backup/ip_list" "/etc/" && echo "     • /etc/ip_list restored"
+[[ -f "$system_config_backup/nccm.yml" ]] && sudo cp "$system_config_backup/nccm.yml" "/etc/" && echo "     • /etc/nccm.yml restored"
+
+# Clean up backup
+rm -rf "$system_config_backup"
+
 echo "   - Updating html/* to /var/www/html/"
 sudo cp -r html/* /var/www/html/
 
