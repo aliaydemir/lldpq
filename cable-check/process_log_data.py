@@ -402,15 +402,15 @@ class LogAnalyzer:
     </div>
     
     <h2>Device Log Details</h2>
-    <table class="log-table">
+    <table class="log-table" id="log-table">
         <thead>
             <tr>
-                <th>Device Name</th>
-                <th>Critical</th>
-                <th>Warning</th>
-                <th>Error</th>
-                <th>Info</th>
-                <th>Total</th>
+                <th class="sortable" data-column="0" data-type="string">Device Name <span class="sort-arrow">▲▼</span></th>
+                <th class="sortable" data-column="1" data-type="number">Critical <span class="sort-arrow">▲▼</span></th>
+                <th class="sortable" data-column="2" data-type="number">Warning <span class="sort-arrow">▲▼</span></th>
+                <th class="sortable" data-column="3" data-type="number">Error <span class="sort-arrow">▲▼</span></th>
+                <th class="sortable" data-column="4" data-type="number">Info <span class="sort-arrow">▲▼</span></th>
+                <th class="sortable" data-column="5" data-type="number">Total <span class="sort-arrow">▲▼</span></th>
             </tr>
         </thead>
         <tbody>"""
@@ -487,6 +487,7 @@ class LogAnalyzer:
         // Initialize page functionality
         document.addEventListener('DOMContentLoaded', function() {
             initSummaryCardFilters();
+            initTableSorting();
         });
         
         function initSummaryCardFilters() {
@@ -619,6 +620,82 @@ class LogAnalyzer:
             }
             
             detailsRow.style.display = 'table-row';
+        }
+        
+        // Generic table sorting functionality
+        let tableSortState = { column: -1, direction: 'asc' };
+        
+        function initTableSorting() {
+            const headers = document.querySelectorAll('.sortable');
+            headers.forEach(header => {
+                header.addEventListener('click', function() {
+                    const column = parseInt(this.dataset.column);
+                    const type = this.dataset.type;
+                    
+                    // Toggle sort direction
+                    if (tableSortState.column === column) {
+                        tableSortState.direction = tableSortState.direction === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        tableSortState.direction = 'asc';
+                    }
+                    tableSortState.column = column;
+                    
+                    // Update header styling
+                    headers.forEach(h => h.classList.remove('asc', 'desc'));
+                    this.classList.add(tableSortState.direction);
+                    
+                    // Sort table
+                    sortLogTable(column, tableSortState.direction, type);
+                });
+            });
+        }
+        
+        function sortLogTable(columnIndex, direction, type) {
+            const table = document.getElementById('log-table');
+            const tbody = table.querySelector('tbody');
+            const rows = Array.from(tbody.rows).filter(row => !row.classList.contains('log-details'));
+            
+            rows.sort((a, b) => {
+                let aVal, bVal;
+                
+                if (type === 'number' && columnIndex > 0) {
+                    // For severity count columns, get the number from the span
+                    const aSpan = a.cells[columnIndex].querySelector('.severity-count');
+                    const bSpan = b.cells[columnIndex].querySelector('.severity-count');
+                    aVal = aSpan ? parseInt(aSpan.textContent) || 0 : 0;
+                    bVal = bSpan ? parseInt(bSpan.textContent) || 0 : 0;
+                } else {
+                    // For device names and other text
+                    aVal = a.cells[columnIndex].textContent.trim();
+                    bVal = b.cells[columnIndex].textContent.trim();
+                }
+                
+                let result = 0;
+                
+                switch(type) {
+                    case 'number':
+                        result = aVal - bVal;
+                        break;
+                    case 'string':
+                    default:
+                        result = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' });
+                        break;
+                }
+                
+                return direction === 'desc' ? -result : result;
+            });
+            
+            // Clear tbody and add sorted rows back
+            tbody.innerHTML = '';
+            rows.forEach(row => {
+                tbody.appendChild(row);
+                // Re-append any log details rows that belong to this device
+                const deviceName = row.cells[0].textContent.trim();
+                const detailRows = Array.from(document.querySelectorAll('.log-details')).filter(
+                    detailRow => detailRow.id.includes(deviceName)
+                );
+                detailRows.forEach(detailRow => tbody.appendChild(detailRow));
+            });
         }
     </script>
 </body>
