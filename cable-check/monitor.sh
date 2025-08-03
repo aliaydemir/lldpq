@@ -4,7 +4,7 @@
 
 # Start timing
 START_TIME=$(date +%s)
-echo "🚀 Starting optimized monitoring at $(date)"
+echo "🚀 Starting  monitoring at $(date)"
 
 DATE=$(date '+%Y-%m-%d %H-%M')
 SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
@@ -47,7 +47,6 @@ execute_commands_optimized() {
     start_section() {
         local section_name="$1"
         echo "🔄 [$hostname] Starting $section_name..."
-        date +%s
     }
     
     end_section() {
@@ -111,7 +110,8 @@ execute_commands_optimized() {
 EOF
 
     # Interface overview and status collection
-    local start_time=$(start_section "Interface Overview")
+    start_section "Interface Overview"
+    local start_time=$(date +%s)
     
     # OPTIMIZED: Single SSH session with ALL original commands
     # Combine all nv show commands into one SSH call (like original monitor.sh)
@@ -141,12 +141,14 @@ EOF
     end_section "Interface Overview" "$start_time"
     
     # BGP data collection
-    local bgp_start=$(start_section "BGP Data Collection")
+    start_section "BGP Data Collection"
+    local bgp_start=$(date +%s)
     ssh $SSH_OPTS -q "$user@$device" "sudo vtysh -c \"show bgp vrf all sum\"" 2>/dev/null > "monitor-results/bgp-data/${hostname}_bgp.txt"
     end_section "BGP Data Collection" "$bgp_start"
     
     # Interface detailed data collection (longest operation)
-    local interface_start=$(start_section "Interface Data Collection")
+    start_section "Interface Data Collection"
+    local interface_start=$(date +%s)
     
     # OPTIMIZED: Single SSH session for all interface data collection
     timeout 600 ssh $SSH_OPTS -q "$user@$device" '
@@ -189,7 +191,8 @@ EOF
     end_section "Interface Data Collection" "$interface_start"
     
     # Carrier transitions collection  
-    local carrier_start=$(start_section "Carrier Transitions")
+    start_section "Carrier Transitions"
+    local carrier_start=$(date +%s)
     
     # OPTIMIZED carrier transitions collection (single SSH session)
     echo "=== CARRIER TRANSITIONS ===" > "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
@@ -217,7 +220,8 @@ EOF
     end_section "Carrier Transitions" "$carrier_start"
     
     # Data processing for optical and BER analysis
-    local processing_start=$(start_section "Data Processing")
+    start_section "Data Processing"
+    local processing_start=$(date +%s)
     
     # Extract individual data files from combined data (if exists)
     if [ -f "monitor-results/${hostname}_combined_interface_data.txt" ]; then
@@ -247,14 +251,16 @@ EOF
     end_section "Data Processing" "$processing_start"
     
     # BER interface statistics collection
-    local ber_start=$(start_section "BER Statistics")
+    start_section "BER Statistics"
+    local ber_start=$(date +%s)
     timeout 120 ssh $SSH_OPTS -q "$user@$device" '
         cat /proc/net/dev 2>/dev/null
     ' > "monitor-results/ber-data/${hostname}_interface_errors.txt" 2>/dev/null
     end_section "BER Statistics" "$ber_start"
     
     # Hardware health data collection  
-    local hardware_start=$(start_section "Hardware Health")
+    start_section "Hardware Health"
+    local hardware_start=$(date +%s)
     timeout 180 ssh $SSH_OPTS -q "$user@$device" '
         echo "HARDWARE_HEALTH:"
         sensors 2>/dev/null || echo "No sensors available"
@@ -269,7 +275,8 @@ EOF
     end_section "Hardware Health" "$hardware_start"
     
     # Enhanced log data collection  
-    local log_start=$(start_section "Log Analysis")
+    start_section "Log Analysis"
+    local log_start=$(date +%s)
     timeout 300 ssh $SSH_OPTS -q "$user@$device" '
         echo "=== COMPREHENSIVE SYSTEM LOGS ==="
         
@@ -346,7 +353,8 @@ EOF
     end_section "Log Analysis" "$log_start"
     
     # Device configuration section
-    local config_start=$(start_section "Configuration Section")
+    start_section "Configuration Section"
+    local config_start=$(date +%s)
     
     # Add Device Configuration section to HTML
     cat >> monitor-results/${hostname}.html << EOF
