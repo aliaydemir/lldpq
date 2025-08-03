@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """
-Simple script to generate BER-style HTML from existing hardware data
+generate_hardware_html.py - Hardware Analysis for LLDPq
+===============================================================
+
+PURPOSE:
+    Generates a HTML file from existing hardware data.
+    Maintains backward compatibility with existing scripts.
+
+Copyright (c) 2024 LLDPq Project
+Licensed under MIT License - see LICENSE file for details
 """
 
 import json

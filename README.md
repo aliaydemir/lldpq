@@ -107,4 +107,19 @@ cd ~/cable-check && ./assets.sh && ./check-lldp.sh && ./monitor.sh
 ls -la /var/www/html/monitor-results/
 ```
 
+## [11] license
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+### What this means:
+- ✅ **Free to use** for any purpose (personal, commercial, enterprise)
+- ✅ **Modify and distribute** as you wish
+- ✅ **No warranty** - use at your own risk
+- ✅ **Only requirement**: Keep the original license notice
+
+### Contributing
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+---
+
 done.

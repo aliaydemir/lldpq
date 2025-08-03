@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
 BER (Bit Error Rate) Analysis Module for LLDPq
-Professional network error rate monitoring and analysis
+
+Copyright (c) 2024 LLDPq Project
+Licensed under MIT License - see LICENSE file for details
 """
 
 import json

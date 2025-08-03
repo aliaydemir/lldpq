@@ -1,6 +1,11 @@
 #!/bin/bash
-# Sudo Passwordless Setup Tool
-# Sets up passwordless sudo for cumulus user on all network devices
+# sudo-fix.sh - Sudo Passwordless Setup Tool
+#
+# Purpose:
+#   Sets up passwordless sudo for cumulus user on all network devices
+#
+# Copyright (c) 2024 LLDPq Project
+# Licensed under MIT License - see LICENSE file for details
 
 show_usage() {
     echo "Sudo Passwordless Setup Tool"

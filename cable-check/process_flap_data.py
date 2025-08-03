@@ -2,6 +2,9 @@
 """
 Process carrier transition flap detection data collected by monitor.sh
 professional network monitoring
+
+Copyright (c) 2024 LLDPq Project
+Licensed under MIT License - see LICENSE file for details
 """
 
 import os

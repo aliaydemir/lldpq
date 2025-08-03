@@ -2,6 +2,9 @@
 """
 Process hardware health data collected by monitor.sh
 Simplified version that uses generate_hardware_html.py
+
+Copyright (c) 2024 LLDPq Project
+Licensed under MIT License - see LICENSE file for details
 """
 
 import os

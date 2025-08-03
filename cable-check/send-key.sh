@@ -1,5 +1,13 @@
 #!/bin/bash
-
+# send-key.sh - LLDPq SSH Key Distribution Script
+#
+# Purpose:
+#   Distributes SSH public keys to all devices defined in devices.yaml
+#   Uses sshpass for initial password authentication, then enables passwordless SSH
+#
+# Copyright (c) 2024 LLDPq Project
+# Licensed under MIT License - see LICENSE file for details
+#
 # =============================================================================
 # SEND-KEY.SH - LLDPq SSH Key Distribution Script  
 # =============================================================================

@@ -1,5 +1,15 @@
 #!/usr/bin/python3
+"""
+lldp-validate.py - LLDP Validation for LLDPq
+==========================================
 
+PURPOSE:
+    Validates LLDP data and generates a report.
+    Maintains backward compatibility with existing scripts.
+
+Copyright (c) 2024 LLDPq Project
+Licensed under MIT License - see LICENSE file for details
+"""
 import os
 import re
 import subprocess

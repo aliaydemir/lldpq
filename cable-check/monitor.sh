@@ -1,6 +1,9 @@
 #!/bin/bash
 # Optimized Monitor Script - Faster execution with SSH multiplexing
 # Performance: 3-5x faster than original
+# 
+# Copyright (c) 2024 LLDPq Project
+# Licensed under MIT License - see LICENSE file for details
 
 # Start timing
 START_TIME=$(date +%s)

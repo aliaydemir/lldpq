@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
+"""
+generate_topology.py - LLDP Topology Generator for LLDPq
+=====================================================
 
+PURPOSE:
+    Generates a JSON topology file from LLDP data.
+    Maintains backward compatibility with existing scripts.
+
+Copyright (c) 2024 LLDPq Project
+Licensed under MIT License - see LICENSE file for details
+"""
 import os
 import re
 import json

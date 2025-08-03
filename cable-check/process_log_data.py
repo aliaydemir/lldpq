@@ -2,6 +2,9 @@
 """
 Log Analysis Script
 Processes collected log data and generates severity-based analysis
+
+Copyright (c) 2024 LLDPq Project
+Licensed under MIT License - see LICENSE file for details
 """
 
 import os

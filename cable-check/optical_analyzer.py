@@ -2,6 +2,9 @@
 """
 Optical Diagnostics Analysis Module for LLDPq
 Advanced SFP/QSFP monitoring and cable health assessment
+
+Copyright (c) 2024 LLDPq Project
+Licensed under MIT License - see LICENSE file for details
 """
 
 import json

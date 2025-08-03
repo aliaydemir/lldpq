@@ -3,6 +3,9 @@
 BGP Neighbor Health Analyzer for LLDPq Enhanced Monitoring
 
 Analyzes BGP neighbor status, detects problems, and provides insights
+
+Copyright (c) 2024 LLDPq Project
+Licensed under MIT License - see LICENSE file for details
 """
 
 import os

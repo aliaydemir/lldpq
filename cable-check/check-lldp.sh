@@ -1,4 +1,7 @@
 #!/bin/bash
+# LLDP Topology Check Script  
+# Copyright (c) 2024 LLDPq Project - Licensed under MIT License
+
 DATE=$(date '+%Y-%m-%d--%H-%M')
 
 SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")

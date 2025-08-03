@@ -1,5 +1,8 @@
 #!/bin/bash
 # LLDPq Installation Script
+# 
+# Copyright (c) 2024 LLDPq Project  
+# Licensed under MIT License - see LICENSE file for details
 
 set -e
 

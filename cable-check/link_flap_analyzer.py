@@ -2,6 +2,9 @@
 """
 Link Flap Detection Module for LLDPq
 Professional Carrier Transition Based
+
+Copyright (c) 2024 LLDPq Project
+Licensed under MIT License - see LICENSE file for details
 """
 
 import os

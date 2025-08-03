@@ -1,4 +1,6 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# LLDP Topology Check Script  
+# Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 set -euo pipefail
 
 #### CONFIGURATION

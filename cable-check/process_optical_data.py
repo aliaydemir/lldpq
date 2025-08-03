@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
 Process optical diagnostics data collected by monitor.sh
+
+Copyright (c) 2024 LLDPq Project
+Licensed under MIT License - see LICENSE file for details
 """
 
 import os

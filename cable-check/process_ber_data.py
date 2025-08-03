@@ -2,6 +2,9 @@
 """
 Process BER analysis data collected by monitor.sh
 Professional network error rate analysis
+
+Copyright (c) 2024 LLDPq Project
+Licensed under MIT License - see LICENSE file for details
 """
 
 import os
