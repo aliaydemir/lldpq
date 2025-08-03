@@ -275,20 +275,9 @@ class LogAnalyzer:
         .log-table th:nth-child(5), .log-table td:nth-child(5) {{ width: 15%; }} /* Info */
         .log-table th:nth-child(6), .log-table td:nth-child(6) {{ width: 20%; }} /* Total */
         
-        .device-name {{
-            font-weight: 600;
-            color: #ffffff;
-        }}
-        
-        /* Ensure all table text is light on dark background */
+        /* Default table text color - same as Interface Flapping Status */
         .log-table td {{
             color: #cccccc;
-        }}
-        
-        /* Device names should be clearly visible on dark background */
-        .log-table .device-name {{
-            color: #ffffff;
-            font-weight: 600;
         }}
         
         .severity-count {{
@@ -462,7 +451,7 @@ class LogAnalyzer:
             
             html_content += f"""
                     <tr>
-                        <td class="device-name">{device_name}</td>
+                        <td>{device_name}</td>
                         <td>
                             <span class="severity-count critical {'zero' if counts['critical'] == 0 else ''}" 
                                   onclick="toggleLogDetails('{device_name}', 'critical')" 
