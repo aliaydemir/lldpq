@@ -318,7 +318,7 @@
                 const links = Array.from(doc.querySelectorAll('a'));
                 const files = links
                     .map(link => link.getAttribute('href'))
-                    .filter(href => href && href.endsWith('.html'));
+                    .filter(href => href && href.endsWith('.html') && !href.endsWith('-analysis.html'));
                 return files;
             } catch (error) {
                 console.error('Error fetching directory listing:', error);
