@@ -555,9 +555,9 @@ class LLDPqAlerts:
             title = "Network Health Summary"
             message = f"""• Total Devices: {total_devices}
 
-• 🟢 Excellent: {hardware_stats['excellent']} | 🔵 Good: {hardware_stats['good']} | 🟡 Warnings: {hardware_stats['warnings']} | 🔴 Critical: {hardware_stats['critical']}
+• 🟢 Excellent: {hardware_stats['excellent']}    🔵 Good: {hardware_stats['good']}    🟡 Warnings: {hardware_stats['warnings']}    🔴 Critical: {hardware_stats['critical']}
 
-• 🔴 Critical Logs: {log_stats['critical']} | ⚠️ Warning Logs: {log_stats['warnings']} | ❌ Error Logs: {log_stats['errors']} | ℹ️ Info Logs: {log_stats['info']}"""
+• 🔴 Critical Logs: {log_stats['critical']}    ⚠️ Warning Logs: {log_stats['warnings']}    ❌ Error Logs: {log_stats['errors']}    ℹ️ Info Logs: {log_stats['info']}"""
             
             if critical_issues:
                 message += f"\n\nCritical Issues:\n" + "\n".join(critical_issues[:5])
