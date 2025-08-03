@@ -242,9 +242,17 @@ class LogAnalyzer:
         .log-warning {{ color: #ff9800; font-weight: bold; }}
         .log-critical {{ color: #f44336; font-weight: bold; }}
         
-        .log-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; }}
-        .log-table th, .log-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        .log-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
+        .log-table th, .log-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; word-wrap: break-word; }}
         .log-table th {{ background-color: #f2f2f2; font-weight: bold; }}
+        
+        /* Column width specifications */
+        .log-table th:nth-child(1), .log-table td:nth-child(1) {{ width: 20%; }} /* Device */
+        .log-table th:nth-child(2), .log-table td:nth-child(2) {{ width: 15%; }} /* Critical */
+        .log-table th:nth-child(3), .log-table td:nth-child(3) {{ width: 15%; }} /* Warning */
+        .log-table th:nth-child(4), .log-table td:nth-child(4) {{ width: 15%; }} /* Error */
+        .log-table th:nth-child(5), .log-table td:nth-child(5) {{ width: 15%; }} /* Info */
+        .log-table th:nth-child(6), .log-table td:nth-child(6) {{ width: 20%; }} /* Total */
         
         .device-name {{
             font-weight: 600;
@@ -298,6 +306,30 @@ class LogAnalyzer:
             cursor: default;
         }}
         
+        .summary-card {{
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }}
+        .summary-card:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }}
+        .summary-card.active {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            border-left-width: 6px;
+        }}
+        
+        .filter-info {{
+            text-align: center;
+            padding: 10px;
+            margin: 10px 0;
+            background: #e8f4fd;
+            border-radius: 4px;
+            color: #1976d2;
+            display: none;
+        }}
+        
         .log-details {{
             display: none;
             background: #f8f9fa;
@@ -332,52 +364,40 @@ class LogAnalyzer:
             font-size: 0.8em;
             margin-right: 10px;
         }}
-        
-        .anomaly-section {{
-            margin: 30px 0;
-            padding: 20px;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }}
-        
-        .summary-card {{
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }}
-        .summary-card:hover {{
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }}
     </style>
 </head>
 <body>
+    <h1></h1>
     <h1><font color="#b57614">Log Analysis Results</font></h1>
     <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-    <p><strong>Analysis Summary:</strong> {total_devices} devices • {sum(totals.values())} log entries processed</p>
     
     <h2>Log Summary</h2>
     <div class="summary-grid">
-        <div class="summary-card card-total">
+        <div class="summary-card card-total" id="total-devices-card">
             <div class="metric" id="total-devices">{total_devices}</div>
             <div>Total Devices</div>
         </div>
-        <div class="summary-card card-critical">
+        <div class="summary-card card-critical" id="critical-card">
             <div class="metric log-critical" id="critical-logs">{totals['critical']}</div>
             <div>Critical Issues</div>
         </div>
-        <div class="summary-card card-warning">
+        <div class="summary-card card-warning" id="warning-card">
             <div class="metric log-warning" id="warning-logs">{totals['warning']}</div>
             <div>Warning Messages</div>
         </div>
-        <div class="summary-card card-warning">
+        <div class="summary-card card-warning" id="error-card">
             <div class="metric log-warning" id="error-logs">{totals['error']}</div>
             <div>Error Messages</div>
         </div>
-        <div class="summary-card card-excellent">
+        <div class="summary-card card-excellent" id="info-card">
             <div class="metric log-good" id="info-logs">{totals['info']}</div>
             <div>Info Messages</div>
         </div>
+    </div>
+    
+    <div id="filter-info" class="filter-info">
+        <span id="filter-text"></span>
+        <button onclick="clearFilter()" style="margin-left: 10px; padding: 2px 8px; background: #1976d2; color: white; border: none; border-radius: 3px; cursor: pointer;">Show All</button>
     </div>
     
     <h2>Device Log Details</h2>
@@ -462,6 +482,107 @@ class LogAnalyzer:
     <script>
         // Log data embedded in the page
         const logData = """ + json.dumps(dict(self.log_analysis), indent=2) + """;
+        
+        // Initialize page functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            initSummaryCardFilters();
+        });
+        
+        function initSummaryCardFilters() {
+            // Add click handlers to summary cards
+            document.getElementById('total-devices-card').addEventListener('click', () => clearFilter());
+            document.getElementById('critical-card').addEventListener('click', () => filterTable('critical'));
+            document.getElementById('warning-card').addEventListener('click', () => filterTable('warning'));  
+            document.getElementById('error-card').addEventListener('click', () => filterTable('error'));
+            document.getElementById('info-card').addEventListener('click', () => filterTable('info'));
+        }
+        
+        function filterTable(severity) {
+            const table = document.querySelector('.log-table');
+            const rows = table.querySelectorAll('tbody tr');
+            const filterInfo = document.getElementById('filter-info');
+            const filterText = document.getElementById('filter-text');
+            
+            // Remove active class from all cards
+            document.querySelectorAll('.summary-card').forEach(card => card.classList.remove('active'));
+            
+            // Add active class to clicked card
+            document.getElementById(severity + '-card').classList.add('active');
+            
+            let visibleCount = 0;
+            
+            // Filter table rows
+            rows.forEach(row => {
+                if (row.classList.contains('log-details')) {
+                    row.style.display = 'none';
+                    return;
+                }
+                
+                const severityCell = getSeverityCellValue(row, severity);
+                
+                if (severityCell > 0) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            // Show filter info
+            const severityLabels = {
+                'critical': 'Critical Issues',
+                'warning': 'Warning Messages', 
+                'error': 'Error Messages',
+                'info': 'Info Messages'
+            };
+            
+            filterText.textContent = `Showing ${visibleCount} devices with ${severityLabels[severity]}`;
+            filterInfo.style.display = 'block';
+        }
+        
+        function getSeverityCellValue(row, severity) {
+            const severityMap = {
+                'critical': 1, // Column index for Critical
+                'warning': 2,  // Column index for Warning  
+                'error': 3,    // Column index for Error
+                'info': 4      // Column index for Info
+            };
+            
+            const cellIndex = severityMap[severity];
+            if (!cellIndex) return 0;
+            
+            const cell = row.cells[cellIndex];
+            if (!cell) return 0;
+            
+            const countElement = cell.querySelector('.severity-count');
+            if (!countElement) return 0;
+            
+            return parseInt(countElement.textContent) || 0;
+        }
+        
+        function clearFilter() {
+            const table = document.querySelector('.log-table');
+            const allRows = table.querySelectorAll('tbody tr');
+            const filterInfo = document.getElementById('filter-info');
+            
+            // Remove active class from all cards
+            document.querySelectorAll('.summary-card').forEach(card => card.classList.remove('active'));
+            
+            // Add active class to total card
+            document.getElementById('total-devices-card').classList.add('active');
+            
+            // Hide filter info
+            filterInfo.style.display = 'none';
+            
+            // Show all rows (except detail rows)
+            allRows.forEach(row => {
+                if (row.classList.contains('log-details')) {
+                    row.style.display = 'none';
+                } else {
+                    row.style.display = '';
+                }
+            });
+        }
         
         function toggleLogDetails(deviceName, severity) {
             const detailsRow = document.getElementById(`details-${deviceName}-${severity}`);
