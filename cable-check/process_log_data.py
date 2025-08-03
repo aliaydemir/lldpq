@@ -416,7 +416,7 @@ class LogAnalyzer:
     <table class="log-table" id="log-table">
         <thead>
             <tr>
-                <th class="sortable" data-column="0" data-type="string">Device Name <span class="sort-arrow">▲▼</span></th>
+                <th class="sortable" data-column="0" data-type="string">Device <span class="sort-arrow">▲▼</span></th>
                 <th class="sortable" data-column="1" data-type="number">Critical <span class="sort-arrow">▲▼</span></th>
                 <th class="sortable" data-column="2" data-type="number">Warning <span class="sort-arrow">▲▼</span></th>
                 <th class="sortable" data-column="3" data-type="number">Error <span class="sort-arrow">▲▼</span></th>
