@@ -446,28 +446,28 @@ class LogAnalyzer:
                         <td>{device_name}</td>
                         <td>
                             <span class="severity-count critical {'zero' if counts['critical'] == 0 else ''}" 
-                                  onclick="toggleLogDetails('{device_name}', 'critical')" 
+                                  data-device="{device_name}" data-severity="critical"
                                   id="critical-{device_name}">
                                 {counts['critical']}
                             </span>
                         </td>
                         <td>
                             <span class="severity-count warning {'zero' if counts['warning'] == 0 else ''}" 
-                                  onclick="toggleLogDetails('{device_name}', 'warning')"
+                                  data-device="{device_name}" data-severity="warning"
                                   id="warning-{device_name}">
                                 {counts['warning']}
                             </span>
                         </td>
                         <td>
                             <span class="severity-count error {'zero' if counts['error'] == 0 else ''}" 
-                                  onclick="toggleLogDetails('{device_name}', 'error')"
+                                  data-device="{device_name}" data-severity="error"
                                   id="error-{device_name}">
                                 {counts['error']}
                             </span>
                         </td>
                         <td>
                             <span class="severity-count info {'zero' if counts['info'] == 0 else ''}" 
-                                  onclick="toggleLogDetails('{device_name}', 'info')"
+                                  data-device="{device_name}" data-severity="info"
                                   id="info-{device_name}">
                                 {counts['info']}
                             </span>
@@ -507,7 +507,22 @@ class LogAnalyzer:
         document.addEventListener('DOMContentLoaded', function() {
             initSummaryCardFilters();
             initTableSorting();
+            initLogDetailsClickHandlers();
         });
+        
+        function initLogDetailsClickHandlers() {
+            // Event delegation for severity count clicks (survives table sorting)
+            const table = document.getElementById('log-table');
+            table.addEventListener('click', function(event) {
+                if (event.target.classList.contains('severity-count') && !event.target.classList.contains('zero')) {
+                    const deviceName = event.target.getAttribute('data-device');
+                    const severity = event.target.getAttribute('data-severity');
+                    if (deviceName && severity) {
+                        toggleLogDetails(deviceName, severity);
+                    }
+                }
+            });
+        }
         
         function initSummaryCardFilters() {
             // Add click handlers to summary cards
