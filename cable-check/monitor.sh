@@ -556,10 +556,10 @@ echo ""
 echo "🔬 Analysis Phase Timing Summary:"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-local total_analysis_time=0
+total_analysis_time=0
 for i in "${!analysis_names[@]}"; do
-    local analysis="${analysis_names[i]}"
-    local time="${analysis_times[i]}"
+    analysis="${analysis_names[i]}"
+    time="${analysis_times[i]}"
     if [ "$time" != "FAILED" ]; then
         total_analysis_time=$((total_analysis_time + time))
         printf "%-25s : %3ds\n" "$analysis" "$time"
