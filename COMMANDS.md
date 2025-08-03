@@ -91,13 +91,11 @@ sudo lldpcli show statistics
 
 ### Device Configuration Export
 ```bash
-# Get all NVUE configuration
-sudo nv config show
+# Get all NVUE configuration nv-set format
+nv config show -o commands
 
-# Alternative configuration commands
-sudo cat /etc/cumulus/switchd.conf
-sudo cat /etc/frr/frr.conf
-sudo net show configuration
+# Get all NVUE configuration nv-yaml format
+sudo cat /etc/nvue.d/startup.yaml
 ```
 
 ## 📦 Asset Information Script (`assets.sh`)

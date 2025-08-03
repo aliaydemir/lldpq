@@ -247,6 +247,20 @@ class LogAnalyzer:
         .log-warning {{ color: #ff9800; font-weight: bold; }}
         .log-critical {{ color: #f44336; font-weight: bold; }}
         
+        /* Total log count color coding like other analysis pages */
+        .total-excellent {{ color: #4caf50; font-weight: bold; }}
+        .total-good {{ color: #8bc34a; font-weight: bold; }}
+        .total-warning {{ color: #ff9800; font-weight: bold; }}
+        .total-critical {{ color: #f44336; font-weight: bold; }}
+        
+        /* Sortable table styling - dark theme */
+        .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
+        .sortable:hover {{ background-color: #3a3a3a; }}
+        .sort-arrow {{ font-size: 10px; color: #999; margin-left: 5px; opacity: 0.5; }}
+        .sortable.asc .sort-arrow::before {{ content: '▲'; color: #b57614; opacity: 1; }}
+        .sortable.desc .sort-arrow::before {{ content: '▼'; color: #b57614; opacity: 1; }}
+        .sortable.asc .sort-arrow, .sortable.desc .sort-arrow {{ opacity: 1; }}
+        
         .log-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
         .log-table th, .log-table td {{ border: 1px solid #43453B; padding: 8px; text-align: left; word-wrap: break-word; }}
         .log-table th {{ background-color: #2a2a2a; font-weight: bold; color: #cccccc; }}
@@ -271,11 +285,7 @@ class LogAnalyzer:
             color: #cccccc;
         }}
         
-        /* Total numbers should be visible on dark background */
-        .log-table td:last-child {{
-            color: #ffffff;
-            font-weight: bold;
-        }}
+        /* Remove generic total styling - using color-coded classes instead */
         
         .severity-count {{
             display: inline-block;
@@ -435,6 +445,16 @@ class LogAnalyzer:
         for device_name, counts in sorted_devices:
             total_count = sum(counts.values())
             
+            # Color code total count like other analysis pages
+            if total_count == 0:
+                total_class = "total-excellent"
+            elif total_count <= 50:
+                total_class = "total-good" 
+            elif total_count <= 100:
+                total_class = "total-warning"
+            else:
+                total_class = "total-critical"
+            
             html_content += f"""
                     <tr>
                         <td class="device-name">{device_name}</td>
@@ -466,7 +486,7 @@ class LogAnalyzer:
                                 {counts['info']}
                             </span>
                         </td>
-                        <td><strong>{total_count}</strong></td>
+                        <td><span class="{total_class}">{total_count}</span></td>
                     </tr>
                     <tr id="details-{device_name}-critical" class="log-details">
                         <td colspan="6">
