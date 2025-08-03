@@ -263,7 +263,7 @@ class LogAnalyzer:
         
         .log-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
         .log-table th, .log-table td {{ border: 1px solid #ddd; padding: 5px 8px; text-align: left; word-wrap: break-word; }}
-        .log-table th {{ background-color: #f2f2f2; font-weight: bold; padding: 7px 8px; }}
+        .log-table th {{ background-color: #f2f2f2; font-weight: bold; padding: 8px 8px; }}
         
         /* Column width specifications */
         .log-table th:nth-child(1), .log-table td:nth-child(1) {{ width: 20%; }} /* Device */
