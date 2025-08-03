@@ -277,18 +277,17 @@ class LogAnalyzer:
         
         .device-name {{
             font-weight: 600;
-            color: #2d3748;
+            color: #ffffff;
         }}
         
-        /* Ensure all table text is dark on light background - like other analysis pages */
+        /* Ensure all table text is light on dark background */
         .log-table td {{
-            color: #333333;
-            background-color: inherit;
+            color: #cccccc;
         }}
         
-        /* Device names should be clearly visible */
+        /* Device names should be clearly visible on dark background */
         .log-table .device-name {{
-            color: #2d3748;
+            color: #ffffff;
             font-weight: 600;
         }}
         
