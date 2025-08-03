@@ -264,6 +264,8 @@ class LogAnalyzer:
         .log-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
         .log-table th, .log-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; word-wrap: break-word; }}
         .log-table th {{ background-color: #f2f2f2; font-weight: bold; }}
+        .log-table tbody tr {{ background-color: #ffffff; }}
+        .log-table tbody tr:nth-child(even) {{ background-color: #f9f9f9; }}
         
         /* Column width specifications */
         .log-table th:nth-child(1), .log-table td:nth-child(1) {{ width: 20%; }} /* Device */
@@ -281,6 +283,13 @@ class LogAnalyzer:
         /* Ensure all table text is dark on light background - like other analysis pages */
         .log-table td {{
             color: #333333;
+            background-color: inherit;
+        }}
+        
+        /* Device names should be clearly visible */
+        .log-table .device-name {{
+            color: #2d3748;
+            font-weight: 600;
         }}
         
         .severity-count {{
@@ -365,6 +374,7 @@ class LogAnalyzer:
             border-bottom: 1px solid #e2e8f0;
             font-family: 'Courier New', monospace;
             font-size: 0.9em;
+            color: #333333;
         }}
         
         .log-entry:last-child {{
