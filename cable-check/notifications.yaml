@@ -35,12 +35,9 @@
 notifications:
   # Global enable/disable switch
   enabled: false
-  
   # 🔗 SERVER URL - Fix for broken device links in alerts
   # which don't work from other machines. Now uses your actual server IP.
-  
   server_url: "http://100.64.1.1"  # ⚠️ CHANGE TO YOUR LLDPQ SERVER IP
-  
   # Examples:
   # • Internal network: "http://192.168.1.100"  
   # • VPN/corporate: "http://10.0.1.50"
@@ -101,11 +98,10 @@ thresholds:
 
 alert_strategy:
   # 📊 ALERT MODES:
-  # • "immediate" = Old behavior (every device sends individual alerts)
+  # • "immediate" = Every device sends individual alerts
   # • "summary"   = Dashboard-style single message with overall stats 
   # • "change_only" = Only alert when significant changes occur
-  mode: "summary"                    # RECOMMENDED: Prevents spam, clean summaries
-  
+  mode: "summary"                    # summary mode RECOMMENDED Prevents spam, clean summaries
   # ⏰ SUMMARY SCHEDULE (for summary mode):
   # When to send dashboard-style health summaries
   summary_times: ["09:00", "17:00"] # Morning briefing + evening status
@@ -123,7 +119,7 @@ alert_strategy:
   # 📈 CHANGE DETECTION (for change_only mode):
   # Only alert when metrics change significantly from last check
   change_threshold:
-    temperature_change: 10           # Alert if temp jumps/drops by 10°C
+    temperature_change: 10          # Alert if temp jumps/drops by 10°C
     fan_change: 1000                # Alert if fan speed changes by 1000+ RPM
     device_count_change: 1          # Alert if devices go online/offline
   # Example: Only alert if CPU temp goes from 65°C to 80°C (15°C jump)
