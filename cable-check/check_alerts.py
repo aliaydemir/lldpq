@@ -590,6 +590,11 @@ class LLDPqAlerts:
 
 Total Devices: {total_devices}
 
+
+Asset Analysis Results:
+
+🟢 Successful: {asset_stats['successful']}     🔴 Failed: {asset_stats['failed']}
+
 Hardware Health Analysis:
 
 🟢 Excellent: {hardware_stats['excellent']}     🔵 Good: {hardware_stats['good']}     🟡 Warnings: {hardware_stats['warnings']}     🔴 Critical: {hardware_stats['critical']}
@@ -601,10 +606,6 @@ Log Analysis Results:
 BGP Analysis Results:
 
 🟢 Established: {bgp_stats['established']}     🔴 Down: {bgp_stats['down']}
-
-Asset Analysis Results:
-
-🟢 Successful: {asset_stats['successful']}     🔴 Failed: {asset_stats['failed']}
 
 BER Analysis Results:
 
