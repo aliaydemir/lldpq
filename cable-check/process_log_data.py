@@ -217,11 +217,12 @@ class LogAnalyzer:
             margin: 20px 0; 
         }}
         .summary-card {{ 
-            background: #2a2a2a; 
+            background: #f8f9fa; 
             padding: 15px; 
             border-radius: 8px; 
             border-left: 4px solid #007bff; 
-            border: 1px solid #43453B;
+            cursor: pointer;
+            transition: all 0.3s ease;
         }}
         .card-excellent {{ border-left-color: #4caf50; }}
         .card-good {{ border-left-color: #8bc34a; }}
@@ -235,11 +236,11 @@ class LogAnalyzer:
         .card-good .metric {{ color: #8bc34a; }}
         .card-warning .metric {{ color: #ff9800; }}
         .card-critical .metric {{ color: #f44336; }}
-        .card-total .metric {{ color: #ffffff; }}
+        .card-total .metric {{ color: #333; }}
         .card-info .metric {{ color: #2196f3; }}
         
-        /* Card labels dark theme */
-        .summary-card div:not(.metric) {{ color: #cccccc; }}
+        /* Card labels light theme */
+        .summary-card div:not(.metric) {{ color: #666; }}
         
         .log-excellent {{ color: #4caf50; font-weight: bold; }}
         .log-good {{ color: #8bc34a; font-weight: bold; }}
@@ -247,10 +248,8 @@ class LogAnalyzer:
         .log-critical {{ color: #f44336; font-weight: bold; }}
         
         .log-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
-        .log-table th, .log-table td {{ border: 1px solid #43453B; padding: 8px; text-align: left; word-wrap: break-word; }}
-        .log-table th {{ background-color: #2a2a2a; font-weight: bold; color: #cccccc; }}
-        .log-table td {{ background-color: #1a1a1a; }}
-        .log-table tr:nth-child(even) td {{ background-color: #252525; }}
+        .log-table th, .log-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; word-wrap: break-word; }}
+        .log-table th {{ background-color: #f2f2f2; font-weight: bold; }}
         
         /* Column width specifications */
         .log-table th:nth-child(1), .log-table td:nth-child(1) {{ width: 20%; }} /* Device */
@@ -262,7 +261,7 @@ class LogAnalyzer:
         
         .device-name {{
             font-weight: 600;
-            color: #ffffff;
+            color: #2d3748;
         }}
         
         .severity-count {{
@@ -312,10 +311,6 @@ class LogAnalyzer:
             cursor: default;
         }}
         
-        .summary-card {{
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }}
         .summary-card:hover {{
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
@@ -338,8 +333,8 @@ class LogAnalyzer:
         
         .log-details {{
             display: none;
-            background: #1a1a1a;
-            border: 1px solid #43453B;
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
             border-radius: 8px;
             margin: 10px 0;
             max-height: 400px;
@@ -348,10 +343,9 @@ class LogAnalyzer:
         
         .log-entry {{
             padding: 10px 15px;
-            border-bottom: 1px solid #43453B;
+            border-bottom: 1px solid #e2e8f0;
             font-family: 'Courier New', monospace;
             font-size: 0.9em;
-            color: #cccccc;
         }}
         
         .log-entry:last-child {{
@@ -359,13 +353,13 @@ class LogAnalyzer:
         }}
         
         .log-timestamp {{
-            color: #888888;
+            color: #666;
             margin-right: 10px;
         }}
         
         .log-section {{
-            background: #43453B;
-            color: #ffffff;
+            background: #e2e8f0;
+            color: #2d3748;
             padding: 2px 6px;
             border-radius: 4px;
             font-size: 0.8em;
