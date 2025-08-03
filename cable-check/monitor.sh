@@ -39,7 +39,22 @@ execute_commands_optimized() {
     local user=$2
     local hostname=$3
     
-    echo "Processing $hostname..."
+    # Timing helper functions
+    start_section() {
+        local section_name="$1"
+        echo "🔄 [$hostname] Starting $section_name..."
+        date +%s
+    }
+    
+    end_section() {
+        local section_name="$1"
+        local start_time="$2"
+        local end_time=$(date +%s)
+        local duration=$((end_time - start_time))
+        echo "✅ [$hostname] $section_name completed in ${duration}s"
+    }
+    
+    echo "🚀 Processing $hostname..."
     
     # Create HTML header
     cat > monitor-results/${hostname}.html << EOF
@@ -87,6 +102,9 @@ execute_commands_optimized() {
 
 EOF
 
+    # Interface overview and status collection
+    local start_time=$(start_section "Interface Overview")
+    
     # OPTIMIZED: Single SSH session with ALL original commands
     # Combine all nv show commands into one SSH call (like original monitor.sh)
     ssh $SSH_OPTS -q "$user@$device" '
@@ -112,8 +130,15 @@ EOF
         sudo vtysh -c "show bgp vrf all sum" 2>/dev/null | sed -E "s/(VRF\s+)([a-zA-Z0-9_-]+)/\1<span style=\"color:tomato;\">\2<\/span>/g; s/Total number of neighbors ([0-9]+)/Total number of neighbors <span style=\"color:steelblue;\">\1<\/span>/g; s/(\S+)\s+(\S+)\s+Summary/<span style=\"color:lime;\">\1 \2<\/span> Summary/g; s/\b(Active|Idle)\b/<span style=\"color:red;\">\1<\/span>/g"
     ' >> monitor-results/${hostname}.html
     
-    # Separate BGP data collection (for analysis)
+    end_section "Interface Overview" "$start_time"
+    
+    # BGP data collection
+    local bgp_start=$(start_section "BGP Data Collection")
     ssh $SSH_OPTS -q "$user@$device" "sudo vtysh -c \"show bgp vrf all sum\"" 2>/dev/null > "monitor-results/bgp-data/${hostname}_bgp.txt"
+    end_section "BGP Data Collection" "$bgp_start"
+    
+    # Interface detailed data collection (longest operation)
+    local interface_start=$(start_section "Interface Data Collection")
     
     # OPTIMIZED: Single SSH session for all interface data collection
     timeout 600 ssh $SSH_OPTS -q "$user@$device" '
@@ -153,6 +178,11 @@ EOF
         done
     ' > "monitor-results/${hostname}_combined_interface_data.txt" 2>/dev/null
     
+    end_section "Interface Data Collection" "$interface_start"
+    
+    # Carrier transitions collection  
+    local carrier_start=$(start_section "Carrier Transitions")
+    
     # OPTIMIZED carrier transitions collection (single SSH session)
     echo "=== CARRIER TRANSITIONS ===" > "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
     
@@ -175,6 +205,11 @@ EOF
             fi
         done
     ' >> "monitor-results/flap-data/${hostname}_carrier_transitions.txt" 2>/dev/null
+    
+    end_section "Carrier Transitions" "$carrier_start"
+    
+    # Data processing for optical and BER analysis
+    local processing_start=$(start_section "Data Processing")
     
     # Extract individual data files from combined data (if exists)
     if [ -f "monitor-results/${hostname}_combined_interface_data.txt" ]; then
@@ -201,12 +236,17 @@ EOF
         rm -f "monitor-results/${hostname}_combined_interface_data.txt"
     fi
     
-    # BER data collection (interface error statistics) - keep separate as it's fast
+    end_section "Data Processing" "$processing_start"
+    
+    # BER interface statistics collection
+    local ber_start=$(start_section "BER Statistics")
     timeout 120 ssh $SSH_OPTS -q "$user@$device" '
         cat /proc/net/dev 2>/dev/null
     ' > "monitor-results/ber-data/${hostname}_interface_errors.txt" 2>/dev/null
+    end_section "BER Statistics" "$ber_start"
     
-    # Hardware health data collection (sensors, memory, CPU, uptime)
+    # Hardware health data collection  
+    local hardware_start=$(start_section "Hardware Health")
     timeout 180 ssh $SSH_OPTS -q "$user@$device" '
         echo "HARDWARE_HEALTH:"
         sensors 2>/dev/null || echo "No sensors available"
@@ -218,7 +258,10 @@ EOF
         uptime 2>/dev/null || echo "No uptime info available"
     ' > "monitor-results/hardware-data/${hostname}_hardware.txt" 2>/dev/null
     
-    # Enhanced log data collection (comprehensive /var/log analysis)
+    end_section "Hardware Health" "$hardware_start"
+    
+    # Enhanced log data collection  
+    local log_start=$(start_section "Log Analysis")
     timeout 300 ssh $SSH_OPTS -q "$user@$device" '
         echo "=== COMPREHENSIVE SYSTEM LOGS ==="
         
@@ -292,6 +335,11 @@ EOF
         
     ' > "monitor-results/log-data/${hostname}_logs.txt" 2>/dev/null
     
+    end_section "Log Analysis" "$log_start"
+    
+    # Device configuration section
+    local config_start=$(start_section "Configuration Section")
+    
     # Add Device Configuration section to HTML
     cat >> monitor-results/${hostname}.html << EOF
 
@@ -350,7 +398,9 @@ EOF
 </html>
 EOF
     
-    echo "✅ $hostname completed"
+    end_section "Configuration Section" "$config_start"
+    
+    echo "🎉 [$hostname] All sections completed successfully!"
 }
 
 process_device() {
@@ -377,47 +427,67 @@ wait
 echo ""
 echo -e "\e[1;34mOptimized monitoring completed...\e[0m"
 
-# Run analyses
-echo -e "\n\e[0;34mRunning BGP Analysis...\e[0m"
+# Run analyses with timing
+echo -e "\n🔬 \e[1;34mStarting Analysis Phase...\e[0m"
+
+echo -e "🔄 Running BGP Analysis..."
+bgp_start=$(date +%s)
 if python3 process_bgp_data.py; then
-    echo -e "\e[0;32mBGP analysis completed\e[0m"
+    bgp_end=$(date +%s)
+    bgp_duration=$((bgp_end - bgp_start))
+    echo -e "✅ BGP analysis completed in ${bgp_duration}s"
 else
-    echo -e "\e[0;33mWarning: BGP analysis failed\e[0m"
+    echo -e "⚠️  Warning: BGP analysis failed"
 fi
 
-echo -e "\n\e[0;34mRunning Link Flap Analysis...\e[0m"
+echo -e "🔄 Running Link Flap Analysis..."
+flap_start=$(date +%s)
 if python3 process_flap_data.py; then
-    echo -e "\e[0;32mLink Flap analysis completed\e[0m"
+    flap_end=$(date +%s)
+    flap_duration=$((flap_end - flap_start))
+    echo -e "✅ Link Flap analysis completed in ${flap_duration}s"
 else
-    echo -e "\e[0;33mWarning: Link Flap analysis failed\e[0m"
+    echo -e "⚠️  Warning: Link Flap analysis failed"
 fi
 
-echo -e "\n\e[0;34mRunning Optical Analysis...\e[0m"
+echo -e "🔄 Running Optical Analysis..."
+optical_start=$(date +%s)
 if python3 process_optical_data.py; then
-    echo -e "\e[0;32mOptical analysis completed\e[0m"
+    optical_end=$(date +%s)
+    optical_duration=$((optical_end - optical_start))
+    echo -e "✅ Optical analysis completed in ${optical_duration}s"
 else
-    echo -e "\e[0;33mWarning: Optical analysis failed\e[0m"
+    echo -e "⚠️  Warning: Optical analysis failed"
 fi
 
-echo -e "\n\e[0;34mRunning BER Analysis...\e[0m"
+echo -e "🔄 Running BER Analysis..."
+ber_start=$(date +%s)
 if python3 process_ber_data.py; then
-    echo -e "\e[0;32mBER analysis completed\e[0m"
+    ber_end=$(date +%s)
+    ber_duration=$((ber_end - ber_start))
+    echo -e "✅ BER analysis completed in ${ber_duration}s"
 else
-    echo -e "\e[0;33mWarning: BER analysis failed\e[0m"
+    echo -e "⚠️  Warning: BER analysis failed"
 fi
 
-echo -e "\n\e[0;34mRunning Hardware Health Analysis...\e[0m"
+echo -e "🔄 Running Hardware Health Analysis..."
+hardware_start=$(date +%s)
 if python3 process_hardware_data.py; then
-    echo -e "\e[0;32mHardware health analysis completed\e[0m"
+    hardware_end=$(date +%s)
+    hardware_duration=$((hardware_end - hardware_start))
+    echo -e "✅ Hardware health analysis completed in ${hardware_duration}s"
 else
-    echo -e "\e[0;33mWarning: Hardware health analysis failed\e[0m"
+    echo -e "⚠️  Warning: Hardware health analysis failed"
 fi
 
-echo -e "\n\e[0;34mRunning Log Analysis...\e[0m"
+echo -e "🔄 Running Log Analysis..."
+log_analysis_start=$(date +%s)
 if python3 process_log_data.py; then
-    echo -e "\e[0;32mLog analysis completed\e[0m"
+    log_analysis_end=$(date +%s)
+    log_analysis_duration=$((log_analysis_end - log_analysis_start))
+    echo -e "✅ Log analysis completed in ${log_analysis_duration}s"
 else
-    echo -e "\e[0;33mWarning: Log analysis failed\e[0m"
+    echo -e "⚠️  Warning: Log analysis failed"
 fi
 
 sudo cp -r monitor-results/ /var/www/html/
@@ -431,7 +501,11 @@ MINUTES=$((DURATION / 60))
 SECONDS=$((DURATION % 60))
 
 echo ""
-echo "⚡ Optimized monitoring completed successfully"
-echo "⏱️ Total execution time: ${MINUTES}m ${SECONDS}s"
+echo "🎉 ==============================================="
+echo "⚡ Enhanced monitoring completed successfully!"
+echo "⏱️  Total execution time: ${MINUTES}m ${SECONDS}s"
+echo "📊 All device sections completed with timing"
+echo "🔬 All analysis phases completed with timing"  
 echo "🌐 Results available at web interface"
+echo "=================================================="
 exit 0
