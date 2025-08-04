@@ -18,27 +18,27 @@ if [[ $EUID -eq 0 ]]; then
 fi
 
 # Check if we're in the lldpq directory
-if [[ ! -f "README.md" ]] || [[ ! -d "cable-check" ]]; then
+if [[ ! -f "README.md" ]] || [[ ! -d "monitor" ]]; then
     echo "❌ Please run this script from the lldpq directory"
-    echo "   Make sure you're in the directory containing README.md and cable-check/"
+    echo "   Make sure you're in the directory containing README.md and monitor/"
     exit 1
 fi
 
 echo ""
-echo "[01] Backup existing cable-check directory?"
-if [[ -d "$HOME/cable-check" ]]; then
-    read -p "Create backup of existing cable-check? [y/N]: " -n 1 -r
+echo "[01] Backup existing monitor directory?"
+if [[ -d "$HOME/monitor" ]]; then
+    read -p "Create backup of existing monitor? [y/N]: " -n 1 -r
     echo ""
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        backup_dir="$HOME/cable-check.backup.$(date +%Y%m%d_%H%M%S)"
-        echo "   Backing up $HOME/cable-check to $backup_dir"
-        cp -r "$HOME/cable-check" "$backup_dir"
+        backup_dir="$HOME/monitor.backup.$(date +%Y%m%d_%H%M%S)"
+        echo "   Backing up $HOME/monitor to $backup_dir"
+        cp -r "$HOME/monitor" "$backup_dir"
         echo "Backup created: $backup_dir"
     else
         echo "   Skipping backup as requested"
     fi
 else
-    echo "   No existing cable-check directory found, skipping backup"
+    echo "   No existing monitor directory found, skipping backup"
 fi
 
 echo ""
@@ -72,11 +72,11 @@ echo "System files updated"
 echo ""
 echo "[03] Backup monitoring data?"
 backup_data_dir=""
-if [[ -d "$HOME/cable-check/monitor-results" ]] || [[ -d "$HOME/cable-check/lldp-results" ]] || [[ -d "$HOME/cable-check/alert-states" ]]; then
+if [[ -d "$HOME/monitor/monitor-results" ]] || [[ -d "$HOME/monitor/lldp-results" ]] || [[ -d "$HOME/monitor/alert-states" ]]; then
     echo "   Found existing monitoring data directories:"
-    [[ -d "$HOME/cable-check/monitor-results" ]] && echo "     • monitor-results/ (contains all analysis results)"
-    [[ -d "$HOME/cable-check/lldp-results" ]] && echo "     • lldp-results/ (contains LLDP topology data)"
-    [[ -d "$HOME/cable-check/alert-states" ]] && echo "     • alert-states/ (contains alert history and state tracking)"
+    [[ -d "$HOME/monitor/monitor-results" ]] && echo "     • monitor-results/ (contains all analysis results)"
+    [[ -d "$HOME/monitor/lldp-results" ]] && echo "     • lldp-results/ (contains LLDP topology data)"
+    [[ -d "$HOME/monitor/alert-states" ]] && echo "     • alert-states/ (contains alert history and state tracking)"
     echo ""
     read -p "Backup and preserve monitoring data? [Y/n]: " -n 1 -r
     echo ""
@@ -85,9 +85,9 @@ if [[ -d "$HOME/cable-check/monitor-results" ]] || [[ -d "$HOME/cable-check/lldp
     else
         backup_data_dir=$(mktemp -d)
         echo "   📦 Backing up monitoring data..."
-        [[ -d "$HOME/cable-check/monitor-results" ]] && cp -r "$HOME/cable-check/monitor-results" "$backup_data_dir/"
-        [[ -d "$HOME/cable-check/lldp-results" ]] && cp -r "$HOME/cable-check/lldp-results" "$backup_data_dir/"
-        [[ -d "$HOME/cable-check/alert-states" ]] && cp -r "$HOME/cable-check/alert-states" "$backup_data_dir/"
+        [[ -d "$HOME/monitor/monitor-results" ]] && cp -r "$HOME/monitor/monitor-results" "$backup_data_dir/"
+        [[ -d "$HOME/monitor/lldp-results" ]] && cp -r "$HOME/monitor/lldp-results" "$backup_data_dir/"
+        [[ -d "$HOME/monitor/alert-states" ]] && cp -r "$HOME/monitor/alert-states" "$backup_data_dir/"
         echo "   ✅ Monitoring data backed up to temporary location"
     fi
 else
@@ -95,55 +95,55 @@ else
 fi
 
 echo ""
-echo "[04] Updating cable-check directory (preserving configs)..."
+echo "[04] Updating monitor directory (preserving configs)..."
 # Create temp directory for selective copy
 temp_dir=$(mktemp -d)
-cp -r cable-check/* "$temp_dir/"
+cp -r monitor/* "$temp_dir/"
 
-# If cable-check exists, preserve config files
-if [[ -d "$HOME/cable-check" ]]; then
+# If monitor exists, preserve config files
+if [[ -d "$HOME/monitor" ]]; then
     echo "   - Preserving configuration files:"
     
-    if [[ -f "$HOME/cable-check/devices.yaml" ]]; then
+    if [[ -f "$HOME/monitor/devices.yaml" ]]; then
         echo "     • devices.yaml"
-        cp "$HOME/cable-check/devices.yaml" "$temp_dir/"
+        cp "$HOME/monitor/devices.yaml" "$temp_dir/"
     fi
     
-    if [[ -f "$HOME/cable-check/hosts.ini" ]]; then
+    if [[ -f "$HOME/monitor/hosts.ini" ]]; then
         echo "     • hosts.ini"
-        cp "$HOME/cable-check/hosts.ini" "$temp_dir/"
+        cp "$HOME/monitor/hosts.ini" "$temp_dir/"
     fi
     
-    if [[ -f "$HOME/cable-check/topology.dot" ]]; then
+    if [[ -f "$HOME/monitor/topology.dot" ]]; then
         echo "     • topology.dot"
-        cp "$HOME/cable-check/topology.dot" "$temp_dir/"
+        cp "$HOME/monitor/topology.dot" "$temp_dir/"
     fi
     
-    if [[ -f "$HOME/cable-check/topology_config.yaml" ]]; then
+    if [[ -f "$HOME/monitor/topology_config.yaml" ]]; then
         echo "     • topology_config.yaml"
-        cp "$HOME/cable-check/topology_config.yaml" "$temp_dir/"
+        cp "$HOME/monitor/topology_config.yaml" "$temp_dir/"
     fi
     
-    if [[ -f "$HOME/cable-check/notifications.yaml" ]]; then
+    if [[ -f "$HOME/monitor/notifications.yaml" ]]; then
         echo "     • notifications.yaml"
-        cp "$HOME/cable-check/notifications.yaml" "$temp_dir/"
+        cp "$HOME/monitor/notifications.yaml" "$temp_dir/"
     fi
     
-    # Remove old cable-check
-    rm -rf "$HOME/cable-check"
+    # Remove old monitor
+    rm -rf "$HOME/monitor"
 fi
 
 # Copy updated files with preserved configs
-mv "$temp_dir" "$HOME/cable-check"
-echo "cable-check directory updated with preserved configs"
+mv "$temp_dir" "$HOME/monitor"
+echo "monitor directory updated with preserved configs"
 
 # Restore monitoring data if backed up
 if [[ -n "$backup_data_dir" ]] && [[ -d "$backup_data_dir" ]]; then
     echo ""
     echo "   📁 Restoring monitoring data..."
-    [[ -d "$backup_data_dir/monitor-results" ]] && cp -r "$backup_data_dir/monitor-results" "$HOME/cable-check/"
-    [[ -d "$backup_data_dir/lldp-results" ]] && cp -r "$backup_data_dir/lldp-results" "$HOME/cable-check/"
-    [[ -d "$backup_data_dir/alert-states" ]] && cp -r "$backup_data_dir/alert-states" "$HOME/cable-check/"
+    [[ -d "$backup_data_dir/monitor-results" ]] && cp -r "$backup_data_dir/monitor-results" "$HOME/monitor/"
+    [[ -d "$backup_data_dir/lldp-results" ]] && cp -r "$backup_data_dir/lldp-results" "$HOME/monitor/"
+    [[ -d "$backup_data_dir/alert-states" ]] && cp -r "$backup_data_dir/alert-states" "$HOME/monitor/"
     echo "   ✅ Monitoring data restored successfully"
     # Clean up temporary backup
     rm -rf "$backup_data_dir"
@@ -160,16 +160,16 @@ echo "   The following files/directories were preserved:"
 echo "   Configuration files:"
 echo "     • /etc/ip_list"
 echo "     • /etc/nccm.yml"
-echo "     • ~/cable-check/devices.yaml"
-echo "     • ~/cable-check/hosts.ini"
-echo "     • ~/cable-check/topology.dot"
-echo "     • ~/cable-check/topology_config.yaml"
-echo "     • ~/cable-check/notifications.yaml"
-if [[ -n "$backup_data_dir" ]] || [[ -d "$HOME/cable-check/monitor-results" ]] || [[ -d "$HOME/cable-check/lldp-results" ]] || [[ -d "$HOME/cable-check/alert-states" ]]; then
+echo "     • ~/monitor/devices.yaml"
+echo "     • ~/monitor/hosts.ini"
+echo "     • ~/monitor/topology.dot"
+echo "     • ~/monitor/topology_config.yaml"
+echo "     • ~/monitor/notifications.yaml"
+if [[ -n "$backup_data_dir" ]] || [[ -d "$HOME/monitor/monitor-results" ]] || [[ -d "$HOME/monitor/lldp-results" ]] || [[ -d "$HOME/monitor/alert-states" ]]; then
     echo "   Monitoring data directories:"
-    [[ -d "$HOME/cable-check/monitor-results" ]] && echo "     • monitor-results/ (all analysis results preserved)"
-    [[ -d "$HOME/cable-check/lldp-results" ]] && echo "     • lldp-results/ (LLDP topology data preserved)"
-    [[ -d "$HOME/cable-check/alert-states" ]] && echo "     • alert-states/ (alert history and state tracking preserved)"
+    [[ -d "$HOME/monitor/monitor-results" ]] && echo "     • monitor-results/ (all analysis results preserved)"
+    [[ -d "$HOME/monitor/lldp-results" ]] && echo "     • lldp-results/ (LLDP topology data preserved)"
+    [[ -d "$HOME/monitor/alert-states" ]] && echo "     • alert-states/ (alert history and state tracking preserved)"
 fi
 
 echo ""

@@ -131,7 +131,7 @@ def main():
     print("   1. Adjust thresholds in notifications.yaml if needed")
     print("   2. Wait for monitoring data to be collected (monitor.sh)")
     print("   3. Alerts will be automatically sent when thresholds are exceeded")
-    print("   4. Check alert states in: cable-check/alert-states/")
+    print("   4. Check alert states in: monitor/alert-states/")
 
 if __name__ == "__main__":
     main()

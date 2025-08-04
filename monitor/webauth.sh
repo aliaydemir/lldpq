@@ -217,4 +217,4 @@ esac
 
 echo ""
 echo "To change authentication settings later, run:"
-echo "  cd cable-check && sudo ./webauth.sh"
+echo "  cd ~/monitor && sudo ./webauth.sh"

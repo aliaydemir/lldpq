@@ -33,11 +33,11 @@ cd lldpq
 edit these 6 files:
 
 ```
-~/cable-check/devices.yaml            # add your switches (ip + username + hostname)
-~/cable-check/topology.dot            # expected cable connections
-~/cable-check/topology_config.yaml    # optional: customize device layers/icons at topology
-~/cable-check/notifications.yaml      # optional: slack alerts + thresholds
-~/cable-check/hosts.ini               # optional: extra hostnames for topology  
+~/monitor/devices.yaml            # add your switches (ip + username + hostname)
+~/monitor/topology.dot            # expected cable connections
+~/monitor/topology_config.yaml    # optional: customize device layers/icons at topology
+~/monitor/notifications.yaml      # optional: slack alerts + thresholds
+~/monitor/hosts.ini               # optional: extra hostnames for topology  
 /etc/nccm.yml                         # optional: ssh manager [zzh]
 /etc/ip_list                          # optional: paralel ping to all devices [pping]
 ```
@@ -83,13 +83,13 @@ monitor data grows ~50MB/day. history cleanup after 24h automatically.
 setup ssh keys to all switches:
 
 ```
-cd ~/cable-check && ./send-key.sh   # auto-installs deps, generates key, prompts password
+cd ~/monitor && ./send-key.sh   # auto-installs deps, generates key, prompts password
 ```
 
 setup passwordless sudo on all switches:
 
 ```
-cd ~/cable-check && ./sudo-fix.sh   # configures passwordless sudo for cumulus user
+cd ~/monitor && ./sudo-fix.sh   # configures passwordless sudo for cumulus user
 ```
 
 ## [09] commands reference
@@ -105,7 +105,7 @@ cat COMMANDS.md     # complete list of ssh commands, sudo requirements, security
 to secure the web interface with login:
 
 ```
-cd cable-check && sudo ./webauth.sh     # interactive menu: enable/disable/update auth
+cd monitor && sudo ./webauth.sh     # interactive menu: enable/disable/update auth
 ```
 
 ### how it works:
@@ -121,7 +121,7 @@ when enabled, all web pages require authentication. when disabled, everything is
 get real-time alerts for network issues via Slack:
 
 ```
-cd cable-check
+cd monitor
 nano notifications.yaml                              # add webhook URLs + enable alerts
 python3 test_alerts.py                               # test configuration
 ```
@@ -144,7 +144,7 @@ python3 test_alerts.py                               # test configuration
 - **customizable**: adjust thresholds in notifications.yaml
 - **state tracking**: prevents duplicate alerts, tracks recovery
 
-alerts automatically start working once webhooks are configured. check `cable-check/alert-states/` for alert history.
+alerts automatically start working once webhooks are configured. check `monitor/alert-states/` for alert history.
 
 ## [12] troubleshooting
 
@@ -153,7 +153,7 @@ alerts automatically start working once webhooks are configured. check `cable-ch
 sudo crontab -l | grep lldpq
 
 # manual run
-cd ~/cable-check && ./assets.sh && ./check-lldp.sh && ./monitor.sh
+cd ~/monitor && ./assets.sh && ./check-lldp.sh && ./monitor.sh
 
 # check logs  
 ls -la /var/www/html/monitor-results/

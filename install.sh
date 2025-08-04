@@ -17,9 +17,9 @@ if [[ $EUID -eq 0 ]]; then
 fi
 
 # Check if we're in the lldpq directory
-if [[ ! -f "README.md" ]] || [[ ! -d "cable-check" ]]; then
+if [[ ! -f "README.md" ]] || [[ ! -d "monitor" ]]; then
     echo "❌ Please run this script from the lldpq directory"
-    echo "   Make sure you're in the directory containing README.md and cable-check/"
+    echo "   Make sure you're in the directory containing README.md and monitor/"
     exit 1
 fi
 
@@ -47,8 +47,8 @@ echo "   - Copying bin/* to /usr/local/bin/"
 sudo cp bin/* /usr/local/bin/
 sudo chmod +x /usr/local/bin/*
 
-echo "   - Copying cable-check to ~/cable-check"
-cp -r cable-check ~/cable-check
+echo "   - Copying monitor to ~/monitor"
+cp -r monitor ~/monitor
 echo "Files copied successfully"
 
 echo ""
@@ -57,8 +57,8 @@ echo "   You need to manually edit these files with your network details:"
 echo ""
 echo "   1. sudo nano /etc/ip_list           # Add your device IP addresses"
 echo "   2. sudo nano /etc/nccm.yml          # Configure SSH connection details"
-echo "   3. nano ~/cable-check/devices.yaml  # Define your network devices"
-echo "   4. nano ~/cable-check/topology.dot  # Define your network topology"
+echo "   3. nano ~/monitor/devices.yaml  # Define your network devices"
+echo "   4. nano ~/monitor/topology.dot  # Define your network topology"
 echo ""
 echo "   See README.md for examples of each file format"
 
