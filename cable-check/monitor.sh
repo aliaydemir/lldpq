@@ -289,60 +289,74 @@ EOF
             # Use journalctl for time-based + severity filtering (more reliable for critical services)
             sudo journalctl -u frr --since="2 hours ago" --no-pager --lines=200 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|DOWN|BGP|neighbor|peer)" || echo "No recent FRR routing issues"
         elif [ -f "/var/log/frr/frr.log" ]; then
-            # Fallback to file-based approach if journalctl fails
-            sudo tail -100 /var/log/frr/frr.log 2>/dev/null | grep -E "(error|warn|crit|fail|down|bgp)" || echo "No FRR routing issues"
+            # Fallback to file-based but with date filtering
+            sudo grep "$(date '+%b %d')" /var/log/frr/frr.log 2>/dev/null | tail -30 | grep -E "(error|warn|crit|fail|down|bgp)" || echo "No recent FRR routing issues"
         else
             echo "FRR service/log not available"
         fi
         
         echo "SWITCHD_LOGS:"
-        # Switch daemon logs (HYBRID: TIME + SEVERITY - Critical Network Service)
+        # Switch daemon logs (TIME-BASED: Last 2 hours only)
         if systemctl is-active --quiet switchd 2>/dev/null; then
-            # Use journalctl for recent critical switchd events
-            sudo journalctl -u switchd --since="2 hours ago" --no-pager --lines=150 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|EXCEPT|port|link|vlan)" || echo "No recent switchd issues"
+            sudo journalctl -u switchd --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|EXCEPT|port|link|vlan)" || echo "No recent switchd issues"
         elif [ -f "/var/log/switchd.log" ]; then
-            # Fallback to file-based approach
-            sudo tail -100 /var/log/switchd.log 2>/dev/null | grep -E "(error|warn|crit|fail|except)" || echo "No switchd issues"
+            # Fallback to file-based but with date filtering
+            sudo grep "$(date '+%b %d')" /var/log/switchd.log 2>/dev/null | tail -30 | grep -E "(error|warn|crit|fail|except)" || echo "No recent switchd issues"
         else
             echo "Switchd service/log not available"
         fi
         
         echo "NVUE_CONFIG_LOGS:"
-        # NVUE configuration logs (HYBRID: OPTIMIZED LINES + SEVERITY - Normal Service)
-        if [ -f "/var/log/nvued.log" ]; then
-            sudo tail -50 /var/log/nvued.log 2>/dev/null | grep -E "(ERROR|WARN|FAIL|EXCEPT|config|commit|rollback)" || echo "No NVUE config issues"
+        # NVUE configuration logs (TIME-BASED: Last 2 hours only)
+        if systemctl is-active --quiet nvued 2>/dev/null; then
+            sudo journalctl -u nvued --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|FAIL|EXCEPT|config|commit|rollback)" || echo "No recent NVUE config issues"
+        elif [ -f "/var/log/nvued.log" ]; then
+            # Fallback to file-based but with date filtering
+            sudo grep "$(date '+%b %d')" /var/log/nvued.log 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|FAIL|EXCEPT|config|commit|rollback)" || echo "No recent NVUE config issues"
         else
             echo "NVUE log not found"
         fi
         
         echo "MSTPD_STP_LOGS:"
-        # Spanning Tree Protocol logs (HYBRID: OPTIMIZED LINES + SEVERITY - Normal Service)
-        if [ -f "/var/log/mstpd" ]; then
-            sudo tail -50 /var/log/mstpd 2>/dev/null | grep -E "(ERROR|WARN|TOPOLOGY|CHANGE|port|state|bridge)" || echo "No STP issues"
+        # Spanning Tree Protocol logs (TIME-BASED: Last 2 hours only)
+        if systemctl is-active --quiet mstpd 2>/dev/null; then
+            sudo journalctl -u mstpd --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|TOPOLOGY|CHANGE|port|state|bridge)" || echo "No recent STP issues"
+        elif [ -f "/var/log/mstpd" ]; then
+            # Fallback to file-based but with date filtering
+            sudo grep "$(date '+%b %d')" /var/log/mstpd 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|TOPOLOGY|CHANGE|port|state|bridge)" || echo "No recent STP issues"
         else
             echo "MSTPD log not found"
         fi
         
         echo "CLAGD_MLAG_LOGS:"
-        # MLAG (Multi-chassis Link Aggregation) logs (HYBRID: OPTIMIZED LINES + SEVERITY - Normal Service)
-        if [ -f "/var/log/clagd.log" ]; then
-            sudo tail -50 /var/log/clagd.log 2>/dev/null | grep -E "(ERROR|WARN|FAIL|CONFLICT|PEER|bond|backup|primary)" || echo "No MLAG issues"
+        # MLAG coordination logs (TIME-BASED: Last 2 hours only)
+        if systemctl is-active --quiet clagd 2>/dev/null; then
+            sudo journalctl -u clagd --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|FAIL|CONFLICT|PEER|bond|backup|primary)" || echo "No recent MLAG issues"
+        elif [ -f "/var/log/clagd.log" ]; then
+            # Fallback to file-based but with date filtering
+            sudo grep "$(date '+%b %d')" /var/log/clagd.log 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|FAIL|CONFLICT|PEER|bond|backup|primary)" || echo "No recent MLAG issues"
         else
             echo "CLAG log not found"
         fi
         
         echo "AUTH_SECURITY_LOGS:"
-        # Authentication and security logs (HYBRID: FIXED LINES + SEVERITY - Security Critical)
-        if [ -f "/var/log/auth.log" ]; then
-            sudo tail -50 /var/log/auth.log 2>/dev/null | grep -E "(FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized|sudo)" || echo "No auth issues"
+        # Authentication and security logs (TIME-BASED: Last 2 hours only)
+        if systemctl is-active --quiet systemd-journald 2>/dev/null; then
+            sudo journalctl --since="2 hours ago" --grep="FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized|sudo" --no-pager --lines=50 2>/dev/null || echo "No recent auth issues"
+        elif [ -f "/var/log/auth.log" ]; then
+            # Fallback to file-based but with date filtering  
+            sudo grep "$(date '+%b %d')" /var/log/auth.log 2>/dev/null | tail -30 | grep -E "(FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized|sudo)" || echo "No recent auth issues"
         else
             echo "Auth log not found"
         fi
         
         echo "SYSTEM_CRITICAL_LOGS:"
-        # System critical logs from syslog (HYBRID: FIXED LINES + SEVERITY - System Critical)
-        if [ -f "/var/log/syslog" ]; then
-            sudo tail -100 /var/log/syslog 2>/dev/null | grep -E "(ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault)" || echo "No system critical issues"
+        # System critical logs from syslog (TIME-BASED: Last 2 hours only)
+        if systemctl is-active --quiet systemd-journald 2>/dev/null; then
+            sudo journalctl --since="2 hours ago" --priority=0..3 --grep="ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault" --no-pager --lines=50 2>/dev/null || echo "No recent system critical issues"
+        elif [ -f "/var/log/syslog" ]; then
+            # Fallback to file-based but with date filtering
+            sudo grep "$(date '+%b %d')" /var/log/syslog 2>/dev/null | tail -50 | grep -E "(ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault)" || echo "No recent system critical issues"
         else
             echo "Syslog not found"
         fi
