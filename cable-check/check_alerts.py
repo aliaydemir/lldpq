@@ -641,7 +641,7 @@ BER Analysis Results:
 
 """
             if critical_issues:
-                message += f"\n\n─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─\n\nCritical Issues:\n" + "\n".join(critical_issues[:5])
+                message += f"\n─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─\n\nCritical Issues:\n" + "\n".join(critical_issues[:5])
                 if len(critical_issues) > 5:
                     message += f"\n... and {len(critical_issues) - 5} more issues"
                     

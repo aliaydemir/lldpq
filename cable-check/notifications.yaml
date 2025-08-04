@@ -85,9 +85,9 @@ thresholds:
 
 alert_strategy:
   # 📊 ALERT MODES:
-  # • "immediate" = Every device sends individual alerts
-  # • "summary"   = Dashboard-style single message with overall stats 
-  # • "change_only" = Only alert when significant changes occur
+  # • "immediate"   = Every device sends individual alerts
+  # • "summary"     = Dashboard-style single message with overall stats. If no changes, no alert is sent.
+  # • "change_only" = Only alert when significant changes occur. If no changes, no alert is sent.
   mode: "summary"                    # summary mode RECOMMENDED Prevents spam, clean summaries
   # ⏰ SUMMARY SCHEDULE (for summary mode):
   # When to send dashboard-style health summaries
