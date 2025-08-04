@@ -36,7 +36,7 @@ edit these 6 files:
 ~/cable-check/devices.yaml            # add your switches (ip + username + hostname)
 ~/cable-check/topology.dot            # expected cable connections
 ~/cable-check/topology_config.yaml    # optional: customize device layers/icons at topology
-~/cable-check/notifications.yaml      # optional: teams/slack alerts + thresholds
+~/cable-check/notifications.yaml      # optional: slack alerts + thresholds
 ~/cable-check/hosts.ini               # optional: extra hostnames for topology  
 /etc/nccm.yml                         # optional: ssh manager [zzh]
 /etc/ip_list                          # optional: paralel ping to all devices [pping]
@@ -118,7 +118,7 @@ when enabled, all web pages require authentication. when disabled, everything is
 
 ## [11] alerts & notifications
 
-get real-time alerts for network issues via Teams/Slack:
+get real-time alerts for network issues via Slack:
 
 ```
 cd cable-check
@@ -127,10 +127,6 @@ python3 test_alerts.py                               # test configuration
 ```
 
 ### setup webhooks:
-
-**microsoft teams:**
-1. go to teams channel → ⋯ → connectors → incoming webhook
-2. name: "lldpq alerts" → create → copy webhook url
 
 **slack:**  
 1. go to https://api.slack.com/apps → create app → incoming webhooks
