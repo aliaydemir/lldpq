@@ -303,31 +303,192 @@ EOF
     
     end_section "Data Processing" "$processing_start"
     
-    # Continue with remaining sections (same as original)...
-    # BER Statistics, Hardware Health, Log Analysis, Configuration Section
-    
-    # For now, let's add a basic version of these
+    # BER interface statistics collection (EXACTLY SAME AS ORIGINAL)
     start_section "BER Statistics"
     local ber_start=$(date +%s)
-    timeout 120 ssh $SSH_OPTS -q "$user@$device" 'cat /proc/net/dev 2>/dev/null' > "monitor-results/ber-data/${hostname}_interface_errors.txt" 2>/dev/null
+    timeout 120 ssh $SSH_OPTS -q "$user@$device" '
+        cat /proc/net/dev 2>/dev/null
+    ' > "monitor-results/ber-data/${hostname}_interface_errors.txt" 2>/dev/null
     end_section "BER Statistics" "$ber_start"
     
+    # Hardware health data collection (EXACTLY SAME AS ORIGINAL)
     start_section "Hardware Health"
     local hardware_start=$(date +%s)
-    # Simplified hardware collection for testing
-    ssh $SSH_OPTS -q "$user@$device" 'uptime; df -h; free -h' > "monitor-results/hardware-data/${hostname}_hardware.txt" 2>/dev/null
+    timeout 180 ssh $SSH_OPTS -q "$user@$device" '
+        echo "HARDWARE_HEALTH:"
+        sensors 2>/dev/null || echo "No sensors available"
+        echo "MEMORY_INFO:"  
+        free -h 2>/dev/null || echo "No memory info available"
+        echo "CPU_INFO:"
+        cat /proc/loadavg 2>/dev/null || echo "No CPU info available"
+        echo "UPTIME_INFO:"
+        uptime 2>/dev/null || echo "No uptime info available"
+    ' > "monitor-results/hardware-data/${hostname}_hardware.txt" 2>/dev/null
+    
     end_section "Hardware Health" "$hardware_start"
     
+    # Enhanced log data collection (EXACTLY SAME AS ORIGINAL)
     start_section "Log Analysis"
     local log_start=$(date +%s)
-    # Simplified log collection 
-    ssh $SSH_OPTS -q "$user@$device" 'journalctl --since="2 hours ago" -n 100' > "monitor-results/log-data/${hostname}_logs.txt" 2>/dev/null
+    timeout 300 ssh $SSH_OPTS -q "$user@$device" '
+        echo "=== COMPREHENSIVE SYSTEM LOGS ==="
+        
+        # FRR Routing Logs (HYBRID: TIME + SEVERITY - Critical Network Service)
+        echo "FRR_ROUTING_LOGS:"
+        if systemctl is-active --quiet frr 2>/dev/null; then
+            # Use journalctl for time-based + severity filtering (more reliable for critical services)
+            sudo journalctl -u frr --since="2 hours ago" --no-pager --lines=200 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|DOWN|BGP|neighbor|peer)" || echo "No recent FRR routing issues"
+        elif [ -f "/var/log/frr/frr.log" ]; then
+            # Fallback to file-based but with date filtering
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/frr/frr.log 2>/dev/null | tail -30 | grep -E "(error|warn|crit|fail|down|bgp)" || echo "No recent FRR routing issues"
+        else
+            echo "FRR service/log not available"
+        fi
+        
+        echo "SWITCHD_LOGS:"
+        # Switch daemon logs (TIME-BASED: Last 2 hours only)
+        if systemctl is-active --quiet switchd 2>/dev/null; then
+            sudo journalctl -u switchd --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|EXCEPT|port|link|vlan)" || echo "No recent switchd issues"
+        elif [ -f "/var/log/switchd.log" ]; then
+            # Fallback to file-based but with date filtering
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/switchd.log 2>/dev/null | tail -30 | grep -E "(error|warn|crit|fail|except)" || echo "No recent switchd issues"
+        else
+            echo "Switchd service/log not available"
+        fi
+        
+        echo "NVUE_CONFIG_LOGS:"
+        # NVUE configuration logs (TIME-BASED: Last 2 hours only)
+        if systemctl is-active --quiet nvued 2>/dev/null; then
+            sudo journalctl -u nvued --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|FAIL|EXCEPT|config|commit|rollback)" || echo "No recent NVUE config issues"
+        elif [ -f "/var/log/nvued.log" ]; then
+            # Fallback to file-based but with date filtering
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/nvued.log 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|FAIL|EXCEPT|config|commit|rollback)" || echo "No recent NVUE config issues"
+        else
+            echo "NVUE log not found"
+        fi
+        
+        echo "MSTPD_STP_LOGS:"
+        # Spanning Tree Protocol logs (TIME-BASED: Last 2 hours only)
+        if systemctl is-active --quiet mstpd 2>/dev/null; then
+            sudo journalctl -u mstpd --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|TOPOLOGY|CHANGE|port|state|bridge)" || echo "No recent STP issues"
+        elif [ -f "/var/log/mstpd" ]; then
+            # Fallback to file-based but with date filtering
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/mstpd 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|TOPOLOGY|CHANGE|port|state|bridge)" || echo "No recent STP issues"
+        else
+            echo "MSTPD log not found"
+        fi
+        
+        echo "CLAGD_MLAG_LOGS:"
+        # MLAG coordination logs (TIME-BASED: Last 2 hours only)
+        if systemctl is-active --quiet clagd 2>/dev/null; then
+            sudo journalctl -u clagd --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|FAIL|CONFLICT|PEER|bond|backup|primary)" || echo "No recent MLAG issues"
+        elif [ -f "/var/log/clagd.log" ]; then
+            # Fallback to file-based but with date filtering
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/clagd.log 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|FAIL|CONFLICT|PEER|bond|backup|primary)" || echo "No recent MLAG issues"
+        else
+            echo "CLAG log not found"
+        fi
+        
+        echo "AUTH_SECURITY_LOGS:"
+        # Authentication and security logs (TIME-BASED: Last 2 hours only, excluding monitoring activities)
+        if systemctl is-active --quiet systemd-journald 2>/dev/null; then
+            sudo journalctl --since="2 hours ago" --grep="FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized" --no-pager --lines=50 2>/dev/null | grep -v -E "(journalctl|monitor\.sh|--since|--grep)" || echo "No recent auth issues"
+        elif [ -f "/var/log/auth.log" ]; then
+            # Fallback to file-based but with date filtering (exclude monitoring activities)
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/auth.log 2>/dev/null | tail -30 | grep -E "(FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized)" | grep -v -E "(journalctl|monitor\.sh|--since)" || echo "No recent auth issues"
+        else
+            echo "Auth log not found"
+        fi
+        
+        echo "SYSTEM_CRITICAL_LOGS:"
+        # System critical logs from syslog (TIME-BASED: Last 2 hours only)
+        if systemctl is-active --quiet systemd-journald 2>/dev/null; then
+            sudo journalctl --since="2 hours ago" --priority=0..3 --grep="ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault" --no-pager --lines=50 2>/dev/null || echo "No recent system critical issues"
+        elif [ -f "/var/log/syslog" ]; then
+            # Fallback to file-based but with date filtering
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/syslog 2>/dev/null | tail -50 | grep -E "(ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault)" || echo "No recent system critical issues"
+        else
+            echo "Syslog not found"
+        fi
+        
+        echo "JOURNALCTL_PRIORITY_LOGS:"
+        # High priority journalctl logs (HYBRID: TIME + SEVERITY - System Wide)
+        sudo journalctl --since="3 hours ago" --priority=0..3 --no-pager --lines=75 2>/dev/null | grep -E "(CRIT|ALERT|EMERG|ERROR|fail|crash|panic)" || echo "No high priority journal logs"
+        
+        echo "DMESG_HARDWARE_LOGS:"
+        # Hardware and kernel critical messages (HYBRID: TIME + SEVERITY - Hardware Critical)
+        sudo dmesg --since="3 hours ago" --level=crit,alert,emerg 2>/dev/null | tail -40 || echo "No critical hardware logs"
+        
+        echo "NETWORK_INTERFACE_LOGS:"
+        # Network interface state changes (HYBRID: TIME + SEVERITY - Network Events)
+        sudo journalctl --since="3 hours ago" --grep="swp|bond|vlan|carrier|link.*up|link.*down|port.*up|port.*down" --no-pager --lines=40 2>/dev/null || echo "No interface state changes"
+        
+    ' > "monitor-results/log-data/${hostname}_logs.txt" 2>/dev/null
+    
     end_section "Log Analysis" "$log_start"
     
+    # Device configuration section (EXACTLY SAME AS ORIGINAL)
     start_section "Configuration Section"
     local config_start=$(date +%s)
+    
+    # Add Device Configuration section to HTML
+    cat >> monitor-results/${hostname}.html << EOF
+
+<h1></h1><h1><font color="#b57614">Device Configuration - ${hostname}</font></h1><h3></h3>
+EOF
+
+    # Check if nv-set config exists and add it with syntax highlighting
+    if [ -f "/var/www/html/configs/${hostname}.txt" ]; then
+        echo "<h2><font color='steelblue'>NV Set Commands</font></h2>" >> monitor-results/${hostname}.html
+        echo "<div class='config-content' id='config-content'>" >> monitor-results/${hostname}.html
+        
+        # Apply syntax highlighting with improved spacing
+        cat "/var/www/html/configs/${hostname}.txt" | sed '
+            # Escape HTML characters first
+            s/</\&lt;/g; s/>/\&gt;/g;
+            
+            # Handle full-line comments first  
+            s/^#.*/<span class="comment">&<\/span>/;
+            
+            # Handle description lines: highlight everything before description normally, then description content as comment
+            /description/ {
+                # First highlight interfaces in the command part (comprehensive pattern)
+                #s/\b\(swp[0-9]\+\(s[0-9]\+\)\?\(-[0-9]\+\)\?\|bond[0-9_a-zA-Z-]\+\|vlan[0-9]\+\|eth[0-9]\+\|lo[0-9]*\|br[0-9]\+\|peerlink\)\b/<span class="interface">\1<\/span>/g;
+                
+                # Then split at description and make the content after it a comment (capture everything after description)
+                s/\(.*\)\(description\s\+\)\(.*\)$/\1\2<span class="comment">\3<\/span>/;
+            }
+            
+            # For non-description lines
+            /description/! {
+                # Highlight nv set commands
+                #s/^\(\s*\)\(nv\s\+set\)\b/\1<span class="keyword">\2<\/span>/;
+                
+                # Highlight interfaces (comprehensive pattern)
+                #s/\b\(swp[0-9]\+\(s[0-9]\+\)\?\(-[0-9]\+\)\?\|bond[0-9_a-zA-Z-]\+\|vlan[0-9]\+\|eth[0-9]\+\|lo[0-9]*\|br[0-9]\+\|peerlink\)\b/<span class="interface">\1<\/span>/g;
+                
+                # Highlight IP addresses
+                #s/\b\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)\.\([0-9]\{1,3\}\)/<span class="ip-number">\1<\/span>.<span class="ip-number">\2<\/span>.<span class="ip-number">\3<\/span>.<span class="ip-number">\4<\/span>/g;
+                
+                # Highlight numbers  
+                #s/\b\([0-9]\+\)\b/<span class="number">\1<\/span>/g;
+            }
+        ' >> monitor-results/${hostname}.html
+        
+        echo "</div>" >> monitor-results/${hostname}.html
+    else
+        echo "<p><span style='color: orange;'>⚠️  NV Set configuration not available for ${hostname}</span></p>" >> monitor-results/${hostname}.html
+    fi
+    
     # Close HTML
-    echo "</div></body></html>" >> monitor-results/${hostname}.html
+    cat >> monitor-results/${hostname}.html << EOF
+    </pre>
+    </h3>
+    <span style="color:tomato;">Created on $DATE</span>
+</body>
+</html>
+EOF
+    
     end_section "Configuration Section" "$config_start"
     
     # Print timing summary
@@ -349,34 +510,159 @@ EOF
     echo "🎉 [$hostname] All sections completed successfully!"
 }
 
-# Main execution (simplified for testing)
+process_device() {
+    local device=$1
+    local user=$2
+    local hostname=$3
+    ping_test "$device" "$hostname"
+    if [ $? -eq 0 ]; then
+        execute_commands_optimized "$device" "$user" "$hostname"
+    fi
+}
+
+# Start optimized monitoring (EXACTLY SAME AS ORIGINAL)
 echo "🚀 Starting optimized monitoring..."
 
-# Test with first few devices for comparison
-device_count=0
-for device_hostname in $DEVICE_HOSTNAMES; do
-    device=$(echo "$device_hostname" | cut -d'|' -f1)
-    hostname=$(echo "$device_hostname" | cut -d'|' -f2)
-    user=$(echo "$device_hostname" | cut -d'|' -f3)
-    
-    if ping_test "$device" "$hostname"; then
-        execute_commands_optimized "$device" "$user" "$hostname" &
-        device_count=$((device_count + 1))
-        
-        # Limit parallel devices to avoid overwhelming SSH
-        if [ "$device_count" -ge 8 ]; then
-            wait
-            device_count=0
-        fi
-    fi
+# Process all devices in parallel
+for device in "${!devices[@]}"; do
+    IFS=' ' read -r user hostname <<< "${devices[$device]}"
+    process_device "$device" "$user" "$hostname" &
 done
 
 wait
 
-# Final timing
-END_TIME=$(date +%s)
-TOTAL_TIME=$((END_TIME - START_TIME))
 echo ""
-echo "🎉 PARALLEL monitoring completed at $(date)"
-echo "⏱️  Total execution time: ${TOTAL_TIME}s"
-echo "🚀 Expected improvement: 3-5x faster Interface Data Collection"
+echo -e "\e[1;34mOptimized monitoring completed...\e[0m"
+
+# Run analyses with timing (EXACTLY SAME AS ORIGINAL)
+echo -e "\n🔬 \e[1;34mStarting Analysis Phase...\e[0m"
+
+# Arrays to store analysis timing data
+declare -a analysis_names
+declare -a analysis_times
+
+echo -e "🔄 Running BGP Analysis..."
+bgp_start=$(date +%s)
+if python3 process_bgp_data.py; then
+    bgp_end=$(date +%s)
+    bgp_duration=$((bgp_end - bgp_start))
+    echo -e "✅ BGP analysis completed in ${bgp_duration}s"
+    analysis_names+=("BGP Analysis")
+    analysis_times+=("$bgp_duration")
+else
+    echo -e "⚠️  Warning: BGP analysis failed"
+    analysis_names+=("BGP Analysis")
+    analysis_times+=("FAILED")
+fi
+
+echo -e "🔄 Running Link Flap Analysis..."
+flap_start=$(date +%s)
+if python3 process_flap_data.py; then
+    flap_end=$(date +%s)
+    flap_duration=$((flap_end - flap_start))
+    echo -e "✅ Link Flap analysis completed in ${flap_duration}s"
+    analysis_names+=("Link Flap Analysis")
+    analysis_times+=("$flap_duration")
+else
+    echo -e "⚠️  Warning: Link Flap analysis failed"
+    analysis_names+=("Link Flap Analysis")
+    analysis_times+=("FAILED")
+fi
+
+echo -e "🔄 Running Optical Analysis..."
+optical_start=$(date +%s)
+if python3 process_optical_data.py; then
+    optical_end=$(date +%s)
+    optical_duration=$((optical_end - optical_start))
+    echo -e "✅ Optical analysis completed in ${optical_duration}s"
+    analysis_names+=("Optical Analysis")
+    analysis_times+=("$optical_duration")
+else
+    echo -e "⚠️  Warning: Optical analysis failed"
+    analysis_names+=("Optical Analysis")
+    analysis_times+=("FAILED")
+fi
+
+echo -e "🔄 Running BER Analysis..."
+ber_start=$(date +%s)
+if python3 process_ber_data.py; then
+    ber_end=$(date +%s)
+    ber_duration=$((ber_end - ber_start))
+    echo -e "✅ BER analysis completed in ${ber_duration}s"
+    analysis_names+=("BER Analysis")
+    analysis_times+=("$ber_duration")
+else
+    echo -e "⚠️  Warning: BER analysis failed"
+    analysis_names+=("BER Analysis")
+    analysis_times+=("FAILED")
+fi
+
+echo -e "🔄 Running Hardware Health Analysis..."
+hardware_start=$(date +%s)
+if python3 process_hardware_data.py; then
+    hardware_end=$(date +%s)
+    hardware_duration=$((hardware_end - hardware_start))
+    echo -e "✅ Hardware health analysis completed in ${hardware_duration}s"
+    analysis_names+=("Hardware Analysis")
+    analysis_times+=("$hardware_duration")
+else
+    echo -e "⚠️  Warning: Hardware health analysis failed"
+    analysis_names+=("Hardware Analysis")
+    analysis_times+=("FAILED")
+fi
+
+echo -e "🔄 Running Log Analysis..."
+log_analysis_start=$(date +%s)
+if python3 process_log_data.py; then
+    log_analysis_end=$(date +%s)
+    log_analysis_duration=$((log_analysis_end - log_analysis_start))
+    echo -e "✅ Log analysis completed in ${log_analysis_duration}s"
+    analysis_names+=("Log Analysis")
+    analysis_times+=("$log_analysis_duration")
+else
+    echo -e "⚠️  Warning: Log analysis failed"
+    analysis_names+=("Log Analysis")
+    analysis_times+=("FAILED")
+fi
+
+# Display analysis timing summary (EXACTLY SAME AS ORIGINAL)
+echo ""
+echo "🔬 Analysis Phase Timing Summary:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+total_analysis_time=0
+for i in "${!analysis_names[@]}"; do
+    analysis="${analysis_names[i]}"
+    time="${analysis_times[i]}"
+    if [ "$time" != "FAILED" ]; then
+        total_analysis_time=$((total_analysis_time + time))
+        printf "%-25s : %3ds\n" "$analysis" "$time"
+    else
+        printf "%-25s : %s\n" "$analysis" "FAILED"
+    fi
+done
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+printf "%-25s : %3ds\n" "TOTAL ANALYSIS TIME" "$total_analysis_time"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+sudo cp -r monitor-results/ /var/www/html/
+sudo chmod 644 /var/www/html/monitor-results/*
+rm -f "$unreachable_hosts_file"
+
+# Calculate execution time (EXACTLY SAME AS ORIGINAL)
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+MINUTES=$((DURATION / 60))
+SECONDS=$((DURATION % 60))
+
+echo ""
+echo "🎉 ==============================================="
+echo "⚡ PARALLEL Enhanced monitoring completed successfully!"
+echo "⏱️ Total execution time: ${MINUTES}m ${SECONDS}s"
+echo "📊 All device sections completed with timing"
+echo "🔬 All analysis phases completed with timing"  
+echo "🌐 Results available at web interface"
+echo "🚀 ONLY Interface Data Collection was parallelized!"
+echo "=================================================="
+exit 0
