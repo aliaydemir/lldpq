@@ -1038,8 +1038,8 @@ BER Analysis Results:
         try:
             # Check for lldp_results.ini in different locations
             possible_paths = [
-                self.cable_check_dir / "lldp-results" / "lldp_results.ini",  # cable-check/lldp-results/
-                self.cable_check_dir.parent / "html" / "lldp_results.ini",  # html/ directory  
+                self.script_dir / "lldp-results" / "lldp_results.ini",  # cable-check/lldp-results/
+                self.script_dir.parent / "html" / "lldp_results.ini",  # html/ directory  
                 self.monitor_results / "lldp_results.ini"  # monitor-results/
             ]
             
