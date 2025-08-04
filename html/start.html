@@ -813,7 +813,7 @@
                     (opticalData.totalPorts || 0) + 
                     (flapData.totalPorts || 0) +
                     (hardwareData.totalDevices || 0) +
-                    ((logData.critical || 0) + (logData.warning || 0) + (logData.error || 0) + (logData.info || 0));
+                    ((logData.critical || 0) + (logData.warning || 0) + (logData.info || 0));
                 
             const overallHealth = totalAssessments > 0 ? Math.round((healthyItems / totalAssessments) * 100) : 0;
             
