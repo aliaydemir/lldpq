@@ -552,11 +552,7 @@ class LLDPqAlerts:
         summary_signature = f"{total_devices}_{hardware_stats['excellent']}_{hardware_stats['good']}_{hardware_stats['warnings']}_{hardware_stats['critical']}_{log_stats['critical']}_{log_stats['warnings']}_{bgp_stats['down']}_{asset_stats['failed']}_{ber_stats['excellent']}_{ber_stats['critical']}_{flap_stats['critical']}_{optical_stats['critical']}_{lldp_stats['failed']}"
         
         # Check if summary changed or it's scheduled time (critical issues don't force immediate send in summary mode)
-        should_send = self.should_send_summary_alert(summary_signature)
-        print(f"    🔍 Should send summary alert: {should_send}")
-        print(f"    🔑 Summary signature: {summary_signature}")
-        
-        if should_send:
+        if self.should_send_summary_alert(summary_signature):
             server_url = self.config.get('notifications', {}).get('server_url', 'http://localhost')
             
             # Create clean dashboard-style message with spacing
@@ -643,7 +639,7 @@ BER Analysis Results:
             # Save summary state
             self.set_alert_state("network_summary", "last_summary", summary_signature)
             
-        print(f"📊 Summary: {total_devices} devices, {len(critical_issues)} critical issues")
+        
 
     def should_send_summary_alert(self, current_signature):
         """Check if summary should be sent based on changes or schedule"""
@@ -1078,7 +1074,7 @@ BER Analysis Results:
                         elif status == 'No-Info':
                             stats["no_info"] += 1
             
-            print(f"    📊 LLDP stats: {stats}")  # Debug info
+
             return stats
             
         except Exception as e:
