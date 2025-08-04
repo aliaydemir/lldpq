@@ -484,15 +484,35 @@ class LLDPqAlerts:
         """Send dashboard-style summary alert"""
         print("📊 Generating network health summary...")
         
-        # Get stats directly from HTML analysis files
+        # Get stats directly from HTML analysis files with defaults
         total_devices = len(devices)
+        
         hardware_stats = self.get_stats_from_html("hardware-analysis.html")
+        if not hardware_stats:
+            hardware_stats = {"excellent": 0, "good": 0, "warnings": 0, "critical": 0}
+        
         log_stats = self.get_stats_from_html("log-analysis.html")
+        if not log_stats:
+            log_stats = {"critical": 0, "warnings": 0, "errors": 0, "info": 0}
+        
         bgp_stats = self.get_stats_from_html("bgp-analysis.html")
+        if not bgp_stats:
+            bgp_stats = {"established": 0, "down": 0}
+        
         asset_stats = {"successful": total_devices, "failed": 0}  # Simple assumption for now
+        
         ber_stats = self.get_stats_from_html("ber-analysis.html")
+        if not ber_stats:
+            ber_stats = {"good": 0, "warnings": 0, "critical": 0}
+        
         flap_stats = self.get_stats_from_html("flap-analysis.html")
+        if not flap_stats:
+            flap_stats = {"stable": 0, "warnings": 0, "critical": 0}
+        
         optical_stats = self.get_stats_from_html("optical-analysis.html")
+        if not optical_stats:
+            optical_stats = {"excellent": 0, "good": 0, "warnings": 0, "critical": 0}
+        
         critical_issues = []
         
         # Check for critical issues at device level (optional - for detailed critical alerts)
