@@ -639,9 +639,7 @@ BER Analysis Results:
 
 🟢 Good: {ber_stats['good']}     🟡 Warnings: {ber_stats['warnings']}     🔴 Critical: {ber_stats['critical']}
 
-
 """
-
             if critical_issues:
                 message += f"\n\n─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─\n\nCritical Issues:\n" + "\n".join(critical_issues[:5])
                 if len(critical_issues) > 5:
