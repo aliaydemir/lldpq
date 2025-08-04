@@ -12,7 +12,7 @@
 # 4. Left sidebar → "Incoming Webhooks" → Toggle "Activate Incoming Webhooks" to ON
 # 5. Click "Add New Webhook to Workspace" 
 # 6. Slack will ask for permissions → Click "Allow"
-# 7. Bot will send you a message → Click the message
+# 7. Bot will send you a message at slack channel → Click the message
 # 8. Click "Add to Slack" → "Install to [Your Workspace]"
 # 9. Choose channel:
 #    • RECOMMENDED: Create new channel first (e.g., #lldpq-alerts, #network-monitoring)
