@@ -33,13 +33,13 @@ cd lldpq
 edit these 6 files:
 
 ```
-~/monitor/devices.yaml            # add your switches (ip + username + hostname)
-~/monitor/topology.dot            # expected cable connections
-~/monitor/topology_config.yaml    # optional: customize device layers/icons at topology
-~/monitor/notifications.yaml      # optional: slack alerts + thresholds
-~/monitor/hosts.ini               # optional: extra hostnames for topology  
-/etc/nccm.yml                         # optional: ssh manager [zzh]
-/etc/ip_list                          # optional: paralel ping to all devices [pping]
+~/monitor/devices.yaml             # add your switches (ip + username + hostname)
+~/monitor/topology.dot             # expected cable connections
+~/monitor/topology_config.yaml     # optional: customize device layers/icons at topology
+~/monitor/notifications.yaml       # optional: slack alerts + thresholds
+~/monitor/hosts.ini                # optional: extra hostnames for topology  
+/etc/nccm.yml                      # optional: ssh manager [zzh]
+/etc/ip_list                       # optional: paralel ping to all devices [pping]
 ```
 
 ## [04] cron jobs (auto setup)
