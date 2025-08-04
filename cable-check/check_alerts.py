@@ -515,29 +515,24 @@ class LLDPqAlerts:
         
         critical_issues = []
         
-        # Check for critical issues at device level (optional - for detailed critical alerts)
-        for device in devices:
-            try:
-                # Check for device-specific critical issues
-                hw_status = self.get_device_hardware_status(device)
-                if hw_status and hw_status.lower() == "critical":
-                    critical_issues.append(f"🔥 {device}: Critical hardware issue")
-                
-                log_counts = self.get_device_log_counts(device)
-                if log_counts and log_counts.get("critical", 0) > 0:
-                    critical_issues.append(f"📋 {device}: {log_counts['critical']} critical logs")
-                
-                bgp_status = self.get_device_bgp_status(device)
-                if bgp_status == "down":
-                    critical_issues.append(f"🔴 {device}: BGP neighbors down")
-                
-                optical_status = self.get_device_optical_status(device)
-                if optical_status and optical_status.lower() == "critical":
-                    critical_issues.append(f"🔴 {device}: Critical optical issues")
-                        
-            except Exception as e:
-                print(f"    ❌ Error checking {device}: {e}")
-                continue
+        # Generate critical issues summary from aggregate stats (faster than per-device checks)
+        if hardware_stats.get('critical', 0) > 0:
+            critical_issues.append(f"🔥 Hardware: {hardware_stats['critical']} devices with critical issues")
+        
+        if log_stats.get('critical', 0) > 0:
+            critical_issues.append(f"📋 Logs: {log_stats['critical']} critical log entries")
+        
+        if bgp_stats.get('down', 0) > 0:
+            critical_issues.append(f"🔴 BGP: {bgp_stats['down']} neighbors down")
+        
+        if optical_stats.get('critical', 0) > 0:
+            critical_issues.append(f"🔴 Optical: {optical_stats['critical']} ports with critical issues")
+        
+        if ber_stats.get('critical', 0) > 0:
+            critical_issues.append(f"🔴 BER: {ber_stats['critical']} ports with critical errors")
+        
+        if flap_stats.get('critical', 0) > 0:
+            critical_issues.append(f"🔴 Link Flap: {flap_stats['critical']} problematic ports")
         
         # Analyze LLDP topology (global analysis, not per device)
         lldp_stats = self.get_lldp_stats_from_ini()
