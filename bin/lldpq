@@ -21,7 +21,7 @@ wait_until_not_running "check-lldp.sh"
 # Check for network alerts (only if monitoring data exists)
 if [[ -d "monitor-results" ]] && [[ -f "notifications.yaml" ]]; then
     echo "🔍 $(date '+%Y-%m-%d %H:%M:%S') - Running alert checks..."
-    python3 ./check_alerts.py 2>/dev/null || echo "⚠️  Alert check failed (non-critical)"
+    python3 ./check_alerts.py >/dev/null 2>&1 || echo "⚠️  Alert check failed (non-critical)"
 fi
 
 exit 0
