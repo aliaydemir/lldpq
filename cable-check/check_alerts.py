@@ -484,81 +484,45 @@ class LLDPqAlerts:
         """Send dashboard-style summary alert"""
         print("📊 Generating network health summary...")
         
-        # Collect summary statistics
+        # Get stats directly from HTML analysis files
         total_devices = len(devices)
-        hardware_stats = {"excellent": 0, "good": 0, "warnings": 0, "critical": 0}
-        log_stats = {"critical": 0, "warnings": 0, "errors": 0, "info": 0}
-        bgp_stats = {"established": 0, "down": 0}
-        asset_stats = {"successful": 0, "failed": 0}
-        ber_stats = {"good": 0, "warnings": 0, "critical": 0}
-        flap_stats = {"stable": 0, "warnings": 0, "critical": 0}
-        optical_stats = {"excellent": 0, "good": 0, "warnings": 0, "critical": 0}
+        hardware_stats = self.get_stats_from_html("hardware-analysis.html")
+        log_stats = self.get_stats_from_html("log-analysis.html")
+        bgp_stats = self.get_stats_from_html("bgp-analysis.html")
+        asset_stats = {"successful": total_devices, "failed": 0}  # Simple assumption for now
+        ber_stats = self.get_stats_from_html("ber-analysis.html")
+        flap_stats = self.get_stats_from_html("flap-analysis.html")
+        optical_stats = self.get_stats_from_html("optical-analysis.html")
         critical_issues = []
         
+        # Check for critical issues at device level (optional - for detailed critical alerts)
         for device in devices:
             try:
-                # Check hardware status
+                # Check for device-specific critical issues
                 hw_status = self.get_device_hardware_status(device)
-                if hw_status:
-                    hardware_stats[hw_status.lower()] += 1
-                    if hw_status.lower() == "critical":
-                        critical_issues.append(f"🔥 {device}: Critical hardware issue")
+                if hw_status and hw_status.lower() == "critical":
+                    critical_issues.append(f"🔥 {device}: Critical hardware issue")
                 
-                # Check log status  
                 log_counts = self.get_device_log_counts(device)
-                if log_counts:
-                    log_stats["critical"] += log_counts.get("critical", 0)
-                    log_stats["warnings"] += log_counts.get("warnings", 0)
-                    log_stats["errors"] += log_counts.get("errors", 0)
-                    log_stats["info"] += log_counts.get("info", 0)
-                    
-                    if log_counts.get("critical", 0) > 0:
-                        critical_issues.append(f"📋 {device}: {log_counts['critical']} critical logs")
+                if log_counts and log_counts.get("critical", 0) > 0:
+                    critical_issues.append(f"📋 {device}: {log_counts['critical']} critical logs")
                 
-                # Check BGP status
                 bgp_status = self.get_device_bgp_status(device)
                 if bgp_status == "down":
-                    bgp_stats["down"] += 1
                     critical_issues.append(f"🔴 {device}: BGP neighbors down")
-                else:
-                    bgp_stats["established"] += 1
                 
-                # Check asset status
-                asset_status = self.get_device_asset_status(device)
-                if asset_status == "failed":
-                    asset_stats["failed"] += 1
-                else:
-                    asset_stats["successful"] += 1
-                
-                # Check BER status (simplified)
-                ber_status = self.get_device_ber_status(device)
-                if ber_status:
-                    ber_stats[ber_status.lower()] += 1
-                else:
-                    ber_stats["good"] += 1
-                
-                # Check flap status (simplified)
-                flap_status = self.get_device_flap_status(device)
-                if flap_status:
-                    flap_stats[flap_status.lower()] += 1
-                else:
-                    flap_stats["stable"] += 1
-                
-                # Check optical status
                 optical_status = self.get_device_optical_status(device)
-                if optical_status:
-                    optical_stats[optical_status.lower()] += 1
-                    if optical_status.lower() == "critical":
-                        critical_issues.append(f"🔴 {device}: Critical optical issues")
-                else:
-                    optical_stats["excellent"] += 1
+                if optical_status and optical_status.lower() == "critical":
+                    critical_issues.append(f"🔴 {device}: Critical optical issues")
                         
             except Exception as e:
                 print(f"    ❌ Error checking {device}: {e}")
                 continue
         
         # Analyze LLDP topology (global analysis, not per device)
-        lldp_stats = self.analyze_lldp_topology()
+        lldp_stats = self.get_stats_from_html("lldp-analysis.html")
+        if not lldp_stats:
+            lldp_stats = {"successful": 0, "failed": 0, "warnings": 0, "no_info": 0}
         
         # Check for LLDP critical issues
         if lldp_stats['failed'] > 0:
@@ -677,7 +641,7 @@ BER Analysis Results:
         return False
 
     def get_device_hardware_status(self, device):
-        """Get hardware health status for a device from processed summary"""
+        """Get hardware health status for a device from JSON history"""
         try:
             # Read from processed hardware_history.json
             hardware_history_file = self.monitor_results / "hardware_history.json"
@@ -687,15 +651,16 @@ BER Analysis Results:
             with open(hardware_history_file, 'r') as f:
                 hardware_data = json.load(f)
             
-            # Get hardware stats for this device
-            device_hardware = hardware_data.get(device, {})
-            if device_hardware:
-                current_stats = device_hardware.get("current_stats", {})
-                severity = current_stats.get("severity", "good")
-                return severity.lower()
+            # Get latest hardware entry for this device
+            device_history = hardware_data.get("hardware_history", {}).get(device, [])
+            if device_history and len(device_history) > 0:
+                latest_entry = device_history[-1]  # Get most recent entry
+                overall_grade = latest_entry.get("overall_grade", "GOOD")
+                return overall_grade.lower()
             
             return "good"
-        except:
+        except Exception as e:
+            print(f"    ❌ Error reading hardware status for {device}: {e}")
             return "good"
 
     def get_device_log_counts(self, device):
@@ -930,6 +895,114 @@ BER Analysis Results:
                 return 'FAILED'
             else:
                 return 'WARNING'
+
+    def get_stats_from_html(self, html_filename):
+        """Extract statistics from HTML analysis files"""
+        try:
+            html_file = self.monitor_results / html_filename
+            if not html_file.exists():
+                return {}
+                
+            with open(html_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Extract numbers from stat cards in HTML
+            stats = {}
+            
+            if "hardware" in html_filename:
+                # Hardware stats: Excellent, Good, Warnings, Critical
+                excellent_match = re.search(r'Excellent.*?(\d+)', content, re.DOTALL)
+                good_match = re.search(r'Good.*?(\d+)', content, re.DOTALL)  
+                warnings_match = re.search(r'Warnings.*?(\d+)', content, re.DOTALL)
+                critical_match = re.search(r'Critical.*?(\d+)', content, re.DOTALL)
+                
+                stats = {
+                    "excellent": int(excellent_match.group(1)) if excellent_match else 0,
+                    "good": int(good_match.group(1)) if good_match else 0,
+                    "warnings": int(warnings_match.group(1)) if warnings_match else 0,
+                    "critical": int(critical_match.group(1)) if critical_match else 0
+                }
+                
+            elif "log" in html_filename:
+                # Log stats: Critical, Warnings, Errors, Info Messages
+                critical_match = re.search(r'Critical.*?(\d+)', content, re.DOTALL)
+                warnings_match = re.search(r'Warnings.*?(\d+)', content, re.DOTALL)
+                errors_match = re.search(r'Errors.*?(\d+)', content, re.DOTALL)
+                info_match = re.search(r'Info Messages.*?(\d+)', content, re.DOTALL)
+                
+                stats = {
+                    "critical": int(critical_match.group(1)) if critical_match else 0,
+                    "warnings": int(warnings_match.group(1)) if warnings_match else 0,
+                    "errors": int(errors_match.group(1)) if errors_match else 0,
+                    "info": int(info_match.group(1)) if info_match else 0
+                }
+                
+            elif "bgp" in html_filename:
+                # BGP stats: Established, Down/Problem
+                established_match = re.search(r'Established.*?(\d+)', content, re.DOTALL)
+                down_match = re.search(r'Down/Problem.*?(\d+)', content, re.DOTALL)
+                
+                stats = {
+                    "established": int(established_match.group(1)) if established_match else 0,
+                    "down": int(down_match.group(1)) if down_match else 0
+                }
+                
+            elif "optical" in html_filename:
+                # Optical stats: Excellent, Good, Warning, Critical
+                excellent_match = re.search(r'Excellent.*?(\d+)', content, re.DOTALL)
+                good_match = re.search(r'Good.*?(\d+)', content, re.DOTALL)
+                warning_match = re.search(r'Warning.*?(\d+)', content, re.DOTALL)
+                critical_match = re.search(r'Critical.*?(\d+)', content, re.DOTALL)
+                
+                stats = {
+                    "excellent": int(excellent_match.group(1)) if excellent_match else 0,
+                    "good": int(good_match.group(1)) if good_match else 0,
+                    "warnings": int(warning_match.group(1)) if warning_match else 0,
+                    "critical": int(critical_match.group(1)) if critical_match else 0
+                }
+                
+            elif "ber" in html_filename:
+                # BER stats: Good, Warnings, Critical
+                good_match = re.search(r'Good.*?(\d+)', content, re.DOTALL)
+                warnings_match = re.search(r'Warnings.*?(\d+)', content, re.DOTALL) 
+                critical_match = re.search(r'Critical.*?(\d+)', content, re.DOTALL)
+                
+                stats = {
+                    "good": int(good_match.group(1)) if good_match else 0,
+                    "warnings": int(warnings_match.group(1)) if warnings_match else 0,
+                    "critical": int(critical_match.group(1)) if critical_match else 0
+                }
+                
+            elif "flap" in html_filename:
+                # Flap stats: Stable, Problematic  
+                stable_match = re.search(r'Stable.*?(\d+)', content, re.DOTALL)
+                problematic_match = re.search(r'Problematic.*?(\d+)', content, re.DOTALL)
+                
+                stats = {
+                    "stable": int(stable_match.group(1)) if stable_match else 0,
+                    "warnings": 0,  # Flap doesn't have warnings
+                    "critical": int(problematic_match.group(1)) if problematic_match else 0
+                }
+                
+            elif "lldp" in html_filename:
+                # LLDP stats: Successful Links, Failed Links, Warning Links, No Info Links
+                successful_match = re.search(r'Successful Links.*?(\d+)', content, re.DOTALL)
+                failed_match = re.search(r'Failed Links.*?(\d+)', content, re.DOTALL)
+                warning_match = re.search(r'Warning Links.*?(\d+)', content, re.DOTALL)
+                no_info_match = re.search(r'No Info Links.*?(\d+)', content, re.DOTALL)
+                
+                stats = {
+                    "successful": int(successful_match.group(1)) if successful_match else 0,
+                    "failed": int(failed_match.group(1)) if failed_match else 0,
+                    "warnings": int(warning_match.group(1)) if warning_match else 0,
+                    "no_info": int(no_info_match.group(1)) if no_info_match else 0
+                }
+            
+            return stats
+            
+        except Exception as e:
+            print(f"    ❌ Error reading stats from {html_filename}: {e}")
+            return {}
 
     def is_summary_time(self):
         """Check if it's time for scheduled summary"""
