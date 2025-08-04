@@ -86,7 +86,7 @@ thresholds:
 alert_strategy:
   # 📊 ALERT MODES:
   # • "immediate"   = Every device sends individual alerts
-  # • "summary"     = Dashboard-style single message with overall stats. If no changes, no alert is sent.
+  # • "summary"     = Dashboard-style single message. Sends when: 1) Network state changes, 2) Scheduled times (09:00, 17:00)
   # • "change_only" = Only alert when significant changes occur. If no changes, no alert is sent.
   mode: "summary"                    # summary mode RECOMMENDED Prevents spam, clean summaries
   # ⏰ SUMMARY SCHEDULE (for summary mode):
