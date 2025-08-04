@@ -373,7 +373,18 @@ def generate_hardware_html():
     <h1><font color="#b57614">Hardware Health Analysis</font></h1>
         <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         
-        <h2>Network Summary</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Network Summary</h2>
+            <button id="download-csv" onclick="downloadCSV()" 
+                    style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
+                    onmouseover="this.style.background='#45a049'" 
+                    onmouseout="this.style.background='#4caf50'">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                </svg>
+                Download CSV
+            </button>
+        </div>
         <div class="summary-grid">
             <div class="summary-card card-total" id="total-devices-card">
                 <div class="metric" id="total-devices">{total_devices}</div>
@@ -692,6 +703,93 @@ def generate_hardware_html():
             };
             
             return (priority[a] || 5) - (priority[b] || 5);
+        }
+
+        // CSV Download Function
+        function downloadCSV() {
+            try {
+                // Get current date for filename
+                const now = new Date();
+                const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+                const timeStr = now.toTimeString().slice(0, 5).replace(':', '-'); // HH-MM
+                const filename = `Hardware_Analysis_Report_${dateStr}_${timeStr}.csv`;
+                
+                // Create CSV header
+                const headers = [
+                    'Device',
+                    'Health',
+                    'CPU Temp (°C)',
+                    'ASIC Temp (°C)',
+                    'Memory (%)',
+                    'CPU Load',
+                    'Fan Status',
+                    'PSU Efficiency (%)',
+                    'Uptime'
+                ];
+                
+                let csvContent = headers.join(',') + '\\n';
+                
+                // Get table data (only visible rows)
+                const table = document.getElementById('hardware-table');
+                const tbody = table.querySelector('tbody');
+                const rows = tbody.querySelectorAll('tr');
+                
+                // Add summary stats as comments
+                csvContent += `# Hardware Health Summary Report\\n`;
+                csvContent += `# Generated: ${now.toLocaleString()}\\n`;
+                csvContent += `# Total Devices: ${document.getElementById('total-devices').textContent}\\n`;
+                csvContent += `# Excellent: ${document.getElementById('excellent-devices').textContent}\\n`;
+                csvContent += `# Good: ${document.getElementById('good-devices').textContent}\\n`;
+                csvContent += `# Warning: ${document.getElementById('warning-devices').textContent}\\n`;
+                csvContent += `# Critical: ${document.getElementById('critical-devices').textContent}\\n`;
+                csvContent += `#\\n`;
+                
+                // Process each visible row
+                rows.forEach(row => {
+                    if (row.style.display !== 'none') {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length >= 9) {
+                            const rowData = [
+                                cells[0].textContent.trim(), // Device
+                                cells[1].querySelector('span') ? cells[1].querySelector('span').textContent.trim() : cells[1].textContent.trim(), // Health
+                                cells[2].textContent.trim(), // CPU Temp
+                                cells[3].textContent.trim(), // ASIC Temp
+                                cells[4].textContent.trim(), // Memory
+                                cells[5].textContent.trim(), // CPU Load
+                                cells[6].querySelector('span') ? cells[6].querySelector('span').textContent.trim() : cells[6].textContent.trim(), // Fan Status
+                                cells[7].textContent.trim(), // PSU Efficiency
+                                cells[8].textContent.trim()  // Uptime
+                            ];
+                            
+                            // Escape commas and quotes in data
+                            const escapedData = rowData.map(field => {
+                                if (field.includes(',') || field.includes('"') || field.includes('\\n')) {
+                                    return '"' + field.replace(/"/g, '""') + '"';
+                                }
+                                return field;
+                            });
+                            
+                            csvContent += escapedData.join(',') + '\\n';
+                        }
+                    }
+                });
+                
+                // Create and trigger download
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log(`✅ CSV downloaded: ${filename}`);
+                
+            } catch (error) {
+                console.error('❌ Error generating CSV:', error);
+                alert('Error generating CSV file. Please try again.');
+            }
         }
     </script>
 </body>
