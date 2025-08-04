@@ -503,7 +503,7 @@ class LLDPqAlerts:
         
         ber_stats = self.get_stats_from_html("ber-analysis.html")
         if not ber_stats:
-            ber_stats = {"good": 0, "warnings": 0, "critical": 0}
+            ber_stats = {"excellent": 0, "good": 0, "warnings": 0, "critical": 0}
         
         flap_stats = self.get_stats_from_html("link-flap-analysis.html")  # Correct filename
         if not flap_stats:
@@ -549,7 +549,7 @@ class LLDPqAlerts:
             critical_issues.append(f"🔗 LLDP Topology: {lldp_stats['failed']} failed connections")
         
         # Create summary signature for state tracking (include optical and LLDP)
-        summary_signature = f"{total_devices}_{hardware_stats['excellent']}_{hardware_stats['good']}_{hardware_stats['warnings']}_{hardware_stats['critical']}_{log_stats['critical']}_{log_stats['warnings']}_{bgp_stats['down']}_{asset_stats['failed']}_{ber_stats['critical']}_{flap_stats['critical']}_{optical_stats['critical']}_{lldp_stats['failed']}"
+        summary_signature = f"{total_devices}_{hardware_stats['excellent']}_{hardware_stats['good']}_{hardware_stats['warnings']}_{hardware_stats['critical']}_{log_stats['critical']}_{log_stats['warnings']}_{bgp_stats['down']}_{asset_stats['failed']}_{ber_stats['excellent']}_{ber_stats['critical']}_{flap_stats['critical']}_{optical_stats['critical']}_{lldp_stats['failed']}"
         
         # Check if summary changed or it's scheduled time (critical issues don't force immediate send in summary mode)
         if self.should_send_summary_alert(summary_signature):
@@ -621,7 +621,7 @@ Optical Diagnostics Analysis:
 BER Analysis Results:
 
 
-🟢 Good: {ber_stats['good']}     🟡 Warnings: {ber_stats['warnings']}     🔴 Critical: {ber_stats['critical']}
+🟢 Excellent: {ber_stats['excellent']}     🟢 Good: {ber_stats['good']}     🟡 Warnings: {ber_stats['warnings']}     🔴 Critical: {ber_stats['critical']}
 
 """
             if critical_issues:
@@ -959,11 +959,13 @@ BER Analysis Results:
                 
             elif "ber" in html_filename:
                 # BER stats from element IDs
-                good = self.extract_element_value(content, 'excellent-ports')  # BER uses excellent-ports for good
+                excellent = self.extract_element_value(content, 'excellent-ports')
+                good = self.extract_element_value(content, 'good-ports')
                 warnings = self.extract_element_value(content, 'warning-ports')
                 critical = self.extract_element_value(content, 'critical-ports')
                 
                 stats = {
+                    "excellent": excellent,
                     "good": good,
                     "warnings": warnings,
                     "critical": critical
@@ -1034,9 +1036,21 @@ BER Analysis Results:
     def get_lldp_stats_from_ini(self):
         """Get LLDP topology statistics from lldp_results.ini (JavaScript logic)"""
         try:
-            # Check for lldp_results.ini in html directory (JavaScript logic)
-            lldp_file = self.cable_check_dir.parent / "html" / "lldp_results.ini"
-            if not lldp_file.exists():
+            # Check for lldp_results.ini in different locations
+            possible_paths = [
+                self.cable_check_dir / "lldp-results" / "lldp_results.ini",  # cable-check/lldp-results/
+                self.cable_check_dir.parent / "html" / "lldp_results.ini",  # html/ directory  
+                self.monitor_results / "lldp_results.ini"  # monitor-results/
+            ]
+            
+            lldp_file = None
+            for path in possible_paths:
+                if path.exists():
+                    lldp_file = path
+                    break
+                    
+            if not lldp_file:
+                print(f"    ❌ No lldp_results.ini found in any expected location")
                 return {}
                 
             with open(lldp_file, 'r') as f:
@@ -1060,6 +1074,7 @@ BER Analysis Results:
                         elif status == 'No-Info':
                             stats["no_info"] += 1
             
+            print(f"    📊 LLDP stats: {stats}")  # Debug info
             return stats
             
         except Exception as e:
