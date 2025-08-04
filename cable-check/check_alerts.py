@@ -492,6 +492,7 @@ class LLDPqAlerts:
         asset_stats = {"successful": 0, "failed": 0}
         ber_stats = {"good": 0, "warnings": 0, "critical": 0}
         flap_stats = {"stable": 0, "warnings": 0, "critical": 0}
+        optical_stats = {"excellent": 0, "good": 0, "warnings": 0, "critical": 0}
         critical_issues = []
         
         for device in devices:
@@ -542,13 +543,29 @@ class LLDPqAlerts:
                     flap_stats[flap_status.lower()] += 1
                 else:
                     flap_stats["stable"] += 1
+                
+                # Check optical status
+                optical_status = self.get_device_optical_status(device)
+                if optical_status:
+                    optical_stats[optical_status.lower()] += 1
+                    if optical_status.lower() == "critical":
+                        critical_issues.append(f"🔴 {device}: Critical optical issues")
+                else:
+                    optical_stats["excellent"] += 1
                         
             except Exception as e:
                 print(f"    ❌ Error checking {device}: {e}")
                 continue
         
-        # Create summary signature for state tracking
-        summary_signature = f"{total_devices}_{hardware_stats['excellent']}_{hardware_stats['good']}_{hardware_stats['warnings']}_{hardware_stats['critical']}_{log_stats['critical']}_{log_stats['warnings']}_{bgp_stats['down']}_{asset_stats['failed']}_{ber_stats['critical']}_{flap_stats['critical']}"
+        # Analyze LLDP topology (global analysis, not per device)
+        lldp_stats = self.analyze_lldp_topology()
+        
+        # Check for LLDP critical issues
+        if lldp_stats['failed'] > 0:
+            critical_issues.append(f"🔗 LLDP Topology: {lldp_stats['failed']} failed connections")
+        
+        # Create summary signature for state tracking (include optical and LLDP)
+        summary_signature = f"{total_devices}_{hardware_stats['excellent']}_{hardware_stats['good']}_{hardware_stats['warnings']}_{hardware_stats['critical']}_{log_stats['critical']}_{log_stats['warnings']}_{bgp_stats['down']}_{asset_stats['failed']}_{ber_stats['critical']}_{flap_stats['critical']}_{optical_stats['critical']}_{lldp_stats['failed']}"
         
         # Check if summary changed or it's scheduled time (critical issues don't force immediate send in summary mode)
         if self.should_send_summary_alert(summary_signature):
@@ -562,40 +579,68 @@ Total Devices: {total_devices}
 
 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 
-Asset Analysis Results:
-
-🟢 Successful: {asset_stats['successful']}     🔴 Failed: {asset_stats['failed']}
-
-─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
-
 Hardware Health Analysis:
 
+
 🟢 Excellent: {hardware_stats['excellent']}     🔵 Good: {hardware_stats['good']}     🟡 Warnings: {hardware_stats['warnings']}     🔴 Critical: {hardware_stats['critical']}
+
 
 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 
 Log Analysis Results:
 
-🔴 Critical: {log_stats['critical']}     🟡 Warnings: {log_stats['warnings']}     🔵 Errors: {log_stats['errors']}     🟢 Info: {log_stats['info']}
+
+🔴 Critical: {log_stats['critical']}     🟡 Warnings: {log_stats['warnings']}     🔵 Errors: {log_stats['errors']}
+
+
+─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+
+Asset Analysis Results:
+
+
+🟢 Successful: {asset_stats['successful']}     🔴 Failed: {asset_stats['failed']}
+
+
+─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+
+LLDP Topology Analysis Results:
+
+
+🟢 Successful: {lldp_stats['successful']}     🔴 Failed: {lldp_stats['failed']}     🟡 Warnings: {lldp_stats['warnings']}     🔵 No Info: {lldp_stats['no_info']}
+
 
 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 
 BGP Analysis Results:
 
+
 🟢 Established: {bgp_stats['established']}     🔴 Down: {bgp_stats['down']}
 
-─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
-
-BER Analysis Results:
-
-🟢 Good: {ber_stats['good']}     🟡 Warnings: {ber_stats['warnings']}     🔴 Critical: {ber_stats['critical']}
 
 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
 
 Link Flap Analysis Results:
 
-🟢 Stable: {flap_stats['stable']}     🟡 Warnings: {flap_stats['warnings']}     🔴 Critical: {flap_stats['critical']}"""
 
+🟢 Stable: {flap_stats['stable']}     🟡 Warnings: {flap_stats['warnings']}     🔴 Critical: {flap_stats['critical']}
+
+─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+
+Optical Diagnostics Analysis:
+
+
+🟢 Excellent: {optical_stats['excellent']}     🟢 Good: {optical_stats['good']}     🟡 Warning: {optical_stats['warnings']}     🔴 Critical: {optical_stats['critical']}
+
+
+─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─
+
+BER Analysis Results:
+
+
+🟢 Good: {ber_stats['good']}     🟡 Warnings: {ber_stats['warnings']}     🔴 Critical: {ber_stats['critical']}
+
+
+"""
 
             if critical_issues:
                 message += f"\n\n─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ── ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─\n\nCritical Issues:\n" + "\n".join(critical_issues[:5])
@@ -660,42 +705,46 @@ Link Flap Analysis Results:
             return None
 
     def get_device_log_counts(self, device):
-        """Get log severity counts for a device"""
+        """Get log severity counts for a device from processed summary"""
         try:
-            log_file = self.monitor_results / "log-data" / f"{device}_logs.txt"
-            if not log_file.exists():
+            # Read from processed log_summary.json instead of raw files
+            summary_file = self.monitor_results / "log_summary.json"
+            if not summary_file.exists():
                 return None
                 
-            with open(log_file, 'r') as f:
-                log_data = f.read()
+            with open(summary_file, 'r') as f:
+                summary_data = json.load(f)
             
-            counts = {"critical": 0, "warnings": 0, "errors": 0, "info": 0}
-            
-            # Count different severity levels
-            counts["critical"] = len(re.findall(r'CRITICAL|CRIT|ALERT|EMERG', log_data, re.IGNORECASE))
-            counts["warnings"] = len(re.findall(r'WARNING|WARN', log_data, re.IGNORECASE))
-            counts["errors"] = len(re.findall(r'ERROR|ERR', log_data, re.IGNORECASE))
-            counts["info"] = len(re.findall(r'INFO|NOTICE', log_data, re.IGNORECASE))
-            
-            return counts
+            device_counts = summary_data.get("device_counts", {}).get(device)
+            if device_counts:
+                # Map to expected format
+                return {
+                    "critical": device_counts.get("critical", 0),
+                    "warnings": device_counts.get("warning", 0), 
+                    "errors": device_counts.get("error", 0),
+                    "info": device_counts.get("info", 0)
+                }
+            return None
         except:
             return None
 
     def get_device_bgp_status(self, device):
-        """Get BGP status for a device"""
+        """Get BGP status for a device from processed summary"""
         try:
-            bgp_file = self.monitor_results / "bgp-data" / f"{device}_bgp.txt"
-            if not bgp_file.exists():
-                return "established"
+            # Read from processed bgp_history.json
+            bgp_history_file = self.monitor_results / "bgp_history.json"
+            if not bgp_history_file.exists():
+                return "established"  # Default to healthy if no data
                 
-            with open(bgp_file, 'r') as f:
-                bgp_data = f.read()
+            with open(bgp_history_file, 'r') as f:
+                bgp_data = json.load(f)
             
-            # Check for down BGP neighbors
-            down_patterns = ['Active', 'Idle', 'Connect']
-            for pattern in down_patterns:
-                if pattern in bgp_data:
-                    return "down"
+            # Get latest BGP stats for this device
+            device_bgp = bgp_data.get(device, {})
+            if device_bgp:
+                latest_stats = device_bgp.get("current_stats", {})
+                down_neighbors = latest_stats.get("down_neighbors", 0)
+                return "down" if down_neighbors > 0 else "established"
             
             return "established"
         except:
@@ -734,29 +783,149 @@ Link Flap Analysis Results:
             return "good"
 
     def get_device_flap_status(self, device):
-        """Get link flap status for a device"""
+        """Get link flap status for a device from processed summary"""
         try:
-            flap_files = glob.glob(str(self.monitor_results / "flap-data" / f"{device}_*_transitions.txt"))
-            if not flap_files:
+            # Read from processed flap_history.json
+            flap_history_file = self.monitor_results / "flap_history.json"
+            if not flap_history_file.exists():
                 return "stable"
+                
+            with open(flap_history_file, 'r') as f:
+                flap_data = json.load(f)
             
-            max_flaps = 0
-            for flap_file in flap_files:
-                try:
-                    with open(flap_file, 'r') as f:
-                        flap_count = len(f.readlines())
-                    max_flaps = max(max_flaps, flap_count)
-                except:
-                    continue
-            
-            if max_flaps >= 20:
-                return "critical"
-            elif max_flaps >= 10:
-                return "warnings"
+            # Get flap stats for this device
+            device_flap = flap_data.get(device, {})
+            if device_flap:
+                current_stats = device_flap.get("current_stats", {})
+                # Look for flapping or flapped ports
+                flapping_count = len(current_stats.get("flapping_ports", []))
+                flapped_count = len(current_stats.get("flapped_ports", []))
+                
+                if flapping_count > 0:
+                    return "critical"
+                elif flapped_count > 0:
+                    return "warnings"
             
             return "stable"
         except:
             return "stable"
+    
+    def get_device_optical_status(self, device):
+        """Get optical diagnostics status for a device from processed summary"""
+        try:
+            # Read from processed optical_history.json
+            optical_history_file = self.monitor_results / "optical_history.json"
+            if not optical_history_file.exists():
+                return "excellent"  # Default to healthy if no data
+                
+            with open(optical_history_file, 'r') as f:
+                optical_data = json.load(f)
+            
+            # Get optical stats for this device
+            device_optical = optical_data.get(device, {})
+            if device_optical:
+                current_stats = device_optical.get("current_stats", {})
+                
+                # Check for critical optical issues
+                critical_ports = len(current_stats.get("critical_ports", []))
+                warning_ports = len(current_stats.get("warning_ports", []))
+                good_ports = len(current_stats.get("good_ports", []))
+                excellent_ports = len(current_stats.get("excellent_ports", []))
+                
+                if critical_ports > 0:
+                    return "critical"
+                elif warning_ports > 0:
+                    return "warnings"
+                elif good_ports > 0:
+                    return "good"
+            
+            return "excellent"
+        except:
+            return "excellent"
+
+    def analyze_lldp_topology(self):
+        """Analyze LLDP topology data like the web frontend does"""
+        try:
+            # Check if lldp_results.ini exists
+            lldp_file = self.monitor_results.parent / "html" / "lldp_results.ini"
+            if not lldp_file.exists():
+                # Fall back to check in monitor-results
+                lldp_file = self.monitor_results / "lldp_results.ini"
+                if not lldp_file.exists():
+                    return {"successful": 0, "failed": 0, "warnings": 0, "no_info": 0}
+            
+            with open(lldp_file, 'r') as f:
+                data = f.read()
+            
+            # Parse LLDP data similar to the frontend JavaScript
+            lines = data.split('\n')
+            connections = []
+            current_device = ''
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                parts = line.split('\t')
+                if len(parts) == 1:
+                    # Device name line
+                    current_device = parts[0]
+                elif len(parts) >= 6 and current_device:
+                    # Connection line
+                    connection = {
+                        'localDevice': current_device,
+                        'localPort': parts[0],
+                        'expectedDevice': parts[1] if parts[1] != 'N/A' else None,
+                        'expectedPort': parts[2] if parts[2] != 'N/A' else None,
+                        'actualDevice': parts[3] if parts[3] != 'N/A' else None,
+                        'actualPort': parts[4] if parts[4] != 'N/A' else None,
+                        'lldpStatus': parts[5]
+                    }
+                    connections.append(connection)
+            
+            # Count by status (replicate frontend logic)
+            stats = {"successful": 0, "failed": 0, "warnings": 0, "no_info": 0}
+            
+            for connection in connections:
+                status = self.determine_lldp_status(connection)
+                if status == 'SUCCESS':
+                    stats["successful"] += 1
+                elif status == 'FAILED':
+                    stats["failed"] += 1
+                elif status == 'WARNING':
+                    stats["warnings"] += 1
+                elif status == 'NO INFO':
+                    stats["no_info"] += 1
+            
+            return stats
+            
+        except Exception as e:
+            print(f"    ❌ Error analyzing LLDP topology: {e}")
+            return {"successful": 0, "failed": 0, "warnings": 0, "no_info": 0}
+    
+    def determine_lldp_status(self, connection):
+        """Determine LLDP connection status (replicate frontend logic)"""
+        lldp_status = connection.get('lldpStatus', '').upper()
+        
+        if lldp_status == 'SUCCESS':
+            return 'SUCCESS'
+        elif lldp_status == 'NO LLDP INFO':
+            return 'NO INFO'
+        elif lldp_status in ['MISSING FROM EXPECTED', 'EXTRA CONNECTION']:
+            return 'WARNING'
+        else:
+            # Check if it's a connection mismatch
+            expected_device = connection.get('expectedDevice')
+            expected_port = connection.get('expectedPort') 
+            actual_device = connection.get('actualDevice')
+            actual_port = connection.get('actualPort')
+            
+            if (expected_device and actual_device and 
+                (expected_device != actual_device or expected_port != actual_port)):
+                return 'FAILED'
+            else:
+                return 'WARNING'
 
     def is_summary_time(self):
         """Check if it's time for scheduled summary"""
