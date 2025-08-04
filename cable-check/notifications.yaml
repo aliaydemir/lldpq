@@ -5,12 +5,17 @@
 # WEBHOOK SETUP GUIDE:
 # =============================================================================
 #
-# 🔹 MICROSOFT TEAMS:
-# 1. Go to your Teams channel
-# 2. Click ⋯ (three dots) → Connectors
-# 3. Find "Incoming Webhook" → Configure
-# 4. Name: "LLDPq Network Alerts" → Create
-# 5. Copy the webhook URL (starts with https://outlook.office.com/webhook/)
+# 🔹 MICROSOFT TEAMS (Modern Power Automate Method):
+# 1. Create a dedicated team: "Network-Alert" or use existing team
+# 2. Create/select channel: "LLDPq" or "General"
+# 3. Click ⋯ (three dots) next to channel name → "Workflows"
+# 4. Find "Send webhook alerts to a channel" → Select this template
+# 5. Configure:
+#    - Name: "Send webhook alerts to a channel" 
+#    - Team: Select your team (e.g., "Network-Alert")
+#    - Channel: Select your channel (e.g., "LLDPq")
+# 6. Click "Next" → "Add workflow"
+# 7. Copy the webhook URL (starts with https://prod-XX.westus.logic.azure.com)
 #
 # 🔹 SLACK (Detailed Steps):
 # 1. Go to https://api.slack.com/apps
@@ -48,7 +53,7 @@ notifications:
   teams:
     enabled: false
     webhook: ""
-    # Example: "https://outlook.office.com/webhook/xxx-xxx-xxx/IncomingWebhook/yyy-yyy-yyy"
+    # Example: "https://prod-11.westus.logic.azure.com:443/workflows/09k72dcee948453456805b48ddc15fcf/triggers..."
   
   # Slack integration  
   slack:
