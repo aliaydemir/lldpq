@@ -90,9 +90,6 @@ sudo journalctl --since="3 hours ago" --grep="swp|bond|vlan|carrier|link.*up|lin
 # Get LLDP neighbors for each interface
 sudo lldpcli show neighbors ports $interface detail
 
-# Alternative LLDP commands
-lldpctl show neighbors
-sudo lldpcli show statistics
 ```
 
 ## ⚙️ Configuration Script (`get-configs.sh`)
