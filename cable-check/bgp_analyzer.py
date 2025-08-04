@@ -574,7 +574,18 @@ class BGPAnalyzer:
     <h1><font color="#b57614">BGP Neighbor Analysis</font></h1>
     <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
     
-    <h2>Network Summary</h2>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="margin: 0;">Network Summary</h2>
+        <button id="download-csv" onclick="downloadCSV()" 
+                style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
+                onmouseover="this.style.background='#45a049'" 
+                onmouseout="this.style.background='#4caf50'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+            </svg>
+            Download CSV
+        </button>
+    </div>
     <div class="summary-grid">
         <div class="summary-card" id="total-devices-card">
             <div class="metric" id="total-devices">{summary['total_devices']}</div>
@@ -978,6 +989,94 @@ class BGPAnalyzer:
             return getRatioValue(a) - getRatioValue(b);
         }
 
+        // CSV Download Function
+        function downloadCSV() {
+            try {
+                // Get current date for filename
+                const now = new Date();
+                const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+                const timeStr = now.toTimeString().slice(0, 5).replace(':', '-'); // HH-MM
+                const filename = `BGP_Analysis_Report_${dateStr}_${timeStr}.csv`;
+                
+                // Create CSV header
+                const headers = [
+                    'Device',
+                    'Neighbor', 
+                    'Interface',
+                    'State',
+                    'ASN',
+                    'Uptime',
+                    'Prefixes RX/TX',
+                    'Messages RX/TX',
+                    'Queue In/Out',
+                    'Health'
+                ];
+                
+                let csvContent = headers.join(',') + '\\n';
+                
+                // Get table data (only visible rows)
+                const table = document.getElementById('bgp-table');
+                const tbody = table.querySelector('tbody');
+                const rows = tbody.querySelectorAll('tr');
+                
+                // Add summary stats as comments
+                csvContent += `# BGP Analysis Summary Report\\n`;
+                csvContent += `# Generated: ${now.toLocaleString()}\\n`;
+                csvContent += `# Total Devices: ${document.getElementById('total-devices').textContent}\\n`;
+                csvContent += `# Total Neighbors: ${document.getElementById('total-neighbors').textContent}\\n`;
+                csvContent += `# Established: ${document.getElementById('established-neighbors').textContent}\\n`;
+                csvContent += `# Down/Problem: ${document.getElementById('down-neighbors').textContent}\\n`;
+                csvContent += `# Health Ratio: ${document.getElementById('health-ratio').textContent}\\n`;
+                csvContent += `#\\n`;
+                
+                // Process each visible row
+                rows.forEach(row => {
+                    if (row.style.display !== 'none') {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length >= 10) {
+                            const rowData = [
+                                cells[0].textContent.trim(), // Device
+                                cells[1].textContent.trim(), // Neighbor
+                                cells[2].textContent.trim(), // Interface
+                                cells[3].textContent.trim(), // State
+                                cells[4].textContent.trim(), // ASN
+                                cells[5].textContent.trim(), // Uptime
+                                cells[6].textContent.trim(), // Prefixes RX/TX
+                                cells[7].textContent.trim(), // Messages RX/TX
+                                cells[8].textContent.trim(), // Queue In/Out
+                                cells[9].textContent.trim()  // Health
+                            ];
+                            
+                            // Escape commas and quotes in data
+                            const escapedData = rowData.map(field => {
+                                if (field.includes(',') || field.includes('"') || field.includes('\\n')) {
+                                    return '"' + field.replace(/"/g, '""') + '"';
+                                }
+                                return field;
+                            });
+                            
+                            csvContent += escapedData.join(',') + '\\n';
+                        }
+                    }
+                });
+                
+                // Create and trigger download
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log(`✅ CSV downloaded: ${filename}`);
+                
+            } catch (error) {
+                console.error('❌ Error generating CSV:', error);
+                alert('Error generating CSV file. Please try again.');
+            }
+        }
 
     </script>
 </body>
