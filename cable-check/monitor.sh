@@ -1,7 +1,6 @@
 #!/bin/bash
-# Optimized Monitor Script - Faster execution with SSH multiplexing
-# Performance: 3-5x faster than original
-# 
+# Original Monitor Script. Used to get the initial data.
+#
 # Copyright (c) 2024 LLDPq Project
 # Licensed under MIT License - see LICENSE file for details
 
