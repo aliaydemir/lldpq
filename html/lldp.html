@@ -617,6 +617,91 @@
             return (priority[a] || 4) - (priority[b] || 4);
         }
 
+        // CSV Download Function
+        function downloadCSV() {
+            try {
+                // Get current date for filename
+                const now = new Date();
+                const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+                const timeStr = now.toTimeString().slice(0, 5).replace(':', '-'); // HH-MM
+                const filename = `LLDP_Topology_Report_${dateStr}_${timeStr}.csv`;
+                
+                // Create CSV header
+                const headers = [
+                    'Local Device',
+                    'Local Port', 
+                    'Expected Neighbor',
+                    'Expected Port',
+                    'Active Neighbor',
+                    'Active Port',
+                    'Status',
+                    'Connection Health'
+                ];
+                
+                let csvContent = headers.join(',') + '\n';
+                
+                // Get table data (only visible rows)
+                const table = document.getElementById('lldp-table');
+                const tbody = table.querySelector('tbody');
+                const rows = tbody.querySelectorAll('tr');
+                
+                // Add summary stats as comments
+                csvContent += `# LLDP Connection Summary Report\n`;
+                csvContent += `# Generated: ${now.toLocaleString()}\n`;
+                csvContent += `# Total Connections: ${document.getElementById('total-connections').textContent}\n`;
+                csvContent += `# Successful Links: ${document.getElementById('success-connections').textContent}\n`;
+                csvContent += `# Failed Links: ${document.getElementById('failed-connections').textContent}\n`;
+                csvContent += `# Warning Links: ${document.getElementById('warning-connections').textContent}\n`;
+                csvContent += `# No Information: ${document.getElementById('no-info-connections').textContent}\n`;
+                csvContent += `#\n`;
+                
+                // Process each visible row
+                rows.forEach(row => {
+                    if (row.style.display !== 'none') {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length >= 7) {
+                            const rowData = [
+                                cells[0].textContent.trim(), // Device
+                                cells[1].textContent.trim(), // Local Port
+                                cells[2].textContent.trim(), // Expected Neighbor
+                                cells[3].textContent.trim(), // Expected Port
+                                cells[4].textContent.trim(), // Active Neighbor
+                                cells[5].textContent.trim(), // Active Port
+                                cells[6].textContent.trim(), // Status
+                                cells[7].textContent.trim()  // Health
+                            ];
+                            
+                            // Escape commas and quotes in data
+                            const escapedData = rowData.map(field => {
+                                if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+                                    return '"' + field.replace(/"/g, '""') + '"';
+                                }
+                                return field;
+                            });
+                            
+                            csvContent += escapedData.join(',') + '\n';
+                        }
+                    }
+                });
+                
+                // Create and trigger download
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log(`✅ CSV downloaded: ${filename}`);
+                
+            } catch (error) {
+                console.error('❌ Error generating CSV:', error);
+                alert('Error generating CSV file. Please try again.');
+            }
+        }
+
         // Load data when page loads
         window.addEventListener('load', function() {
             setLastUpdated();
