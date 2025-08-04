@@ -384,7 +384,18 @@ class LogAnalyzer:
     <h1><font color="#b57614">Log Analysis Results</font></h1>
     <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
     
-    <h2>Log Summary</h2>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="margin: 0;">Log Summary</h2>
+        <button id="download-csv" onclick="downloadCSV()" 
+                style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
+                onmouseover="this.style.background='#45a049'" 
+                onmouseout="this.style.background='#4caf50'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+            </svg>
+            Download CSV
+        </button>
+    </div>
     <div class="summary-grid">
         <div class="summary-card card-total" id="total-devices-card">
             <div class="metric" id="total-devices">{total_devices}</div>
@@ -743,6 +754,87 @@ class LogAnalyzer:
         }
         
         // reattachClickHandlers function removed - no longer needed since we don't destroy DOM nodes
+        
+        // CSV Download Function
+        function downloadCSV() {
+            try {
+                // Get current date for filename
+                const now = new Date();
+                const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+                const timeStr = now.toTimeString().slice(0, 5).replace(':', '-'); // HH-MM
+                const filename = `Log_Analysis_Report_${dateStr}_${timeStr}.csv`;
+                
+                // Create CSV header
+                const headers = [
+                    'Device',
+                    'Critical',
+                    'Warning',
+                    'Error',
+                    'Info',
+                    'Total'
+                ];
+                
+                let csvContent = headers.join(',') + '\\n';
+                
+                // Get table data (only visible rows)
+                const table = document.getElementById('log-table');
+                const tbody = table.querySelector('tbody');
+                const rows = tbody.querySelectorAll('tr');
+                
+                // Add summary stats as comments
+                csvContent += `# Log Analysis Summary Report\\n`;
+                csvContent += `# Generated: ${now.toLocaleString()}\\n`;
+                csvContent += `# Total Devices: ${document.getElementById('total-devices').textContent}\\n`;
+                csvContent += `# Critical Issues: ${document.getElementById('critical-logs').textContent}\\n`;
+                csvContent += `# Warning Messages: ${document.getElementById('warning-logs').textContent}\\n`;
+                csvContent += `# Error Messages: ${document.getElementById('error-logs').textContent}\\n`;
+                csvContent += `# Info Messages: ${document.getElementById('info-logs').textContent}\\n`;
+                csvContent += `#\\n`;
+                
+                // Process each visible row (skip log-details rows)
+                rows.forEach(row => {
+                    if (row.style.display !== 'none' && !row.classList.contains('log-details')) {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length >= 6) {
+                            const rowData = [
+                                cells[0].textContent.trim(), // Device
+                                cells[1].querySelector('.severity-count') ? cells[1].querySelector('.severity-count').textContent.trim() : '0', // Critical
+                                cells[2].querySelector('.severity-count') ? cells[2].querySelector('.severity-count').textContent.trim() : '0', // Warning
+                                cells[3].querySelector('.severity-count') ? cells[3].querySelector('.severity-count').textContent.trim() : '0', // Error
+                                cells[4].querySelector('.severity-count') ? cells[4].querySelector('.severity-count').textContent.trim() : '0', // Info
+                                cells[5].textContent.trim()  // Total
+                            ];
+                            
+                            // Escape commas and quotes in data
+                            const escapedData = rowData.map(field => {
+                                if (field.includes(',') || field.includes('"') || field.includes('\\n')) {
+                                    return '"' + field.replace(/"/g, '""') + '"';
+                                }
+                                return field;
+                            });
+                            
+                            csvContent += escapedData.join(',') + '\\n';
+                        }
+                    }
+                });
+                
+                // Create and trigger download
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log(`✅ CSV downloaded: ${filename}`);
+                
+            } catch (error) {
+                console.error('❌ Error generating CSV:', error);
+                alert('Error generating CSV file. Please try again.');
+            }
+        }
     </script>
 </body>
 </html>"""
