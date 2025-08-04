@@ -550,8 +550,8 @@ class LLDPqAlerts:
         # Create summary signature for state tracking
         summary_signature = f"{total_devices}_{hardware_stats['excellent']}_{hardware_stats['good']}_{hardware_stats['warnings']}_{hardware_stats['critical']}_{log_stats['critical']}_{log_stats['warnings']}_{bgp_stats['down']}_{asset_stats['failed']}_{ber_stats['critical']}_{flap_stats['critical']}"
         
-        # Check if summary changed or it's scheduled time
-        if self.should_send_summary_alert(summary_signature) or critical_issues:
+        # Check if summary changed or it's scheduled time (critical issues don't force immediate send in summary mode)
+        if self.should_send_summary_alert(summary_signature):
             server_url = self.config.get('notifications', {}).get('server_url', 'http://localhost')
             
             # Create clean dashboard-style message with spacing
