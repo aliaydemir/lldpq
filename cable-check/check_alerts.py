@@ -491,7 +491,7 @@ class LLDPqAlerts:
         if not hardware_stats:
             hardware_stats = {"excellent": 0, "good": 0, "warnings": 0, "critical": 0}
         
-        log_stats = self.get_stats_from_html("log-analysis.html")
+        log_stats = self.get_log_stats_from_json()
         if not log_stats:
             log_stats = {"critical": 0, "warnings": 0, "errors": 0, "info": 0}
         
@@ -505,7 +505,7 @@ class LLDPqAlerts:
         if not ber_stats:
             ber_stats = {"good": 0, "warnings": 0, "critical": 0}
         
-        flap_stats = self.get_stats_from_html("flap-analysis.html")
+        flap_stats = self.get_stats_from_html("link-flap-analysis.html")  # Correct filename
         if not flap_stats:
             flap_stats = {"stable": 0, "warnings": 0, "critical": 0}
         
@@ -540,7 +540,7 @@ class LLDPqAlerts:
                 continue
         
         # Analyze LLDP topology (global analysis, not per device)
-        lldp_stats = self.get_stats_from_html("lldp-analysis.html")
+        lldp_stats = self.get_lldp_stats_from_ini()
         if not lldp_stats:
             lldp_stats = {"successful": 0, "failed": 0, "warnings": 0, "no_info": 0}
         
@@ -917,7 +917,7 @@ BER Analysis Results:
                 return 'WARNING'
 
     def get_stats_from_html(self, html_filename):
-        """Extract statistics from HTML analysis files"""
+        """Extract statistics from HTML analysis files using specific element IDs"""
         try:
             html_file = self.monitor_results / html_filename
             if not html_file.exists():
@@ -926,102 +926,144 @@ BER Analysis Results:
             with open(html_file, 'r', encoding='utf-8') as f:
                 content = f.read()
             
-            # Extract numbers from stat cards in HTML
+            # Extract numbers from specific HTML element IDs (JavaScript logic)
             stats = {}
             
             if "hardware" in html_filename:
-                # Hardware stats: Excellent, Good, Warnings, Critical
-                excellent_match = re.search(r'Excellent.*?(\d+)', content, re.DOTALL)
-                good_match = re.search(r'Good.*?(\d+)', content, re.DOTALL)  
-                warnings_match = re.search(r'Warnings.*?(\d+)', content, re.DOTALL)
-                critical_match = re.search(r'Critical.*?(\d+)', content, re.DOTALL)
+                # Hardware stats from element IDs
+                excellent = self.extract_element_value(content, 'excellent-devices')
+                good = self.extract_element_value(content, 'good-devices')
+                warnings = self.extract_element_value(content, 'warning-devices')
+                critical = self.extract_element_value(content, 'critical-devices')
                 
                 stats = {
-                    "excellent": int(excellent_match.group(1)) if excellent_match else 0,
-                    "good": int(good_match.group(1)) if good_match else 0,
-                    "warnings": int(warnings_match.group(1)) if warnings_match else 0,
-                    "critical": int(critical_match.group(1)) if critical_match else 0
-                }
-                
-            elif "log" in html_filename:
-                # Log stats: Critical, Warnings, Errors, Info Messages
-                critical_match = re.search(r'Critical.*?(\d+)', content, re.DOTALL)
-                warnings_match = re.search(r'Warnings.*?(\d+)', content, re.DOTALL)
-                errors_match = re.search(r'Errors.*?(\d+)', content, re.DOTALL)
-                info_match = re.search(r'Info Messages.*?(\d+)', content, re.DOTALL)
-                
-                stats = {
-                    "critical": int(critical_match.group(1)) if critical_match else 0,
-                    "warnings": int(warnings_match.group(1)) if warnings_match else 0,
-                    "errors": int(errors_match.group(1)) if errors_match else 0,
-                    "info": int(info_match.group(1)) if info_match else 0
-                }
-                
-            elif "bgp" in html_filename:
-                # BGP stats: Established, Down/Problem
-                established_match = re.search(r'Established.*?(\d+)', content, re.DOTALL)
-                down_match = re.search(r'Down/Problem.*?(\d+)', content, re.DOTALL)
-                
-                stats = {
-                    "established": int(established_match.group(1)) if established_match else 0,
-                    "down": int(down_match.group(1)) if down_match else 0
+                    "excellent": excellent,
+                    "good": good,
+                    "warnings": warnings,
+                    "critical": critical
                 }
                 
             elif "optical" in html_filename:
-                # Optical stats: Excellent, Good, Warning, Critical
-                excellent_match = re.search(r'Excellent.*?(\d+)', content, re.DOTALL)
-                good_match = re.search(r'Good.*?(\d+)', content, re.DOTALL)
-                warning_match = re.search(r'Warning.*?(\d+)', content, re.DOTALL)
-                critical_match = re.search(r'Critical.*?(\d+)', content, re.DOTALL)
+                # Optical stats from element IDs
+                excellent = self.extract_element_value(content, 'excellent-ports')
+                good = self.extract_element_value(content, 'good-ports')
+                warnings = self.extract_element_value(content, 'warning-ports')
+                critical = self.extract_element_value(content, 'critical-ports')
                 
                 stats = {
-                    "excellent": int(excellent_match.group(1)) if excellent_match else 0,
-                    "good": int(good_match.group(1)) if good_match else 0,
-                    "warnings": int(warning_match.group(1)) if warning_match else 0,
-                    "critical": int(critical_match.group(1)) if critical_match else 0
+                    "excellent": excellent,
+                    "good": good,
+                    "warnings": warnings,
+                    "critical": critical
                 }
                 
             elif "ber" in html_filename:
-                # BER stats: Good, Warnings, Critical
-                good_match = re.search(r'Good.*?(\d+)', content, re.DOTALL)
-                warnings_match = re.search(r'Warnings.*?(\d+)', content, re.DOTALL) 
-                critical_match = re.search(r'Critical.*?(\d+)', content, re.DOTALL)
+                # BER stats from element IDs
+                good = self.extract_element_value(content, 'excellent-ports')  # BER uses excellent-ports for good
+                warnings = self.extract_element_value(content, 'warning-ports')
+                critical = self.extract_element_value(content, 'critical-ports')
                 
                 stats = {
-                    "good": int(good_match.group(1)) if good_match else 0,
-                    "warnings": int(warnings_match.group(1)) if warnings_match else 0,
-                    "critical": int(critical_match.group(1)) if critical_match else 0
+                    "good": good,
+                    "warnings": warnings,
+                    "critical": critical
                 }
                 
-            elif "flap" in html_filename:
-                # Flap stats: Stable, Problematic  
-                stable_match = re.search(r'Stable.*?(\d+)', content, re.DOTALL)
-                problematic_match = re.search(r'Problematic.*?(\d+)', content, re.DOTALL)
+            elif "link-flap" in html_filename:
+                # Flap stats from element IDs
+                stable = self.extract_element_value(content, 'stable-ports')
+                problematic = self.extract_element_value(content, 'problematic-ports')
                 
                 stats = {
-                    "stable": int(stable_match.group(1)) if stable_match else 0,
+                    "stable": stable,
                     "warnings": 0,  # Flap doesn't have warnings
-                    "critical": int(problematic_match.group(1)) if problematic_match else 0
+                    "critical": problematic
                 }
                 
-            elif "lldp" in html_filename:
-                # LLDP stats: Successful Links, Failed Links, Warning Links, No Info Links
-                successful_match = re.search(r'Successful Links.*?(\d+)', content, re.DOTALL)
-                failed_match = re.search(r'Failed Links.*?(\d+)', content, re.DOTALL)
-                warning_match = re.search(r'Warning Links.*?(\d+)', content, re.DOTALL)
-                no_info_match = re.search(r'No Info Links.*?(\d+)', content, re.DOTALL)
+            elif "bgp" in html_filename:
+                # BGP stats from element IDs
+                established = self.extract_element_value(content, 'established-neighbors')
+                down = self.extract_element_value(content, 'down-neighbors')
                 
                 stats = {
-                    "successful": int(successful_match.group(1)) if successful_match else 0,
-                    "failed": int(failed_match.group(1)) if failed_match else 0,
-                    "warnings": int(warning_match.group(1)) if warning_match else 0,
-                    "no_info": int(no_info_match.group(1)) if no_info_match else 0
+                    "established": established,
+                    "down": down
                 }
             
             return stats
             
         except Exception as e:
             print(f"    ❌ Error reading stats from {html_filename}: {e}")
+            return {}
+
+    def extract_element_value(self, html_content, element_id):
+        """Extract numeric value from HTML element by ID"""
+        try:
+            # Look for id="element_id">number
+            pattern = rf'id="{element_id}"[^>]*>(\d+)'
+            match = re.search(pattern, html_content)
+            if match:
+                return int(match.group(1))
+            return 0
+        except:
+            return 0
+
+    def get_log_stats_from_json(self):
+        """Get log statistics from log_summary.json (JavaScript logic)"""
+        try:
+            log_summary_file = self.monitor_results / "log_summary.json"
+            if not log_summary_file.exists():
+                return {}
+                
+            with open(log_summary_file, 'r') as f:
+                log_data = json.load(f)
+            
+            totals = log_data.get("totals", {})
+            
+            return {
+                "critical": totals.get("critical", 0),
+                "warnings": totals.get("warning", 0),  # Note: "warning" not "warnings" in JSON
+                "errors": totals.get("error", 0),
+                "info": totals.get("info", 0)
+            }
+            
+        except Exception as e:
+            print(f"    ❌ Error reading log stats from JSON: {e}")
+            return {}
+
+    def get_lldp_stats_from_ini(self):
+        """Get LLDP topology statistics from lldp_results.ini (JavaScript logic)"""
+        try:
+            # Check for lldp_results.ini in html directory (JavaScript logic)
+            lldp_file = self.cable_check_dir.parent / "html" / "lldp_results.ini"
+            if not lldp_file.exists():
+                return {}
+                
+            with open(lldp_file, 'r') as f:
+                content = f.read()
+            
+            lines = content.split('\n')
+            stats = {"successful": 0, "failed": 0, "warnings": 0, "no_info": 0}
+            
+            # Parse each line like JavaScript does
+            for line in lines:
+                line = line.strip()
+                # Look for port status lines (swp + Pass/Fail/No-Info pattern)
+                if 'swp' in line and ('Pass' in line or 'Fail' in line or 'No-Info' in line):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        status = parts[1]  # Status is second column
+                        if status == 'Pass':
+                            stats["successful"] += 1
+                        elif status == 'Fail':
+                            stats["failed"] += 1  
+                        elif status == 'No-Info':
+                            stats["no_info"] += 1
+            
+            return stats
+            
+        except Exception as e:
+            print(f"    ❌ Error reading LLDP stats from INI: {e}")
             return {}
 
     def is_summary_time(self):
