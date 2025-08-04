@@ -447,7 +447,18 @@ class BERAnalyzer:
     <h1><font color="#b57614">BER Analysis Results</font></h1>
         <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
         
-        <h2>Network Summary</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 style="margin: 0;">Network Summary</h2>
+            <button id="download-csv" onclick="downloadCSV()" 
+                    style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
+                    onmouseover="this.style.background='#45a049'" 
+                    onmouseout="this.style.background='#4caf50'">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                </svg>
+                Download CSV
+            </button>
+        </div>
         <div class="summary-grid">
             <div class="summary-card card-total" id="total-ports-card">
                 <div class="metric" id="total-ports">{total_ports}</div>
@@ -827,6 +838,91 @@ class BERAnalyzer:
             if (isNaN(numB)) return -1;
             
             return numA - numB;
+        }
+
+        // CSV Download Function
+        function downloadCSV() {
+            try {
+                // Get current date for filename
+                const now = new Date();
+                const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+                const timeStr = now.toTimeString().slice(0, 5).replace(':', '-'); // HH-MM
+                const filename = `BER_Analysis_Report_${dateStr}_${timeStr}.csv`;
+                
+                // Create CSV header
+                const headers = [
+                    'Port',
+                    'Health Status',
+                    'BER Value',
+                    'RX Errors',
+                    'TX Errors',
+                    'Total Frames',
+                    'Error Rate',
+                    'Last Scan'
+                ];
+                
+                let csvContent = headers.join(',') + '\\n';
+                
+                // Get table data (only visible rows)
+                const table = document.getElementById('ber-table');
+                const tbody = table.querySelector('tbody');
+                const rows = tbody.querySelectorAll('tr');
+                
+                // Add summary stats as comments
+                csvContent += `# BER Analysis Summary Report\\n`;
+                csvContent += `# Generated: ${now.toLocaleString()}\\n`;
+                csvContent += `# Total Ports: ${document.getElementById('total-ports').textContent}\\n`;
+                csvContent += `# Excellent: ${document.getElementById('excellent-ports').textContent}\\n`;
+                csvContent += `# Good: ${document.getElementById('good-ports').textContent}\\n`;
+                csvContent += `# Warning: ${document.getElementById('warning-ports').textContent}\\n`;
+                csvContent += `# Critical: ${document.getElementById('critical-ports').textContent}\\n`;
+                csvContent += `#\\n`;
+                
+                // Process each visible row
+                rows.forEach(row => {
+                    if (row.style.display !== 'none') {
+                        const cells = row.querySelectorAll('td');
+                        if (cells.length >= 8) {
+                            const rowData = [
+                                cells[0].textContent.trim(), // Port
+                                cells[1].querySelector('span') ? cells[1].querySelector('span').textContent.trim() : cells[1].textContent.trim(), // Health Status
+                                cells[2].textContent.trim(), // BER Value
+                                cells[3].textContent.trim(), // RX Errors
+                                cells[4].textContent.trim(), // TX Errors
+                                cells[5].textContent.trim(), // Total Frames
+                                cells[6].textContent.trim(), // Error Rate
+                                cells[7].textContent.trim()  // Last Scan
+                            ];
+                            
+                            // Escape commas and quotes in data
+                            const escapedData = rowData.map(field => {
+                                if (field.includes(',') || field.includes('"') || field.includes('\\n')) {
+                                    return '"' + field.replace(/"/g, '""') + '"';
+                                }
+                                return field;
+                            });
+                            
+                            csvContent += escapedData.join(',') + '\\n';
+                        }
+                    }
+                });
+                
+                // Create and trigger download
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                console.log(`✅ CSV downloaded: ${filename}`);
+                
+            } catch (error) {
+                console.error('❌ Error generating CSV:', error);
+                alert('Error generating CSV file. Please try again.');
+            }
         }
     </script>
 </body>
