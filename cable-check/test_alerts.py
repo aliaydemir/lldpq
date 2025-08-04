@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-LLDPq Alert System - Test script for webhook configuration
+LLDPq Alert System - Test script for Slack webhook configuration
 Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 
-This script sends test alerts to verify webhook configuration.
+This script sends test alerts to verify Slack webhook configuration.
 Usage: python3 test_alerts.py
 """
 
@@ -31,35 +31,7 @@ def load_config():
         print(f"❌ Error loading config: {e}")
         return None
 
-def test_teams_webhook(webhook_url):
-    """Test Microsoft Teams webhook"""
-    print("🔹 Testing Teams webhook...")
-    
-    payload = {
-        "title": "🧪 LLDPq Test Alert",
-        "text": "This is a test message to verify Teams integration is working correctly.",
-        "themeColor": "#0066CC",
-        "sections": [{
-            "facts": [
-                {"name": "Status", "value": "TEST MESSAGE"},
-                {"name": "Time", "value": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")},
-                {"name": "Source", "value": "LLDPq Alert System"}
-            ]
-        }]
-    }
-    
-    try:
-        response = requests.post(webhook_url, json=payload, timeout=10)
-        if response.status_code == 200:
-            print("   ✅ Teams webhook working correctly!")
-            return True
-        else:
-            print(f"   ❌ Teams webhook failed with status code: {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False
-    except Exception as e:
-        print(f"   ❌ Teams webhook error: {e}")
-        return False
+
 
 def test_slack_webhook(webhook_url, channel, username, icon_emoji):
     """Test Slack webhook"""
@@ -117,25 +89,7 @@ def main():
     tests_passed = 0
     total_tests = 0
     
-    # Test Teams
-    teams_config = notifications.get('teams', {})
-    if teams_config.get('enabled', False):
-        total_tests += 1
-        webhook_url = teams_config.get('webhook', '')
-        
-        if not webhook_url:
-            print("❌ Teams webhook URL is empty")
-        elif not webhook_url.startswith('https://outlook.office.com/webhook/'):
-            print("❌ Teams webhook URL format appears incorrect")
-            print(f"   Expected: https://outlook.office.com/webhook/...")
-            print(f"   Got: {webhook_url[:50]}...")
-        else:
-            if test_teams_webhook(webhook_url):
-                tests_passed += 1
-    else:
-        print("ℹ️  Teams integration is disabled")
-    
-    print()
+
     
     # Test Slack
     slack_config = notifications.get('slack', {})
@@ -163,7 +117,7 @@ def main():
     
     if total_tests == 0:
         print("⚠️  No webhook integrations are enabled")
-        print("   Enable Teams or Slack in notifications.yaml to test")
+        print("   Enable Slack in notifications.yaml to test")
     elif tests_passed == total_tests:
         print(f"🎉 All tests passed! ({tests_passed}/{total_tests})")
         print("   Your webhook configuration is working correctly")

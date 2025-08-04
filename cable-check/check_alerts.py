@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LLDPq Alert System - Network monitoring alerts for Teams/Slack
+LLDPq Alert System - Network monitoring alerts for Slack
 Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 
 This script analyzes monitoring data and sends alerts based on configured thresholds.
@@ -119,42 +119,12 @@ class LLDPqAlerts:
         color = colors.get(severity, "#808080")
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # Send to Teams
-        teams_config = self.config.get('notifications', {}).get('teams', {})
-        if teams_config.get('enabled') and teams_config.get('webhook'):
-            self.send_teams_message(title, message, color, device, timestamp, teams_config['webhook'])
-        
         # Send to Slack
         slack_config = self.config.get('notifications', {}).get('slack', {})
         if slack_config.get('enabled') and slack_config.get('webhook'):
             self.send_slack_message(title, message, color, device, timestamp, slack_config)
     
-    def send_teams_message(self, title, message, color, device, timestamp, webhook):
-        """Send message to Microsoft Teams"""
-        try:
-            server_url = self.config.get('notifications', {}).get('server_url', 'http://localhost')
-            payload = {
-                "title": title,
-                "text": message,
-                "themeColor": color,
-                "sections": [{
-                    "facts": [
-                        {"name": "Device", "value": device},
-                        {"name": "Time", "value": timestamp},
-                        {"name": "Dashboard", "value": f"[View Details]({server_url}/monitor-results/{device}.html)"}
-                    ]
-                }]
-            }
-            
-            response = requests.post(webhook, json=payload, timeout=10)
-            if response.status_code == 200:
-                print(f"✅ Teams alert sent: {title}")
-            else:
-                print(f"❌ Teams alert failed: {response.status_code}")
-                
-        except Exception as e:
-            print(f"❌ Teams notification error: {e}")
-    
+
     def send_slack_message(self, title, message, color, device, timestamp, slack_config):
         """Send message to Slack"""
         try:
