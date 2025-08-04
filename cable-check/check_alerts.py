@@ -677,30 +677,26 @@ BER Analysis Results:
         return False
 
     def get_device_hardware_status(self, device):
-        """Get hardware health status for a device"""
+        """Get hardware health status for a device from processed summary"""
         try:
-            hardware_file = self.monitor_results / "hardware-data" / f"{device}_hardware.txt"
-            if not hardware_file.exists():
-                return None
+            # Read from processed hardware_history.json
+            hardware_history_file = self.monitor_results / "hardware_history.json"
+            if not hardware_history_file.exists():
+                return "good"  # Default to healthy if no data
                 
-            with open(hardware_file, 'r') as f:
-                hardware_data = f.read()
+            with open(hardware_history_file, 'r') as f:
+                hardware_data = json.load(f)
             
-            # Simple status check based on temperature
-            cpu_temp_match = re.search(r'CPU ACPI temp:\s*\+?([0-9.]+)°C', hardware_data)
-            if cpu_temp_match:
-                cpu_temp = float(cpu_temp_match.group(1))
-                if cpu_temp >= 85:
-                    return "CRITICAL"
-                elif cpu_temp >= 75:
-                    return "WARNINGS"
-                elif cpu_temp >= 65:
-                    return "GOOD"
-                else:
-                    return "EXCELLENT"
-            return "GOOD"
+            # Get hardware stats for this device
+            device_hardware = hardware_data.get(device, {})
+            if device_hardware:
+                current_stats = device_hardware.get("current_stats", {})
+                severity = current_stats.get("severity", "good")
+                return severity.lower()
+            
+            return "good"
         except:
-            return None
+            return "good"
 
     def get_device_log_counts(self, device):
         """Get log severity counts for a device from processed summary"""
@@ -844,13 +840,23 @@ BER Analysis Results:
     def analyze_lldp_topology(self):
         """Analyze LLDP topology data like the web frontend does"""
         try:
-            # Check if lldp_results.ini exists
-            lldp_file = self.monitor_results.parent / "html" / "lldp_results.ini"
-            if not lldp_file.exists():
-                # Fall back to check in monitor-results
-                lldp_file = self.monitor_results / "lldp_results.ini"
-                if not lldp_file.exists():
-                    return {"successful": 0, "failed": 0, "warnings": 0, "no_info": 0}
+            # Check for lldp_results.ini in different locations
+            lldp_file = None
+            possible_paths = [
+                self.cable_check_dir.parent / "html" / "lldp_results.ini",  # main html dir
+                self.monitor_results.parent / "html" / "lldp_results.ini", # relative to monitor-results
+                self.cable_check_dir / "lldp-results" / "lldp_results.ini", # lldp-results dir
+                self.monitor_results / "lldp_results.ini"  # monitor-results dir
+            ]
+            
+            for path in possible_paths:
+                if path.exists():
+                    lldp_file = path
+                    break
+                    
+            if not lldp_file:
+                print(f"    ❌ No lldp_results.ini found in any expected location")
+                return {"successful": 0, "failed": 0, "warnings": 0, "no_info": 0}
             
             with open(lldp_file, 'r') as f:
                 data = f.read()
