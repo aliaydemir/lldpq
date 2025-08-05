@@ -46,7 +46,7 @@ server {
                 return 200 '{"status": "ok", "message": "CORS preflight"}';
             }
             
-            # Always return success (trigger handled by background service)
-            return 200 '{"status": "started", "message": "LLDP check request received", "note": "Check will run in background. Refresh page in 1-2 minutes."}';
+            # Just return success - trigger handled by timestamp monitoring
+            return 200 '{"status": "started", "message": "LLDP check triggered", "note": "Check will run in background. Refresh page in 1-2 minutes."}';
         }
 }

@@ -35,42 +35,28 @@ if [ -f "/var/log/nginx/access.log" ]; then
     fi
 fi
 
-# Check if LLDP check is needed via access log monitoring
-ACCESS_LOG="/var/log/nginx/access.log"
-LAST_CHECK_FILE="$MONITOR_DIR/.last_trigger_check"
+# Simple file-based trigger (user creates trigger file manually)
+TRIGGER_FILE="$MONITOR_DIR/.web_trigger"
 
-if [ -f "$ACCESS_LOG" ]; then
-    # Get last modification time of access log
-    LOG_MODIFIED=$(stat -c %Y "$ACCESS_LOG" 2>/dev/null || echo 0)
-    LAST_CHECK=$(cat "$LAST_CHECK_FILE" 2>/dev/null || echo 0)
-    
-    # If log was modified since last check, look for trigger requests
-    if [ "$LOG_MODIFIED" -gt "$LAST_CHECK" ]; then
-        # Check for trigger-lldp requests in last 2 minutes
-        TRIGGER_FOUND=$(tail -50 "$ACCESS_LOG" | grep -c "POST /trigger-lldp")
+if [ -f "$TRIGGER_FILE" ]; then
+    {
+        echo "$(date): Web trigger found, starting LLDP check..."
         
-        if [ "$TRIGGER_FOUND" -gt 0 ]; then
-            # Update last check timestamp
-            echo "$LOG_MODIFIED" > "$LAST_CHECK_FILE"
-            
-            # Create lock file with PID
-            echo $$ > "$LOCK_FILE"
-            
-            {
-                echo "$(date): Web trigger detected, starting LLDP check..."
-                cd "$MONITOR_DIR"
-                
-                # Run the LLDP check
-                ./check-lldp.sh
-                
-                echo "$(date): LLDP check completed"
-            } >> "$LOG_FILE" 2>&1
-            
-            # Remove lock file
-            rm -f "$LOCK_FILE"
-        else
-            # Update last check even if no trigger found
-            echo "$LOG_MODIFIED" > "$LAST_CHECK_FILE"
-        fi
-    fi
+        # Create lock file with PID
+        echo $$ > "$LOCK_FILE"
+        
+        # Remove trigger file
+        rm -f "$TRIGGER_FILE"
+        
+        cd "$MONITOR_DIR"
+
+        # Run asset discovery and LLDP checks
+        /bin/bash ./assets.sh >/dev/null 2>&1
+        /bin/bash ./check-lldp.sh >/dev/null 2>&1
+        
+        echo "$(date): LLDP check completed"
+        
+        # Remove lock file
+        rm -f "$LOCK_FILE"
+    } >> "$LOG_FILE" 2>&1
 fi

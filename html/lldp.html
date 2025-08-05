@@ -651,39 +651,40 @@
             .then(data => {
                 console.log('✅ LLDP check response:', data);
                 
-                if (data.status === 'started') {
-                    // Show success message
-                    buttonText.textContent = '✓ Started';
-                    button.style.background = '#4caf50';
-                    
-                    // Show notification
-                    const notification = document.createElement('div');
-                    notification.style.cssText = `
-                        position: fixed;
-                        top: 20px;
-                        right: 20px;
-                        background: #4caf50;
-                        color: white;
-                        padding: 15px 20px;
-                        border-radius: 8px;
-                        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-                        z-index: 1000;
-                        font-size: 14px;
-                        max-width: 300px;
-                    `;
-                    notification.innerHTML = `
-                        <strong>LLDP Check Started!</strong><br>
-                        ${data.note || 'Refresh the page in 1-2 minutes for updated results.'}
-                    `;
-                    
-                    document.body.appendChild(notification);
-                    
-                    // Auto-remove notification after 5 seconds
-                    setTimeout(() => {
-                        if (notification.parentNode) {
-                            notification.parentNode.removeChild(notification);
-                        }
-                    }, 5000);
+                // Always show manual trigger instruction
+                buttonText.textContent = '✓ Triggered';
+                button.style.background = '#4caf50';
+                
+                // Show instruction notification
+                const notification = document.createElement('div');
+                notification.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: #2196f3;
+                    color: white;
+                    padding: 15px 20px;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                    z-index: 1000;
+                    font-size: 14px;
+                    max-width: 350px;
+                    font-family: monospace;
+                `;
+                notification.innerHTML = `
+                    <strong>🚀 Run this command:</strong><br>
+                    <code style="background: rgba(255,255,255,0.2); padding: 2px 4px; border-radius: 3px;">touch ~/monitor/.web_trigger</code><br>
+                    <small>LLDP check will start in ~1 minute</small>
+                `;
+                
+                document.body.appendChild(notification);
+                
+                // Auto-remove notification after 10 seconds
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 10000);
                     
                     // Reset button after 3 seconds
                     setTimeout(() => {
