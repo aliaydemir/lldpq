@@ -138,7 +138,9 @@ EOF
                 printf "<span style=\"color:steelblue;\">%-14s</span> <span style=\"color:%s;\">%-12s</span> <span style=\"color:%s;\">%-12s</span> %s\n" "$interface" "$color" "$state" "$color" "$link_status" "$description"
             fi
         done
-        
+
+
+
 
         echo "<h1></h1><h1><font color=\"#b57614\">Interface IP Addresses '"$hostname"'</font></h1><h3></h3>"
         
@@ -148,8 +150,9 @@ EOF
         # Get interfaces with IP addresses (basic shell approach)
         temp_ip_file="/tmp/ip_addresses_$$"
         
-        # Extract interface names with IPv4 addresses - fixed for SSH
-        for interface in $(ip addr show | grep "^[0-9]*:" | cut -d: -f2 | cut -d@ -f1 | sed 's/^[ \t]*//'); do
+        # Extract interface names with IPv4 addresses - simple approach
+        for interface in $(ip addr show | grep "^[0-9]*:" | cut -d: -f2 | cut -d@ -f1); do
+            interface=$(echo "$interface" | xargs)  # Remove spaces
             ipv4=$(ip addr show "$interface" 2>/dev/null | grep "inet " | grep -v "127.0.0.1" | awk '{print $2}' | head -1)
             ipv6=$(ip addr show "$interface" 2>/dev/null | grep "inet6.*scope global" | awk '{print $2}' | head -1)
             
@@ -159,7 +162,10 @@ EOF
                 printf "<span style=\"color:steelblue;\">%-20s</span> <span style=\"color:orange;\">%-18s</span> <span style=\"color:cyan;\">%s</span>\n" "$interface" "$ipv4" "$ipv6"
             fi
         done
-        
+
+
+
+
         echo "<h1></h1><h1><font color=\"#b57614\">VLAN Configuration '"$hostname"'</font></h1><h3></h3>"
         
         # VLAN mapping using bridge vlan (shows actual bridge configuration)
