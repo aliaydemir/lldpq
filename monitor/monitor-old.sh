@@ -1,14 +1,14 @@
 #!/bin/bash
-# Monitor Script with Linux Native Commands (No nv show)
+# Original Monitor Script. Used to get the initial data.
 #
 # Copyright (c) 2024 LLDPq Project
 # Licensed under MIT License - see LICENSE file for details
 
 # Start timing
 START_TIME=$(date +%s)
-echo "🚀 Starting monitoring at $(date) with Linux native commands"
+echo "🚀 Starting  monitoring at $(date)"
 
-DATE=$(date '+%Y-%m-%d %H-%M-%S')
+DATE=$(date '+%Y-%m-%d %H-%M')
 SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
 eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 
@@ -115,101 +115,20 @@ EOF
     start_section "Interface Overview"
     local start_time=$(date +%s)
     
-    # NATIVE LINUX: Single SSH session with Linux native commands instead of nv show
+    # OPTIMIZED: Single SSH session with ALL original commands
+    # Combine all nv show commands into one SSH call (like original monitor.sh)
     ssh $SSH_OPTS -q "$user@$device" '
-
+        echo "<h1></h1><h1><font color=\"#b57614\">Interface Overview '"$hostname"'</font></h1><h3></h3>"
+        nv show interface | sed -E "1 s/^port/<span style=\"color:green;\">Interface<\/span>/; 1,2! s/^(\S+)/<span style=\"color:steelblue;\">\1<\/span>/;  s/ up /<span style=\"color:lime;\"> up <\/span>/g; s/ down /<span style=\"color:red;\"> down <\/span>/g"
         
         echo "<h1></h1><h1><font color=\"#b57614\">Port Status '"$hostname"'</font></h1><h3></h3>"
+        nv show interface status | sed -E "1 s/^port/<span style=\"color:green;\">Interface<\/span>/; 1,2! s/^(\S+)/<span style=\"color:steelblue;\">\1<\/span>/;  s/ up /<span style=\"color:lime;\"> up <\/span>/g; s/ down /<span style=\"color:red;\"> down <\/span>/g"
         
-        # Port status using ip link show with description (replaces nv show interface status + description)
-        printf "<span style=\"color:green;\">%-14s %-12s %-12s %s</span>\n" "Interface" "State" "Link" "Description"
+        echo "<h1></h1><h1><font color=\"#b57614\">Port Description '"$hostname"'</font></h1><h3></h3>"
+        nv show interface description | sed -E "1 s/^port/<span style=\"color:green;\">Interface<\/span>/; 1,2! s/^(\S+)/<span style=\"color:steelblue;\">\1<\/span>/;  s/ up /<span style=\"color:lime;\"> up <\/span>/g; s/ down /<span style=\"color:red;\"> down <\/span>/g"
         
-        # Get interfaces and sort them numerically by port number (no UP/DOWN grouping)
-        
-        for interface in $(ip link show | awk "/^[0-9]+: swp[0-9]+[s0-9]*/ {gsub(/:/, \"\", \$2); print \$2}" | sort -V); do
-            if [ -e "/sys/class/net/$interface" ]; then
-                state=$(cat /sys/class/net/$interface/operstate 2>/dev/null || echo "unknown")
-                link_status=$([ "$state" = "up" ] && echo "up" || echo "down")
-                color=$([ "$link_status" = "up" ] && echo "lime" || echo "red")
-                
-                description=$(ip link show "$interface" | grep -o "alias.*" | sed "s/alias //")
-                [ -z "$description" ] && description="No description"
-                
-                printf "<span style=\"color:steelblue;\">%-14s</span> <span style=\"color:%s;\">%-12s</span> <span style=\"color:%s;\">%-12s</span> %s\n" "$interface" "$color" "$state" "$color" "$link_status" "$description"
-            fi
-        done
-
-
-
-
-        echo "<h1></h1><h1><font color=\"#b57614\">Interface IP Addresses '"$hostname"'</font></h1><h3></h3>"
-        
-        # IP address information - show only interfaces with IPv4 or IPv6 global addresses
-        printf "<span style=\"color:green;\">%-20s %-18s %s</span>\n" "Interface" "IPv4" "IPv6 Global"
-        
-        # Get interfaces with IP addresses (basic shell approach)
-        temp_ip_file="/tmp/ip_addresses_$$"
-        
-        # Extract interface names with IPv4 addresses - simple approach
-        for interface in $(ip addr show | grep "^[0-9]*:" | cut -d: -f2 | cut -d@ -f1); do
-            interface=$(echo "$interface" | xargs)  # Remove spaces
-            ipv4=$(ip addr show "$interface" 2>/dev/null | grep "inet " | grep -v "127.0.0.1" | grep -o "[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+/[0-9]\+" | head -1)
-            ipv6=$(ip addr show "$interface" 2>/dev/null | grep "inet6.*scope global" | grep -o "[0-9a-f:]\+/[0-9]\+" | head -1)
-            
-            if [ -n "$ipv4" ] || [ -n "$ipv6" ]; then
-                [ -z "$ipv4" ] && ipv4="-"
-                [ -z "$ipv6" ] && ipv6="-"
-                printf "<span style=\"color:steelblue;\">%-20s</span> <span style=\"color:orange;\">%-18s</span> <span style=\"color:cyan;\">%s</span>\n" "$interface" "$ipv4" "$ipv6"
-            fi
-        done
-
-
-
-
-
-        echo "<h1></h1><h1><font color=\"#b57614\">VLAN Configuration '"$hostname"'</font></h1><h3></h3>"
-        
-        # VLAN mapping using bridge vlan (shows actual bridge configuration)
-        echo ""  # Skip the header since bridge vlan provides its own
-        
-        # Use bridge vlan command (with correct full path)
-        if /usr/sbin/bridge vlan >/dev/null 2>&1; then
-            /usr/sbin/bridge vlan | sed -E "
-                # Color header words in gray (exact match at line start)
-                s/^(port)([[:space:]]+)/\<span style=\"color:gray;\"\>\1\<\/span\>\2/
-                s/^([[:space:]]*)(vlan-id)/\1\<span style=\"color:gray;\"\>\2\<\/span\>/
-                # Color port names in blue (swp, hgx_bond, br_default, peerlink, etc.)
-                s/^([a-zA-Z][a-zA-Z0-9_]*[0-9]*)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
-                # Color VLAN numbers in orange (only numbers that follow whitespace and are followed by space/comma/PVID)
-                s/([[:space:]])([0-9]{1,4})([[:space:]]+|,|$)/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
-                s/([[:space:]])([0-9]{1,4})(PVID)/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
-                # Color PVID in green
-                s/PVID/\<span style=\"color:lime;\"\>PVID\<\/span\>/g
-                # Color Egress/tagged keywords
-                s/(Egress|Untagged|tagged)/\<span style=\"color:yellow;\"\>\1\<\/span\>/g
-            "
-        elif bridge vlan >/dev/null 2>&1; then
-            bridge vlan | sed -E "
-                # Color header words in gray (exact match at line start)
-                s/^(port)([[:space:]]+)/\<span style=\"color:gray;\"\>\1\<\/span\>\2/
-                s/^([[:space:]]*)(vlan-id)/\1\<span style=\"color:gray;\"\>\2\<\/span\>/
-                # Color port names in blue (swp, hgx_bond, br_default, peerlink, etc.)
-                s/^([a-zA-Z][a-zA-Z0-9_]*[0-9]*)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
-                # Color VLAN numbers in orange (only numbers that follow whitespace and are followed by space/comma/PVID)
-                s/([[:space:]])([0-9]{1,4})([[:space:]]+|,|$)/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
-                s/([[:space:]])([0-9]{1,4})(PVID)/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
-                # Color PVID in green
-                s/PVID/\<span style=\"color:lime;\"\>PVID\<\/span\>/g
-                # Color Egress/tagged keywords
-                s/(Egress|Untagged|tagged)/\<span style=\"color:yellow;\"\>\1\<\/span\>/g
-            "
-        else
-            echo "Bridge command not found - checking PATH: $PATH"
-            echo "Trying alternative paths..."
-            which bridge 2>/dev/null || echo "Bridge not in PATH"
-            ls -la /sbin/bridge 2>/dev/null || echo "Bridge not in /sbin/"
-            ls -la /usr/sbin/bridge 2>/dev/null || echo "Bridge not in /usr/sbin/"
-        fi
+        echo "<h1></h1><h1><font color=\"#b57614\">Port VLAN Mapping '"$hostname"'</font></h1><h3></h3>"
+        nv show bridge port-vlan | cut -c11- | sed -E "1 s/^    port/<span style=\"color:green;\">    port<\/span>/; 2! s/^(\s{0,4})([a-zA-Z_]\S*)/\1<span style=\"color:steelblue;\">\2<\/span>/; s/\btagged\b/<span style=\"color:tomato;\">tagged<\/span>/g"
         
         echo "<h1></h1><h1><font color=\"#b57614\">ARP Table '"$hostname"'</font></h1><h3></h3>"
         ip neighbour | grep -E -v "fe80" | sort -t "." -k1,1n -k2,2n -k3,3n -k4,4n | sed -E "s/^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/<span style=\"color:tomato;\">\1<\/span>/; s/dev ([^ ]+)/dev <span style=\"color:steelblue;\">\1<\/span>/; s/lladdr ([0-9a-f:]+)/lladdr <span style=\"color:tomato;\">\1<\/span>/"
@@ -233,44 +152,39 @@ EOF
     start_section "Interface Data Collection"
     local interface_start=$(date +%s)
     
-    # NATIVE LINUX: Single SSH session for all interface data collection
+    # OPTIMIZED: Single SSH session for all interface data collection
     timeout 600 ssh $SSH_OPTS -q "$user@$device" '
-        echo "=== NATIVE LINUX INTERFACE DATA COLLECTION ==="
+        echo "=== OPTIMIZED INTERFACE DATA COLLECTION ==="
         
-        # Get interface list using ip link (replaces nv show interface)
-        all_interfaces=$(ip link show | awk "/^[0-9]+: swp[0-9]+[s0-9]*/ {gsub(/:/, \"\", \$2); print \$2}")
+        # Get interface list once (include ALL swp interfaces - base and breakout)
+        all_interfaces=$(nv show interface 2>/dev/null | grep "^swp[0-9]" | awk "{print \$1}" || ls /sys/class/net/swp[0-9]* 2>/dev/null | xargs -n1 basename)
         
-        # Collect ALL interface data in single loop using native Linux commands
+        # Collect ALL interface data in single loop
         for interface in $all_interfaces; do
             if [ ! -e "/sys/class/net/$interface" ]; then continue; fi
             
             echo "=== INTERFACE: $interface ==="
             
-            # Carrier transitions data using /sys (replaces nv show interface counters)
+            # Carrier transitions data
             echo "CARRIER_TRANSITIONS:"
-            carrier_count=$(cat /sys/class/net/$interface/carrier_changes 2>/dev/null || echo "0")
+            carrier_count=$(nv show interface $interface counters 2>/dev/null | grep "carrier-transitions" | awk "{print \$2}")
+            if [ -z "$carrier_count" ] || [ "$carrier_count" = "" ]; then
+                carrier_count=$(cat /sys/class/net/$interface/carrier_changes 2>/dev/null || echo "0")
+            fi
             echo "$interface:$carrier_count"
             
-            # Optical transceiver data using ethtool (replaces nv show interface transceiver)
+            # Optical transceiver data
             echo "OPTICAL_TRANSCEIVER:"
-            if ethtool -m "$interface" >/dev/null 2>&1; then
-                ethtool -m "$interface" 2>/dev/null || echo "No transceiver data available"
+            transceiver_data=$(nv show interface $interface transceiver 2>/dev/null)
+            if [ -n "$transceiver_data" ] && [ "$transceiver_data" != "Error: The requested item does not exist." ]; then
+                echo "$transceiver_data"
             else
                 echo "No transceiver data available"
             fi
             
-            # BER detailed counters using /sys/class/net (replaces nv show interface counters)
+            # BER detailed counters
             echo "BER_COUNTERS:"
-            if [ -d "/sys/class/net/$interface/statistics" ]; then
-                echo "rx_packets: $(cat /sys/class/net/$interface/statistics/rx_packets 2>/dev/null || echo 0)"
-                echo "tx_packets: $(cat /sys/class/net/$interface/statistics/tx_packets 2>/dev/null || echo 0)"
-                echo "rx_errors: $(cat /sys/class/net/$interface/statistics/rx_errors 2>/dev/null || echo 0)"
-                echo "tx_errors: $(cat /sys/class/net/$interface/statistics/tx_errors 2>/dev/null || echo 0)"
-                echo "rx_dropped: $(cat /sys/class/net/$interface/statistics/rx_dropped 2>/dev/null || echo 0)"
-                echo "tx_dropped: $(cat /sys/class/net/$interface/statistics/tx_dropped 2>/dev/null || echo 0)"
-            else
-                echo "No detailed counters available"
-            fi
+            nv show interface $interface counters 2>/dev/null | grep -E "rx.*packets|tx.*packets|rx.*errors|tx.*errors" 2>/dev/null || echo "No detailed counters available"
             
             echo "=== END_INTERFACE: $interface ==="
         done
@@ -282,18 +196,22 @@ EOF
     start_section "Carrier Transitions"
     local carrier_start=$(date +%s)
     
-    # NATIVE LINUX: carrier transitions collection using /sys
+    # OPTIMIZED carrier transitions collection (single SSH session)
     echo "=== CARRIER TRANSITIONS ===" > "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
     
-    # Single SSH session for ALL carrier transitions data using native Linux
+    # Single SSH session for ALL carrier transitions data
     timeout 300 ssh $SSH_OPTS -q "$user@$device" '
-        # Get all swp interfaces using ip link
-        all_interfaces=$(ip link show | awk "/^[0-9]+: swp[0-9]+[s0-9]*/ {gsub(/:/, \"\", \$2); print \$2}")
+        # Get all swp interfaces (base + breakout)
+        all_interfaces=$(nv show interface 2>/dev/null | grep "^swp[0-9]" | awk "{print \$1}")
         
-        # Collect carrier transitions for all interfaces using /sys
+        # Collect carrier transitions for all interfaces in one session
         for interface in $all_interfaces; do
             if [ -e "/sys/class/net/$interface" ]; then
-                carrier_count=$(cat /sys/class/net/$interface/carrier_changes 2>/dev/null || echo "0")
+                # Try nv command first, fallback to /sys
+                carrier_count=$(nv show interface $interface counters 2>/dev/null | grep "carrier-transitions" | awk "{print \$2}")
+                if [ -z "$carrier_count" ] || [ "$carrier_count" = "" ]; then
+                    carrier_count=$(cat /sys/class/net/$interface/carrier_changes 2>/dev/null || echo "0")
+                fi
                 if [ -n "$carrier_count" ] && [ "$carrier_count" != "" ]; then
                     echo "$interface:$carrier_count"
                 fi
@@ -371,7 +289,7 @@ EOF
             sudo journalctl -u frr --since="2 hours ago" --no-pager --lines=200 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|DOWN|BGP|neighbor|peer)" || echo "No recent FRR routing issues"
         elif [ -f "/var/log/frr/frr.log" ]; then
             # Fallback to file-based but with date filtering
-            sudo grep "$(date '\''+%b %d'\'')" /var/log/frr/frr.log 2>/dev/null | tail -30 | grep -E "(error|warn|crit|fail|down|bgp)" || echo "No recent FRR routing issues"
+            sudo grep "$(date '+%b %d')" /var/log/frr/frr.log 2>/dev/null | tail -30 | grep -E "(error|warn|crit|fail|down|bgp)" || echo "No recent FRR routing issues"
         else
             echo "FRR service/log not available"
         fi
@@ -382,7 +300,7 @@ EOF
             sudo journalctl -u switchd --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|EXCEPT|port|link|vlan)" || echo "No recent switchd issues"
         elif [ -f "/var/log/switchd.log" ]; then
             # Fallback to file-based but with date filtering
-            sudo grep "$(date '\''+%b %d'\'')" /var/log/switchd.log 2>/dev/null | tail -30 | grep -E "(error|warn|crit|fail|except)" || echo "No recent switchd issues"
+            sudo grep "$(date '+%b %d')" /var/log/switchd.log 2>/dev/null | tail -30 | grep -E "(error|warn|crit|fail|except)" || echo "No recent switchd issues"
         else
             echo "Switchd service/log not available"
         fi
@@ -393,7 +311,7 @@ EOF
             sudo journalctl -u nvued --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|FAIL|EXCEPT|config|commit|rollback)" || echo "No recent NVUE config issues"
         elif [ -f "/var/log/nvued.log" ]; then
             # Fallback to file-based but with date filtering
-            sudo grep "$(date '\''+%b %d'\'')" /var/log/nvued.log 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|FAIL|EXCEPT|config|commit|rollback)" || echo "No recent NVUE config issues"
+            sudo grep "$(date '+%b %d')" /var/log/nvued.log 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|FAIL|EXCEPT|config|commit|rollback)" || echo "No recent NVUE config issues"
         else
             echo "NVUE log not found"
         fi
@@ -404,7 +322,7 @@ EOF
             sudo journalctl -u mstpd --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|TOPOLOGY|CHANGE|port|state|bridge)" || echo "No recent STP issues"
         elif [ -f "/var/log/mstpd" ]; then
             # Fallback to file-based but with date filtering
-            sudo grep "$(date '\''+%b %d'\'')" /var/log/mstpd 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|TOPOLOGY|CHANGE|port|state|bridge)" || echo "No recent STP issues"
+            sudo grep "$(date '+%b %d')" /var/log/mstpd 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|TOPOLOGY|CHANGE|port|state|bridge)" || echo "No recent STP issues"
         else
             echo "MSTPD log not found"
         fi
@@ -415,7 +333,7 @@ EOF
             sudo journalctl -u clagd --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|FAIL|CONFLICT|PEER|bond|backup|primary)" || echo "No recent MLAG issues"
         elif [ -f "/var/log/clagd.log" ]; then
             # Fallback to file-based but with date filtering
-            sudo grep "$(date '\''+%b %d'\'')" /var/log/clagd.log 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|FAIL|CONFLICT|PEER|bond|backup|primary)" || echo "No recent MLAG issues"
+            sudo grep "$(date '+%b %d')" /var/log/clagd.log 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|FAIL|CONFLICT|PEER|bond|backup|primary)" || echo "No recent MLAG issues"
         else
             echo "CLAG log not found"
         fi
@@ -423,10 +341,10 @@ EOF
         echo "AUTH_SECURITY_LOGS:"
         # Authentication and security logs (TIME-BASED: Last 2 hours only, excluding monitoring activities)
         if systemctl is-active --quiet systemd-journald 2>/dev/null; then
-            sudo journalctl --since="2 hours ago" --grep="FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized" --no-pager --lines=50 2>/dev/null | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|--since|--grep)" || echo "No recent auth issues"
+            sudo journalctl --since="2 hours ago" --grep="FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized" --no-pager --lines=50 2>/dev/null | grep -v -E "(journalctl|monitor\.sh|--since|--grep)" || echo "No recent auth issues"
         elif [ -f "/var/log/auth.log" ]; then
             # Fallback to file-based but with date filtering (exclude monitoring activities)
-            sudo grep "$(date '\''+%b %d'\'')" /var/log/auth.log 2>/dev/null | tail -30 | grep -E "(FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized)" | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|--since)" || echo "No recent auth issues"
+            sudo grep "$(date '+%b %d')" /var/log/auth.log 2>/dev/null | tail -30 | grep -E "(FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized)" | grep -v -E "(journalctl|monitor\.sh|--since)" || echo "No recent auth issues"
         else
             echo "Auth log not found"
         fi
@@ -437,7 +355,7 @@ EOF
             sudo journalctl --since="2 hours ago" --priority=0..3 --grep="ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault" --no-pager --lines=50 2>/dev/null || echo "No recent system critical issues"
         elif [ -f "/var/log/syslog" ]; then
             # Fallback to file-based but with date filtering
-            sudo grep "$(date '\''+%b %d'\'')" /var/log/syslog 2>/dev/null | tail -50 | grep -E "(ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault)" || echo "No recent system critical issues"
+            sudo grep "$(date '+%b %d')" /var/log/syslog 2>/dev/null | tail -50 | grep -E "(ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault)" || echo "No recent system critical issues"
         else
             echo "Syslog not found"
         fi
@@ -553,7 +471,7 @@ process_device() {
 }
 
 # Start optimized monitoring
-echo "🚀 Starting optimized monitoring with Linux native commands..."
+echo "🚀 Starting optimized monitoring..."
 
 # Process all devices in parallel
 for device in "${!devices[@]}"; do
@@ -564,7 +482,7 @@ done
 wait
 
 echo ""
-echo -e "\e[1;34mNative Linux monitoring completed...\e[0m"
+echo -e "\e[1;34mOptimized monitoring completed...\e[0m"
 
 # Run analyses with timing
 echo -e "\n🔬 \e[1;34mStarting Analysis Phase...\e[0m"
@@ -690,11 +608,10 @@ SECONDS=$((DURATION % 60))
 
 echo ""
 echo "🎉 ==============================================="
-echo "⚡ Native Linux monitoring completed successfully!"
+echo "⚡ Enhanced monitoring completed successfully!"
 echo "⏱️ Total execution time: ${MINUTES}m ${SECONDS}s"
 echo "📊 All device sections completed with timing"
 echo "🔬 All analysis phases completed with timing"  
 echo "🌐 Results available at web interface"
-echo "🐧 Used Linux native commands instead of nv show"
 echo "=================================================="
 exit 0
