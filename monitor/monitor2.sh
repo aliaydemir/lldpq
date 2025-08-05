@@ -166,12 +166,14 @@ EOF
         # Use bridge vlan command (with correct full path)
         if /usr/sbin/bridge vlan >/dev/null 2>&1; then
             /usr/sbin/bridge vlan | sed -E "
-                # Color header words in gray
-                s/^(port|vlan-id)/\<span style=\"color:gray;\"\>\1\<\/span\>/g
-                # Color entire port names in blue (including numbers)
-                s/^([a-zA-Z]+[0-9]*)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
-                # Color standalone VLAN numbers in orange (not in port names)
-                s/([[:space:]])([0-9]{1,4})([[:space:],])/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
+                # Color header words in gray (exact match at line start)
+                s/^(port)([[:space:]]+)/\<span style=\"color:gray;\"\>\1\<\/span\>\2/
+                s/^([[:space:]]*)(vlan-id)/\1\<span style=\"color:gray;\"\>\2\<\/span\>/
+                # Color port names in blue (swp, hgx_bond, br_default, peerlink, etc.)
+                s/^([a-zA-Z][a-zA-Z0-9_]*[0-9]*)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
+                # Color VLAN numbers in orange (only numbers that follow whitespace and are followed by space/comma/PVID)
+                s/([[:space:]])([0-9]{1,4})([[:space:]]+|,|$)/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
+                s/([[:space:]])([0-9]{1,4})(PVID)/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
                 # Color PVID in green
                 s/PVID/\<span style=\"color:lime;\"\>PVID\<\/span\>/g
                 # Color Egress/tagged keywords
@@ -179,12 +181,14 @@ EOF
             "
         elif bridge vlan >/dev/null 2>&1; then
             bridge vlan | sed -E "
-                # Color header words in gray
-                s/^(port|vlan-id)/\<span style=\"color:gray;\"\>\1\<\/span\>/g
-                # Color entire port names in blue (including numbers)
-                s/^([a-zA-Z]+[0-9]*)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
-                # Color standalone VLAN numbers in orange (not in port names)
-                s/([[:space:]])([0-9]{1,4})([[:space:],])/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
+                # Color header words in gray (exact match at line start)
+                s/^(port)([[:space:]]+)/\<span style=\"color:gray;\"\>\1\<\/span\>\2/
+                s/^([[:space:]]*)(vlan-id)/\1\<span style=\"color:gray;\"\>\2\<\/span\>/
+                # Color port names in blue (swp, hgx_bond, br_default, peerlink, etc.)
+                s/^([a-zA-Z][a-zA-Z0-9_]*[0-9]*)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
+                # Color VLAN numbers in orange (only numbers that follow whitespace and are followed by space/comma/PVID)
+                s/([[:space:]])([0-9]{1,4})([[:space:]]+|,|$)/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
+                s/([[:space:]])([0-9]{1,4})(PVID)/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
                 # Color PVID in green
                 s/PVID/\<span style=\"color:lime;\"\>PVID\<\/span\>/g
                 # Color Egress/tagged keywords
