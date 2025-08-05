@@ -34,7 +34,7 @@ server {
             autoindex_localtime on;
         }
         
-        # Simple trigger endpoint (no extra packages needed)
+        # Auto-trigger endpoint with file creation
         location = /trigger-lldp {
             add_header Content-Type application/json always;
             add_header Access-Control-Allow-Origin * always;
@@ -46,7 +46,16 @@ server {
                 return 200 '{"status": "ok", "message": "CORS preflight"}';
             }
             
-            # Just return success - trigger handled by timestamp monitoring
-            return 200 '{"status": "started", "message": "LLDP check triggered", "note": "Check will run in background. Refresh page in 1-2 minutes."}';
+            # Create trigger file and return success
+            access_by_lua_block {
+                local trigger_file = "/var/www/html/.web_trigger"
+                local file = io.open(trigger_file, "w")
+                if file then
+                    file:write(tostring(os.time()))
+                    file:close()
+                end
+            }
+            
+            return 200 '{"status": "started", "message": "LLDP check triggered automatically", "note": "Analysis will complete within 1-2 minutes."}';
         }
 }

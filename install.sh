@@ -27,6 +27,7 @@ echo ""
 echo "[01] Installing required packages..."
 sudo apt update
 sudo apt install -y nginx python3 python3-pip python3-yaml
+sudo apt install -y nginx-extras 
 sudo systemctl enable nginx
 sudo systemctl start nginx
 

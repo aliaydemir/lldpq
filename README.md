@@ -117,7 +117,7 @@ cd monitor && sudo ./webauth.sh     # interactive menu: enable/disable/update au
 
 when enabled, all web pages require authentication. when disabled, everything is open access.
 
-**note**: the web interface includes a "Run LLDP Check" button that triggers lldp analysis from the browser.
+**note**: the web interface includes a "Run LLDP Check" button that automatically triggers lldp analysis from the browser.
 
 ## [11] alerts & notifications
 
