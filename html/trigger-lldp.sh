@@ -17,7 +17,7 @@ fi
 
 # Create trigger file
 TRIGGER_FILE="/tmp/.lldp_web_trigger"
-echo "$(date +%s)" > "$TRIGGER_FILE" 2>/dev/null
+echo "$(date +%s)" | sudo tee "$TRIGGER_FILE" >/dev/null 2>&1 || echo "$(date +%s)" > "$TRIGGER_FILE" 2>/dev/null
 
 # Return JSON response
 if [ -f "$TRIGGER_FILE" ]; then

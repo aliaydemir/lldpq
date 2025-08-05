@@ -19,36 +19,46 @@ if [ -f "$LOCK_FILE" ]; then
     fi
 fi
 
-# Simple file-based trigger (user creates trigger file manually)
+# Check for web triggers using timestamp comparison
+LAST_CHECK_FILE="$MONITOR_DIR/.last_trigger_check"
+LAST_CHECK=0
+if [ -f "$LAST_CHECK_FILE" ]; then
+    LAST_CHECK=$(cat "$LAST_CHECK_FILE")
+fi
+
 if [ -f "$TRIGGER_FILE" ]; then
-    {
-        echo "$(date): Web trigger found, starting LLDP check..."
-        
-        # Create lock file with PID
-        echo $$ > "$LOCK_FILE"
-        
-        # Remove trigger file (may need sudo due to www-data ownership)
-        sudo rm -f "$TRIGGER_FILE" 2>/dev/null || rm -f "$TRIGGER_FILE"
-        
-        cd "$MONITOR_DIR"
+    TRIGGER_TIME=$(stat -c %Y "$TRIGGER_FILE" 2>/dev/null || stat -f %m "$TRIGGER_FILE" 2>/dev/null || echo 0)
+    
+    if [ "$TRIGGER_TIME" -gt "$LAST_CHECK" ]; then
+        {
+            echo "$(date): Web trigger found (timestamp: $TRIGGER_TIME), starting LLDP check..."
+            
+            # Create lock file with PID
+            echo $$ > "$LOCK_FILE"
+            
+            # Update last check timestamp
+            echo "$TRIGGER_TIME" > "$LAST_CHECK_FILE"
+            
+            cd "$MONITOR_DIR"
 
-        # Wait function to prevent conflicts
-        wait_until_not_running() {
-            local script_name="$1"
-            while pgrep -f "$script_name" >/dev/null; do
-                sleep 10
-            done
-        }
+            # Wait function to prevent conflicts
+            wait_until_not_running() {
+                local script_name="$1"
+                while pgrep -f "$script_name" >/dev/null; do
+                    sleep 10
+                done
+            }
 
-        # Run asset discovery and LLDP checks (sequential with conflict prevention)
-        wait_until_not_running "assets.sh"
-        /bin/bash ./assets.sh >/dev/null 2>&1
-        wait_until_not_running "check-lldp.sh"
-        /bin/bash ./check-lldp.sh >/dev/null 2>&1
-        
-        echo "$(date): LLDP check completed"
-        
-        # Remove lock file
-        rm -f "$LOCK_FILE"
-    } >> "$LOG_FILE" 2>&1
+            # Run asset discovery and LLDP checks (sequential with conflict prevention)
+            wait_until_not_running "assets.sh"
+            /bin/bash ./assets.sh >/dev/null 2>&1
+            wait_until_not_running "check-lldp.sh"
+            /bin/bash ./check-lldp.sh >/dev/null 2>&1
+            
+            echo "$(date): LLDP check completed"
+            
+            # Remove lock file
+            rm -f "$LOCK_FILE"
+        } >> "$LOG_FILE" 2>&1
+    fi
 fi
