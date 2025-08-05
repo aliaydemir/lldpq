@@ -64,8 +64,6 @@ echo "   See README.md for examples of each file format"
 
 echo ""
 echo "[04] Configuring nginx..."
-# Disable default site
-sudo rm -f /etc/nginx/sites-enabled/default
 
 # Enable LLDPq site
 sudo ln -sf /etc/nginx/sites-available/lldpq /etc/nginx/sites-enabled/lldpq
