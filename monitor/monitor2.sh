@@ -145,7 +145,7 @@ EOF
         echo "<h1></h1><h1><font color=\"#b57614\">VLAN Configuration '"$hostname"'</font></h1><h3></h3>"
         
         # VLAN mapping using bridge vlan (shows actual bridge configuration)
-        echo "<span style=\"color:green;\">Port                   VLAN Configuration</span>"
+        echo ""  # Skip the header since bridge vlan provides its own
         
         # Use bridge vlan command (with correct full path)
         if /usr/sbin/bridge vlan >/dev/null 2>&1; then
