@@ -146,15 +146,29 @@ EOF
         # IP address information - show only interfaces with IPv4 or IPv6 global addresses
         printf "<span style=\"color:green;\">%-20s %-18s %s</span>\n" "Interface" "IPv4" "IPv6 Global"
         
-        # Get interfaces with IP addresses (simple and working approach)
+        # Get interfaces with IP addresses - debug version
+        echo "DEBUG: Looking for interfaces with IP addresses..."
+        
+        # First show all interfaces
+        echo "All interfaces:"
+        ip addr show | grep "^[0-9]*:" | awk '{print $2}' | cut -d: -f1 | cut -d@ -f1
+        
+        # Then check each one
         for interface in $(ip addr show | grep "^[0-9]*:" | awk '{print $2}' | cut -d: -f1 | cut -d@ -f1); do
+            echo "Checking interface: $interface"
+            
             ipv4=$(ip addr show "$interface" 2>/dev/null | grep "inet " | grep -v "127.0.0.1" | awk '{print $2}' | head -1)
             ipv6=$(ip addr show "$interface" 2>/dev/null | grep "inet6.*scope global" | awk '{print $2}' | head -1)
+            
+            echo "  IPv4: '$ipv4'"
+            echo "  IPv6: '$ipv6'"
             
             if [ -n "$ipv4" ] || [ -n "$ipv6" ]; then
                 [ -z "$ipv4" ] && ipv4="-"
                 [ -z "$ipv6" ] && ipv6="-"
                 printf "<span style=\"color:steelblue;\">%-20s</span> <span style=\"color:orange;\">%-18s</span> <span style=\"color:cyan;\">%s</span>\n" "$interface" "$ipv4" "$ipv6"
+            else
+                echo "  No IP addresses found for $interface"
             fi
         done
         
