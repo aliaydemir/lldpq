@@ -479,7 +479,11 @@
                     // Parse assets.ini file with same logic as assets.html
                     const assetsResponse = await fetch('assets.ini');
                     const assetsText = await assetsResponse.text();
-                    const assetsLines = assetsText.split('\n').filter(line => line.trim() && !line.startsWith('DEVICE-NAME'));
+                    const assetsLines = assetsText.split('\n').filter(line => 
+                        line.trim() && 
+                        !line.startsWith('DEVICE-NAME') && 
+                        !line.startsWith('Created on')
+                    );
                     
                     summaryData.totalDevices = assetsLines.length;
                     summaryData.successful = 0;
