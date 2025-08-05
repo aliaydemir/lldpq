@@ -45,9 +45,10 @@ edit these 6 files:
 ## [04] cron jobs (auto setup)
 
 ```
-*/10 * * * * lldpq         # topology every 10min
-15,45 * * * * monitor      # performance monitor every 30min (15,45)  
-0 */12 * * * get-conf      # configs every 12 hours
+*/10 * * * * lldpq                      # topology every 10min
+15,45 * * * * monitor                   # performance monitor every 30min (15,45)  
+0 */12 * * * get-conf                   # configs every 12 hours
+* * * * * lldp-trigger-monitor.sh       # web triggers every minute
 ```
 
 ## [05] update
@@ -115,6 +116,8 @@ cd monitor && sudo ./webauth.sh     # interactive menu: enable/disable/update au
 - **zero backend**: no php/python needed, pure nginx feature
 
 when enabled, all web pages require authentication. when disabled, everything is open access.
+
+**note**: the web interface includes a "Run LLDP Check" button that triggers lldp analysis from the browser.
 
 ## [11] alerts & notifications
 

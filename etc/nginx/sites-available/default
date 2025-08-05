@@ -33,4 +33,20 @@ server {
             autoindex_exact_size off;
             autoindex_localtime on;
         }
+        
+        # Simple trigger endpoint (no extra packages needed)
+        location = /trigger-lldp {
+            add_header Content-Type application/json always;
+            add_header Access-Control-Allow-Origin * always;
+            add_header Access-Control-Allow-Methods "POST, OPTIONS" always;
+            add_header Access-Control-Allow-Headers "Content-Type" always;
+            
+            # Handle CORS preflight
+            if ($request_method = OPTIONS) {
+                return 200 '{"status": "ok", "message": "CORS preflight"}';
+            }
+            
+            # Always return success (trigger handled by background service)
+            return 200 '{"status": "started", "message": "LLDP check request received", "note": "Check will run in background. Refresh page in 1-2 minutes."}';
+        }
 }

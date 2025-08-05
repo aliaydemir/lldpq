@@ -55,10 +55,10 @@ echo ""
 echo "[03] Configuration files to edit:"
 echo "   You need to manually edit these files with your network details:"
 echo ""
-echo "   1. sudo nano /etc/ip_list           # Add your device IP addresses"
-echo "   2. sudo nano /etc/nccm.yml          # Configure SSH connection details"
-echo "   3. nano ~/monitor/devices.yaml  # Define your network devices"
-echo "   4. nano ~/monitor/topology.dot  # Define your network topology"
+echo "   1. sudo nano /etc/ip_list              # Add your device IP addresses"
+echo "   2. sudo nano /etc/nccm.yml             # Configure SSH connection details"
+echo "   3. nano ~/monitor/devices.yaml         # Define your network devices"
+echo "   4. nano ~/monitor/topology.dot         # Define your network topology"
 echo ""
 echo "   See README.md for examples of each file format"
 
@@ -76,10 +76,13 @@ sudo sed -i '/lldpq\|monitor\|get-conf/d' /etc/crontab
 echo "*/10 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab
 echo "15,45 * * * * $(whoami) /usr/local/bin/monitor" | sudo tee -a /etc/crontab  
 echo "0 */12 * * * $(whoami) /usr/local/bin/get-conf" | sudo tee -a /etc/crontab
+echo "* * * * * $(whoami) $HOME/monitor/lldp-trigger-monitor.sh" | sudo tee -a /etc/crontab
+
 echo "Cron jobs added:"
-echo "   - lldpq:    every 10 minutes"
-echo "   - monitor:  every 30 minutes (15,45)"  
-echo "   - get-conf: every 12 hours"
+echo "   - lldpq:           every 10 minutes"
+echo "   - monitor:         every 30 minutes (15,45)"  
+echo "   - get-conf:        every 12 hours"
+echo "   - web triggers:    every minute (enables Run LLDP Check button)"
 
 echo ""
 echo "[06] SSH Key Setup Required"
