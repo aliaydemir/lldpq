@@ -146,12 +146,8 @@ EOF
         # IP address information - show only interfaces with IPv4 or IPv6 global addresses
         printf "<span style=\"color:green;\">%-20s %-18s %s</span>\n" "Interface" "IPv4" "IPv6 Global"
         
-        # Get interfaces with IP addresses (basic shell approach)
-        temp_ip_file="/tmp/ip_addresses_$$"
-        
-        # Extract interface names with IPv4 addresses
-        ip addr show | grep -A 10 "^[0-9]*:" | grep -B 10 "inet " | grep "^[0-9]*:" | while read line; do
-            interface=$(echo "$line" | awk '{print $2}' | cut -d: -f1 | cut -d@ -f1)
+        # Get interfaces with IP addresses (simple and working approach)
+        for interface in $(ip addr show | grep "^[0-9]*:" | awk '{print $2}' | cut -d: -f1 | cut -d@ -f1); do
             ipv4=$(ip addr show "$interface" 2>/dev/null | grep "inet " | grep -v "127.0.0.1" | awk '{print $2}' | head -1)
             ipv6=$(ip addr show "$interface" 2>/dev/null | grep "inet6.*scope global" | awk '{print $2}' | head -1)
             
