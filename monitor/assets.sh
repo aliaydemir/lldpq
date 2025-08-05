@@ -21,11 +21,11 @@ remote_info() {
   ip4=$(ip -4 -o addr show eth0 | awk '{print $4}' | cut -d/ -f1)
   # 3) MAC
   mac=$(cat /sys/class/net/eth0/address 2>/dev/null)
-  # 4) SERIAL
-  serial=$(nv sh platform | grep serial-number | awk "{print \$2}")
+  # 4) SERIAL (fast alternative)
+  serial=$(sudo dmidecode -s system-serial-number 2>/dev/null | head -1)
   [[ -z "$serial" ]] && serial="NA"
-  # 5) MODEL
-  model=$(nv sh platform | grep product-name | awk "{print \$2}")
+  # 5) MODEL (fast alternative)
+  model=$(sudo dmidecode -s system-product-name 2>/dev/null | head -1)
   [[ -z "$model" ]] && model="NA"
   # 6) RELEASE
   rel=$(grep RELEASE /etc/lsb-release | cut -d "=" -f2)
