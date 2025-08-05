@@ -124,21 +124,38 @@ EOF
         # Port status using ip link show with description (replaces nv show interface status + description)
         printf "<span style=\"color:green;\">%-14s %-12s %-12s %s</span>\n" "Interface" "State" "Link" "Description"
         
-        # Get interface list and process each with state, link, and description
+        # Collect interface data first, then sort properly
+        temp_file="/tmp/port_status_$$"
+        
+        # Get interface list and collect data for sorting
         for interface in $(ip link show | awk "/^[0-9]+: swp[0-9]+/ {gsub(/:/, \"\", \$2); print \$2}"); do
             if [ -e "/sys/class/net/$interface" ]; then
                 # Get state and link status
                 state=$(cat /sys/class/net/$interface/operstate 2>/dev/null || echo "unknown")
                 link_status=$([ "$state" = "up" ] && echo "up" || echo "down")
-                color=$([ "$link_status" = "up" ] && echo "lime" || echo "red")
                 
                 # Get description (alias) from ip link show
                 description=$(ip link show "$interface" | grep -o "alias.*" | sed "s/alias //")
                 [ -z "$description" ] && description="No description"
                 
-                printf "<span style=\"color:steelblue;\">%-14s</span> <span style=\"color:%s;\">%-12s</span> <span style=\"color:%s;\">%-12s</span> %s\n" "$interface" "$color" "$state" "$color" "$link_status" "$description"
+                # Extract numeric part for sorting (swp1 -> 1, swp150 -> 150)
+                num=$(echo "$interface" | sed 's/swp//')
+                
+                # Create sortable line: status_priority|numeric_port|interface|state|link_status|description
+                # UP ports get priority 1, DOWN ports get priority 2
+                priority=$([ "$link_status" = "up" ] && echo "1" || echo "2")
+                printf "%s|%05d|%s|%s|%s|%s\n" "$priority" "$num" "$interface" "$state" "$link_status" "$description" >> "$temp_file"
             fi
         done
+        
+        # Sort by status (UP first), then by numeric port number, and display
+        sort -t'|' -k1,1n -k2,2n "$temp_file" | while IFS='|' read -r priority num interface state link_status description; do
+            color=$([ "$link_status" = "up" ] && echo "lime" || echo "red")
+            printf "<span style=\"color:steelblue;\">%-14s</span> <span style=\"color:%s;\">%-12s</span> <span style=\"color:%s;\">%-12s</span> %s\n" "$interface" "$color" "$state" "$color" "$link_status" "$description"
+        done
+        
+        # Clean up temp file
+        rm -f "$temp_file"
         
 
         
