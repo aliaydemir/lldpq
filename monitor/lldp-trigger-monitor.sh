@@ -4,8 +4,8 @@
 # Add to crontab: * * * * * /path/to/lldp_trigger_monitor.sh
 
 MONITOR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TRIGGER_FILE="/tmp/lldp_trigger"
-LOCK_FILE="/tmp/lldp_running.lock"
+TRIGGER_FILE="$MONITOR_DIR/.web_trigger"
+LOCK_FILE="/tmp/lldp_running.lock"  
 LOG_FILE="$MONITOR_DIR/trigger_monitor.log"
 
 # Exit if already running
@@ -19,25 +19,7 @@ if [ -f "$LOCK_FILE" ]; then
     fi
 fi
 
-# Check for trigger via nginx access log (alternative method)
-if [ -f "/var/log/nginx/access.log" ]; then
-    # Check last 2 minutes for trigger-lldp requests
-    RECENT_TRIGGER=$(tail -100 /var/log/nginx/access.log | grep -c "POST /trigger-lldp" | head -1)
-    if [ "$RECENT_TRIGGER" -gt 0 ]; then
-        # Find the timestamp of last request
-        LAST_REQUEST=$(tail -100 /var/log/nginx/access.log | grep "POST /trigger-lldp" | tail -1 | awk '{print $4}' | tr -d '[')
-        if [ -n "$LAST_REQUEST" ]; then
-            # Convert to epoch time and compare (simplified check)
-            CURRENT_TIME=$(date +%s)
-            # If we detect a request in logs, proceed with LLDP check
-            # (This is a simplified approach - could be improved with proper time parsing)
-        fi
-    fi
-fi
-
 # Simple file-based trigger (user creates trigger file manually)
-TRIGGER_FILE="$MONITOR_DIR/.web_trigger"
-
 if [ -f "$TRIGGER_FILE" ]; then
     {
         echo "$(date): Web trigger found, starting LLDP check..."
@@ -50,8 +32,18 @@ if [ -f "$TRIGGER_FILE" ]; then
         
         cd "$MONITOR_DIR"
 
-        # Run asset discovery and LLDP checks
+        # Wait function to prevent conflicts
+        wait_until_not_running() {
+            local script_name="$1"
+            while pgrep -f "$script_name" >/dev/null; do
+                sleep 10
+            done
+        }
+
+        # Run asset discovery and LLDP checks (sequential with conflict prevention)
+        wait_until_not_running "assets.sh"
         /bin/bash ./assets.sh >/dev/null 2>&1
+        wait_until_not_running "check-lldp.sh"
         /bin/bash ./check-lldp.sh >/dev/null 2>&1
         
         echo "$(date): LLDP check completed"
