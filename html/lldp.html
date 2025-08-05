@@ -491,15 +491,15 @@
                 dateToUse = new Date();
             }
             
-            const options = { 
-                year: 'numeric', 
-                month: '2-digit', 
-                day: '2-digit', 
-                hour: '2-digit', 
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: true
-            };
+                    const options = { 
+            year: 'numeric', 
+            month: '2-digit', 
+            day: '2-digit', 
+            hour: '2-digit', 
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        };
             const formattedDate = dateToUse.toLocaleString('en-US', options);
             document.getElementById('last-updated').textContent = formattedDate;
         }

@@ -194,20 +194,59 @@
     <div id="metinAlani-1" style="display: none;"></div>
 
 <script>
-    function fetchAndDisplayAssetResults() {
-        const now = new Date();
-        document.getElementById('last-updated').textContent = now.toLocaleString();
-        
+    function fetchAndDisplayAssetResults() {        
         fetch('assets.ini')
             .then(response => response.text())
             .then(data => {
+                // Extract timestamp from data (first line: "Created on YYYY-MM-DD HH-MM")
+                const firstLine = data.split('\n')[0];
+                if (firstLine.startsWith('Created on ')) {
+                    const timestampStr = firstLine.replace('Created on ', '');
+                    setLastUpdated(timestampStr);
+                } else {
+                    setLastUpdated();
+                }
+                
                 displayAssetResults(data);
                 generateAssetTable(data);
             })
             .catch(error => {
                 console.error('Error fetching Asset results:', error);
                 document.getElementById('metinAlani-1').innerHTML = '<p style="color: red;">Error loading asset data: ' + error.message + '</p>';
+                setLastUpdated(); // Fallback to current time on error
             });
+    }
+    
+    function setLastUpdated(timestampFromFile) {
+        let dateToUse;
+        
+        if (timestampFromFile) {
+            // Parse "2025-08-05 04-22" format from assets.ini
+            const parts = timestampFromFile.trim().split(' ');
+            if (parts.length === 2) {
+                const datePart = parts[0]; // "2025-08-05"
+                const timePart = parts[1].replace('-', ':'); // "04-22" -> "04:22"
+                dateToUse = new Date(datePart + 'T' + timePart + ':00');
+            } else {
+                // Fallback if format doesn't match
+                dateToUse = new Date();
+            }
+        } else {
+            // Fallback to current time if no timestamp available
+            dateToUse = new Date();
+        }
+        
+        const options = { 
+            year: 'numeric', 
+            month: '2-digit', 
+            day: '2-digit', 
+            hour: '2-digit', 
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        };
+        const formattedDate = dateToUse.toLocaleString('en-US', options);
+        document.getElementById('last-updated').textContent = formattedDate;
     }
 
     function displayAssetResults(results) {

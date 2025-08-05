@@ -88,7 +88,12 @@ if [[ -s "$UNREACH" ]]; then
   done < "$UNREACH"
 fi
 
-mv "$SCRIPT_DIR/assets.sorted2" "$FINAL"
+# Add timestamp header like lldp-validate.py does
+DATE_STR=$(date '+%Y-%m-%d %H-%M')
+echo "Created on $DATE_STR" > "$FINAL.tmp"
+echo "" >> "$FINAL.tmp"
+cat "$SCRIPT_DIR/assets.sorted2" >> "$FINAL.tmp"
+mv "$FINAL.tmp" "$FINAL"
 
 sudo cp "$FINAL" /var/www/html/
 
