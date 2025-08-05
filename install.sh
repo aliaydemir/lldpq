@@ -63,9 +63,17 @@ echo ""
 echo "   See README.md for examples of each file format"
 
 echo ""
-echo "[04] Restarting nginx service..."
+echo "[04] Configuring nginx..."
+# Disable default site
+sudo rm -f /etc/nginx/sites-enabled/default
+
+# Enable LLDPq site
+sudo ln -sf /etc/nginx/sites-available/lldpq /etc/nginx/sites-enabled/lldpq
+
+# Test and restart nginx
+sudo nginx -t
 sudo systemctl restart nginx
-echo "nginx restarted"
+echo "nginx configured and restarted"
 
 echo ""
 echo "[05] Adding cron jobs..."
