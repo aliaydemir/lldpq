@@ -147,8 +147,19 @@ EOF
         # VLAN mapping using bridge vlan (shows actual bridge configuration)
         echo "<span style=\"color:green;\">Port                   VLAN Configuration</span>"
         
-        # Use bridge vlan command (without show parameter)
-        if bridge vlan >/dev/null 2>&1; then
+        # Use bridge vlan command (with correct full path)
+        if /usr/sbin/bridge vlan >/dev/null 2>&1; then
+            /usr/sbin/bridge vlan | sed -E "
+                # Color port names in blue
+                s/^([a-zA-Z0-9_]+)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
+                # Color VLAN numbers in orange
+                s/([0-9]{1,4})/\<span style=\"color:tomato;\"\>\1\<\/span\>/g
+                # Color PVID in green
+                s/PVID/\<span style=\"color:lime;\"\>PVID\<\/span\>/g
+                # Color Egress/tagged keywords
+                s/(Egress|Untagged|tagged)/\<span style=\"color:yellow;\"\>\1\<\/span\>/g
+            "
+        elif bridge vlan >/dev/null 2>&1; then
             bridge vlan | sed -E "
                 # Color port names in blue
                 s/^([a-zA-Z0-9_]+)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
@@ -160,7 +171,11 @@ EOF
                 s/(Egress|Untagged|tagged)/\<span style=\"color:yellow;\"\>\1\<\/span\>/g
             "
         else
-            echo "Bridge utility not available or no VLAN information"
+            echo "Bridge command not found - checking PATH: $PATH"
+            echo "Trying alternative paths..."
+            which bridge 2>/dev/null || echo "Bridge not in PATH"
+            ls -la /sbin/bridge 2>/dev/null || echo "Bridge not in /sbin/"
+            ls -la /usr/sbin/bridge 2>/dev/null || echo "Bridge not in /usr/sbin/"
         fi
         
         echo "<h1></h1><h1><font color=\"#b57614\">ARP Table '"$hostname"'</font></h1><h3></h3>"
