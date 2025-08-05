@@ -298,7 +298,7 @@
         }
 
         function determineLLDPStatus(connection) {
-            const { lldpStatus, expectedDevice, expectedPort, actualDevice, actualPort } = connection;
+            const { lldpStatus, expectedDevice, expectedPort, actualDevice, actualPort, portStatus } = connection;
             
             // Based on actual LLDP status from the data
             if (lldpStatus === 'Pass') {
@@ -309,12 +309,22 @@
                     health: 'LLDP Connection Verified'
                 };
             } else if (lldpStatus === 'No-Info') {
-                return {
-                    status: 'NO INFO',
-                    healthClass: 'lldp-unknown',
-                    statusClass: 'status-no-info',
-                    health: 'No LLDP Response Received'
-                };
+                // Check if port is physically down
+                if (portStatus === 'DOWN') {
+                    return {
+                        status: 'NO INFO',
+                        healthClass: 'lldp-unknown',
+                        statusClass: 'status-no-info',
+                        health: 'Local Port is DOWN'
+                    };
+                } else {
+                    return {
+                        status: 'NO INFO',
+                        healthClass: 'lldp-unknown',
+                        statusClass: 'status-no-info',
+                        health: 'No LLDP Response Received'
+                    };
+                }
             } else if (lldpStatus === 'Fail') {
                 // Check if it's a port mismatch
                 if (actualDevice && expectedDevice && actualDevice === expectedDevice && 
