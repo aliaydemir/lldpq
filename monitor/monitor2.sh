@@ -124,39 +124,63 @@ EOF
         # Port status using ip link show with description (replaces nv show interface status + description)
         printf "<span style=\"color:green;\">%-14s %-12s %-12s %s</span>\n" "Interface" "State" "Link" "Description"
         
-        # Get interfaces and sort them properly: UP ports first, then DOWN ports, each group numerically sorted
+        # Get interfaces and sort them numerically by port number (no UP/DOWN grouping)
         
-        # First collect UP ports
         for interface in $(ip link show | awk "/^[0-9]+: swp[0-9]+[s0-9]*/ {gsub(/:/, \"\", \$2); print \$2}" | sort -V); do
             if [ -e "/sys/class/net/$interface" ]; then
                 state=$(cat /sys/class/net/$interface/operstate 2>/dev/null || echo "unknown")
                 link_status=$([ "$state" = "up" ] && echo "up" || echo "down")
+                color=$([ "$link_status" = "up" ] && echo "lime" || echo "red")
                 
-                if [ "$link_status" = "up" ]; then
-                    description=$(ip link show "$interface" | grep -o "alias.*" | sed "s/alias //")
-                    [ -z "$description" ] && description="No description"
-                    color="lime"
-                    printf "<span style=\"color:steelblue;\">%-14s</span> <span style=\"color:%s;\">%-12s</span> <span style=\"color:%s;\">%-12s</span> %s\n" "$interface" "$color" "$state" "$color" "$link_status" "$description"
-                fi
-            fi
-        done
-        
-        # Then collect DOWN ports
-        for interface in $(ip link show | awk "/^[0-9]+: swp[0-9]+[s0-9]*/ {gsub(/:/, \"\", \$2); print \$2}" | sort -V); do
-            if [ -e "/sys/class/net/$interface" ]; then
-                state=$(cat /sys/class/net/$interface/operstate 2>/dev/null || echo "unknown")
-                link_status=$([ "$state" = "up" ] && echo "up" || echo "down")
+                description=$(ip link show "$interface" | grep -o "alias.*" | sed "s/alias //")
+                [ -z "$description" ] && description="No description"
                 
-                if [ "$link_status" = "down" ]; then
-                    description=$(ip link show "$interface" | grep -o "alias.*" | sed "s/alias //")
-                    [ -z "$description" ] && description="No description"
-                    color="red"
-                    printf "<span style=\"color:steelblue;\">%-14s</span> <span style=\"color:%s;\">%-12s</span> <span style=\"color:%s;\">%-12s</span> %s\n" "$interface" "$color" "$state" "$color" "$link_status" "$description"
-                fi
+                printf "<span style=\"color:steelblue;\">%-14s</span> <span style=\"color:%s;\">%-12s</span> <span style=\"color:%s;\">%-12s</span> %s\n" "$interface" "$color" "$state" "$color" "$link_status" "$description"
             fi
         done
         
 
+        
+        echo "<h1></h1><h1><font color=\"#b57614\">Interface IP Addresses '"$hostname"'</font></h1><h3></h3>"
+        
+        # IP address information - show only interfaces with IPv4 or IPv6 global addresses
+        printf "<span style=\"color:green;\">%-20s %-18s %s</span>\n" "Interface" "IPv4" "IPv6 Global"
+        
+        # Get all interfaces with IP addresses (excluding link-local IPv6)
+        ip addr show | awk '
+        /^[0-9]+:/ {
+            # Extract interface name
+            interface = $2
+            gsub(/:.*/, "", interface)  # Remove everything after first :
+            gsub(/@.*/, "", interface)  # Remove everything after @
+            ipv4 = ""
+            ipv6_global = ""
+        }
+        /inet / && !/127\.0\.0\.1/ {
+            # IPv4 address (exclude loopback)
+            ipv4 = $2
+        }
+        /inet6.*scope global/ {
+            # IPv6 global address (exclude link-local)
+            ipv6_global = $2
+        }
+        /^$/ {
+            # End of interface block - print if has IPv4 or IPv6
+            if (ipv4 != "" || ipv6_global != "") {
+                if (ipv4 == "") ipv4 = "-"
+                if (ipv6_global == "") ipv6_global = "-"
+                printf "<span style=\"color:steelblue;\">%-20s</span> <span style=\"color:orange;\">%-18s</span> <span style=\"color:cyan;\">%s</span>\n", interface, ipv4, ipv6_global
+            }
+        }
+        END {
+            # Handle last interface if file doesnt end with blank line
+            if (ipv4 != "" || ipv6_global != "") {
+                if (ipv4 == "") ipv4 = "-"
+                if (ipv6_global == "") ipv6_global = "-"
+                printf "<span style=\"color:steelblue;\">%-20s</span> <span style=\"color:orange;\">%-18s</span> <span style=\"color:cyan;\">%s</span>\n", interface, ipv4, ipv6_global
+            }
+        }
+        '
         
         echo "<h1></h1><h1><font color=\"#b57614\">VLAN Configuration '"$hostname"'</font></h1><h3></h3>"
         
