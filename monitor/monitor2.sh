@@ -146,34 +146,35 @@ EOF
         # IP address information - show only interfaces with IPv4 or IPv6 global addresses
         printf "<span style=\"color:green;\">%-20s %-18s %s</span>\n" "Interface" "IPv4" "IPv6 Global"
         
-        # Get all interfaces with IP addresses (excluding link-local IPv6)
-        ip addr show | awk '
+        # Get all interfaces with IP addresses (simpler approach)
+        ip addr show | grep -E "^[0-9]+:|inet |inet6.*scope global" | \
+        awk '
         /^[0-9]+:/ {
-            # Extract interface name
             interface = $2
-            gsub(/:.*/, "", interface)  # Remove everything after first :
-            gsub(/@.*/, "", interface)  # Remove everything after @
+            sub(/:.*/, "", interface)
+            sub(/@.*/, "", interface)
             ipv4 = ""
             ipv6_global = ""
         }
         /inet / && !/127\.0\.0\.1/ {
-            # IPv4 address (exclude loopback)
             ipv4 = $2
         }
         /inet6.*scope global/ {
-            # IPv6 global address (exclude link-local)
             ipv6_global = $2
         }
-        /^$/ {
-            # End of interface block - print if has IPv4 or IPv6
-            if (ipv4 != "" || ipv6_global != "") {
-                if (ipv4 == "") ipv4 = "-"
-                if (ipv6_global == "") ipv6_global = "-"
-                printf "<span style=\"color:steelblue;\">%-20s</span> <span style=\"color:orange;\">%-18s</span> <span style=\"color:cyan;\">%s</span>\n", interface, ipv4, ipv6_global
+        /^[0-9]+:/ && NR > 1 {
+            if (prev_ipv4 != "" || prev_ipv6 != "") {
+                if (prev_ipv4 == "") prev_ipv4 = "-"
+                if (prev_ipv6 == "") prev_ipv6 = "-"
+                printf "<span style=\"color:steelblue;\">%-20s</span> <span style=\"color:orange;\">%-18s</span> <span style=\"color:cyan;\">%s</span>\n", prev_interface, prev_ipv4, prev_ipv6
             }
         }
+        {
+            prev_interface = interface
+            prev_ipv4 = ipv4
+            prev_ipv6 = ipv6_global
+        }
         END {
-            # Handle last interface if file doesnt end with blank line
             if (ipv4 != "" || ipv6_global != "") {
                 if (ipv4 == "") ipv4 = "-"
                 if (ipv6_global == "") ipv6_global = "-"
