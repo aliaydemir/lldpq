@@ -117,58 +117,46 @@ EOF
     
     # NATIVE LINUX: Single SSH session with Linux native commands instead of nv show
     ssh $SSH_OPTS -q "$user@$device" '
-        echo "<h1></h1><h1><font color=\"#b57614\">Interface Overview '"$hostname"'</font></h1><h3></h3>"
-        
-        # Interface overview using ip link (replaces nv show interface)
-        echo "<span style=\"color:green;\">Interface      Status       Speed     MTU</span>"
-        ip link show | awk "/^[0-9]+: swp[0-9]+/ {
-            gsub(/:/, \"\", \$2)
-            status = (\$3 ~ /UP/) ? \"up\" : \"down\"
-            color = (status == \"up\") ? \"lime\" : \"red\"
-            printf \"<span style=\\\"color:steelblue;\\\">%-12s</span> <span style=\\\"color:%s;\\\">%-8s</span>\n\", \$2, color, status
-        }"
+
         
         echo "<h1></h1><h1><font color=\"#b57614\">Port Status '"$hostname"'</font></h1><h3></h3>"
         
-        # Port status using ip link show + ethtool (replaces nv show interface status)
-        echo "<span style=\"color:green;\">Interface      State        Link</span>"
+        # Port status using ip link show with description (replaces nv show interface status + description)
+        echo "<span style=\"color:green;\">Interface      State        Link         Description</span>"
+        
+        # Get interface list and process each with state, link, and description
         for interface in $(ip link show | awk "/^[0-9]+: swp[0-9]+/ {gsub(/:/, \"\", \$2); print \$2}"); do
             if [ -e "/sys/class/net/$interface" ]; then
+                # Get state and link status
                 state=$(cat /sys/class/net/$interface/operstate 2>/dev/null || echo "unknown")
                 link_status=$([ "$state" = "up" ] && echo "up" || echo "down")
                 color=$([ "$link_status" = "up" ] && echo "lime" || echo "red")
-                printf "<span style=\"color:steelblue;\">%-12s</span> <span style=\"color:%s;\">%-8s</span> <span style=\"color:%s;\">%s</span>\n" "$interface" "$color" "$state" "$color" "$link_status"
+                
+                # Get description (alias) from ip link show
+                description=$(ip link show "$interface" | grep -o "alias.*" | sed "s/alias //")
+                [ -z "$description" ] && description="No description"
+                
+                printf "<span style=\"color:steelblue;\">%-12s</span> <span style=\"color:%s;\">%-8s</span> <span style=\"color:%s;\">%-8s</span> %s\n" "$interface" "$color" "$state" "$color" "$link_status" "$description"
             fi
         done
         
-        echo "<h1></h1><h1><font color=\"#b57614\">Port Description '"$hostname"'</font></h1><h3></h3>"
+
         
-        # Port descriptions using ip link show alias (replaces nv show interface description)
-        echo "<span style=\"color:green;\">Interface      Description</span>"
-        ip link show | awk "/^[0-9]+: swp[0-9]+/ {
-            gsub(/:/, \"\", \$2)
-            interface = \$2
-            getline
-            if (\$0 ~ /alias/) {
-                desc = substr(\$0, index(\$0, \"alias\") + 6)
-                printf \"<span style=\\\"color:steelblue;\\\">%-12s</span> %s\n\", interface, desc
-            } else {
-                printf \"<span style=\\\"color:steelblue;\\\">%-12s</span> <span style=\\\"color:gray;\\\">No description</span>\n\", interface
-            }
-        }"
+        echo "<h1></h1><h1><font color=\"#b57614\">VLAN Configuration '"$hostname"'</font></h1><h3></h3>"
         
-        echo "<h1></h1><h1><font color=\"#b57614\">Port VLAN Mapping '"$hostname"'</font></h1><h3></h3>"
-        
-        # VLAN mapping using bridge vlan show (replaces nv show bridge port-vlan)
-        echo "<span style=\"color:green;\">    port       vlan-id   vlan-raw-device  description</span>"
+        # VLAN mapping using bridge vlan (shows actual bridge configuration)
+        echo "<span style=\"color:green;\">Port                   VLAN Configuration</span>"
         if command -v bridge >/dev/null 2>&1; then
-            bridge vlan show | awk "/swp[0-9]+/ {
-                gsub(/\t/, \"    \", \$0)
-                gsub(/swp[0-9]+/, \"<span style=\\\"color:steelblue;\\\">&</span>\", \$0)
-                gsub(/[0-9]+/, \"<span style=\\\"color:tomato;\\\">&</span>\", \$0)
-                gsub(/tagged/, \"<span style=\\\"color:tomato;\\\">tagged</span>\", \$0)
-                print
-            }"
+            bridge vlan 2>/dev/null | sed -E "
+                # Color port names in blue
+                s/^([a-zA-Z0-9_]+)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
+                # Color VLAN numbers in orange
+                s/([0-9]{1,4})/\<span style=\"color:tomato;\"\>\1\<\/span\>/g
+                # Color PVID in green
+                s/PVID/\<span style=\"color:lime;\"\>PVID\<\/span\>/g
+                # Color Egress/tagged keywords
+                s/(Egress|Untagged|tagged)/\<span style=\"color:yellow;\"\>\1\<\/span\>/g
+            " || echo "No VLAN information available"
         else
             echo "Bridge utility not available"
         fi
