@@ -16,7 +16,7 @@ if [[ "$REQUEST_METHOD" == "OPTIONS" ]]; then
 fi
 
 # Create trigger file
-TRIGGER_FILE="/var/www/html/.web_trigger"
+TRIGGER_FILE="/tmp/.lldp_web_trigger"
 echo "$(date +%s)" > "$TRIGGER_FILE" 2>/dev/null
 
 # Return JSON response

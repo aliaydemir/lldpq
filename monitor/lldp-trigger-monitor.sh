@@ -4,7 +4,7 @@
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 
 MONITOR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TRIGGER_FILE="/var/www/html/.web_trigger"
+TRIGGER_FILE="/tmp/.lldp_web_trigger"
 LOCK_FILE="/tmp/lldp_running.lock"  
 LOG_FILE="$MONITOR_DIR/trigger_monitor.log"
 
