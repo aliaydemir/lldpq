@@ -141,23 +141,8 @@ EOF
         
 
         
-        echo "<h1></h1><h1><font color=\"#b57614\">Interface IP Addresses '"$hostname"'</font></h1><h3></h3>"
-        
-        # IP address information - show only interfaces with IPv4 or IPv6 global addresses
-        printf "<span style=\"color:green;\">%-20s %-18s %s</span>\n" "Interface" "IPv4" "IPv6 Global"
-        
-        # Get interfaces with IP addresses - simple and clean
-        for interface in $(ip addr show | grep "^[0-9]*:" | awk '{print \$2}' | cut -d: -f1 | cut -d@ -f1); do
-            ipv4=$(ip addr show "$interface" 2>/dev/null | grep "inet " | grep -v "127.0.0.1" | awk '{print \$2}' | head -1)
-            ipv6=$(ip addr show "$interface" 2>/dev/null | grep "inet6.*scope global" | awk '{print \$2}' | head -1)
-            
-            if [ -n "$ipv4" ] || [ -n "$ipv6" ]; then
-                [ -z "$ipv4" ] && ipv4="-"
-                [ -z "$ipv6" ] && ipv6="-"
-                printf "<span style=\"color:steelblue;\">%-20s</span> <span style=\"color:orange;\">%-18s</span> <span style=\"color:cyan;\">%s</span>\n" "$interface" "$ipv4" "$ipv6"
-            fi
-        done
-        
+        # TODO: Interface IP Addresses section - temporarily disabled due to AWK syntax issues
+        # Will be re-implemented later with a different approach
         echo "<h1></h1><h1><font color=\"#b57614\">VLAN Configuration '"$hostname"'</font></h1><h3></h3>"
         
         # VLAN mapping using bridge vlan (shows actual bridge configuration)
