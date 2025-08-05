@@ -33,9 +33,14 @@ execute_commands() {
     echo -e "\n===PORT_STATUS_START===" >> lldp-results/${hostname}_lldp_result.ini
     ssh -o StrictHostKeyChecking=no -T -q "$user@$device" "
         ip link show | grep ': swp[0-9]' | awk '{
-            if (\$9 == \"UP\") print \$2, \"UP\"
-            else if (\$9 == \"DOWN\") print \$2, \"DOWN\"
-            else print \$2, \"UP\"
+            for(i=1; i<=NF; i++) {
+                if(\$i == \"state\") {
+                    if(\$(i+1) == \"UP\") print \$2, \"UP\"
+                    else if(\$(i+1) == \"DOWN\") print \$2, \"DOWN\"
+                    else print \$2, \"UNKNOWN\"
+                    break
+                }
+            }
         }'
     " >> lldp-results/${hostname}_lldp_result.ini
     echo -e "===PORT_STATUS_END===\n" >> lldp-results/${hostname}_lldp_result.ini
