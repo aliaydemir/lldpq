@@ -150,8 +150,12 @@ EOF
         # Use bridge vlan command (with correct full path)
         if /usr/sbin/bridge vlan >/dev/null 2>&1; then
             /usr/sbin/bridge vlan | sed -E "
-                # Color port names in blue
-                s/^([a-zA-Z0-9_]+)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
+                # Color header words in gray
+                s/^(port|vlan-id)/\<span style=\"color:gray;\"\>\1\<\/span\>/g
+                # Color port names in blue (swp, vxlan, br_default, etc.)
+                s/^([a-zA-Z]+[0-9]*)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
+                # Color numbers in port names with same blue color
+                s/(<span style=\"color:steelblue;\">)([a-zA-Z]+)([0-9]+)(<\/span>)/\1\2\<span style=\"color:steelblue;\"\>\3\<\/span>\4/g
                 # Color VLAN numbers in orange
                 s/([0-9]{1,4})/\<span style=\"color:tomato;\"\>\1\<\/span\>/g
                 # Color PVID in green
@@ -161,8 +165,12 @@ EOF
             "
         elif bridge vlan >/dev/null 2>&1; then
             bridge vlan | sed -E "
-                # Color port names in blue
-                s/^([a-zA-Z0-9_]+)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
+                # Color header words in gray
+                s/^(port|vlan-id)/\<span style=\"color:gray;\"\>\1\<\/span\>/g
+                # Color port names in blue (swp, vxlan, br_default, etc.)
+                s/^([a-zA-Z]+[0-9]*)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
+                # Color numbers in port names with same blue color
+                s/(<span style=\"color:steelblue;\">)([a-zA-Z]+)([0-9]+)(<\/span>)/\1\2\<span style=\"color:steelblue;\"\>\3\<\/span>\4/g
                 # Color VLAN numbers in orange
                 s/([0-9]{1,4})/\<span style=\"color:tomato;\"\>\1\<\/span\>/g
                 # Color PVID in green
