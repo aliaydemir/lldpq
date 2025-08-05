@@ -750,26 +750,26 @@
                 
                 document.body.appendChild(notification);
                 
-                // Auto-refresh page after 5 seconds
+                // Auto-refresh page after 6 seconds
                 setTimeout(() => {
                     location.reload();
-                }, 5000);
+                }, 6000);
                 
-                // Auto-remove notification after 4 seconds (before refresh)
+                // Auto-remove notification after 5 seconds (before refresh)
                 setTimeout(() => {
                     if (notification.parentNode) {
                         notification.parentNode.removeChild(notification);
                     }
-                }, 4000);
+                }, 5000);
                 
-                // Reset button after 3 seconds
+                // Reset button after 4 seconds
                 setTimeout(() => {
                     button.disabled = false;
                     button.style.opacity = '1';
                     button.style.cursor = 'pointer';
                     button.style.background = '#2196f3';
                     buttonText.textContent = originalText;
-                }, 3000);
+                }, 4000);
             })
             .catch(error => {
                 console.error('❌ Error running LLDP check:', error);
