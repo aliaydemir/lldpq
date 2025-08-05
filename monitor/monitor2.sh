@@ -152,12 +152,10 @@ EOF
             /usr/sbin/bridge vlan | sed -E "
                 # Color header words in gray
                 s/^(port|vlan-id)/\<span style=\"color:gray;\"\>\1\<\/span\>/g
-                # Color port names in blue (swp, vxlan, br_default, etc.)
+                # Color entire port names in blue (including numbers)
                 s/^([a-zA-Z]+[0-9]*)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
-                # Color numbers in port names with same blue color
-                s/(<span style=\"color:steelblue;\">)([a-zA-Z]+)([0-9]+)(<\/span>)/\1\2\<span style=\"color:steelblue;\"\>\3\<\/span>\4/g
-                # Color VLAN numbers in orange
-                s/([0-9]{1,4})/\<span style=\"color:tomato;\"\>\1\<\/span\>/g
+                # Color standalone VLAN numbers in orange (not in port names)
+                s/([[:space:]])([0-9]{1,4})([[:space:],])/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
                 # Color PVID in green
                 s/PVID/\<span style=\"color:lime;\"\>PVID\<\/span\>/g
                 # Color Egress/tagged keywords
@@ -167,12 +165,10 @@ EOF
             bridge vlan | sed -E "
                 # Color header words in gray
                 s/^(port|vlan-id)/\<span style=\"color:gray;\"\>\1\<\/span\>/g
-                # Color port names in blue (swp, vxlan, br_default, etc.)
+                # Color entire port names in blue (including numbers)
                 s/^([a-zA-Z]+[0-9]*)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
-                # Color numbers in port names with same blue color
-                s/(<span style=\"color:steelblue;\">)([a-zA-Z]+)([0-9]+)(<\/span>)/\1\2\<span style=\"color:steelblue;\"\>\3\<\/span>\4/g
-                # Color VLAN numbers in orange
-                s/([0-9]{1,4})/\<span style=\"color:tomato;\"\>\1\<\/span\>/g
+                # Color standalone VLAN numbers in orange (not in port names)
+                s/([[:space:]])([0-9]{1,4})([[:space:],])/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
                 # Color PVID in green
                 s/PVID/\<span style=\"color:lime;\"\>PVID\<\/span\>/g
                 # Color Egress/tagged keywords
