@@ -700,17 +700,22 @@
                 notification.innerHTML = `
                     <strong>✅ LLDP Check Started</strong><br>
                     The topology analysis is running in the background.<br>
-                    <small>Results will be available in 1 minute. You can refresh this page to see updates.</small>
+                    <small>Page will automatically refresh in 10 seconds to show the latest results.</small>
                 `;
                 
                 document.body.appendChild(notification);
                 
-                // Auto-remove notification after 10 seconds
+                // Auto-refresh page after 10 seconds
+                setTimeout(() => {
+                    location.reload();
+                }, 10000);
+                
+                // Auto-remove notification after 9 seconds (before refresh)
                 setTimeout(() => {
                     if (notification.parentNode) {
                         notification.parentNode.removeChild(notification);
                     }
-                }, 10000);
+                }, 9000);
                 
                 // Reset button after 3 seconds
                 setTimeout(() => {
