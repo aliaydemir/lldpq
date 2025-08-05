@@ -144,24 +144,24 @@ EOF
 
         echo "<h1></h1><h1><font color=\"#b57614\">Interface IP Addresses '"$hostname"'</font></h1><h3></h3>"
         
-#        # IP address information - show only interfaces with IPv4 or IPv6 global addresses
-#        printf "<span style=\"color:green;\">%-20s %-18s %s</span>\n" "Interface" "IPv4" "IPv6 Global"
-#        
-#        # Get interfaces with IP addresses (basic shell approach)
-#        temp_ip_file="/tmp/ip_addresses_$$"
-#        
-#        # Extract interface names with IPv4 addresses - simple approach
-#        for interface in $(ip addr show | grep "^[0-9]*:" | cut -d: -f2 | cut -d@ -f1); do
-#            interface=$(echo "$interface" | xargs)  # Remove spaces
-#            ipv4=$(ip addr show "$interface" 2>/dev/null | grep "inet " | grep -v "127.0.0.1" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+/[0-9]\+' | head -1)
-#            ipv6=$(ip addr show "$interface" 2>/dev/null | grep "inet6.*scope global" | grep -o '[0-9a-f:]\+/[0-9]\+' | head -1)
-#            
-#            if [ -n "$ipv4" ] || [ -n "$ipv6" ]; then
-#                [ -z "$ipv4" ] && ipv4="-"
-#                [ -z "$ipv6" ] && ipv6="-"
-#                printf "<span style=\"color:steelblue;\">%-20s</span> <span style=\"color:orange;\">%-18s</span> <span style=\"color:cyan;\">%s</span>\n" "$interface" "$ipv4" "$ipv6"
-#            fi
-#        done
+        # IP address information - show only interfaces with IPv4 or IPv6 global addresses
+        printf "<span style=\"color:green;\">%-20s %-18s %s</span>\n" "Interface" "IPv4" "IPv6 Global"
+        
+        # Get interfaces with IP addresses (basic shell approach)
+        temp_ip_file="/tmp/ip_addresses_$$"
+        
+        # Extract interface names with IPv4 addresses - simple approach
+        for interface in $(ip addr show | grep "^[0-9]*:" | cut -d: -f2 | cut -d@ -f1); do
+            interface=$(echo "$interface" | xargs)  # Remove spaces
+            ipv4=$(ip addr show "$interface" 2>/dev/null | grep "inet " | grep -v "127.0.0.1" | grep -o "[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+/[0-9]\+" | head -1)
+            ipv6=$(ip addr show "$interface" 2>/dev/null | grep "inet6.*scope global" | grep -o "[0-9a-f:]\+/[0-9]\+" | head -1)
+            
+            if [ -n "$ipv4" ] || [ -n "$ipv6" ]; then
+                [ -z "$ipv4" ] && ipv4="-"
+                [ -z "$ipv6" ] && ipv6="-"
+                printf "<span style=\"color:steelblue;\">%-20s</span> <span style=\"color:orange;\">%-18s</span> <span style=\"color:cyan;\">%s</span>\n" "$interface" "$ipv4" "$ipv6"
+            fi
+        done
 
 
 
