@@ -153,8 +153,8 @@ EOF
         # Extract interface names with IPv4 addresses - simple approach
         for interface in $(ip addr show | grep "^[0-9]*:" | cut -d: -f2 | cut -d@ -f1); do
             interface=$(echo "$interface" | xargs)  # Remove spaces
-            ipv4=$(ip addr show "$interface" 2>/dev/null | grep "inet " | grep -v "127.0.0.1" | awk '{print $2}' | head -1)
-            ipv6=$(ip addr show "$interface" 2>/dev/null | grep "inet6.*scope global" | awk '{print $2}' | head -1)
+            ipv4=$(ip addr show "$interface" 2>/dev/null | grep "inet " | grep -v "127.0.0.1" | cut -d' ' -f6 | head -1)
+            ipv6=$(ip addr show "$interface" 2>/dev/null | grep "inet6.*scope global" | cut -d' ' -f6 | head -1)
             
             if [ -n "$ipv4" ] || [ -n "$ipv6" ]; then
                 [ -z "$ipv4" ] && ipv4="-"
