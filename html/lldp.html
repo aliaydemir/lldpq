@@ -698,9 +698,9 @@
                     font-family: monospace;
                 `;
                 notification.innerHTML = `
-                    <strong>🚀 Run this command:</strong><br>
-                    <code style="background: rgba(255,255,255,0.2); padding: 2px 4px; border-radius: 3px;">touch ~/monitor/.web_trigger</code><br>
-                    <small>LLDP check will start in ~1 minute</small>
+                    <strong>✅ LLDP Check Requested</strong><br>
+                    The topology analysis will be updated automatically in the next few minutes.<br>
+                    <small>You can refresh this page after 1 minute to see the latest results.</small>
                 `;
                 
                 document.body.appendChild(notification);
@@ -855,7 +855,6 @@
 
         // Load data when page loads
         window.addEventListener('load', function() {
-            setLastUpdated();
             loadLLDPData();
             initTableSorting();
         });

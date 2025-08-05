@@ -1,7 +1,7 @@
 #!/bin/bash
-
 # LLDP Trigger Monitor - Check for web interface triggers
 # Add to crontab: * * * * * /path/to/lldp_trigger_monitor.sh
+# Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 
 MONITOR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRIGGER_FILE="$MONITOR_DIR/.web_trigger"
