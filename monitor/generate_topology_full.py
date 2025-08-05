@@ -93,10 +93,16 @@ def parse_assets_file(assets_file_path):
     try:
         with open(assets_file_path, 'r') as file:
             lines = file.readlines()
-            for line in lines[1:]:
+            for line in lines[1:]:  # Skip timestamp
+                line = line.strip()
+                if not line:  # Skip empty lines
+                    continue
                 parts = line.split()
                 if len(parts) >= 6:
                     device_name = parts[0]
+                    # Skip header line
+                    if device_name == "DEVICE-NAME":
+                        continue
                     device_info[device_name] = {
                         "primaryIP": parts[1],
                         "mac": parts[2],

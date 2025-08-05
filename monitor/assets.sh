@@ -92,14 +92,9 @@ fi
 DATE_STR=$(date '+%Y-%m-%d %H-%M')
 echo "Created on $DATE_STR" > "$FINAL.tmp"
 echo "" >> "$FINAL.tmp"
-# Add header
 printf '%-20s %-15s %-17s %-12s %-12s %-8s %s\n' \
   "DEVICE-NAME" "IP" "ETH0-MAC" "SERIAL" "MODEL" "RELEASE" "UPTIME" >> "$FINAL.tmp"
-# Add device data (skip original header line)
 tail -n +2 "$SCRIPT_DIR/assets.sorted2" >> "$FINAL.tmp"
 mv "$FINAL.tmp" "$FINAL"
-
 sudo cp "$FINAL" /var/www/html/
-
 rm -f "$TMPFILE" "$UNREACH"
-
