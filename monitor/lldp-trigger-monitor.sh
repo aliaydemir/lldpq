@@ -27,8 +27,8 @@ if [ -f "$TRIGGER_FILE" ]; then
         # Create lock file with PID
         echo $$ > "$LOCK_FILE"
         
-        # Remove trigger file
-        rm -f "$TRIGGER_FILE"
+        # Remove trigger file (may need sudo due to www-data ownership)
+        sudo rm -f "$TRIGGER_FILE" 2>/dev/null || rm -f "$TRIGGER_FILE"
         
         cd "$MONITOR_DIR"
 
