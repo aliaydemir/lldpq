@@ -508,12 +508,12 @@
             let dateToUse;
             
             if (timestampFromFile) {
-                // Parse "2025-08-05 04-22" format from lldp_results.ini
+                // Parse "2025-08-05 04-22-30" format from lldp_results.ini
                 const parts = timestampFromFile.trim().split(' ');
                 if (parts.length === 2) {
                     const datePart = parts[0]; // "2025-08-05"
-                    const timePart = parts[1].replace('-', ':'); // "04-22" -> "04:22"
-                    dateToUse = new Date(datePart + 'T' + timePart + ':00');
+                    const timePart = parts[1].replace(/-/g, ':'); // "04-22-30" -> "04:22:30"
+                    dateToUse = new Date(datePart + 'T' + timePart);
                 } else {
                     // Fallback if format doesn't match
                     dateToUse = new Date();

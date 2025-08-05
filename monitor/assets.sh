@@ -89,7 +89,7 @@ if [[ -s "$UNREACH" ]]; then
 fi
 
 # Add timestamp and header
-DATE_STR=$(date '+%Y-%m-%d %H-%M')
+DATE_STR=$(date '+%Y-%m-%d %H-%M-%S')
 echo "Created on $DATE_STR" > "$FINAL.tmp"
 echo "" >> "$FINAL.tmp"
 printf '%-20s %-15s %-17s %-12s %-12s %-8s %s\n' \

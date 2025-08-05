@@ -181,7 +181,7 @@ if __name__ == "__main__":
     device_neighbors, device_port_status, files_in_order = get_device_neighbors(lldp_results_folder)
     results = check_connections(topology_file, device_neighbors, device_port_status)
     output_file_path = os.path.join(lldp_results_folder, "lldp_results.ini")
-    date_str = subprocess.getoutput("date '+%Y-%m-%d %H-%M'")
+    date_str = subprocess.getoutput("date '+%Y-%m-%d %H-%M-%S'")
     script_name = get_topology_script_name()
     generate_topology_script = os.path.join(os.path.dirname(__file__), script_name)
     with open(output_file_path, 'w') as output_file:
