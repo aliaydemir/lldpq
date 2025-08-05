@@ -149,7 +149,7 @@ EOF
         temp_ip_file="/tmp/ip_addresses_$$"
         
         # Extract interface names with IPv4 addresses - fixed for SSH
-        for interface in $(ip addr show | grep "^[0-9]*:" | cut -d: -f2 | cut -d@ -f1 | tr -d ' '); do
+        for interface in $(ip addr show | grep "^[0-9]*:" | cut -d: -f2 | cut -d@ -f1 | sed 's/^[ \t]*//'); do
             ipv4=$(ip addr show "$interface" 2>/dev/null | grep "inet " | grep -v "127.0.0.1" | awk '{print $2}' | head -1)
             ipv6=$(ip addr show "$interface" 2>/dev/null | grep "inet6.*scope global" | awk '{print $2}' | head -1)
             
