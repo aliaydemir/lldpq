@@ -317,7 +317,7 @@ EOF
         
         # Extract BER detailed counters (ALL swp interfaces - base and breakout)
         echo "=== DETAILED INTERFACE COUNTERS ===" > "monitor-results/ber-data/${hostname}_detailed_counters.txt"
-        awk '/=== INTERFACE: /{interface=\$3} /BER_COUNTERS:/ {print "Interface: " interface; getline; print}' "monitor-results/${hostname}_combined_interface_data.txt" >> "monitor-results/ber-data/${hostname}_detailed_counters.txt"
+        awk '/=== INTERFACE: /{interface=$3} /BER_COUNTERS:/ {print "Interface: " interface; getline; print}' "monitor-results/${hostname}_combined_interface_data.txt" >> "monitor-results/ber-data/${hostname}_detailed_counters.txt"
         
         # Clean up combined file
         rm -f "monitor-results/${hostname}_combined_interface_data.txt"
