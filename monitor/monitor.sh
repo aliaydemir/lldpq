@@ -8,7 +8,7 @@
 START_TIME=$(date +%s)
 echo "🚀 Starting  monitoring at $(date)"
 
-DATE=$(date '+%Y-%m-%d %H-%M-%S')
+DATE=$(date '+%Y-%m-%d %H-%M')
 SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
 eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 
