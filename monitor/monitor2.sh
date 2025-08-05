@@ -124,35 +124,18 @@ EOF
         # Port status using ip link show with description (replaces nv show interface status + description)
         printf "<span style=\"color:green;\">%-14s %-12s %-12s %s</span>\n" "Interface" "State" "Link" "Description"
         
-        # Get interfaces and sort them properly: UP ports first, then DOWN ports, each group numerically sorted
+        # Get interfaces and sort them numerically by port number (no UP/DOWN grouping)
         
-        # First collect UP ports
         for interface in $(ip link show | awk "/^[0-9]+: swp[0-9]+[s0-9]*/ {gsub(/:/, \"\", \$2); print \$2}" | sort -V); do
             if [ -e "/sys/class/net/$interface" ]; then
                 state=$(cat /sys/class/net/$interface/operstate 2>/dev/null || echo "unknown")
                 link_status=$([ "$state" = "up" ] && echo "up" || echo "down")
+                color=$([ "$link_status" = "up" ] && echo "lime" || echo "red")
                 
-                if [ "$link_status" = "up" ]; then
-                    description=$(ip link show "$interface" | grep -o "alias.*" | sed "s/alias //")
-                    [ -z "$description" ] && description="No description"
-                    color="lime"
-                    printf "<span style=\"color:steelblue;\">%-14s</span> <span style=\"color:%s;\">%-12s</span> <span style=\"color:%s;\">%-12s</span> %s\n" "$interface" "$color" "$state" "$color" "$link_status" "$description"
-                fi
-            fi
-        done
-        
-        # Then collect DOWN ports
-        for interface in $(ip link show | awk "/^[0-9]+: swp[0-9]+[s0-9]*/ {gsub(/:/, \"\", \$2); print \$2}" | sort -V); do
-            if [ -e "/sys/class/net/$interface" ]; then
-                state=$(cat /sys/class/net/$interface/operstate 2>/dev/null || echo "unknown")
-                link_status=$([ "$state" = "up" ] && echo "up" || echo "down")
+                description=$(ip link show "$interface" | grep -o "alias.*" | sed "s/alias //")
+                [ -z "$description" ] && description="No description"
                 
-                if [ "$link_status" = "down" ]; then
-                    description=$(ip link show "$interface" | grep -o "alias.*" | sed "s/alias //")
-                    [ -z "$description" ] && description="No description"
-                    color="red"
-                    printf "<span style=\"color:steelblue;\">%-14s</span> <span style=\"color:%s;\">%-12s</span> <span style=\"color:%s;\">%-12s</span> %s\n" "$interface" "$color" "$state" "$color" "$link_status" "$description"
-                fi
+                printf "<span style=\"color:steelblue;\">%-14s</span> <span style=\"color:%s;\">%-12s</span> <span style=\"color:%s;\">%-12s</span> %s\n" "$interface" "$color" "$state" "$color" "$link_status" "$description"
             fi
         done
         
