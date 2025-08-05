@@ -88,7 +88,7 @@ if [[ -s "$UNREACH" ]]; then
   done < "$UNREACH"
 fi
 
-# Add timestamp header like lldp-validate.py does
+# Add timestamp
 DATE_STR=$(date '+%Y-%m-%d %H-%M')
 echo "Created on $DATE_STR" > "$FINAL.tmp"
 echo "" >> "$FINAL.tmp"
