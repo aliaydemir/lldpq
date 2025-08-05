@@ -122,7 +122,7 @@ EOF
         echo "<h1></h1><h1><font color=\"#b57614\">Port Status '"$hostname"'</font></h1><h3></h3>"
         
         # Port status using ip link show with description (replaces nv show interface status + description)
-        echo "<span style=\"color:green;\">Interface      State        Link         Description</span>"
+        printf "<span style=\"color:green;\">%-14s %-12s %-12s %s</span>\n" "Interface" "State" "Link" "Description"
         
         # Get interface list and process each with state, link, and description
         for interface in $(ip link show | awk "/^[0-9]+: swp[0-9]+/ {gsub(/:/, \"\", \$2); print \$2}"); do
@@ -136,7 +136,7 @@ EOF
                 description=$(ip link show "$interface" | grep -o "alias.*" | sed "s/alias //")
                 [ -z "$description" ] && description="No description"
                 
-                printf "<span style=\"color:steelblue;\">%-12s</span> <span style=\"color:%s;\">%-8s</span> <span style=\"color:%s;\">%-8s</span> %s\n" "$interface" "$color" "$state" "$color" "$link_status" "$description"
+                printf "<span style=\"color:steelblue;\">%-14s</span> <span style=\"color:%s;\">%-12s</span> <span style=\"color:%s;\">%-12s</span> %s\n" "$interface" "$color" "$state" "$color" "$link_status" "$description"
             fi
         done
         
@@ -146,8 +146,10 @@ EOF
         
         # VLAN mapping using bridge vlan (shows actual bridge configuration)
         echo "<span style=\"color:green;\">Port                   VLAN Configuration</span>"
-        if command -v bridge >/dev/null 2>&1; then
-            bridge vlan 2>/dev/null | sed -E "
+        
+        # Use bridge vlan command (without show parameter)
+        if bridge vlan >/dev/null 2>&1; then
+            bridge vlan | sed -E "
                 # Color port names in blue
                 s/^([a-zA-Z0-9_]+)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
                 # Color VLAN numbers in orange
@@ -156,9 +158,9 @@ EOF
                 s/PVID/\<span style=\"color:lime;\"\>PVID\<\/span\>/g
                 # Color Egress/tagged keywords
                 s/(Egress|Untagged|tagged)/\<span style=\"color:yellow;\"\>\1\<\/span\>/g
-            " || echo "No VLAN information available"
+            "
         else
-            echo "Bridge utility not available"
+            echo "Bridge utility not available or no VLAN information"
         fi
         
         echo "<h1></h1><h1><font color=\"#b57614\">ARP Table '"$hostname"'</font></h1><h3></h3>"
