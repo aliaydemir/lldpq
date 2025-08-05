@@ -32,16 +32,11 @@ execute_commands() {
     # Port status collection (NEW)
     echo -e "\n===PORT_STATUS_START===" >> lldp-results/${hostname}_lldp_result.ini
     ssh -o StrictHostKeyChecking=no -T -q "$user@$device" "
-        ip link show | grep ': swp[0-9]' | while read line; do
-            interface=\$(echo \"\$line\" | cut -d: -f2 | tr -d ' ')
-            if echo \"\$line\" | grep -q 'state UP'; then
-                echo \"\$interface UP\"
-            elif echo \"\$line\" | grep -q 'state DOWN'; then
-                echo \"\$interface DOWN\"
-            else
-                echo \"\$interface UNKNOWN\"
-            fi
-        done
+        ip link show | grep ': swp[0-9]' | awk '{
+            if (\$9 == \"UP\") print \$2, \"UP\"
+            else if (\$9 == \"DOWN\") print \$2, \"DOWN\"
+            else print \$2, \"UP\"
+        }'
     " >> lldp-results/${hostname}_lldp_result.ini
     echo -e "===PORT_STATUS_END===\n" >> lldp-results/${hostname}_lldp_result.ini
 }
