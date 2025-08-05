@@ -24,8 +24,21 @@ execute_commands() {
     local device=$1
     local user=$2
     local hostname=$3
+    
+    # LLDP data collection
     echo -e "=========================================${hostname}=========================================\n" >> lldp-results/${hostname}_lldp_result.ini
     ssh -o StrictHostKeyChecking=no -T -q "$user@$device" "sudo lldpcli show neighbors" >> lldp-results/${hostname}_lldp_result.ini
+    
+    # Port status collection (NEW)
+    echo -e "\n===PORT_STATUS_START===" >> lldp-results/${hostname}_lldp_result.ini
+    ssh -o StrictHostKeyChecking=no -T -q "$user@$device" "
+        ip link show | grep ': swp[0-9]' | awk '{
+            if (\$9 == \"UP\") print \$2, \"UP\"
+            else if (\$9 == \"DOWN\") print \$2, \"DOWN\"
+            else print \$2, \"UP\"
+        }'
+    " >> lldp-results/${hostname}_lldp_result.ini
+    echo -e "===PORT_STATUS_END===\n" >> lldp-results/${hostname}_lldp_result.ini
 }
 
 process_device() {

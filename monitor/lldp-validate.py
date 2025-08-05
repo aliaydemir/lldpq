@@ -44,8 +44,12 @@ def get_topology_script_name(config_path="topology_config.yaml"):
 
 def parse_lldp_output(filename):
     neighbors = []
+    port_status = {}
+    
     with open(filename, 'r') as file:
         content = file.read()
+        
+        # Parse LLDP neighbors (existing logic)
         interfaces = re.split(r'-------------------------------------------------------------------------------', content)[1:-1]
         for interface in interfaces:
             data = {}
@@ -68,24 +72,42 @@ def parse_lldp_output(filename):
                 data['sys_name'] = "Unknown"
                 data['port_id'] = port_id_match.group(1).strip()
                 neighbors.append(data)
-    return neighbors
+        
+        # Parse port status (NEW)
+        port_status_match = re.search(r'===PORT_STATUS_START===(.*?)===PORT_STATUS_END===', content, re.DOTALL)
+        if port_status_match:
+            port_status_lines = port_status_match.group(1).strip().split('\n')
+            for line in port_status_lines:
+                line = line.strip()
+                if line and ':' in line:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        port_name = parts[0].rstrip(':')  # Remove : from swp1:
+                        status = parts[1]
+                        port_status[port_name] = status
+    
+    return neighbors, port_status
 
 def get_device_neighbors(lldp_dir):
     device_neighbors = {}
+    device_port_status = {}
     files_in_order = sorted(os.listdir(lldp_dir))
     for filename in files_in_order:
         if filename.endswith("_lldp_result.ini"):
             device_name = filename.replace("_lldp_result.ini", "")
             filepath = os.path.join(lldp_dir, filename)
-            device_neighbors[device_name] = parse_lldp_output(filepath)
-    return device_neighbors, files_in_order
+            neighbors, port_status = parse_lldp_output(filepath)
+            device_neighbors[device_name] = neighbors
+            device_port_status[device_name] = port_status
+    return device_neighbors, device_port_status, files_in_order
 
-def check_connections(topology_file, device_neighbors):
+def check_connections(topology_file, device_neighbors, device_port_status):
     with open(topology_file, 'r') as file:
         expected_connections = file.readlines()
     results = {}
     valid_devices = device_neighbors.keys()
     for device, neighbors in device_neighbors.items():
+        port_status = device_port_status.get(device, {})
         device_results = []
         for connection in expected_connections:
             if '--' not in connection:
@@ -119,6 +141,8 @@ def check_connections(topology_file, device_neighbors):
                     active_neighbor_port = active_neighbor['port_id']
             if expected_interface == 'eth0' or active_neighbor_port == 'eth0':
                 continue
+            # Get port status for this interface
+            interface_port_status = port_status.get(expected_interface, 'N/A')
             device_results.append({
                 'Port': expected_interface,
                 'interface': expected_interface,
@@ -126,7 +150,8 @@ def check_connections(topology_file, device_neighbors):
                 'Exp-Nbr': expected_neighbor_sys_name,
                 'Exp-Nbr-Port': expected_neighbor_port,
                 'Act-Nbr': active_neighbor_sys_name,
-                'Act-Nbr-Port': active_neighbor_port
+                'Act-Nbr-Port': active_neighbor_port,
+                'Port-Status': interface_port_status
             })
         for neighbor in neighbors:
             if neighbor['interface'] == 'eth0' or neighbor['port_id'] == 'eth0':
@@ -134,6 +159,8 @@ def check_connections(topology_file, device_neighbors):
             if neighbor['sys_name'] not in valid_devices:
                 continue
             if not any(n['interface'] == neighbor['interface'] for n in device_results):
+                # Get port status for this interface
+                interface_port_status = port_status.get(neighbor['interface'], 'N/A')
                 device_results.append({
                     'Port': neighbor['interface'],
                     'interface': neighbor['interface'],
@@ -141,7 +168,8 @@ def check_connections(topology_file, device_neighbors):
                     'Exp-Nbr': 'None',
                     'Exp-Nbr-Port': 'None',
                     'Act-Nbr': neighbor['sys_name'],
-                    'Act-Nbr-Port': neighbor['port_id']
+                    'Act-Nbr-Port': neighbor['port_id'],
+                    'Port-Status': interface_port_status
                 })
         results[device] = device_results
     return results
@@ -150,8 +178,8 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
     lldp_results_folder = os.path.join(script_dir, "lldp-results")
     topology_file = os.path.join(script_dir, "topology.dot")
-    device_neighbors, files_in_order = get_device_neighbors(lldp_results_folder)
-    results = check_connections(topology_file, device_neighbors)
+    device_neighbors, device_port_status, files_in_order = get_device_neighbors(lldp_results_folder)
+    results = check_connections(topology_file, device_neighbors, device_port_status)
     output_file_path = os.path.join(lldp_results_folder, "lldp_results.ini")
     date_str = subprocess.getoutput("date '+%Y-%m-%d %H-%M'")
     script_name = get_topology_script_name()
@@ -170,11 +198,11 @@ if __name__ == "__main__":
                     if len(header) < total_length:
                         header += "=" * (total_length - len(header))
                     output_file.write(header + "\n\n")
-                    output_file.write("-----------------------------------------------------------------------------------------------------------------\n")
-                    output_file.write(f"{'Port':<10} {'Status':<10} {'Exp-Nbr':<28} {'Exp-Nbr-Port':<16} {'Act-Nbr':<28} {'Act-Nbr-Port'}\n")
-                    output_file.write("-----------------------------------------------------------------------------------------------------------------\n")
+                    output_file.write("--------------------------------------------------------------------------------------------------------------------------\n")
+                    output_file.write(f"{'Port':<10} {'Status':<10} {'Exp-Nbr':<28} {'Exp-Nbr-Port':<16} {'Act-Nbr':<28} {'Act-Nbr-Port':<12} {'Port-Status'}\n")
+                    output_file.write("--------------------------------------------------------------------------------------------------------------------------\n")
                     for res in results[device]:
-                        output_file.write(f"{res['Port']:<10} {res['Status']:<10} {res['Exp-Nbr']:<28} {res['Exp-Nbr-Port']:<16} {res['Act-Nbr']:<28} {res['Act-Nbr-Port']}\n")
+                        output_file.write(f"{res['Port']:<10} {res['Status']:<10} {res['Exp-Nbr']:<28} {res['Exp-Nbr-Port']:<16} {res['Act-Nbr']:<28} {res['Act-Nbr-Port']:<12} {res['Port-Status']}\n")
                     output_file.write("\n\n")
     subprocess.run(["sudo", "python3", generate_topology_script], check=True)
     for filename in files_in_order:

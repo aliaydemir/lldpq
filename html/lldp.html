@@ -65,6 +65,9 @@
         .status-warning { color: #ff9800; font-weight: bold; }
         .status-no-info { color: #f44336; font-weight: bold; }
         
+        .port-status-up { color: #4caf50; font-weight: bold; }
+        .port-status-down { color: #f44336; font-weight: bold; }
+        
         .lldp-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
         .lldp-table th, .lldp-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         .lldp-table th { background-color: #f2f2f2; }
@@ -191,22 +194,25 @@
             <th class="sortable" data-column="1" data-type="port">
                 Local Port <span class="sort-arrow">▲▼</span>
             </th>
-            <th class="sortable" data-column="2" data-type="string">
+            <th class="sortable" data-column="2" data-type="port-status">
+                Port Status <span class="sort-arrow">▲▼</span>
+            </th>
+            <th class="sortable" data-column="3" data-type="string">
                 Expected Neighbor <span class="sort-arrow">▲▼</span>
             </th>
-            <th class="sortable" data-column="3" data-type="port">
+            <th class="sortable" data-column="4" data-type="port">
                 Expected Neighbor Port <span class="sort-arrow">▲▼</span>
             </th>
-            <th class="sortable" data-column="4" data-type="string">
+            <th class="sortable" data-column="5" data-type="string">
                 Active Neighbor <span class="sort-arrow">▲▼</span>
             </th>
-            <th class="sortable" data-column="5" data-type="port">
+            <th class="sortable" data-column="6" data-type="port">
                 Active Neighbor Port <span class="sort-arrow">▲▼</span>
             </th>
-            <th class="sortable" data-column="6" data-type="lldp-status">
+            <th class="sortable" data-column="7" data-type="lldp-status">
                 Status <span class="sort-arrow">▲▼</span>
             </th>
-            <th class="sortable" data-column="7" data-type="string">
+            <th class="sortable" data-column="8" data-type="string">
                 Connection Health <span class="sort-arrow">▲▼</span>
             </th>
         </tr>
@@ -349,15 +355,29 @@
                 
                 row.insertCell(0).textContent = connection.localDevice;
                 row.insertCell(1).textContent = connection.localPort;
-                row.insertCell(2).textContent = connection.expectedDevice || 'N/A';
-                row.insertCell(3).textContent = connection.expectedPort || 'N/A';
-                row.insertCell(4).textContent = connection.actualDevice || 'N/A';
-                row.insertCell(5).textContent = connection.actualPort || 'N/A';
                 
-                const statusCell = row.insertCell(6);
+                // Port Status cell (NEW)
+                const portStatusCell = row.insertCell(2);
+                const portStatus = connection.portStatus || 'N/A';
+                let portStatusClass = '';
+                if (portStatus === 'UP') {
+                    portStatusClass = 'port-status-up';
+                } else if (portStatus === 'DOWN') {
+                    portStatusClass = 'port-status-down';
+                } else {
+                    portStatusClass = 'port-status-down';  // N/A or unknown = treat as down (red)
+                }
+                portStatusCell.innerHTML = `<span class="${portStatusClass}">${portStatus}</span>`;
+                
+                row.insertCell(3).textContent = connection.expectedDevice || 'N/A';
+                row.insertCell(4).textContent = connection.expectedPort || 'N/A';
+                row.insertCell(5).textContent = connection.actualDevice || 'N/A';
+                row.insertCell(6).textContent = connection.actualPort || 'N/A';
+                
+                const statusCell = row.insertCell(7);
                 statusCell.innerHTML = `<span class="${status.statusClass}">${status.status}</span>`;
                 
-                row.insertCell(7).textContent = status.health;
+                row.insertCell(8).textContent = status.health;
             });
         }
 
@@ -393,13 +413,14 @@
                 
                 // Parse port data lines
                 const parts = line.split(/\s+/);
-                if (parts.length >= 6 && currentDevice) {
+                if (parts.length >= 7 && currentDevice) {
                     const localPort = parts[0];
                     const status = parts[1];
                     const expectedDevice = parts[2];
                     const expectedPort = parts[3];
                     const actualDevice = parts[4] === 'None' ? null : parts[4];
                     const actualPort = parts[5] === 'None' ? null : parts[5];
+                    const portStatus = parts[6] || 'N/A';
                     
                     connections.push({
                         localDevice: currentDevice,
@@ -409,6 +430,7 @@
                         actualDevice: actualDevice,
                         actualPort: actualPort,
                         lldpStatus: status,
+                        portStatus: portStatus,
                         originalLine: line
                     });
                 } else if (parts.length >= 6) {
@@ -611,6 +633,9 @@
                     case 'lldp-status':
                         result = compareLLDPStatus(aVal, bVal);
                         break;
+                    case 'port-status':
+                        result = comparePortStatus(aVal, bVal);
+                        break;
                     case 'string':
                     default:
                         result = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' });
@@ -652,6 +677,16 @@
             };
             
             return (priority[a] || 4) - (priority[b] || 4);
+        }
+        
+        function comparePortStatus(a, b) {
+            const priority = {
+                'DOWN': 0,
+                'UP': 1
+            };
+            
+            // Treat N/A and unknown as DOWN for sorting
+            return (priority[a] || 0) - (priority[b] || 0);
         }
 
         // Run LLDP Check Function
@@ -785,7 +820,8 @@
                 // Create CSV header
                 const headers = [
                     'Local Device',
-                    'Local Port', 
+                    'Local Port',
+                    'Port Status',
                     'Expected Neighbor',
                     'Expected Port',
                     'Active Neighbor',
@@ -815,16 +851,17 @@
                 rows.forEach(row => {
                     if (row.style.display !== 'none') {
                         const cells = row.querySelectorAll('td');
-                        if (cells.length >= 7) {
+                        if (cells.length >= 8) {
                             const rowData = [
                                 cells[0].textContent.trim(), // Device
                                 cells[1].textContent.trim(), // Local Port
-                                cells[2].textContent.trim(), // Expected Neighbor
-                                cells[3].textContent.trim(), // Expected Port
-                                cells[4].textContent.trim(), // Active Neighbor
-                                cells[5].textContent.trim(), // Active Port
-                                cells[6].textContent.trim(), // Status
-                                cells[7].textContent.trim()  // Health
+                                cells[2].textContent.trim(), // Port Status
+                                cells[3].textContent.trim(), // Expected Neighbor
+                                cells[4].textContent.trim(), // Expected Port
+                                cells[5].textContent.trim(), // Active Neighbor
+                                cells[6].textContent.trim(), // Active Port
+                                cells[7].textContent.trim(), // Status
+                                cells[8].textContent.trim()  // Health
                             ];
                             
                             // Escape commas and quotes in data
