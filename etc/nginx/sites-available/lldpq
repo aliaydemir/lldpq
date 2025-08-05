@@ -34,28 +34,14 @@ server {
             autoindex_localtime on;
         }
         
-        # Auto-trigger endpoint with file creation
+        # Auto-trigger endpoint with fcgiwrap
         location = /trigger-lldp {
-            add_header Content-Type application/json always;
-            add_header Access-Control-Allow-Origin * always;
-            add_header Access-Control-Allow-Methods "POST, OPTIONS" always;
-            add_header Access-Control-Allow-Headers "Content-Type" always;
-            
-            # Handle CORS preflight
-            if ($request_method = OPTIONS) {
-                return 200 '{"status": "ok", "message": "CORS preflight"}';
-            }
-            
-            # Create trigger file and return success
-            access_by_lua_block {
-                local trigger_file = "/var/www/html/.web_trigger"
-                local file = io.open(trigger_file, "w")
-                if file then
-                    file:write(tostring(os.time()))
-                    file:close()
-                end
-            }
-            
-            return 200 '{"status": "started", "message": "LLDP check triggered automatically", "note": "Analysis will complete within 1-2 minutes."}';
+            # Execute trigger script via fcgiwrap
+            fastcgi_pass unix:/var/run/fcgiwrap.socket;
+            fastcgi_param SCRIPT_FILENAME /var/www/html/trigger-lldp.sh;
+            fastcgi_param QUERY_STRING $query_string;
+            fastcgi_param REQUEST_METHOD $request_method;
+            fastcgi_param CONTENT_TYPE $content_type;
+            fastcgi_param CONTENT_LENGTH $content_length;
         }
 }

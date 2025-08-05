@@ -26,10 +26,11 @@ fi
 echo ""
 echo "[01] Installing required packages..."
 sudo apt update
-sudo apt install -y nginx python3 python3-pip python3-yaml
-sudo apt install -y nginx-extras 
+sudo apt install -y nginx fcgiwrap python3 python3-pip python3-yaml 
 sudo systemctl enable nginx
 sudo systemctl start nginx
+sudo systemctl enable fcgiwrap
+sudo systemctl start fcgiwrap
 
 # Install Python packages for alert system
 echo "   - Installing Python packages for alerts..."
@@ -43,6 +44,7 @@ sudo cp -r etc/* /etc/
 
 echo "   - Copying html/* to /var/www/html/"
 sudo cp -r html/* /var/www/html/
+sudo chmod +x /var/www/html/trigger-lldp.sh
 
 echo "   - Copying bin/* to /usr/local/bin/"
 sudo cp bin/* /usr/local/bin/
