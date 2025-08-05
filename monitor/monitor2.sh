@@ -127,7 +127,7 @@ EOF
         # Get interfaces and sort them properly: UP ports first, then DOWN ports, each group numerically sorted
         
         # First collect UP ports
-        for interface in $(ip link show | awk "/^[0-9]+: swp[0-9]+/ {gsub(/:/, \"\", \$2); print \$2}" | sort -V); do
+        for interface in $(ip link show | awk "/^[0-9]+: swp[0-9]+[s0-9]*/ {gsub(/:/, \"\", \$2); print \$2}" | sort -V); do
             if [ -e "/sys/class/net/$interface" ]; then
                 state=$(cat /sys/class/net/$interface/operstate 2>/dev/null || echo "unknown")
                 link_status=$([ "$state" = "up" ] && echo "up" || echo "down")
@@ -142,7 +142,7 @@ EOF
         done
         
         # Then collect DOWN ports
-        for interface in $(ip link show | awk "/^[0-9]+: swp[0-9]+/ {gsub(/:/, \"\", \$2); print \$2}" | sort -V); do
+        for interface in $(ip link show | awk "/^[0-9]+: swp[0-9]+[s0-9]*/ {gsub(/:/, \"\", \$2); print \$2}" | sort -V); do
             if [ -e "/sys/class/net/$interface" ]; then
                 state=$(cat /sys/class/net/$interface/operstate 2>/dev/null || echo "unknown")
                 link_status=$([ "$state" = "up" ] && echo "up" || echo "down")
@@ -229,7 +229,7 @@ EOF
         echo "=== NATIVE LINUX INTERFACE DATA COLLECTION ==="
         
         # Get interface list using ip link (replaces nv show interface)
-        all_interfaces=$(ip link show | awk "/^[0-9]+: swp[0-9]+/ {gsub(/:/, \"\", \$2); print \$2}")
+        all_interfaces=$(ip link show | awk "/^[0-9]+: swp[0-9]+[s0-9]*/ {gsub(/:/, \"\", \$2); print \$2}")
         
         # Collect ALL interface data in single loop using native Linux commands
         for interface in $all_interfaces; do
@@ -279,7 +279,7 @@ EOF
     # Single SSH session for ALL carrier transitions data using native Linux
     timeout 300 ssh $SSH_OPTS -q "$user@$device" '
         # Get all swp interfaces using ip link
-        all_interfaces=$(ip link show | awk "/^[0-9]+: swp[0-9]+/ {gsub(/:/, \"\", \$2); print \$2}")
+        all_interfaces=$(ip link show | awk "/^[0-9]+: swp[0-9]+[s0-9]*/ {gsub(/:/, \"\", \$2); print \$2}")
         
         # Collect carrier transitions for all interfaces using /sys
         for interface in $all_interfaces; do
