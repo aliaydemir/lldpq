@@ -90,7 +90,7 @@ echo "Cron jobs added:"
 echo "   - lldpq:           every 10 minutes"
 echo "   - monitor:         every 30 minutes (15,45)"  
 echo "   - get-conf:        every 12 hours"
-echo "   - web triggers:    every minute (enables Run LLDP Check button)"
+echo "   - web triggers:    daemon (checks every 5 seconds, enables Run LLDP Check button)"
 
 echo ""
 echo "[06] SSH Key Setup Required"

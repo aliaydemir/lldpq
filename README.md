@@ -48,7 +48,7 @@ edit these 6 files:
 */10 * * * * lldpq                      # topology every 10min
 15,45 * * * * monitor                   # performance monitor every 30min (15,45)  
 0 */12 * * * get-conf                   # configs every 12 hours
-* * * * * lldp-trigger-monitor.sh       # web triggers every minute
+* * * * * lldp-trigger-monitor.sh       # web triggers daemon (checks every 5 seconds)
 ```
 
 ## [05] update
