@@ -203,6 +203,32 @@ EOF
                 # Color Egress/tagged keywords
                 s/(Egress|Untagged|tagged)/\<span style=\"color:yellow;\"\>\1\<\/span\>/g
             "
+
+    echo \"<pre style='font-family:monospace;\'>\"
+    printf \"%-20s %-10s %s\n\" \"PORT\" \"PVID\" \"VLANs\"
+    printf \"%-20s %-10s %s\n\" \"----\" \"----\" \"-----\"
+
+    bridge vlan | \
+      awk \'BEGIN{cp=\"\"} NR==1||NF==0{next}
+           NF>=2{ if(cp!=\"\") print cp \"|\" p \"|\" v
+                   cp=\$1; p=\"\"; v=\$2
+                   if(\$3==\"PVID\") p=\$2
+                   next }
+           NF==1{ v=v\",\" \$1 }
+           NF>2&&\$3==\"PVID\"{ p=\$2; v=v\",\" \$2 }
+           END{ if(cp!=\"\") print cp \"|\" p \"|\" v }\' | \
+      awk -F\"|\" \'{ if(\$1~/^vxlan/) n=99999
+                     else if(match(\$1,/^[0-9]+$/)) n=substr(\$1,RSTART,RLENGTH)
+                     else n=99999
+                     printf \"%04d|%s|%s|%s\n\",n,\$1,\$2,\$3 }\' | \
+      sort -t\"|\" -k1,1n | \
+      awk -F\"|\" \'{ printf \"%-20s PVID=%-5s VLANs=%s\n\",\$2,(\$3?\$3:\"N/A\"),\$4 }\'
+
+    echo \"</pre>\"
+
+
+
+
         else
             echo "Bridge command not found - checking PATH: $PATH"
             echo "Trying alternative paths..."
