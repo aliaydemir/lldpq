@@ -31,7 +31,7 @@ cd lldpq
 
 ## [03] configuration files
 
-edit these 6 files:
+edit these 7 files:
 
 ```
 ~/monitor/devices.yaml             # add your switches (ip + username + hostname)
