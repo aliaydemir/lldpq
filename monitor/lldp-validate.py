@@ -73,10 +73,12 @@ def parse_lldp_output(filename):
                 data['port_id'] = port_id_match.group(1).strip()
                 neighbors.append(data)
         
-        # Parse port status (NEW)
-        port_status_match = re.search(r'===PORT_STATUS_START===(.*?)===PORT_STATUS_END===', content, re.DOTALL)
-        if port_status_match:
-            port_status_lines = port_status_match.group(1).strip().split('\n')
+        # Parse port status (NEW) - Use findall to get all sections and take the LAST one
+        port_status_matches = re.findall(r'===PORT_STATUS_START===(.*?)===PORT_STATUS_END===', content, re.DOTALL)
+        if port_status_matches:
+            # Take the LAST section (most recent port status)
+            port_status_section = port_status_matches[-1]
+            port_status_lines = port_status_section.strip().split('\n')
             for line in port_status_lines:
                 line = line.strip()
                 if line:  # Remove colon check since format is "swp1s0  UP"
@@ -143,10 +145,6 @@ def check_connections(topology_file, device_neighbors, device_port_status):
                 continue
             # Get port status for this interface
             interface_port_status = port_status.get(expected_interface, 'N/A')
-            # DEBUG: Print what we're getting
-            if 'swp1s0' in expected_interface:
-                print(f"DEBUG: expected_interface={expected_interface}, port_status={port_status.get(expected_interface)}")
-                print(f"DEBUG: interface_port_status BEFORE append={interface_port_status}")
             device_results.append({
                 'Port': expected_interface,
                 'interface': expected_interface,
@@ -157,9 +155,6 @@ def check_connections(topology_file, device_neighbors, device_port_status):
                 'Act-Nbr-Port': active_neighbor_port,
                 'Port-Status': interface_port_status
             })
-            # DEBUG: Print what we appended
-            if 'swp1s0' in expected_interface:
-                print(f"DEBUG: APPENDED Port-Status={device_results[-1]['Port-Status']}")
         for neighbor in neighbors:
             if neighbor['interface'] == 'eth0' or neighbor['port_id'] == 'eth0':
                 continue
