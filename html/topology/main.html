@@ -12,7 +12,34 @@
     </head>
     <body>
         <a href="main.html"><button>Refresh Autolayout</button></a>
+        <button id="runLLDPCheck" onclick="runLLDPCheck()" style="margin-left: 10px;">Run LLDP Check</button>
         <button onclick='horizontal()'>Horizontal Layout</button>
         <button onclick="vertical()">Vertical Layout</button>
+        
+        <script>
+        function runLLDPCheck() {
+            const button = document.getElementById('runLLDPCheck');
+            button.disabled = true;
+            button.textContent = 'Running...';
+            
+            fetch('/trigger-lldp.sh')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        button.textContent = 'LLDP check started! Refreshing in 5s...';
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 5000);
+                    } else {
+                        button.textContent = 'Error! Try again.';
+                        button.disabled = false;
+                    }
+                })
+                .catch(error => {
+                    button.textContent = 'Error! Try again.';
+                    button.disabled = false;
+                });
+        }
+        </script>
     </body>
 </html>
