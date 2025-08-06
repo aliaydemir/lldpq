@@ -14,7 +14,8 @@ cd lldpq
 
 ## [01] what it does
 
-- monitors switches every 30 minutes  
+- validation lldp every minutes
+- monitors switches every 5 minutes (optimized performance)  
 - collects bgp, optical, ber, link flap, hardware health data
 - shows network topology with lldp
 - web dashboard with real-time stats
@@ -45,8 +46,8 @@ edit these 6 files:
 ## [04] cron jobs (auto setup)
 
 ```
-*/10 * * * * lldpq                      # topology every 10min
-15,45 * * * * monitor                   # performance monitor every 30min (15,45)  
+* * * * * lldpq                         # fast LLDP analysis every minute
+*/5 * * * * monitor                     # system monitoring every 5 minutes
 0 */12 * * * get-conf                   # configs every 12 hours
 * * * * * lldp-trigger-monitor.sh       # web triggers daemon (checks every 5 seconds)
 ```
@@ -143,7 +144,7 @@ python3 test_alerts.py                               # test configuration
 
 ### how it works:
 - **smart detection**: only alerts on state changes (no spam)
-- **10-minute checks**: runs with lldpq cron job every 10 minutes
+- **1-minute checks**: runs with lldpq cron job every minute for fast topology updates
 - **customizable**: adjust thresholds in notifications.yaml
 - **state tracking**: prevents duplicate alerts, tracks recovery
 
