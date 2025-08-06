@@ -431,15 +431,17 @@ EOF
             echo "Auth log not found"
         fi
         
-        echo "SYSTEM_CRITICAL_LOGS:"
-        # System critical logs from syslog (TIME-BASED: Last 2 hours only)
+        # System critical logs from syslog (TIME-BASED: Last 2 hours only) - Only show if there are entries
+        CRITICAL_LOGS=""
         if systemctl is-active --quiet systemd-journald 2>/dev/null; then
-            sudo journalctl --since="2 hours ago" --priority=0..3 --grep="ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault" --no-pager --lines=50 2>/dev/null || echo "No recent system critical issues"
+            CRITICAL_LOGS=$(sudo journalctl --since="2 hours ago" --priority=0..3 --grep="ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault" --no-pager --lines=50 2>/dev/null)
         elif [ -f "/var/log/syslog" ]; then
-            # Fallback to file-based but with date filtering
-            sudo grep "$(date '\''+%b %d'\'')" /var/log/syslog 2>/dev/null | tail -50 | grep -E "(ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault)" || echo "No recent system critical issues"
-        else
-            echo "Syslog not found"
+            CRITICAL_LOGS=$(sudo grep "$(date '\''+%b %d'\'')" /var/log/syslog 2>/dev/null | tail -50 | grep -E "(ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault)")
+        fi
+        
+        if [ -n "$CRITICAL_LOGS" ]; then
+            echo "SYSTEM_CRITICAL_LOGS:"
+            echo "$CRITICAL_LOGS"
         fi
         
         echo "JOURNALCTL_PRIORITY_LOGS:"
