@@ -22,20 +22,22 @@
             button.disabled = true;
             button.textContent = 'Running...';
             
-            fetch('/trigger-lldp.sh')
+            fetch('/trigger-lldp', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.status === 'success') {
-                        button.textContent = 'LLDP check started! Refreshing in 5s...';
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 5000);
-                    } else {
-                        button.textContent = 'Error! Try again.';
-                        button.disabled = false;
-                    }
+                    console.log('✅ LLDP check response:', data);
+                    button.textContent = '✓ Triggered! Refreshing in 5s...';
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 5000);
                 })
                 .catch(error => {
+                    console.error('❌ LLDP check error:', error);
                     button.textContent = 'Error! Try again.';
                     button.disabled = false;
                 });
