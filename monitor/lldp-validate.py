@@ -143,6 +143,9 @@ def check_connections(topology_file, device_neighbors, device_port_status):
                 continue
             # Get port status for this interface
             interface_port_status = port_status.get(expected_interface, 'N/A')
+            # DEBUG: Print what we're getting
+            if 'swp1s0' in expected_interface:
+                print(f"DEBUG: expected_interface={expected_interface}, port_status={port_status.get(expected_interface)}")
             device_results.append({
                 'Port': expected_interface,
                 'interface': expected_interface,
