@@ -714,11 +714,19 @@ class LogAnalyzer:
                 let aVal, bVal;
                 
                 if (type === 'number' && columnIndex > 0) {
-                    // For severity count columns, get the number from the span
+                    // For severity count columns, try to get number from span first, then fallback to direct text
                     const aSpan = a.cells[columnIndex].querySelector('.severity-count');
                     const bSpan = b.cells[columnIndex].querySelector('.severity-count');
-                    aVal = aSpan ? parseInt(aSpan.textContent) || 0 : 0;
-                    bVal = bSpan ? parseInt(bSpan.textContent) || 0 : 0;
+                    
+                    if (aSpan && bSpan) {
+                        // Severity columns with spans
+                        aVal = parseInt(aSpan.textContent) || 0;
+                        bVal = parseInt(bSpan.textContent) || 0;
+                    } else {
+                        // Total column (direct text content)
+                        aVal = parseInt(a.cells[columnIndex].textContent.trim()) || 0;
+                        bVal = parseInt(b.cells[columnIndex].textContent.trim()) || 0;
+                    }
                 } else {
                     // For device names and other text
                     aVal = a.cells[columnIndex].textContent.trim();
