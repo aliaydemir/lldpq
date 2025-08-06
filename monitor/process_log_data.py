@@ -894,6 +894,12 @@ class LogAnalyzer:
         for log_file in log_files:
             device_name = log_file.replace('_logs.txt', '')
             log_file_path = os.path.join(self.log_data_dir, log_file)
+            
+            # Ensure device is initialized in counts (even if no logs)
+            if device_name not in self.log_counts:
+                self.log_counts[device_name] = {"critical": 0, "warning": 0, "error": 0, "info": 0}
+                self.log_analysis[device_name] = {"critical": [], "warning": [], "error": [], "info": []}
+            
             self.process_device_logs(device_name, log_file_path)
         
         print(f"📊 Processed {len(log_files)} devices")
