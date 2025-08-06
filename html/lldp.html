@@ -485,8 +485,16 @@
             // Setup click events for summary cards
             setupSummaryCardEvents();
             
-            // Render table with all connections initially
-            renderConnectionsTable(connections);
+            // 🚀 Progressive loading: Show first 50 connections immediately
+            const initialBatch = connections.slice(0, 50);
+            renderConnectionsTable(initialBatch);
+            
+            // Load remaining connections after 10ms
+            if (connections.length > 50) {
+                setTimeout(() => {
+                    renderConnectionsTable(connections);
+                }, 10);
+            }
         }
 
         function showFallbackContent() {
