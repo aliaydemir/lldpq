@@ -508,6 +508,94 @@
             }, 5000);
         }
 
+        function downloadAllConfigs(format) {
+            const button = format === 'txt' ? document.getElementById('download-nvset') : document.getElementById('download-yaml');
+            const originalText = button.innerHTML;
+            
+            // Show loading state
+            button.disabled = true;
+            button.style.opacity = '0.7';
+            button.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="animation: spin 1s linear infinite;">
+                    <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
+                </svg>
+                ${format === 'txt' ? 'Downloading NV-SET...' : 'Downloading YAML...'}
+            `;
+            
+            // Filter files by format
+            const formatFiles = files.filter(file => file.endsWith(`.${format}`));
+            
+            if (formatFiles.length === 0) {
+                showError(`No ${format.toUpperCase()} configuration files found.`);
+                resetDownloadButton(button, originalText);
+                return;
+            }
+            
+            // Download all files and create ZIP
+            Promise.all(formatFiles.map(file => 
+                fetch(`/configs/${file}`)
+                    .then(response => response.text())
+                    .then(content => ({ filename: file, content: content }))
+            ))
+            .then(fileContents => {
+                // Create a simple archive content
+                let archiveContent = '';
+                let separator = '='.repeat(80);
+                
+                fileContents.forEach(({ filename, content }, index) => {
+                    if (index > 0) archiveContent += '\n\n';
+                    archiveContent += `${separator}\n`;
+                    archiveContent += `FILE: ${filename}\n`;
+                    archiveContent += `${separator}\n`;
+                    archiveContent += content;
+                });
+                
+                // Create download
+                const now = new Date();
+                const dateStr = now.toISOString().slice(0, 10);
+                const timeStr = now.toTimeString().slice(0, 5).replace(':', '-');
+                const filename = `All_Device_Configs_${format.toUpperCase()}_${dateStr}_${timeStr}.txt`;
+                
+                const blob = new Blob([archiveContent], { type: 'text/plain;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Show success state
+                button.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+                    </svg>
+                    ✓ Downloaded ${fileContents.length} files
+                `;
+                button.style.background = 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)';
+                
+                setTimeout(() => resetDownloadButton(button, originalText), 3000);
+            })
+            .catch(error => {
+                console.error('Error downloading configs:', error);
+                showError('Error downloading configurations: ' + error.message);
+                resetDownloadButton(button, originalText);
+            });
+        }
+        
+        function resetDownloadButton(button, originalText) {
+            button.disabled = false;
+            button.style.opacity = '1';
+            button.innerHTML = originalText;
+            
+            // Reset original background colors
+            if (button.id === 'download-nvset') {
+                button.style.background = 'linear-gradient(135deg, #b57614 0%, #d49c1a 100%)';
+            } else {
+                button.style.background = 'linear-gradient(135deg, #569cd6 0%, #4a90e2 100%)';
+            }
+        }
+
         window.onload = function() {
             setLastUpdated();
             listFiles();
