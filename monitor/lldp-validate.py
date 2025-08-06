@@ -146,6 +146,7 @@ def check_connections(topology_file, device_neighbors, device_port_status):
             # DEBUG: Print what we're getting
             if 'swp1s0' in expected_interface:
                 print(f"DEBUG: expected_interface={expected_interface}, port_status={port_status.get(expected_interface)}")
+                print(f"DEBUG: interface_port_status BEFORE append={interface_port_status}")
             device_results.append({
                 'Port': expected_interface,
                 'interface': expected_interface,
@@ -156,6 +157,9 @@ def check_connections(topology_file, device_neighbors, device_port_status):
                 'Act-Nbr-Port': active_neighbor_port,
                 'Port-Status': interface_port_status
             })
+            # DEBUG: Print what we appended
+            if 'swp1s0' in expected_interface:
+                print(f"DEBUG: APPENDED Port-Status={device_results[-1]['Port-Status']}")
         for neighbor in neighbors:
             if neighbor['interface'] == 'eth0' or neighbor['port_id'] == 'eth0':
                 continue
