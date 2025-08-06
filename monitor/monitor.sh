@@ -423,10 +423,10 @@ EOF
         echo "AUTH_SECURITY_LOGS:"
         # Authentication and security logs (TIME-BASED: Last 2 hours only, excluding monitoring activities)
         if systemctl is-active --quiet systemd-journald 2>/dev/null; then
-            sudo journalctl --since="2 hours ago" --grep="FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized" --no-pager --lines=50 2>/dev/null | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|--since|--grep)" || echo "No recent auth issues"
+            sudo journalctl --since="2 hours ago" --grep="FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized" --no-pager --lines=50 2>/dev/null | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|--since|--grep|swp\|bond\|vlan\|carrier\|link)" || echo "No recent auth issues"
         elif [ -f "/var/log/auth.log" ]; then
             # Fallback to file-based but with date filtering (exclude monitoring activities)
-            sudo grep "$(date '\''+%b %d'\'')" /var/log/auth.log 2>/dev/null | tail -30 | grep -E "(FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized)" | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|--since)" || echo "No recent auth issues"
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/auth.log 2>/dev/null | tail -30 | grep -E "(FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized)" | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|--since|swp\|bond\|vlan\|carrier\|link)" || echo "No recent auth issues"
         else
             echo "Auth log not found"
         fi
