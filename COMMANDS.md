@@ -2,7 +2,7 @@
 
 Complete list of commands executed on network devices across all monitoring and configuration scripts.
 
-## 📊 Monitor Script (`monitor.sh` + `monitor2.sh` - Performance Optimized)
+## 📊 Monitor Script (`monitor.sh` - Performance Optimized)
 
 ### Interface and Network Status (Native Linux Commands - 20x Faster)
 ```bash
