@@ -166,7 +166,8 @@ class LogAnalyzer:
                     continue
                 
                 # Skip non-informative lines
-                if line.startswith('No ') or line == '' or len(line) < 10:
+                if (line.startswith('No ') or line == '' or len(line) < 10 or 
+                    'No entries' in line or line.strip() == '-- No entries --'):
                     continue
                 
                 if current_section:
