@@ -485,15 +485,20 @@
             // Setup click events for summary cards
             setupSummaryCardEvents();
             
-            // 🚀 Progressive loading: Show first 50 connections immediately
-            const initialBatch = connections.slice(0, 50);
+            // 🚀 Progressive loading: Show first 20 connections immediately (problems first)
+            const initialBatch = connections.slice(0, 20);
             renderConnectionsTable(initialBatch);
             
-            // Load remaining connections after 10ms
-            if (connections.length > 50) {
+            // Show loading indicator for remaining data
+            if (connections.length > 20) {
+                const tbody = document.getElementById('lldp-data');
+                const loadingRow = tbody.insertRow();
+                loadingRow.innerHTML = '<td colspan="9" style="text-align: center; padding: 20px; color: #666; font-style: italic;">Loading remaining connections...</td>';
+                
+                // Load all connections after 50ms
                 setTimeout(() => {
                     renderConnectionsTable(connections);
-                }, 10);
+                }, 50);
             }
         }
 
