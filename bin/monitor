@@ -1,11 +1,8 @@
 #!/bin/bash
 cd ~/monitor/
-wait_until_not_running() {
-    script_name="$1"
-    while pgrep -f "$script_name" >/dev/null; do
-        sleep 10
-    done
-}
-wait_until_not_running "monitor.sh"
+# Wait for any existing monitor.sh to finish
+while pgrep -f "monitor.sh" >/dev/null; do
+    sleep 10
+done
 /bin/bash ./monitor.sh >/dev/null 2>&1
 exit 0
