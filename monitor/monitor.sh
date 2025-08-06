@@ -452,7 +452,8 @@ EOF
         
         echo "NETWORK_INTERFACE_LOGS:"
         # Network interface state changes (HYBRID: TIME + SEVERITY - Network Events)
-        sudo journalctl --since="3 hours ago" --grep="swp|bond|vlan|carrier|link.*up|link.*down|port.*up|port.*down" --no-pager --lines=40 2>/dev/null || echo "No interface state changes"
+        # Filter out monitoring scripts own journalctl commands
+        sudo journalctl --since="3 hours ago" --grep="swp|bond|vlan|carrier|link.*up|link.*down|port.*up|port.*down" --no-pager --lines=40 2>/dev/null | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|sudo.*journalctl)" || echo "No interface state changes"
         
     ' > "monitor-results/log-data/${hostname}_logs.txt" 2>/dev/null
     
