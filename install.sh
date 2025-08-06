@@ -26,7 +26,7 @@ fi
 echo ""
 echo "[01] Installing required packages..."
 sudo apt update
-sudo apt install -y nginx fcgiwrap python3 python3-pip python3-yaml
+sudo apt install -y nginx fcgiwrap python3 python3-pip python3-yaml util-linux bsdextrautils
 sudo apt install -y fcgiwrap
 sudo systemctl enable --now nginx
 sudo systemctl enable --now fcgiwrap
@@ -69,6 +69,9 @@ echo "[04] Configuring nginx..."
 
 # Enable LLDPq site
 sudo ln -sf /etc/nginx/sites-available/lldpq /etc/nginx/sites-enabled/lldpq
+
+# Disable Default site
+sudo unlink /etc/nginx/sites-enabled/default
 
 # Test and restart nginx
 sudo nginx -t
