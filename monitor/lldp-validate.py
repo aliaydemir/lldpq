@@ -205,6 +205,7 @@ if __name__ == "__main__":
                         output_file.write(f"{res['Port']:<10} {res['Status']:<10} {res['Exp-Nbr']:<28} {res['Exp-Nbr-Port']:<16} {res['Act-Nbr']:<28} {res['Act-Nbr-Port']:<12} {res['Port-Status']}\n")
                     output_file.write("\n\n")
     subprocess.run(["sudo", "python3", generate_topology_script], check=True)
-    for filename in files_in_order:
-        if filename.endswith("_lldp_result.ini"):
-            os.remove(os.path.join(lldp_results_folder, filename))
+    # DEBUG: Keep raw files for debugging
+    # for filename in files_in_order:
+    #     if filename.endswith("_lldp_result.ini"):
+    #         os.remove(os.path.join(lldp_results_folder, filename))
