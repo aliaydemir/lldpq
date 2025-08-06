@@ -124,6 +124,15 @@
     
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2 style="margin: 0;">Asset Summary</h2>
+        <button id="run-lldp" onclick="runLLDPCheck()" 
+                style="background: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
+                onmouseover="this.style.background='#1976d2'" 
+                onmouseout="this.style.background='#2196f3'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8,5.14V19.14L19,12.14L8,5.14Z"/>
+            </svg>
+            <span id="run-lldp-text">Run LLDP Check</span>
+        </button>
         <button id="download-csv" onclick="downloadCSV()" 
                 style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
                 onmouseover="this.style.background='#45a049'" 
@@ -507,6 +516,124 @@
         };
         
         return (priority[a] || 4) - (priority[b] || 4);
+    }
+    // Run LLDP Check Function
+    function runLLDPCheck() {
+        const button = document.getElementById('run-lldp');
+        const buttonText = document.getElementById('run-lldp-text');
+        const originalText = buttonText.textContent;
+        
+        // Disable button and show loading
+        button.disabled = true;
+        button.style.opacity = '0.7';
+        button.style.cursor = 'not-allowed';
+        buttonText.textContent = 'Running...';
+        
+        // Make request to trigger LLDP check via simple endpoint
+        fetch('/trigger-lldp', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('✅ LLDP check response:', data);
+            
+            // Always show manual trigger instruction
+            buttonText.textContent = '✓ Triggered';
+            button.style.background = '#4caf50';
+            
+            // Show instruction notification
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #2196f3;
+                color: white;
+                padding: 15px 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                z-index: 1000;
+                font-size: 14px;
+                max-width: 350px;
+                font-family: monospace;
+            `;
+            notification.innerHTML = `
+                <strong>✅ LLDP Check Started</strong><br>
+                The topology analysis is running in the background.<br>
+                <small>Page will automatically refresh in 5 seconds to show the latest results.</small>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto-refresh page after 6 seconds
+            setTimeout(() => {
+                location.reload();
+            }, 6000);
+            
+            // Auto-remove notification after 5 seconds (before refresh)
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 5000);
+            
+            // Reset button after 4 seconds
+            setTimeout(() => {
+                button.disabled = false;
+                button.style.opacity = '1';
+                button.style.cursor = 'pointer';
+                button.style.background = '#2196f3';
+                buttonText.textContent = originalText;
+            }, 4000);
+        })
+        .catch(error => {
+            console.error('❌ Error running LLDP check:', error);
+            
+            // Show error state
+            buttonText.textContent = '✗ Error';
+            button.style.background = '#f44336';
+            
+            // Show error notification
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #f44336;
+                color: white;
+                padding: 15px 20px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                z-index: 1000;
+                font-size: 14px;
+                max-width: 300px;
+            `;
+            notification.innerHTML = `
+                <strong>Error!</strong><br>
+                Could not start LLDP check. Please try again or contact administrator.
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto-remove notification after 5 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 5000);
+            
+            // Reset button after 3 seconds
+            setTimeout(() => {
+                button.disabled = false;
+                button.style.opacity = '1';
+                button.style.cursor = 'pointer';
+                button.style.background = '#2196f3';
+                buttonText.textContent = originalText;
+            }, 3000);
+        });
     }
 
     // CSV Download Function
