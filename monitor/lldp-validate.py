@@ -79,10 +79,10 @@ def parse_lldp_output(filename):
             port_status_lines = port_status_match.group(1).strip().split('\n')
             for line in port_status_lines:
                 line = line.strip()
-                if line and ':' in line:
+                if line:  # Remove colon check since format is "swp1s0  UP"
                     parts = line.split()
                     if len(parts) >= 2:
-                        port_name = parts[0].rstrip(':')  # Remove : from swp1:
+                        port_name = parts[0]  # Port name (no colon to remove)
                         status = parts[-1]  # Take the last word (UP/DOWN)
                         port_status[port_name] = status
     
