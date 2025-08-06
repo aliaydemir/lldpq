@@ -423,10 +423,10 @@ EOF
         echo "AUTH_SECURITY_LOGS:"
         # Authentication and security logs (TIME-BASED: Last 2 hours only, excluding monitoring activities)
         if systemctl is-active --quiet systemd-journald 2>/dev/null; then
-            sudo journalctl --since="2 hours ago" --grep="FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized" --no-pager --lines=50 2>/dev/null | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|--since|--grep|swp\|bond\|vlan\|carrier\|link)" || echo "No recent auth issues"
+            sudo journalctl --since="2 hours ago" --grep="FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized" --no-pager --lines=50 2>/dev/null | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|--since|--grep|swp\|bond\|vlan\|carrier\|link|vtysh|sudo.*authentication.*grantor=pam_permit|USER_AUTH.*res=success)" || echo "No recent auth issues"
         elif [ -f "/var/log/auth.log" ]; then
             # Fallback to file-based but with date filtering (exclude monitoring activities)
-            sudo grep "$(date '\''+%b %d'\'')" /var/log/auth.log 2>/dev/null | tail -30 | grep -E "(FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized)" | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|--since|swp\|bond\|vlan\|carrier\|link)" || echo "No recent auth issues"
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/auth.log 2>/dev/null | tail -30 | grep -E "(FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized)" | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|--since|swp\|bond\|vlan\|carrier\|link|vtysh|sudo.*authentication.*grantor=pam_permit|USER_AUTH.*res=success)" || echo "No recent auth issues"
         else
             echo "Auth log not found"
         fi
@@ -452,7 +452,7 @@ EOF
         
         echo "NETWORK_INTERFACE_LOGS:"
         # Network interface state changes (HYBRID: TIME + SEVERITY - Network Events)
-        # Filter out monitoring scripts own journalctl commands
+        # Filter out monitoring scriptimage.pngs own journalctl commands
         sudo journalctl --since="3 hours ago" --grep="swp|bond|vlan|carrier|link.*up|link.*down|port.*up|port.*down" --no-pager --lines=40 2>/dev/null | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|sudo.*journalctl)" || echo "No interface state changes"
         
     ' > "monitor-results/log-data/${hostname}_logs.txt" 2>/dev/null
