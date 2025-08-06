@@ -83,7 +83,7 @@ def parse_lldp_output(filename):
                     parts = line.split()
                     if len(parts) >= 2:
                         port_name = parts[0].rstrip(':')  # Remove : from swp1:
-                        status = parts[1]
+                        status = parts[-1]  # Take the last word (UP/DOWN)
                         port_status[port_name] = status
     
     return neighbors, port_status
