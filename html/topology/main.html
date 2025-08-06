@@ -33,7 +33,7 @@
                     console.log('✅ LLDP check response:', data);
                     button.textContent = '✓ Triggered! Refreshing in 5s...';
                     setTimeout(() => {
-                        window.location.reload();
+                        window.location.href = 'main.html';
                     }, 5000);
                 })
                 .catch(error => {
