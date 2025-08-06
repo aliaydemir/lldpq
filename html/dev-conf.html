@@ -6,6 +6,7 @@
     <title>Device Configurations</title>
     <link rel="shortcut icon" href="/png/favicon.ico">
     <link rel="stylesheet" type="text/css" href="/css/styles2.css">
+    <script src="/css/jszip.min.js"></script>
     <style>
         .selector-container {
             margin: 20px 0 30px 0;
@@ -529,72 +530,96 @@
             // Show loading state
             button.disabled = true;
             button.style.opacity = '0.7';
-            
-            // Start sequential downloads
-            let downloadCount = 0;
-            
-            function updateProgress() {
-                downloadCount++;
-                button.innerHTML = `
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="animation: spin 1s linear infinite;">
-                        <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
-                    </svg>
-                    Downloading ${downloadCount}/${formatFiles.length}...
-                `;
-                
-                if (downloadCount === formatFiles.length) {
-                    // All downloads completed
-                    button.innerHTML = `
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
-                        </svg>
-                        ✓ Downloaded ${formatFiles.length} files
-                    `;
-                    button.style.background = 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)';
-                    
-                    setTimeout(() => resetDownloadButton(button, originalText), 3000);
-                }
-            }
-            
-            // Update initial progress
             button.innerHTML = `
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="animation: spin 1s linear infinite;">
                     <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
                 </svg>
-                Starting downloads...
+                Creating ZIP archive...
             `;
             
-            // Download each file separately with delays
-            formatFiles.forEach((filename, index) => {
-                setTimeout(() => {
-                    fetch(`/configs/${filename}`)
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error(`Failed to download ${filename}`);
-                            }
-                            return response.blob();
-                        })
-                        .then(blob => {
-                            // Create download link
-                            const link = document.createElement('a');
-                            link.href = URL.createObjectURL(blob);
-                            link.download = filename;
-                            link.style.display = 'none';
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            
-                            // Clean up blob URL
-                            setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-                            
-                            updateProgress();
-                        })
-                        .catch(error => {
-                            console.error(`Error downloading ${filename}:`, error);
-                            showError(`Error downloading ${filename}: ${error.message}`);
-                            updateProgress(); // Still update progress to avoid hanging
-                        });
-                }, index * 200); // 200ms delay between downloads
+            // Create new ZIP instance
+            const zip = new JSZip();
+            let completedFiles = 0;
+            
+            // Function to update progress
+            function updateProgress() {
+                completedFiles++;
+                button.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="animation: spin 1s linear infinite;">
+                        <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
+                    </svg>
+                    Processing ${completedFiles}/${formatFiles.length}...
+                `;
+                
+                // If all files are processed, generate the ZIP
+                if (completedFiles === formatFiles.length) {
+                    generateZipFile();
+                }
+            }
+            
+            // Function to generate and download ZIP file
+            function generateZipFile() {
+                button.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="animation: spin 1s linear infinite;">
+                        <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
+                    </svg>
+                    Generating ZIP file...
+                `;
+                
+                zip.generateAsync({type:"blob"})
+                    .then(function(blob) {
+                        // Create download
+                        const now = new Date();
+                        const dateStr = now.toISOString().slice(0, 10);
+                        const timeStr = now.toTimeString().slice(0, 5).replace(':', '-');
+                        const filename = `All_Device_Configs_${format.toUpperCase()}_${dateStr}_${timeStr}.zip`;
+                        
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = filename;
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        // Show success state
+                        button.innerHTML = `
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+                            </svg>
+                            ✓ ZIP downloaded (${formatFiles.length} files)
+                        `;
+                        button.style.background = 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)';
+                        
+                        setTimeout(() => resetDownloadButton(button, originalText), 3000);
+                    })
+                    .catch(function(error) {
+                        console.error('Error generating ZIP:', error);
+                        showError('Error generating ZIP file: ' + error.message);
+                        resetDownloadButton(button, originalText);
+                    });
+            }
+            
+            // Download all files and add to ZIP
+            formatFiles.forEach((filename) => {
+                fetch(`/configs/${filename}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Failed to fetch ${filename}`);
+                        }
+                        return response.text();
+                    })
+                    .then(content => {
+                        // Add file to ZIP
+                        zip.file(filename, content);
+                        updateProgress();
+                    })
+                    .catch(error => {
+                        console.error(`Error fetching ${filename}:`, error);
+                        // Add error file to ZIP for debugging
+                        zip.file(`ERROR_${filename}.txt`, `Error fetching ${filename}: ${error.message}`);
+                        updateProgress();
+                    });
             });
         }
         
