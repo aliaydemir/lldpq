@@ -58,7 +58,18 @@ def parse_lldp_output(filename):
             if "Cumulus" in interface:
                 port_id_match = re.search(r'PortID:\s+ifname\s+(\S+)', interface)
             else:
-                port_id_match = re.search(r'PortDescr:\s+(.+)', interface)
+                # For HGX devices, extract just the interface name from "Interface 4 as enp157s0f0np0"
+                port_descr_match = re.search(r'PortDescr:\s+(.+)', interface)
+                if port_descr_match:
+                    port_descr = port_descr_match.group(1).strip()
+                    # Extract interface name from patterns like "Interface 4 as enp157s0f0np0"
+                    interface_name_match = re.search(r'as\s+(\S+)', port_descr)
+                    if interface_name_match:
+                        port_id_match = type('Match', (), {'group': lambda self, n: interface_name_match.group(1)})()
+                    else:
+                        port_id_match = port_descr_match
+                else:
+                    port_id_match = None
             if interface_match and sys_name_match and port_id_match:
                 sys_name = sys_name_match.group(1).strip()
                 if not "Cumulus" in interface:
