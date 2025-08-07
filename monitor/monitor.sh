@@ -227,12 +227,16 @@ EOF
                NF==1{ v=v"," $1 }
                NF>2&&$3=="PVID"{ p=$2; v=v"," $2 }
                END{ if(cp!="") print cp "|" p "|" v }'\'' | \
-          awk -F"|" '\''{
-               if($1~/^vxlan/)      n=99999
-               else if(match($1,/^[0-9]+$/)) n=substr($1,RSTART,RLENGTH)
-               else                  n=99999
-               printf "%04d|%s|%s|%s\n", n, $1, $2, $3
-          }'\'' | \
+                     awk -F"|" '\''{
+                if($1~/^swp[0-9]+$/) {
+                    tmp=$1; gsub(/[^0-9]/,"",tmp); n=sprintf("%04d",tmp)
+                } else if($1~/^vxlan/) {
+                    n="9999"
+                } else {
+                    n="5000"
+                }
+                printf "%s|%s|%s|%s\n", n, $1, $2, $3
+           }'\'' | \
           sort -t"|" -k1,1n | \
           awk -F"|" '\''{
                # Apply colors but use fixed-width formatting
