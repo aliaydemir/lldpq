@@ -163,54 +163,6 @@ EOF
             fi
         done
 
-
-
-
-
-        echo "<h1></h1><h1><font color=\"#b57614\">VLAN Configuration '"$hostname"'</font></h1><h3></h3>"
-        
-        # VLAN mapping using bridge vlan (shows actual bridge configuration)
-        echo ""  # Skip the header since bridge vlan provides its own
-        
-        # Use bridge vlan command (with correct full path)
-        if /usr/sbin/bridge vlan >/dev/null 2>&1; then
-            /usr/sbin/bridge vlan | sed -E "
-                # Color header words in gray (exact match at line start)
-                s/^(port)([[:space:]]+)/\<span style=\"color:gray;\"\>\1\<\/span\>\2/
-                s/^([[:space:]]*)(vlan-id)/\1\<span style=\"color:gray;\"\>\2\<\/span\>/
-                # Color port names in blue (swp, hgx_bond, br_default, peerlink, etc.)
-                s/^([a-zA-Z][a-zA-Z0-9_]*[0-9]*)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
-                # Color VLAN numbers in orange (only numbers that follow whitespace and are followed by space/comma/PVID)
-                s/([[:space:]])([0-9]{1,4})([[:space:]]+|,|$)/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
-                s/([[:space:]])([0-9]{1,4})(PVID)/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
-                # Color PVID in green
-                s/PVID/\<span style=\"color:lime;\"\>PVID\<\/span\>/g
-                # Color Egress/tagged keywords
-                s/(Egress|Untagged|tagged)/\<span style=\"color:yellow;\"\>\1\<\/span\>/g
-            "
-        elif bridge vlan >/dev/null 2>&1; then
-            bridge vlan | sed -E "
-                # Color header words in gray (exact match at line start)
-                s/^(port)([[:space:]]+)/\<span style=\"color:gray;\"\>\1\<\/span\>\2/
-                s/^([[:space:]]*)(vlan-id)/\1\<span style=\"color:gray;\"\>\2\<\/span\>/
-                # Color port names in blue (swp, hgx_bond, br_default, peerlink, etc.)
-                s/^([a-zA-Z][a-zA-Z0-9_]*[0-9]*)/\<span style=\"color:steelblue;\"\>\1\<\/span\>/
-                # Color VLAN numbers in orange (only numbers that follow whitespace and are followed by space/comma/PVID)
-                s/([[:space:]])([0-9]{1,4})([[:space:]]+|,|$)/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
-                s/([[:space:]])([0-9]{1,4})(PVID)/\1\<span style=\"color:tomato;\"\>\2\<\/span\>\3/g
-                # Color PVID in green
-                s/PVID/\<span style=\"color:lime;\"\>PVID\<\/span\>/g
-                # Color Egress/tagged keywords
-                s/(Egress|Untagged|tagged)/\<span style=\"color:yellow;\"\>\1\<\/span\>/g
-            "
-        else
-            echo "Bridge command not found - checking PATH: $PATH"
-            echo "Trying alternative paths..."
-            which bridge 2>/dev/null || echo "Bridge not in PATH"
-            ls -la /sbin/bridge 2>/dev/null || echo "Bridge not in /sbin/"
-            ls -la /usr/sbin/bridge 2>/dev/null || echo "Bridge not in /usr/sbin/"
-        fi
-
         echo "<h1></h1><h1><font color=\"#b57614\">VLAN Configuration Table '"$hostname"'</font></h1><h3></h3>"
         echo "<pre style=\"font-family:monospace;\">"
         printf "%-20s %-12s %s\n" "PORT" "PVID" "VLANs"
