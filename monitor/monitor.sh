@@ -258,8 +258,11 @@ EOF
                vlan_colored = vlan_list
                gsub(/([0-9]+)/, "<span style=\"color:tomato;\">&</span>", vlan_colored)
                
-               # Simple fixed-width formatting
-               printf "%-38s %-30s VLANs=%s\n", port_colored, pvid_colored, vlan_colored
+               # Fixed width output - pad with spaces based on actual text length
+               port_pad = 20 - length(port_name)
+               pvid_pad = 12 - length("PVID=" pvid_val)
+               
+               printf "%s%*s %s%*s VLANs=%s\n", port_colored, port_pad, "", pvid_colored, pvid_pad, "", vlan_colored
           }'\''
         echo "</pre>"
 
