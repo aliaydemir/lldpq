@@ -204,31 +204,31 @@ EOF
                 s/(Egress|Untagged|tagged)/\<span style=\"color:yellow;\"\>\1\<\/span\>/g
             "
 
-        echo "<br><h3><font color=\"#b57614\">VLAN Table Format</font></h3>"
         echo "<pre style=\"font-family:monospace;\">"
         printf "%-20s %-10s %s\n" "PORT" "PVID" "VLANs"
         printf "%-20s %-10s %s\n" "----" "----" "-----"
-        
-        # Simple approach - parse bridge vlan output directly
-        /usr/sbin/bridge vlan | tail -n +2 | while IFS= read -r line; do
-            if [[ "$line" =~ ^[[:space:]]*([a-zA-Z0-9]+)[[:space:]]+([0-9]+) ]]; then
-                port="${BASH_REMATCH[1]}"
-                vlan="${BASH_REMATCH[2]}"
-                
-                # Check if it has PVID
-                if [[ "$line" =~ PVID ]]; then
-                    pvid="$vlan"
-                    printf "%-20s %-10s %s\n" "$port" "$pvid" "$vlan"
-                else
-                    printf "%-20s %-10s %s\n" "$port" "-" "$vlan"
-                fi
-            elif [[ "$line" =~ ^[[:space:]]+([0-9]+) ]]; then
-                # Additional VLANs for same port
-                vlan="${BASH_REMATCH[1]}"
-                printf "%-20s %-10s %s\n" "" "" "$vlan"
-            fi
-        done
-        
+        bridge vlan | \
+          awk '\''BEGIN{cp=""}
+               NR==1||NF==0{next}
+               NF>=2{
+                 if(cp!="") print cp "|" p "|" v
+                 cp=$1; p=""; v=$2
+                 if($3=="PVID") p=$2
+                 next
+               }
+               NF==1{ v=v"," $1 }
+               NF>2&&$3=="PVID"{ p=$2; v=v"," $2 }
+               END{ if(cp!="") print cp "|" p "|" v }'\'' | \
+          awk -F"|" '\''{
+               if($1~/^vxlan/)      n=99999
+               else if(match($1,/^[0-9]+$/)) n=substr($1,RSTART,RLENGTH)
+               else                  n=99999
+               printf "%04d|%s|%s|%s\n", n, $1, $2, $3
+          }'\'' | \
+          sort -t"|" -k1,1n | \
+          awk -F"|" '\''{
+               printf "%-20s PVID=%-5s VLANs=%s\n", $2, ($3 ? $3 : "N/A"), $4
+          }'\''
         echo "</pre>"
 
         else
