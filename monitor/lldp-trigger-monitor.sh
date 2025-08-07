@@ -49,7 +49,7 @@ while true; do
         
         if [ "$LLDP_TRIGGER_TIME" -gt "$LLDP_LAST_CHECK" ]; then
             if [ -f "$LLDP_LOCK_FILE" ] && kill -0 "$(cat "$LLDP_LOCK_FILE")" 2>/dev/null; then
-                echo "$(date): LLDP check already running, skipping trigger" >> "$LOG_FILE" 2>/dev/null
+                # LLDP check already running, skipping trigger
             else
                 {                    
                     echo $$ > "$LLDP_LOCK_FILE"
@@ -85,7 +85,7 @@ while true; do
         
         if [ "$MONITOR_TRIGGER_TIME" -gt "$MONITOR_LAST_CHECK" ]; then
             if [ -f "$MONITOR_LOCK_FILE" ] && kill -0 "$(cat "$MONITOR_LOCK_FILE")" 2>/dev/null; then
-                echo "$(date): Monitor check already running, skipping trigger" >> "$LOG_FILE" 2>/dev/null
+                # Monitor check already running, skipping trigger
             else
                 {                    
                     echo $$ > "$MONITOR_LOCK_FILE"
