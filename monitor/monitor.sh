@@ -227,12 +227,20 @@ EOF
                NF==1{ v=v"," $1 }
                NF>2&&$3=="PVID"{ p=$2; v=v"," $2 }
                END{ if(cp!="") print cp "|" p "|" v }'\'' | \
-                               awk '{ match($1, /([0-9]+)$/, a); print a[1], $0 }' | sort -n | cut -d' ' -f2- | \
+                     awk -F"|" '\''{
+                if($1~/^vxlan/) {
+                    n="9999"
+                } else {
+                    n="5000"
+                }
+                printf "%s|%s|%s|%s\n", n, $1, $2, $3
+           }'\'' | \
+          sort -t"|" -k1,1n | \
           awk -F"|" '\''{
                # Apply colors but use fixed-width formatting
-               port_name = $1
-               pvid_val = $2
-               vlan_list = $3
+               port_name = $2
+               pvid_val = $3
+               vlan_list = $4
                
                # Color the port name
                port_colored = "<span style=\"color:steelblue;\">" port_name "</span>"
@@ -248,18 +256,11 @@ EOF
                vlan_colored = vlan_list
                gsub(/([0-9]+)/, "<span style=\"color:tomato;\">&</span>", vlan_colored)
                
-                               # Fixed width output - pad with spaces based on actual text length
-                port_pad = 20 - length(port_name)
-                
-                # Calculate PVID text length correctly
-                if(pvid_val != "") {
-                    pvid_text_len = length("PVID=" pvid_val)
-                } else {
-                    pvid_text_len = length("PVID=N/A")
-                }
-                pvid_pad = 12 - pvid_text_len
-                
-                printf "%s%*s %s%*s VLANs=%s\n", port_colored, port_pad, "", pvid_colored, pvid_pad, "", vlan_colored
+               # Fixed width output - pad with spaces based on actual text length
+               port_pad = 20 - length(port_name)
+               pvid_pad = 12 - length("PVID=" pvid_val)
+               
+               printf "%s%*s %s%*s VLANs=%s\n", port_colored, port_pad, "", pvid_colored, pvid_pad, "", vlan_colored
           }'\''
         echo "</pre>"
 
