@@ -1,12 +1,14 @@
 #!/bin/bash
-# LLDP Trigger Monitor - Self-loop daemon for web interface triggers
+# LLDP & Monitor Trigger Monitor - Self-loop daemon for web interface triggers
 # Add to crontab: * * * * * /path/to/lldp_trigger_monitor.sh
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 
 MONITOR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TRIGGER_FILE="/tmp/.lldp_web_trigger"
+LLDP_TRIGGER_FILE="/tmp/.lldp_web_trigger"
+MONITOR_TRIGGER_FILE="/tmp/.monitor_web_trigger"
 DAEMON_PID_FILE="/tmp/lldp_trigger_daemon.pid"
 LLDP_LOCK_FILE="/tmp/lldp_running.lock"
+MONITOR_LOCK_FILE="/tmp/monitor_running.lock"
 
 # Exit if daemon already running
 if [ -f "$DAEMON_PID_FILE" ]; then
@@ -32,35 +34,28 @@ cleanup() {
 trap cleanup SIGTERM SIGINT EXIT
 
 # Main daemon loop - check every 5 seconds
-LAST_CHECK_FILE="$MONITOR_DIR/.last_trigger_check"
+LLDP_LAST_CHECK_FILE="$MONITOR_DIR/.last_lldp_trigger_check"
+MONITOR_LAST_CHECK_FILE="$MONITOR_DIR/.last_monitor_trigger_check"
 
 while true; do
-    # Read last check timestamp
-    LAST_CHECK=0
-    if [ -f "$LAST_CHECK_FILE" ]; then
-        LAST_CHECK=$(cat "$LAST_CHECK_FILE")
+    # Check LLDP trigger
+    LLDP_LAST_CHECK=0
+    if [ -f "$LLDP_LAST_CHECK_FILE" ]; then
+        LLDP_LAST_CHECK=$(cat "$LLDP_LAST_CHECK_FILE")
     fi
 
-    # Check for trigger file
-    if [ -f "$TRIGGER_FILE" ]; then
-        TRIGGER_TIME=$(stat -c %Y "$TRIGGER_FILE" 2>/dev/null || stat -f %m "$TRIGGER_FILE" 2>/dev/null || echo 0)
+    if [ -f "$LLDP_TRIGGER_FILE" ]; then
+        LLDP_TRIGGER_TIME=$(stat -c %Y "$LLDP_TRIGGER_FILE" 2>/dev/null || stat -f %m "$LLDP_TRIGGER_FILE" 2>/dev/null || echo 0)
         
-        # Process trigger if timestamp is newer
-        if [ "$TRIGGER_TIME" -gt "$LAST_CHECK" ]; then
-            # Check if LLDP is already running
+        if [ "$LLDP_TRIGGER_TIME" -gt "$LLDP_LAST_CHECK" ]; then
             if [ -f "$LLDP_LOCK_FILE" ] && kill -0 "$(cat "$LLDP_LOCK_FILE")" 2>/dev/null; then
-                echo "$(date): LLDP check already running, skipping trigger" >> "$LOG_FILE"
+                echo "$(date): LLDP check already running, skipping trigger" >> "$LOG_FILE" 2>/dev/null
             else
                 {                    
-                    # Create lock file with PID
                     echo $$ > "$LLDP_LOCK_FILE"
-                    
-                    # Update last check timestamp
-                    echo "$TRIGGER_TIME" > "$LAST_CHECK_FILE"
-                    
+                    echo "$LLDP_TRIGGER_TIME" > "$LLDP_LAST_CHECK_FILE"
                     cd "$MONITOR_DIR"
 
-                    # Wait function to prevent conflicts
                     wait_until_not_running() {
                         local script_name="$1"
                         while pgrep -f "$script_name" >/dev/null; do
@@ -68,14 +63,46 @@ while true; do
                         done
                     }
 
-                    # Run asset discovery and LLDP checks (sequential with conflict prevention)
                     wait_until_not_running "assets.sh"
                     /bin/bash ./assets.sh >/dev/null 2>&1
                     wait_until_not_running "check-lldp.sh"
                     /bin/bash ./check-lldp.sh >/dev/null 2>&1
                     
-                    # Remove LLDP lock file
                     rm -f "$LLDP_LOCK_FILE"
+                }
+            fi
+        fi
+    fi
+
+    # Check Monitor trigger
+    MONITOR_LAST_CHECK=0
+    if [ -f "$MONITOR_LAST_CHECK_FILE" ]; then
+        MONITOR_LAST_CHECK=$(cat "$MONITOR_LAST_CHECK_FILE")
+    fi
+
+    if [ -f "$MONITOR_TRIGGER_FILE" ]; then
+        MONITOR_TRIGGER_TIME=$(stat -c %Y "$MONITOR_TRIGGER_FILE" 2>/dev/null || stat -f %m "$MONITOR_TRIGGER_FILE" 2>/dev/null || echo 0)
+        
+        if [ "$MONITOR_TRIGGER_TIME" -gt "$MONITOR_LAST_CHECK" ]; then
+            if [ -f "$MONITOR_LOCK_FILE" ] && kill -0 "$(cat "$MONITOR_LOCK_FILE")" 2>/dev/null; then
+                echo "$(date): Monitor check already running, skipping trigger" >> "$LOG_FILE" 2>/dev/null
+            else
+                {                    
+                    echo $$ > "$MONITOR_LOCK_FILE"
+                    echo "$MONITOR_TRIGGER_TIME" > "$MONITOR_LAST_CHECK_FILE"
+                    cd "$MONITOR_DIR"
+
+                    wait_until_not_running() {
+                        local script_name="$1"
+                        while pgrep -f "$script_name" >/dev/null; do
+                            sleep 2
+                        done
+                    }
+
+                    wait_until_not_running "monitor.sh"
+                    /bin/bash ./monitor.sh >/dev/null 2>&1
+                    
+                    rm -f "$MONITOR_LOCK_FILE"
                 }
             fi
         fi
