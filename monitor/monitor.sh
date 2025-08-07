@@ -256,11 +256,18 @@ EOF
                vlan_colored = vlan_list
                gsub(/([0-9]+)/, "<span style=\"color:tomato;\">&</span>", vlan_colored)
                
-               # Fixed width output - pad with spaces based on actual text length
-               port_pad = 20 - length(port_name)
-               pvid_pad = 12 - length("PVID=" pvid_val)
-               
-               printf "%s%*s %s%*s VLANs=%s\n", port_colored, port_pad, "", pvid_colored, pvid_pad, "", vlan_colored
+                # Fixed width output - pad with spaces based on actual text length
+                port_pad = 20 - length(port_name)
+                
+                # Calculate PVID text length correctly
+                if(pvid_val != "") {
+                    pvid_text_len = length("PVID=" pvid_val)
+                } else {
+                    pvid_text_len = length("PVID=N/A")
+                }
+                pvid_pad = 12 - pvid_text_len
+                
+                printf "%s%*s %s%*s VLANs=%s\n", port_colored, port_pad, "", pvid_colored, pvid_pad, "", vlan_colored
           }'\''
         echo "</pre>"
 
