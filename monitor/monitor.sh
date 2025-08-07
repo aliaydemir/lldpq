@@ -207,7 +207,7 @@ EOF
         echo "<pre style=\"font-family:monospace;\">"
         printf "%-20s %-10s %s\n" "PORT" "PVID" "VLANs"
         printf "%-20s %-10s %s\n" "----" "----" "-----"
-        bridge vlan | \
+        /usr/sbin/bridge vlan | \
           awk '\''BEGIN{cp=""}
                NR==1||NF==0{next}
                NF>=2{
