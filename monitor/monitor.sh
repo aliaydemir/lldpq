@@ -211,6 +211,7 @@ EOF
             ls -la /usr/sbin/bridge 2>/dev/null || echo "Bridge not in /usr/sbin/"
         fi
 
+        echo "<h1></h1><h1><font color=\"#b57614\">VLAN Configuration Table '"$hostname"'</font></h1><h3></h3>"
         echo "<pre style=\"font-family:monospace;\">"
         printf "%-20s %-10s %s\n" "PORT" "PVID" "VLANs"
         printf "%-20s %-10s %s\n" "----" "----" "-----"
