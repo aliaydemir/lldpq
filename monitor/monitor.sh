@@ -213,73 +213,53 @@ EOF
 
         echo "<h1></h1><h1><font color=\"#b57614\">VLAN Configuration Table '"$hostname"'</font></h1><h3></h3>"
         echo "<pre style=\"font-family:monospace;\">"
-        
-        # Check if bridge vlan has output
-        VLAN_OUTPUT=$(/usr/sbin/bridge vlan 2>/dev/null)
-        if [ -n "$VLAN_OUTPUT" ]; then
-            printf "%-20s %-15s %s\n" "PORT" "PVID" "VLANs"
-            printf "%-20s %-15s %s\n" "----" "----" "-----"
-                         # Process VLAN output to group VLANs by port
-             declare -A port_vlans
-             declare -A port_pvids
-             current_port=""
-             
-             echo "$VLAN_OUTPUT" | tail -n +2 | while IFS= read -r line; do
-                 if [[ "$line" =~ ^[[:space:]]*([a-zA-Z0-9_]+)[[:space:]]+([0-9]+) ]]; then
-                     current_port="${BASH_REMATCH[1]}"
-                     vlan="${BASH_REMATCH[2]}"
-                     
-                     # Initialize or append VLAN to port
-                     if [[ -z "${port_vlans[$current_port]}" ]]; then
-                         port_vlans[$current_port]="$vlan"
-                     else
-                         port_vlans[$current_port]="${port_vlans[$current_port]},$vlan"
-                     fi
-                     
-                     # Check if it has PVID
-                     if [[ "$line" =~ PVID ]]; then
-                         port_pvids[$current_port]="$vlan"
-                     fi
-                     
-                 elif [[ "$line" =~ ^[[:space:]]+([0-9]+) ]] && [[ -n "$current_port" ]]; then
-                     # Additional VLANs for same port
-                     vlan="${BASH_REMATCH[1]}"
-                     port_vlans[$current_port]="${port_vlans[$current_port]},$vlan"
-                     
-                     # Check if this additional VLAN has PVID
-                     if [[ "$line" =~ PVID ]]; then
-                         port_pvids[$current_port]="$vlan"
-                     fi
-                 fi
-             done
-             
-             # Sort and display ports
-             for port in $(printf '%s\n' "${!port_vlans[@]}" | sort); do
-                 # Color the port name
-                 port_colored="<span style=\"color:steelblue;\">$port</span>"
-                 
-                 # Color PVID
-                 if [[ -n "${port_pvids[$port]}" ]]; then
-                     pvid_colored="PVID=<span style=\"color:lime;\">${port_pvids[$port]}</span>"
-                 else
-                     pvid_colored="PVID=<span style=\"color:gray;\">-</span>"
-                 fi
-                 
-                 # Color VLAN numbers in the comma-separated list
-                 vlan_list="${port_vlans[$port]}"
-                 vlan_colored=$(echo "$vlan_list" | sed 's/\([0-9]\+\)/<span style="color:tomato;">\1<\/span>/g')
-                 
-                 # Fixed width formatting
-                 port_pad=$((20 - ${#port}))
-                 pvid_text="PVID=${port_pvids[$port]:-'-'}"
-                 pvid_pad=$((15 - ${#pvid_text}))
-                 
-                 printf "%s%*s %s%*s VLANs=%s\n" "$port_colored" $port_pad "" "$pvid_colored" $pvid_pad "" "$vlan_colored"
-             done
-        else
-            echo "No VLAN configuration found or bridge command failed"
-        fi
-        
+        printf "%-20s %-10s %s\n" "PORT" "PVID" "VLANs"
+        printf "%-20s %-10s %s\n" "----" "----" "-----"
+        /usr/sbin/bridge vlan | \
+          awk '\''BEGIN{cp=""}
+               NR==1||NF==0{next}
+               NF>=2{
+                 if(cp!="") print cp "|" p "|" v
+                 cp=$1; p=""; v=$2
+                 if($3=="PVID") p=$2
+                 next
+               }
+               NF==1{ v=v"," $1 }
+               NF>2&&$3=="PVID"{ p=$2; v=v"," $2 }
+               END{ if(cp!="") print cp "|" p "|" v }'\'' | \
+          awk -F"|" '\''{
+               if($1~/^vxlan/)      n=99999
+               else if(match($1,/^[0-9]+$/)) n=substr($1,RSTART,RLENGTH)
+               else                  n=99999
+               printf "%04d|%s|%s|%s\n", n, $1, $2, $3
+          }'\'' | \
+          sort -t"|" -k1,1n | \
+          awk -F"|" '\''{
+               # Apply colors but use fixed-width formatting
+               port_name = $2
+               pvid_val = $3
+               vlan_list = $4
+               
+               # Color the port name
+               port_colored = "<span style=\"color:steelblue;\">" port_name "</span>"
+               
+               # Color PVID
+               if(pvid_val != "") {
+                   pvid_colored = "PVID=<span style=\"color:lime;\">" pvid_val "</span>"
+               } else {
+                   pvid_colored = "PVID=<span style=\"color:gray;\">N/A</span>"
+               }
+               
+               # Color VLAN numbers in the list
+               vlan_colored = vlan_list
+               gsub(/([0-9]+)/, "<span style=\"color:tomato;\">&</span>", vlan_colored)
+               
+               # Fixed width output - pad with spaces based on actual text length
+               port_pad = 20 - length(port_name)
+               pvid_pad = 12 - length("PVID=" pvid_val)
+               
+               printf "%s%*s %s%*s VLANs=%s\n", port_colored, port_pad, "", pvid_colored, pvid_pad, "", vlan_colored
+          }'\''
         echo "</pre>"
 
         echo "<h1></h1><h1><font color=\"#b57614\">ARP Table '"$hostname"'</font></h1><h3></h3>"
