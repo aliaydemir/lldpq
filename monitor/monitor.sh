@@ -219,40 +219,63 @@ EOF
         if [ -n "$VLAN_OUTPUT" ]; then
             printf "%-20s %-15s %s\n" "PORT" "PVID" "VLANs"
             printf "%-20s %-15s %s\n" "----" "----" "-----"
-            echo "$VLAN_OUTPUT" | tail -n +2 | while IFS= read -r line; do
-                if [[ "$line" =~ ^[[:space:]]*([a-zA-Z0-9_]+)[[:space:]]+([0-9]+) ]]; then
-                    port="${BASH_REMATCH[1]}"
-                    vlan="${BASH_REMATCH[2]}"
-                    
-                    # Color the port name
-                    port_colored="<span style=\"color:steelblue;\">$port</span>"
-                    
-                    # Check if it has PVID
-                    if [[ "$line" =~ PVID ]]; then
-                        pvid_colored="PVID=<span style=\"color:lime;\">$vlan</span>"
-                        vlan_colored="<span style=\"color:tomato;\">$vlan</span>"
-                    else
-                        pvid_colored="PVID=<span style=\"color:gray;\">-</span>"
-                        vlan_colored="<span style=\"color:tomato;\">$vlan</span>"
-                    fi
-                    
-                    # Calculate padding based on actual text length (without HTML)
-                    port_pad=$((20 - ${#port}))
-                    pvid_text="PVID=$vlan"
-                    if [[ ! "$line" =~ PVID ]]; then
-                        pvid_text="PVID=-"
-                    fi
-                    pvid_pad=$((15 - ${#pvid_text}))
-                    
-                    printf "%s%*s %s%*s VLANs=%s\n" "$port_colored" $port_pad "" "$pvid_colored" $pvid_pad "" "$vlan_colored"
-                    
-                elif [[ "$line" =~ ^[[:space:]]+([0-9]+) ]]; then
-                    # Additional VLANs for same port
-                    vlan="${BASH_REMATCH[1]}"
-                    vlan_colored="<span style=\"color:tomato;\">$vlan</span>"
-                    printf "%20s %15s VLANs=%s\n" "" "" "$vlan_colored"
-                fi
-            done
+                         # Process VLAN output to group VLANs by port
+             declare -A port_vlans
+             declare -A port_pvids
+             current_port=""
+             
+             echo "$VLAN_OUTPUT" | tail -n +2 | while IFS= read -r line; do
+                 if [[ "$line" =~ ^[[:space:]]*([a-zA-Z0-9_]+)[[:space:]]+([0-9]+) ]]; then
+                     current_port="${BASH_REMATCH[1]}"
+                     vlan="${BASH_REMATCH[2]}"
+                     
+                     # Initialize or append VLAN to port
+                     if [[ -z "${port_vlans[$current_port]}" ]]; then
+                         port_vlans[$current_port]="$vlan"
+                     else
+                         port_vlans[$current_port]="${port_vlans[$current_port]},$vlan"
+                     fi
+                     
+                     # Check if it has PVID
+                     if [[ "$line" =~ PVID ]]; then
+                         port_pvids[$current_port]="$vlan"
+                     fi
+                     
+                 elif [[ "$line" =~ ^[[:space:]]+([0-9]+) ]] && [[ -n "$current_port" ]]; then
+                     # Additional VLANs for same port
+                     vlan="${BASH_REMATCH[1]}"
+                     port_vlans[$current_port]="${port_vlans[$current_port]},$vlan"
+                     
+                     # Check if this additional VLAN has PVID
+                     if [[ "$line" =~ PVID ]]; then
+                         port_pvids[$current_port]="$vlan"
+                     fi
+                 fi
+             done
+             
+             # Sort and display ports
+             for port in $(printf '%s\n' "${!port_vlans[@]}" | sort); do
+                 # Color the port name
+                 port_colored="<span style=\"color:steelblue;\">$port</span>"
+                 
+                 # Color PVID
+                 if [[ -n "${port_pvids[$port]}" ]]; then
+                     pvid_colored="PVID=<span style=\"color:lime;\">${port_pvids[$port]}</span>"
+                 else
+                     pvid_colored="PVID=<span style=\"color:gray;\">-</span>"
+                 fi
+                 
+                 # Color VLAN numbers in the comma-separated list
+                 vlan_list="${port_vlans[$port]}"
+                 vlan_colored=$(echo "$vlan_list" | sed 's/\([0-9]\+\)/<span style="color:tomato;">\1<\/span>/g')
+                 
+                 # Fixed width formatting
+                 port_pad=$((20 - ${#port}))
+                 pvid_text="PVID=${port_pvids[$port]:-'-'}"
+                 pvid_pad=$((15 - ${#pvid_text}))
+                 
+                 printf "%s%*s %s%*s VLANs=%s\n" "$port_colored" $port_pad "" "$pvid_colored" $pvid_pad "" "$vlan_colored"
+             done
         else
             echo "No VLAN configuration found or bridge command failed"
         fi
