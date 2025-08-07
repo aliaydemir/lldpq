@@ -8,7 +8,6 @@ LLDP_TRIGGER_FILE="/tmp/.lldp_web_trigger"
 MONITOR_TRIGGER_FILE="/tmp/.monitor_web_trigger"
 DAEMON_PID_FILE="/tmp/lldp_trigger_daemon.pid"
 LLDP_LOCK_FILE="/tmp/lldp_running.lock"
-MONITOR_LOCK_FILE="/tmp/monitor_running.lock"
 
 # Exit if daemon already running
 if [ -f "$DAEMON_PID_FILE" ]; then
