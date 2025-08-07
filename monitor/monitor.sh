@@ -213,8 +213,8 @@ EOF
 
         echo "<h1></h1><h1><font color=\"#b57614\">VLAN Configuration Table '"$hostname"'</font></h1><h3></h3>"
         echo "<pre style=\"font-family:monospace;\">"
-        printf "%-20s %-10s %s\n" "PORT" "PVID" "VLANs"
-        printf "%-20s %-10s %s\n" "----" "----" "-----"
+        printf "%-20s %-12s %s\n" "PORT" "PVID" "VLANs"
+        printf "%-20s %-12s %s\n" "----" "----" "-----"
         /usr/sbin/bridge vlan | \
           awk '\''BEGIN{cp=""}
                NR==1||NF==0{next}
@@ -258,11 +258,8 @@ EOF
                vlan_colored = vlan_list
                gsub(/([0-9]+)/, "<span style=\"color:tomato;\">&</span>", vlan_colored)
                
-               # Fixed width output - pad with spaces based on actual text length
-               port_pad = 20 - length(port_name)
-               pvid_pad = 12 - length("PVID=" pvid_val)
-               
-               printf "%s%*s %s%*s VLANs=%s\n", port_colored, port_pad, "", pvid_colored, pvid_pad, "", vlan_colored
+               # Simple fixed-width formatting
+               printf "%-38s %-30s VLANs=%s\n", port_colored, pvid_colored, vlan_colored
           }'\''
         echo "</pre>"
 
