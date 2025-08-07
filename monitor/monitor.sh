@@ -228,18 +228,38 @@ EOF
                NF>2&&$3=="PVID"{ p=$2; v=v"," $2 }
                END{ if(cp!="") print cp "|" p "|" v }'\'' | \
           awk -F"|" '\''{
-               if($1~/^vxlan/)      n=99999
-               else if(match($1,/^[0-9]+$/)) n=substr($1,RSTART,RLENGTH)
-               else                  n=99999
-               printf "%04d|%s|%s|%s\n", n, $1, $2, $3
+               # Sort key: numeric for swp ports, 99999 for others
+               if(match($1,/^swp([0-9]+)/, arr)) n=sprintf("%04d", arr[1])
+               else if($1~/^vxlan/)              n="9999"
+               else                              n="8888"
+               printf "%s|%s|%s|%s\n", n, $1, $2, $3
           }'\'' | \
           sort -t"|" -k1,1n | \
           awk -F"|" '\''{
-               port_color = "<span style=\"color:steelblue;\">" $2 "</span>"
-               pvid_color = ($3 ? "<span style=\"color:lime;\">PVID=" $3 "</span>" : "PVID=<span style=\"color:gray;\">N/A</span>")
-               vlan_color = $4
-               gsub(/([0-9]+)/, "<span style=\"color:tomato;\">&</span>", vlan_color)
-               printf "%-42s %-25s VLANs=%s\n", port_color, pvid_color, vlan_color
+               # Apply colors but use fixed-width formatting
+               port_name = $2
+               pvid_val = $3
+               vlan_list = $4
+               
+               # Color the port name
+               port_colored = "<span style=\"color:steelblue;\">" port_name "</span>"
+               
+               # Color PVID
+               if(pvid_val != "") {
+                   pvid_colored = "PVID=<span style=\"color:lime;\">" pvid_val "</span>"
+               } else {
+                   pvid_colored = "PVID=<span style=\"color:gray;\">N/A</span>"
+               }
+               
+               # Color VLAN numbers in the list
+               vlan_colored = vlan_list
+               gsub(/([0-9]+)/, "<span style=\"color:tomato;\">&</span>", vlan_colored)
+               
+               # Fixed width output - pad with spaces based on actual text length
+               port_pad = 20 - length(port_name)
+               pvid_pad = 12 - length("PVID=" pvid_val)
+               
+               printf "%s%*s %s%*s VLANs=%s\n", port_colored, port_pad, "", pvid_colored, pvid_pad, "", vlan_colored
           }'\''
         echo "</pre>"
 
