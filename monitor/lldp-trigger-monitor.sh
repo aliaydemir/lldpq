@@ -83,13 +83,22 @@ while true; do
     if [ -f "$MONITOR_TRIGGER_FILE" ]; then
         MONITOR_TRIGGER_TIME=$(stat -c %Y "$MONITOR_TRIGGER_FILE" 2>/dev/null || stat -f %m "$MONITOR_TRIGGER_FILE" 2>/dev/null || echo 0)
         
+        # Debug: Log to temporary file
+        echo "$(date): Monitor check - Trigger: $MONITOR_TRIGGER_TIME, Last: $MONITOR_LAST_CHECK" >> /tmp/monitor_debug.log
+        
         if [ "$MONITOR_TRIGGER_TIME" -gt "$MONITOR_LAST_CHECK" ]; then
+            echo "$(date): Monitor trigger activated, running monitor.sh" >> /tmp/monitor_debug.log
             echo "$MONITOR_TRIGGER_TIME" > "$MONITOR_LAST_CHECK_FILE"
             cd "$MONITOR_DIR"
 
             wait_until_not_running "monitor.sh"
             /bin/bash ./monitor.sh >/dev/null 2>&1
+            echo "$(date): Monitor.sh completed" >> /tmp/monitor_debug.log
+        else
+            echo "$(date): Monitor trigger not newer than last check" >> /tmp/monitor_debug.log
         fi
+    else
+        echo "$(date): Monitor trigger file not found" >> /tmp/monitor_debug.log
     fi
     
     # Sleep for 5 seconds before next check
