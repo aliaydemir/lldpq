@@ -1030,10 +1030,10 @@ class BGPAnalyzer:
             .then(data => {
                 if (data.status === 'success') {
                     console.log('✅ Monitor analysis triggered successfully');
-                    // Auto-refresh page after 10 seconds
+                    // Auto-refresh page after 15 seconds
                     setTimeout(() => {
                         window.location.reload();
-                    }, 10000);
+                    }, 15000);
                 } else {
                     console.error('❌ Failed to trigger monitor analysis:', data.message);
                     alert('Failed to trigger analysis. Please try again.');
@@ -1076,10 +1076,10 @@ class BGPAnalyzer:
             .then(data => {
                 if (data.status === 'success') {
                     console.log('✅ Monitor analysis triggered successfully');
-                    // Auto-refresh page after 10 seconds
+                    // Auto-refresh page after 15 seconds
                     setTimeout(() => {
                         window.location.reload();
-                    }, 10000);
+                    }, 15000);
                 } else {
                     console.error('❌ Failed to trigger monitor analysis:', data.message);
                     alert('Failed to trigger analysis. Please try again.');
