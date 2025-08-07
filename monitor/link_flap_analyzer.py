@@ -709,7 +709,7 @@ class LinkFlapAnalyzer:
                     // Auto-refresh page after 15 seconds
                     setTimeout(() => {
                         window.location.reload();
-                    }, 15000);
+                    }, 35000);
                 } else {
                     console.error('❌ Failed to trigger monitor analysis:', data.message);
                     alert('Failed to trigger analysis. Please try again.');
