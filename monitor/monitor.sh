@@ -228,9 +228,7 @@ EOF
                NF>2&&$3=="PVID"{ p=$2; v=v"," $2 }
                END{ if(cp!="") print cp "|" p "|" v }'\'' | \
                      awk -F"|" '\''{
-                if($1~/^swp[0-9]+$/) {
-                    tmp=$1; gsub(/[^0-9]/,"",tmp); n=sprintf("%04d",tmp)
-                } else if($1~/^vxlan/) {
+                if($1~/^vxlan/) {
                     n="9999"
                 } else {
                     n="5000"
