@@ -85,20 +85,11 @@ while true; do
         MONITOR_TRIGGER_TIME=$(stat -c %Y "$MONITOR_TRIGGER_FILE" 2>/dev/null || stat -f %m "$MONITOR_TRIGGER_FILE" 2>/dev/null || echo 0)
         
         if [ "$MONITOR_TRIGGER_TIME" -gt "$MONITOR_LAST_CHECK" ]; then
-            if [ -f "$MONITOR_LOCK_FILE" ] && kill -0 "$(cat "$MONITOR_LOCK_FILE")" 2>/dev/null; then
-                : # Monitor check already running, skipping trigger
-            else
-                {                    
-                    echo $$ > "$MONITOR_LOCK_FILE"
-                    echo "$MONITOR_TRIGGER_TIME" > "$MONITOR_LAST_CHECK_FILE"
-                    cd "$MONITOR_DIR"
+            echo "$MONITOR_TRIGGER_TIME" > "$MONITOR_LAST_CHECK_FILE"
+            cd "$MONITOR_DIR"
 
-                    wait_until_not_running "monitor.sh"
-                    /bin/bash ./monitor.sh >/dev/null 2>&1
-                    
-                    rm -f "$MONITOR_LOCK_FILE"
-                }
-            fi
+            wait_until_not_running "monitor.sh"
+            /bin/bash ./monitor.sh >/dev/null 2>&1
         fi
     fi
     
