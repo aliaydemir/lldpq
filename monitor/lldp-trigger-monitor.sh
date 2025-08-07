@@ -63,9 +63,9 @@ while true; do
                     echo "$LLDP_TRIGGER_TIME" > "$LLDP_LAST_CHECK_FILE"
                     cd "$MONITOR_DIR"
 
-                    wait_until_not_running "assets.sh"
+                    wait_until_not_running "./assets.sh"
                     /bin/bash ./assets.sh >/dev/null 2>&1
-                    wait_until_not_running "check-lldp.sh"
+                    wait_until_not_running "./check-lldp.sh"
                     /bin/bash ./check-lldp.sh >/dev/null 2>&1
                     
                     rm -f "$LLDP_LOCK_FILE"
@@ -88,10 +88,16 @@ while true; do
         
         if [ "$MONITOR_TRIGGER_TIME" -gt "$MONITOR_LAST_CHECK" ]; then
             echo "$(date): Monitor trigger activated, running monitor.sh" >> /tmp/monitor_debug.log
+            echo "$(date): Writing timestamp $MONITOR_TRIGGER_TIME to $MONITOR_LAST_CHECK_FILE" >> /tmp/monitor_debug.log
             echo "$MONITOR_TRIGGER_TIME" > "$MONITOR_LAST_CHECK_FILE"
+            echo "$(date): Timestamp written, changing to $MONITOR_DIR" >> /tmp/monitor_debug.log
             cd "$MONITOR_DIR"
-
-            wait_until_not_running "monitor.sh"
+            echo "$(date): Changed directory, checking if monitor.sh is running..." >> /tmp/monitor_debug.log
+            while pgrep -f "./monitor\.sh" >/dev/null; do
+                echo "$(date): monitor.sh is running, waiting..." >> /tmp/monitor_debug.log
+                sleep 2
+            done
+            echo "$(date): Starting monitor.sh..." >> /tmp/monitor_debug.log
             /bin/bash ./monitor.sh >/dev/null 2>&1
             echo "$(date): Monitor.sh completed" >> /tmp/monitor_debug.log
         else
