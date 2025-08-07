@@ -234,18 +234,12 @@ EOF
                    NF>2&&$3=="PVID"{ p=$2; v=v"," $2 }
                    END{ if(cp!="") print cp "|" p "|" v }'\'' | \
               awk -F"|" '\''{
-                   # Sort key: numeric for swp ports, others later
-                   port = $1
-                   if(match(port, /^swp([0-9]+)$/, arr)) {
-                       n = sprintf("%04d", arr[1])
-                   } else if(match(port, /^hgx_bond([0-9]+)$/, arr)) {
-                       n = sprintf("1%04d", arr[1])
-                   } else if(port ~ /^br_default$/) {
-                       n = "0001"
-                   } else if(port ~ /^vxlan/) {
-                       n = "9999"
+                   if($1~/^swp[0-9]+$/) {
+                       tmp=$1; gsub(/[^0-9]/,"",tmp); n=sprintf("%04d",tmp)
+                   } else if($1~/^vxlan/) {
+                       n="9999"
                    } else {
-                       n = "8888"
+                       n="5000"
                    }
                    printf "%s|%s|%s|%s\n", n, $1, $2, $3
               }'\'' | \
