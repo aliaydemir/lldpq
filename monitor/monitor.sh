@@ -203,6 +203,13 @@ EOF
                 # Color Egress/tagged keywords
                 s/(Egress|Untagged|tagged)/\<span style=\"color:yellow;\"\>\1\<\/span\>/g
             "
+        else
+            echo "Bridge command not found - checking PATH: $PATH"
+            echo "Trying alternative paths..."
+            which bridge 2>/dev/null || echo "Bridge not in PATH"
+            ls -la /sbin/bridge 2>/dev/null || echo "Bridge not in /sbin/"
+            ls -la /usr/sbin/bridge 2>/dev/null || echo "Bridge not in /usr/sbin/"
+        fi
 
         echo "<pre style=\"font-family:monospace;\">"
         printf "%-20s %-10s %s\n" "PORT" "PVID" "VLANs"
@@ -231,14 +238,6 @@ EOF
           }'\''
         echo "</pre>"
 
-        else
-            echo "Bridge command not found - checking PATH: $PATH"
-            echo "Trying alternative paths..."
-            which bridge 2>/dev/null || echo "Bridge not in PATH"
-            ls -la /sbin/bridge 2>/dev/null || echo "Bridge not in /sbin/"
-            ls -la /usr/sbin/bridge 2>/dev/null || echo "Bridge not in /usr/sbin/"
-        fi
-        
         echo "<h1></h1><h1><font color=\"#b57614\">ARP Table '"$hostname"'</font></h1><h3></h3>"
         ip neighbour | grep -E -v "fe80" | sort -t "." -k1,1n -k2,2n -k3,3n -k4,4n | sed -E "s/^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)/<span style=\"color:tomato;\">\1<\/span>/; s/dev ([^ ]+)/dev <span style=\"color:steelblue;\">\1<\/span>/; s/lladdr ([0-9a-f:]+)/lladdr <span style=\"color:tomato;\">\1<\/span>/"
         
