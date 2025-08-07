@@ -440,6 +440,11 @@ class BERAnalyzer:
             color: #1976d2;
             display: none;
         }}
+        
+        @keyframes spin {{
+            from {{ transform: rotate(0deg); }}
+            to {{ transform: rotate(360deg); }}
+        }}
     </style>
   </head>
   <body>
@@ -449,15 +454,26 @@ class BERAnalyzer:
         
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h2 style="margin: 0;">Network Summary</h2>
-            <button id="download-csv" onclick="downloadCSV()" 
-                    style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
-                    onmouseover="this.style.background='#45a049'" 
-                    onmouseout="this.style.background='#4caf50'">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-                </svg>
-                Download CSV
-            </button>
+            <div style="display: flex; gap: 10px;">
+                <button id="run-analysis" onclick="runAnalysis()" 
+                        style="background: #b57614; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
+                        onmouseover="this.style.background='#a06612'" 
+                        onmouseout="this.style.background='#b57614'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z"/>
+                    </svg>
+                    Run Analysis
+                </button>
+                <button id="download-csv" onclick="downloadCSV()" 
+                        style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
+                        onmouseover="this.style.background='#45a049'" 
+                        onmouseout="this.style.background='#4caf50'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                    </svg>
+                    Download CSV
+                </button>
+            </div>
         </div>
         <div class="summary-grid">
             <div class="summary-card card-total" id="total-ports-card">
@@ -838,6 +854,52 @@ class BERAnalyzer:
             if (isNaN(numB)) return -1;
             
             return numA - numB;
+        }
+
+        // Run Analysis Function
+        function runAnalysis() {
+            const button = document.getElementById('run-analysis');
+            const originalText = button.innerHTML;
+            
+            // Disable button and show loading
+            button.disabled = true;
+            button.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="animation: spin 1s linear infinite;">
+                    <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z"/>
+                </svg>
+                Running...
+            `;
+            
+            // Send POST request to trigger monitor
+            fetch('/trigger-monitor', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log('✅ Monitor analysis triggered successfully');
+                    // Auto-refresh page after 15 seconds
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 15000);
+                } else {
+                    console.error('❌ Failed to trigger monitor analysis:', data.message);
+                    alert('Failed to trigger analysis. Please try again.');
+                    // Restore button
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error triggering analysis:', error);
+                alert('Error triggering analysis. Please try again.');
+                // Restore button
+                button.disabled = false;
+                button.innerHTML = originalText;
+            });
         }
 
         // CSV Download Function
