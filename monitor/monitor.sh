@@ -235,7 +235,11 @@ EOF
           }'\'' | \
           sort -t"|" -k1,1n | \
           awk -F"|" '\''{
-               printf "%-20s PVID=%-5s VLANs=%s\n", $2, ($3 ? $3 : "N/A"), $4
+               port_color = "<span style=\"color:steelblue;\">" $2 "</span>"
+               pvid_color = ($3 ? "<span style=\"color:lime;\">PVID=" $3 "</span>" : "PVID=<span style=\"color:gray;\">N/A</span>")
+               vlan_color = $4
+               gsub(/([0-9]+)/, "<span style=\"color:tomato;\">&</span>", vlan_color)
+               printf "%-42s %-25s VLANs=%s\n", port_color, pvid_color, vlan_color
           }'\''
         echo "</pre>"
 
