@@ -227,20 +227,12 @@ EOF
                NF==1{ v=v"," $1 }
                NF>2&&$3=="PVID"{ p=$2; v=v"," $2 }
                END{ if(cp!="") print cp "|" p "|" v }'\'' | \
-                     awk -F"|" '\''{
-                if($1~/^vxlan/) {
-                    n="9999"
-                } else {
-                    n="5000"
-                }
-                printf "%s|%s|%s|%s\n", n, $1, $2, $3
-           }'\'' | \
-          awk '{ match($1, /([0-9]+)$/, a); print a[1], $0 }' | sort -n | cut -d' ' -f2- | \
+                               awk '{ match($1, /([0-9]+)$/, a); print a[1], $0 }' | sort -n | cut -d' ' -f2- | \
           awk -F"|" '\''{
                # Apply colors but use fixed-width formatting
-               port_name = $2
-               pvid_val = $3
-               vlan_list = $4
+               port_name = $1
+               pvid_val = $2
+               vlan_list = $3
                
                # Color the port name
                port_colored = "<span style=\"color:steelblue;\">" port_name "</span>"
