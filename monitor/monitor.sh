@@ -235,7 +235,7 @@ EOF
                 }
                 printf "%s|%s|%s|%s\n", n, $1, $2, $3
            }'\'' | \
-          sort -t"|" -k1,1n | \
+          awk '{ match($1, /([0-9]+)$/, a); print a[1], $0 }' | sort -n | cut -d' ' -f2- | \
           awk -F"|" '\''{
                # Apply colors but use fixed-width formatting
                port_name = $2
