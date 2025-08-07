@@ -33,6 +33,14 @@ cleanup() {
 # Set trap for cleanup on exit
 trap cleanup SIGTERM SIGINT EXIT
 
+# Wait function to prevent conflicts
+wait_until_not_running() {
+    local script_name="$1"
+    while pgrep -f "$script_name" >/dev/null; do
+        sleep 2
+    done
+}
+
 # Main daemon loop - check every 5 seconds
 LLDP_LAST_CHECK_FILE="$MONITOR_DIR/.last_lldp_trigger_check"
 MONITOR_LAST_CHECK_FILE="$MONITOR_DIR/.last_monitor_trigger_check"
@@ -55,13 +63,6 @@ while true; do
                     echo $$ > "$LLDP_LOCK_FILE"
                     echo "$LLDP_TRIGGER_TIME" > "$LLDP_LAST_CHECK_FILE"
                     cd "$MONITOR_DIR"
-
-                    wait_until_not_running() {
-                        local script_name="$1"
-                        while pgrep -f "$script_name" >/dev/null; do
-                            sleep 2
-                        done
-                    }
 
                     wait_until_not_running "assets.sh"
                     /bin/bash ./assets.sh >/dev/null 2>&1
@@ -91,13 +92,6 @@ while true; do
                     echo $$ > "$MONITOR_LOCK_FILE"
                     echo "$MONITOR_TRIGGER_TIME" > "$MONITOR_LAST_CHECK_FILE"
                     cd "$MONITOR_DIR"
-
-                    wait_until_not_running() {
-                        local script_name="$1"
-                        while pgrep -f "$script_name" >/dev/null; do
-                            sleep 2
-                        done
-                    }
 
                     wait_until_not_running "monitor.sh"
                     /bin/bash ./monitor.sh >/dev/null 2>&1
