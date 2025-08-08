@@ -22,8 +22,11 @@ def parse_optical_diagnostics_file(filepath):
 
         # Split by interface sections
         sections = content.split("--- Interface:")
-                                                                                                                             for section in sections[1:]:  # Skip first empty section
-            lines = section.strip().split('\n')                                                                                  if not lines:                                                                                                            continue
+        
+        for section in sections[1:]:  # Skip first empty section
+            lines = section.strip().split('\n')
+            if not lines:
+                continue
 
             # Extract interface name from first line
             interface_line = lines[0].strip()
