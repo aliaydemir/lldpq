@@ -14,7 +14,7 @@ echo "======================"
 if [[ $EUID -eq 0 ]]; then
    echo "❌ Please do not run this script as root (use your regular user account)"
    echo "   The script will ask for sudo when needed"
-   exit 1
+   #exit 1
 fi
 
 # Check if we're in the lldpq directory
