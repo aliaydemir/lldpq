@@ -268,14 +268,16 @@ EOF
             # Try multiple ethtool approaches
             optical_found=false
             
-            # Method 1: Standard ethtool -m
-            if ethtool -m "$interface" >/dev/null 2>&1; then
-                ethtool -m "$interface" 2>/dev/null && optical_found=true
+            # Method 1: Standard ethtool -m with sudo
+            if sudo ethtool -m "$interface" >/dev/null 2>&1; then
+                sudo ethtool -m "$interface" 2>/dev/null
+                optical_found=true
             fi
             
             # Method 2: Try ethtool -I for SFP info if method 1 failed
-            if [ "$optical_found" = false ] && ethtool -I "$interface" >/dev/null 2>&1; then
-                ethtool -I "$interface" 2>/dev/null && optical_found=true
+            if [ "$optical_found" = false ] && sudo ethtool -I "$interface" >/dev/null 2>&1; then
+                sudo ethtool -I "$interface" 2>/dev/null
+                optical_found=true
             fi
             
             # Method 3: Check for SFF files in /sys if both methods failed
