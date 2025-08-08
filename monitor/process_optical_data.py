@@ -112,12 +112,13 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                     print(f"  {port_name}: Skipped (no meaningful optical readings - temp/voltage 0.0)")
                     continue
                     
-                # Skip ports without optical modules
+                # Ports without optical modules: mark as UNKNOWN instead of skipping
                 if ("No transceiver data available" in optical_data or
                     ("diagnostics-status          : N/A" in optical_data and 
                      "temperature" not in optical_data and "voltage" not in optical_data and
                      "rx-power" not in optical_data and "tx-power" not in optical_data)):
-                    print(f"  {port_name}: No transceiver or insufficient data")
+                    print(f"  {port_name}: No transceiver or insufficient data (marking as UNKNOWN)")
+                    optical_analyzer.update_optical_stats(port_name, optical_data)
                     continue
                 
                 # Update optical analyzer
