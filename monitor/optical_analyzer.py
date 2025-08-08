@@ -36,16 +36,16 @@ class OpticalAnalyzer:
         "bias_current_max_ma": 100.0,   # Maximum laser bias current
         "link_margin_min_db": 3.0       # Minimum acceptable link margin
     }
-    
+
     def __init__(self, data_dir="monitor-results"):
         self.data_dir = data_dir
         self.optical_history = {}  # port -> historical readings
         self.current_optical_stats = {}  # port -> current optical status
         self.thresholds = self.DEFAULT_THRESHOLDS.copy()
-        
+
         # Load historical data
         self.load_optical_history()
-    
+
     def load_optical_history(self):
         """Load historical optical data"""
         try:
@@ -55,7 +55,7 @@ class OpticalAnalyzer:
                 self.current_optical_stats = data.get("current_optical_stats", {})
         except (FileNotFoundError, json.JSONDecodeError):
             pass
-    
+
     def save_optical_history(self):
         """Save optical history to file"""
         try:
@@ -68,7 +68,7 @@ class OpticalAnalyzer:
                 json.dump(data, f, indent=2)
         except Exception as e:
             print(f"Error saving optical history: {e}")
-    
+
     def parse_optical_data(self, optical_data: str) -> Dict[str, float]:
         """Parse optical output (NVUE transceiver commands) for optical parameters"""
         optical_params = {
@@ -78,41 +78,41 @@ class OpticalAnalyzer:
             'voltage_v': None,
             'bias_current_ma': None
         }
-        
+
         # Track channel data for averaging
         rx_powers = []
         tx_powers = []
         bias_currents = []
-        
+
         lines = optical_data.strip().split('\n')
         for line in lines:
             line = line.strip()
-            
+
             # Parse temperature (NVUE format: "temperature : 48.71 degrees C / 119.69 degrees F")
             temp_match = re.search(r'temperature\s*:\s*([\d.-]+)\s*degrees?\s*C', line)
             if temp_match:
                 optical_params['temperature_c'] = float(temp_match.group(1))
-            
+
             # Parse voltage (NVUE format: "voltage : 3.2688 V")
             voltage_match = re.search(r'voltage\s*:\s*([\d.-]+)\s*V', line)
             if voltage_match:
                 optical_params['voltage_v'] = float(voltage_match.group(1))
-            
+
             # Parse multi-channel RX power (NVUE format: "ch-1-rx-power : 1.7055 mW / 2.32 dBm")
             rx_power_match = re.search(r'ch-\d+-rx-power\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', line)
             if rx_power_match:
                 rx_powers.append(float(rx_power_match.group(1)))
-            
+
             # Parse multi-channel TX power (NVUE format: "ch-1-tx-power : 1.1706 mW / 0.68 dBm")
             tx_power_match = re.search(r'ch-\d+-tx-power\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', line)
             if tx_power_match:
                 tx_powers.append(float(tx_power_match.group(1)))
-            
+
             # Parse multi-channel bias current (NVUE format: "ch-1-tx-bias-current : 7.056 mA")
             bias_match = re.search(r'ch-\d+-tx-bias-current\s*:\s*([\d.-]+)\s*mA', line)
             if bias_match:
                 bias_currents.append(float(bias_match.group(1)))
-        
+
         # Average multi-channel values
         if rx_powers:
             optical_params['rx_power_dbm'] = sum(rx_powers) / len(rx_powers)
@@ -120,19 +120,19 @@ class OpticalAnalyzer:
             optical_params['tx_power_dbm'] = sum(tx_powers) / len(tx_powers)
         if bias_currents:
             optical_params['bias_current_ma'] = sum(bias_currents) / len(bias_currents)
-        
+
         return optical_params
-    
+
     def calculate_link_margin(self, rx_power_dbm: float) -> float:
         """Calculate optical link margin"""
         if rx_power_dbm is None:
             return 0.0
-        
+
         # Link margin = RX Power - Minimum sensitivity threshold
         # Using -14 dBm as a conservative minimum sensitivity for most optics
         min_sensitivity = self.thresholds['rx_power_min_dbm']
         return rx_power_dbm - min_sensitivity
-    
+
     def assess_optical_health(self, optical_params: Dict[str, float]) -> OpticalHealth:
         """Assess optical health based on parameters"""
         rx_power = optical_params.get('rx_power_dbm')
@@ -140,11 +140,11 @@ class OpticalAnalyzer:
         temperature = optical_params.get('temperature_c')
         voltage = optical_params.get('voltage_v')
         bias_current = optical_params.get('bias_current_ma')
-        
+
         # No optical data available
         if all(v is None for v in [rx_power, tx_power, temperature]):
             return OpticalHealth.UNKNOWN
-        
+
         # Critical conditions (any one triggers critical status)
         if rx_power is not None and rx_power < self.thresholds['rx_power_min_dbm']:
             return OpticalHealth.CRITICAL
@@ -158,26 +158,26 @@ class OpticalAnalyzer:
             return OpticalHealth.CRITICAL
         if bias_current is not None and bias_current > self.thresholds['bias_current_max_ma']:
             return OpticalHealth.CRITICAL
-        
+
         # Warning conditions
         warning_count = 0
-        
+
         # Low link margin warning
         if rx_power is not None:
             link_margin = self.calculate_link_margin(rx_power)
             if link_margin < self.thresholds['link_margin_min_db']:
                 warning_count += 1
-        
+
         # TX power near limits
         if tx_power is not None:
             if tx_power < self.thresholds['tx_power_min_dbm'] + 1.0 or tx_power > self.thresholds['tx_power_max_dbm'] - 1.0:
                 warning_count += 1
-        
+
         # Temperature approaching limits
         if temperature is not None:
             if temperature > self.thresholds['temperature_max_c'] - 10.0:
                 warning_count += 1
-        
+
         # Return health status
         if warning_count >= 2:
             return OpticalHealth.WARNING
@@ -185,34 +185,17 @@ class OpticalAnalyzer:
             return OpticalHealth.GOOD
         else:
             return OpticalHealth.EXCELLENT
-    
+
     def update_optical_stats(self, port_name: str, optical_data: str):
         """Update optical statistics for a port"""
-        
-        # Handle "No transceiver data available" case
-        if "No transceiver data available" in optical_data or "No optical parameters detected" in optical_data:
-            self.current_optical_stats[port_name] = {
-                'health_status': OpticalHealth.UNKNOWN.value,
-                'rx_power_dbm': None,
-                'tx_power_dbm': None,
-                'temperature_c': None,
-                'voltage_v': None,
-                'bias_current_ma': None,
-                'link_margin_db': None,
-                'last_updated': time.time(),
-                'raw_data': optical_data[:500],
-                'status': 'No transceiver detected'
-            }
-            return
-        
         optical_params = self.parse_optical_data(optical_data)
         health = self.assess_optical_health(optical_params)
-        
+
         # Calculate additional metrics
         link_margin_db = None
         if optical_params['rx_power_dbm'] is not None:
             link_margin_db = self.calculate_link_margin(optical_params['rx_power_dbm'])
-        
+
         # Store current stats
         self.current_optical_stats[port_name] = {
             'health_status': health.value,
@@ -225,11 +208,11 @@ class OpticalAnalyzer:
             'last_updated': time.time(),
             'raw_data': optical_data[:500]  # Store first 500 chars for debugging
         }
-        
+
         # Store in history
         if port_name not in self.optical_history:
             self.optical_history[port_name] = []
-        
+
         # Add to history (keep last 100 entries)
         history_entry = {
             'timestamp': time.time(),
@@ -239,11 +222,11 @@ class OpticalAnalyzer:
             'temperature_c': optical_params['temperature_c'],
             'link_margin_db': link_margin_db
         }
-        
+
         self.optical_history[port_name].append(history_entry)
         if len(self.optical_history[port_name]) > 100:
             self.optical_history[port_name] = self.optical_history[port_name][-100:]
-    
+
     def get_optical_summary(self) -> Dict[str, Any]:
         """Get optical analysis summary"""
         summary = {
@@ -254,10 +237,10 @@ class OpticalAnalyzer:
             "critical_ports": [],
             "unknown_ports": []
         }
-        
+
         for port_name, stats in self.current_optical_stats.items():
             health = stats.get('health_status', 'unknown')
-            
+
             port_info = {
                 "port": port_name,
                 "health": health,
@@ -268,7 +251,7 @@ class OpticalAnalyzer:
                 "voltage_v": stats.get('voltage_v'),
                 "bias_current_ma": stats.get('bias_current_ma')
             }
-            
+
             if health == OpticalHealth.EXCELLENT.value:
                 summary["excellent_ports"].append(port_info)
             elif health == OpticalHealth.GOOD.value:
@@ -279,28 +262,27 @@ class OpticalAnalyzer:
                 summary["critical_ports"].append(port_info)
             else:
                 summary["unknown_ports"].append(port_info)
-        
-        # Calculate total as sum of ALL ports (including unknown/no transceiver)
-        summary["total_ports"] = (len(summary["excellent_ports"]) + 
-                                 len(summary["good_ports"]) + 
-                                 len(summary["warning_ports"]) + 
-                                 len(summary["critical_ports"]) +
-                                 len(summary["unknown_ports"]))
-        
+
+        # Calculate total as sum of classified ports (exclude unknown)
+        summary["total_ports"] = (len(summary["excellent_ports"]) +
+                                 len(summary["good_ports"]) +
+                                 len(summary["warning_ports"]) +
+                                 len(summary["critical_ports"]))
+
         return summary
-    
+
     def detect_optical_anomalies(self) -> List[Dict[str, Any]]:
         """Detect optical-related anomalies"""
         anomalies = []
-        
+
         for port_name, stats in self.current_optical_stats.items():
             health = OpticalHealth(stats.get('health_status', 'unknown'))
-            
+
             if health == OpticalHealth.CRITICAL:
                 # Critical optical issues
                 rx_power = stats.get('rx_power_dbm')
                 temperature = stats.get('temperature_c')
-                
+
                 if rx_power is not None and rx_power < self.thresholds['rx_power_min_dbm']:
                     anomalies.append({
                         "port": port_name,
@@ -310,7 +292,7 @@ class OpticalAnalyzer:
                         "action": "Check fiber connection, clean connectors, or replace cable",
                         "rx_power_dbm": rx_power
                     })
-                
+
                 if temperature is not None and temperature > self.thresholds['temperature_max_c']:
                     anomalies.append({
                         "port": port_name,
@@ -320,7 +302,7 @@ class OpticalAnalyzer:
                         "action": "Check cooling, reduce load, or replace SFP module",
                         "temperature_c": temperature
                     })
-            
+
             elif health == OpticalHealth.WARNING:
                 # Warning level issues
                 link_margin = stats.get('link_margin_db', 0)
@@ -333,61 +315,61 @@ class OpticalAnalyzer:
                         "action": "Monitor closely, schedule proactive maintenance",
                         "link_margin_db": link_margin
                     })
-        
+
         return anomalies
-    
+
     def get_recommended_action(self, port_info: Dict[str, Any]) -> str:
         """Get recommended action for a port based on its health status and parameters"""
         health = port_info.get('health', 'unknown')
-        
+
         if health == OpticalHealth.EXCELLENT.value:
             return ""  # No action needed for excellent health
-        
+
         if health == OpticalHealth.CRITICAL.value:
             rx_power = port_info.get('rx_power_dbm')
             temperature = port_info.get('temperature_c')
-            
+
             if rx_power is not None and rx_power < self.thresholds['rx_power_min_dbm']:
                 return "Check fiber connection, clean connectors, or replace cable"
             elif temperature is not None and temperature > self.thresholds['temperature_max_c']:
                 return "Check cooling, reduce load, or replace SFP module"
             else:
                 return "Investigate critical optical parameters immediately"
-        
+
         if health == OpticalHealth.WARNING.value:
             link_margin = port_info.get('link_margin_db', 0)
             if link_margin < self.thresholds['link_margin_min_db']:
                 return "Monitor closely, schedule proactive maintenance"
             else:
                 return "Monitor optical parameters regularly"
-        
+
         if health == OpticalHealth.GOOD.value:
             return "Continue regular monitoring"
-        
+
         return "Check optical diagnostics availability"
-    
+
     def export_optical_data_for_web(self, output_file: str):
         """Export optical data for web display - EXACT same styling as BGP/Link Flap"""
         summary = self.get_optical_summary()
         anomalies = self.detect_optical_anomalies()
-        
+
         html_content = f"""<!DOCTYPE html>
 <html>
 <head>
     <title>Optical Diagnostics Analysis</title>
     <link rel="stylesheet" type="text/css" href="/css/styles2.css">
     <style>
-        .summary-grid {{ 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
-            gap: 15px; 
-            margin: 20px 0; 
+        .summary-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
         }}
-        .summary-card {{ 
-            background: #f8f9fa; 
-            padding: 15px; 
-            border-radius: 8px; 
-            border-left: 4px solid #007bff; 
+        .summary-card {{
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
         }}
         .metric {{ font-size: 24px; font-weight: bold; }}
         .optical-excellent {{ color: #4caf50; font-weight: bold; }}
@@ -397,7 +379,7 @@ class OpticalAnalyzer:
         .optical-unknown {{ color: gray; }}
         .optical-table {{ width: 100%; border-collapse: collapse; margin: 20px 0; table-layout: fixed; }}
         .optical-table th, .optical-table td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-        
+
         /* Column width specifications */
         .optical-table th:nth-child(1), .optical-table td:nth-child(1) {{ width: 16%; }} /* Port */
         .optical-table th:nth-child(2), .optical-table td:nth-child(2) {{ width: 8%; }}  /* Health */
@@ -408,21 +390,21 @@ class OpticalAnalyzer:
         .optical-table th:nth-child(7), .optical-table td:nth-child(7) {{ width: 9%; }}  /* Voltage */
         .optical-table th:nth-child(8), .optical-table td:nth-child(8) {{ width: 13%; }} /* Bias Current */
         .optical-table th:nth-child(9), .optical-table td:nth-child(9) {{ width: 16%; word-wrap: break-word; }} /* Recommended Action */
-        
+
         .optical-table th {{ background-color: #f2f2f2; font-weight: bold; }}
         .optical-table td {{ word-wrap: break-word; overflow-wrap: break-word; }}
-        .anomaly-card {{ 
-            margin: 10px 0; 
-            padding: 15px; 
-            border-radius: 8px; 
-            border-left: 4px solid #f44336; 
-            background-color: #ffebee; 
+        .anomaly-card {{
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #f44336;
+            background-color: #ffebee;
         }}
-        .warning-card {{ 
-            border-left-color: #ff9800; 
-            background-color: #fff3e0; 
+        .warning-card {{
+            border-left-color: #ff9800;
+            background-color: #fff3e0;
         }}
-        
+
         .summary-card {{
             cursor: pointer;
             transition: all 0.3s ease;
@@ -436,7 +418,7 @@ class OpticalAnalyzer:
             box-shadow: 0 4px 12px rgba(0,0,0,0.25);
             border-left-width: 6px;
         }}
-        
+
         .filter-info {{
             text-align: center;
             padding: 10px;
@@ -446,7 +428,7 @@ class OpticalAnalyzer:
             color: #1976d2;
             display: none;
         }}
-        
+
         /* Sortable table styling */
         .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
         .sortable:hover {{ background-color: #f5f5f5; }}
@@ -454,7 +436,7 @@ class OpticalAnalyzer:
         .sortable.asc .sort-arrow::before {{ content: '▲'; color: #b57614; opacity: 1; }}
         .sortable.desc .sort-arrow::before {{ content: '▼'; color: #b57614; opacity: 1; }}
         .sortable.asc .sort-arrow, .sortable.desc .sort-arrow {{ opacity: 1; }}
-        
+
         @keyframes spin {{
             from {{ transform: rotate(0deg); }}
             to {{ transform: rotate(360deg); }}
@@ -465,22 +447,22 @@ class OpticalAnalyzer:
     <h1></h1>
     <h1><font color="#b57614">Optical Diagnostics Analysis</font></h1>
     <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-    
+
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2 style="margin: 0;">Summary</h2>
         <div style="display: flex; gap: 10px;">
-            <button id="run-analysis" onclick="runAnalysis()" 
+            <button id="run-analysis" onclick="runAnalysis()"
                     style="background: #b57614; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
-                    onmouseover="this.style.background='#a06612'" 
+                    onmouseover="this.style.background='#a06612'"
                     onmouseout="this.style.background='#b57614'">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z"/>
                 </svg>
                 Run Analysis
             </button>
-            <button id="download-csv" onclick="downloadCSV()" 
+            <button id="download-csv" onclick="downloadCSV()"
                     style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
-                    onmouseover="this.style.background='#45a049'" 
+                    onmouseover="this.style.background='#45a049'"
                     onmouseout="this.style.background='#4caf50'">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
@@ -511,15 +493,15 @@ class OpticalAnalyzer:
             <div>Critical</div>
         </div>
     </div>
-    
+
     <div id="filter-info" class="filter-info">
         <span id="filter-text"></span>
         <button onclick="clearFilter()" style="margin-left: 10px; padding: 2px 8px; background: #1976d2; color: white; border: none; border-radius: 3px; cursor: pointer;">Show All</button>
     </div>"""
-        
+
         # Create one unified table for all ports (sorted by health - problems first)
         all_ports = summary['critical_ports'] + summary['warning_ports'] + summary['good_ports'] + summary['excellent_ports']
-        
+
         html_content += f"""
     <h2>Optical Port Status ({len(all_ports)} ports)</h2>
     <table class="optical-table" id="optical-table">
@@ -537,7 +519,7 @@ class OpticalAnalyzer:
         </tr>
         </thead>
         <tbody id="optical-data">"""
-        
+
         for port in all_ports:
             rx_power = f"{port['rx_power_dbm']:.2f}" if port['rx_power_dbm'] is not None else "N/A"
             tx_power = f"{port['tx_power_dbm']:.2f}" if port['tx_power_dbm'] is not None else "N/A"
@@ -547,7 +529,7 @@ class OpticalAnalyzer:
             bias_current = f"{port['bias_current_ma']:.2f}" if port['bias_current_ma'] is not None else "N/A"
             recommended_action = self.get_recommended_action(port)
             health_class = f"optical-{port['health']}"
-            
+
             html_content += f"""
         <tr data-health="{port['health']}">
             <td>{port['port']}</td>
@@ -560,11 +542,11 @@ class OpticalAnalyzer:
             <td>{bias_current}</td>
             <td>{recommended_action}</td>
         </tr>"""
-        
+
         html_content += """
         </tbody>
     </table>"""
-        
+
         html_content += f"""
     <h2>Optical Health Thresholds</h2>
     <table class="optical-table">
@@ -577,67 +559,67 @@ class OpticalAnalyzer:
         <tr><td>Bias Current</td><td>-</td><td>{self.thresholds['bias_current_max_ma']} mA</td><td>Maximum laser bias current</td></tr>
     </table>
 """
-        
+
         html_content += """
     <script>
         // Filter functionality
         let currentFilter = 'ALL';
         let allRows = [];
-        
+
         document.addEventListener('DOMContentLoaded', function() {
             // Store all table rows for filtering
             allRows = Array.from(document.querySelectorAll('#optical-data tr'));
-            
+
             // Add click events to summary cards
             setupCardEvents();
-            
+
             // Initialize table sorting
             initTableSorting();
         });
-        
+
         function setupCardEvents() {
             document.getElementById('total-ports-card').addEventListener('click', function() {
                 if (parseInt(document.getElementById('total-ports').textContent) > 0) {
                     filterPorts('TOTAL');
                 }
             });
-            
+
             document.getElementById('excellent-card').addEventListener('click', function() {
                 if (parseInt(document.getElementById('excellent-ports').textContent) > 0) {
                     filterPorts('EXCELLENT');
                 }
             });
-            
+
             document.getElementById('good-card').addEventListener('click', function() {
                 if (parseInt(document.getElementById('good-ports').textContent) > 0) {
                     filterPorts('GOOD');
                 }
             });
-            
+
             document.getElementById('warning-card').addEventListener('click', function() {
                 if (parseInt(document.getElementById('warning-ports').textContent) > 0) {
                     filterPorts('WARNING');
                 }
             });
-            
+
             document.getElementById('critical-card').addEventListener('click', function() {
                 if (parseInt(document.getElementById('critical-ports').textContent) > 0) {
                     filterPorts('CRITICAL');
                 }
             });
         }
-        
+
         function filterPorts(filterType) {
             currentFilter = filterType;
-            
+
             // Clear active state from all cards
             document.querySelectorAll('.summary-card').forEach(card => {
                 card.classList.remove('active');
             });
-            
+
             let filteredRows = allRows;
             let filterText = '';
-            
+
             if (filterType === 'EXCELLENT') {
                 filteredRows = allRows.filter(row => row.dataset.health === 'excellent');
                 filterText = `Showing ${filteredRows.length} Excellent Ports`;
@@ -658,7 +640,7 @@ class OpticalAnalyzer:
                 filteredRows = allRows;
                 document.getElementById('total-ports-card').classList.add('active');
             }
-            
+
             // Show filter info for all filters except TOTAL
             if (filterType !== 'ALL' && filterType !== 'TOTAL') {
                 document.getElementById('filter-info').style.display = 'block';
@@ -666,35 +648,35 @@ class OpticalAnalyzer:
             } else {
                 document.getElementById('filter-info').style.display = 'none';
             }
-            
+
             // Hide all rows first
             allRows.forEach(row => row.style.display = 'none');
-            
+
             // Show filtered rows
             filteredRows.forEach(row => row.style.display = '');
         }
-        
+
         function clearFilter() {
             currentFilter = 'ALL';
             document.querySelectorAll('.summary-card').forEach(card => {
                 card.classList.remove('active');
             });
             document.getElementById('filter-info').style.display = 'none';
-            
+
             // Show all rows
             allRows.forEach(row => row.style.display = '');
         }
-        
+
         // Generic table sorting functionality
         let tableSortState = { column: -1, direction: 'asc' };
-        
+
         function initTableSorting() {
             const headers = document.querySelectorAll('.sortable');
             headers.forEach(header => {
                 header.addEventListener('click', function() {
                     const column = parseInt(this.dataset.column);
                     const type = this.dataset.type;
-                    
+
                     // Toggle sort direction
                     if (tableSortState.column === column) {
                         tableSortState.direction = tableSortState.direction === 'asc' ? 'desc' : 'asc';
@@ -702,34 +684,34 @@ class OpticalAnalyzer:
                         tableSortState.direction = 'asc';
                     }
                     tableSortState.column = column;
-                    
+
                     // Update header styling
                     headers.forEach(h => h.classList.remove('asc', 'desc'));
                     this.classList.add(tableSortState.direction);
-                    
+
                     // Sort table
                     sortOpticalTable(column, tableSortState.direction, type);
                 });
             });
         }
-        
+
         function sortOpticalTable(columnIndex, direction, type) {
             const table = document.getElementById('optical-table');
             const tbody = table.querySelector('tbody');
             const rows = Array.from(tbody.rows);
-            
+
             rows.sort((a, b) => {
                 let aVal = a.cells[columnIndex].textContent.trim();
                 let bVal = b.cells[columnIndex].textContent.trim();
-                
+
                 // Extract actual text for health columns (remove HTML)
                 if (type === 'optical-health') {
                     aVal = a.cells[columnIndex].querySelector('span')?.textContent || aVal;
                     bVal = b.cells[columnIndex].querySelector('span')?.textContent || bVal;
                 }
-                
+
                 let result = 0;
-                
+
                 switch(type) {
                     case 'optical-power':
                     case 'temperature':
@@ -748,19 +730,19 @@ class OpticalAnalyzer:
                         result = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: 'base' });
                         break;
                 }
-                
+
                 return direction === 'desc' ? -result : result;
             });
-            
+
             // Clear tbody and add sorted rows back
             tbody.innerHTML = '';
             rows.forEach(row => tbody.appendChild(row));
         }
-        
+
         function comparePort(a, b) {
             if (a === 'N/A') return 1;
             if (b === 'N/A') return -1;
-            
+
             // Handle port sorting (swp1, swp10, swp1s0, etc.)
             const extractPortNumber = (port) => {
                 const match = port.match(/swp(\\d+)(?:s(\\d+))?/);
@@ -771,10 +753,10 @@ class OpticalAnalyzer:
                 }
                 return port.localeCompare(b, undefined, { numeric: true });
             };
-            
+
             return extractPortNumber(a) - extractPortNumber(b);
         }
-        
+
         function compareOpticalHealth(a, b) {
             const priority = {
                 'CRITICAL': 0,
@@ -783,24 +765,24 @@ class OpticalAnalyzer:
                 'EXCELLENT': 3,
                 'UNKNOWN': 4
             };
-            
+
             return (priority[a] || 5) - (priority[b] || 5);
         }
-        
+
         function compareOpticalValue(a, b) {
             // Handle 'N/A' values
             if (a === 'N/A' && b === 'N/A') return 0;
             if (a === 'N/A') return 1;
             if (b === 'N/A') return -1;
-            
+
             // Parse numerical values (handle negative numbers)
             const numA = parseFloat(a);
             const numB = parseFloat(b);
-            
+
             if (isNaN(numA) && isNaN(numB)) return 0;
             if (isNaN(numA)) return 1;
             if (isNaN(numB)) return -1;
-            
+
             return numA - numB;
         }
 
@@ -808,7 +790,7 @@ class OpticalAnalyzer:
         function runAnalysis() {
             const button = document.getElementById('run-analysis');
             const originalText = button.innerHTML;
-            
+
             // Disable button and show loading
             button.disabled = true;
             button.innerHTML = `
@@ -817,7 +799,7 @@ class OpticalAnalyzer:
                 </svg>
                 Running...
             `;
-            
+
             // Send POST request to trigger monitor
             fetch('/trigger-monitor', {
                 method: 'POST',
@@ -858,7 +840,7 @@ class OpticalAnalyzer:
                 const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
                 const timeStr = now.toTimeString().slice(0, 5).replace(':', '-'); // HH-MM
                 const filename = `Optical_Analysis_Report_${dateStr}_${timeStr}.csv`;
-                
+
                 // Create CSV header
                 const headers = [
                     'Port',
@@ -871,14 +853,14 @@ class OpticalAnalyzer:
                     'Bias Current (mA)',
                     'Recommended Action'
                 ];
-                
+
                 let csvContent = headers.join(',') + '\\n';
-                
+
                 // Get table data (only visible rows)
                 const table = document.getElementById('optical-table');
                 const tbody = table.querySelector('tbody');
                 const rows = tbody.querySelectorAll('tr');
-                
+
                 // Add summary stats as comments
                 csvContent += `# Optical Diagnostics Summary Report\\n`;
                 csvContent += `# Generated: ${now.toLocaleString()}\\n`;
@@ -888,7 +870,7 @@ class OpticalAnalyzer:
                 csvContent += `# Warning: ${document.getElementById('warning-ports').textContent}\\n`;
                 csvContent += `# Critical: ${document.getElementById('critical-ports').textContent}\\n`;
                 csvContent += `#\\n`;
-                
+
                 // Process each visible row
                 rows.forEach(row => {
                     if (row.style.display !== 'none') {
@@ -905,7 +887,7 @@ class OpticalAnalyzer:
                                 cells[7].textContent.trim(), // Bias Current
                                 cells[8].textContent.trim()  // Recommended Action
                             ];
-                            
+
                             // Escape commas and quotes in data
                             const escapedData = rowData.map(field => {
                                 if (field.includes(',') || field.includes('"') || field.includes('\\n')) {
@@ -913,12 +895,12 @@ class OpticalAnalyzer:
                                 }
                                 return field;
                             });
-                            
+
                             csvContent += escapedData.join(',') + '\\n';
                         }
                     }
                 });
-                
+
                 // Create and trigger download
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                 const link = document.createElement('a');
@@ -928,9 +910,9 @@ class OpticalAnalyzer:
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                
+
                 console.log(`✅ CSV downloaded: ${filename}`);
-                
+
             } catch (error) {
                 console.error('❌ Error generating CSV:', error);
                 alert('Error generating CSV file. Please try again.');
@@ -939,7 +921,7 @@ class OpticalAnalyzer:
     </script>
 </body>
 </html>"""
-        
+
         with open(output_file, "w") as f:
             f.write(html_content)
 
