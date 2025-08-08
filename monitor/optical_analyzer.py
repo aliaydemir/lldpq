@@ -121,6 +121,23 @@ class OpticalAnalyzer:
         if bias_currents:
             optical_params['bias_current_ma'] = sum(bias_currents) / len(bias_currents)
 
+        # Fallback: parse on full blob if line-by-line missed values (ethtool formatting variations)
+        if optical_params['rx_power_dbm'] is None:
+            rx_all = re.findall(r'(?:Rcvr\s+signal\s+avg\s+optical\s+power(?:\s*\(Channel\s*\d+\))?|ch-\d+-rx-power)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', optical_data, flags=re.IGNORECASE)
+            if rx_all:
+                rx_vals = [float(v) for v in rx_all]
+                optical_params['rx_power_dbm'] = sum(rx_vals) / len(rx_vals)
+        if optical_params['tx_power_dbm'] is None:
+            tx_all = re.findall(r'(?:Transmit\s+avg\s+optical\s+power(?:\s*\(Channel\s*\d+\))?|ch-\d+-tx-power)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', optical_data, flags=re.IGNORECASE)
+            if tx_all:
+                tx_vals = [float(v) for v in tx_all]
+                optical_params['tx_power_dbm'] = sum(tx_vals) / len(tx_vals)
+        if optical_params['bias_current_ma'] is None:
+            bias_all = re.findall(r'(?:Laser\s+tx\s+bias\s+current(?:\s*\(Channel\s*\d+\))?|ch-\d+-tx-bias-current)\s*:\s*([\d.-]+)\s*mA', optical_data, flags=re.IGNORECASE)
+            if bias_all:
+                bias_vals = [float(v) for v in bias_all]
+                optical_params['bias_current_ma'] = sum(bias_vals) / len(bias_vals)
+
         return optical_params
 
     def calculate_link_margin(self, rx_power_dbm: float) -> float:
