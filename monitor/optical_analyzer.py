@@ -188,6 +188,23 @@ class OpticalAnalyzer:
     
     def update_optical_stats(self, port_name: str, optical_data: str):
         """Update optical statistics for a port"""
+        
+        # Handle "No transceiver data available" case
+        if "No transceiver data available" in optical_data or "No optical parameters detected" in optical_data:
+            self.current_optical_stats[port_name] = {
+                'health_status': OpticalHealth.UNKNOWN.value,
+                'rx_power_dbm': None,
+                'tx_power_dbm': None,
+                'temperature_c': None,
+                'voltage_v': None,
+                'bias_current_ma': None,
+                'link_margin_db': None,
+                'last_updated': time.time(),
+                'raw_data': optical_data[:500],
+                'status': 'No transceiver detected'
+            }
+            return
+        
         optical_params = self.parse_optical_data(optical_data)
         health = self.assess_optical_health(optical_params)
         
@@ -263,11 +280,12 @@ class OpticalAnalyzer:
             else:
                 summary["unknown_ports"].append(port_info)
         
-        # Calculate total as sum of classified ports (exclude unknown)
+        # Calculate total as sum of ALL ports (including unknown/no transceiver)
         summary["total_ports"] = (len(summary["excellent_ports"]) + 
                                  len(summary["good_ports"]) + 
                                  len(summary["warning_ports"]) + 
-                                 len(summary["critical_ports"]))
+                                 len(summary["critical_ports"]) +
+                                 len(summary["unknown_ports"]))
         
         return summary
     
