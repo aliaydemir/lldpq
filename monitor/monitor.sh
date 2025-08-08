@@ -262,39 +262,11 @@ EOF
             carrier_count=$(cat /sys/class/net/$interface/carrier_changes 2>/dev/null || echo "0")
             echo "$interface:$carrier_count"
             
-            # Optical transceiver data using multiple approaches (replaces nv show interface transceiver)
+            # Optical transceiver data using ethtool (replaces nv show interface transceiver)
             echo "OPTICAL_TRANSCEIVER:"
-            
-            # Try multiple ethtool approaches
-            optical_found=false
-            
-            # Method 1: Standard ethtool -m with sudo
             if sudo ethtool -m "$interface" >/dev/null 2>&1; then
-                sudo ethtool -m "$interface" 2>/dev/null
-                optical_found=true
-            fi
-            
-            # Method 2: Try ethtool -I for SFP info if method 1 failed
-            if [ "$optical_found" = false ] && sudo ethtool -I "$interface" >/dev/null 2>&1; then
-                sudo ethtool -I "$interface" 2>/dev/null
-                optical_found=true
-            fi
-            
-            # Method 3: Check for SFF files in /sys if both methods failed
-            if [ "$optical_found" = false ] && [ -d "/sys/class/net/$interface/device" ]; then
-                # Check for SFP EEPROM data
-                if ls /sys/class/net/$interface/device/sff* >/dev/null 2>&1; then
-                    echo "SFP EEPROM detected via /sys"
-                    optical_found=true
-                elif [ -f "/sys/class/net/$interface/device/vendor" ]; then
-                    echo "Vendor: $(cat /sys/class/net/$interface/device/vendor 2>/dev/null || echo Unknown)"
-                    echo "Device: $(cat /sys/class/net/$interface/device/device 2>/dev/null || echo Unknown)"
-                    optical_found=true
-                fi
-            fi
-            
-            # If still no optical data found
-            if [ "$optical_found" = false ]; then
+                sudo ethtool -m "$interface" 2>/dev/null || echo "No transceiver data available"
+            else
                 echo "No transceiver data available"
             fi
             
