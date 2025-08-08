@@ -88,28 +88,28 @@ class OpticalAnalyzer:
         for line in lines:
             line = line.strip()
 
-            # Parse temperature (NVUE format: "temperature : 48.71 degrees C / 119.69 degrees F")
-            temp_match = re.search(r'temperature\s*:\s*([\d.-]+)\s*degrees?\s*C', line)
+                        # Parse temperature (NVUE format: "temperature : 48.71 degrees C" or ethtool: "Module temperature : 48.85 degrees C")
+            temp_match = re.search(r'(?:Module\s+)?temperature\s*:\s*([\d.-]+)\s*degrees?\s*C', line)
             if temp_match:
                 optical_params['temperature_c'] = float(temp_match.group(1))
-
-            # Parse voltage (NVUE format: "voltage : 3.2688 V")
-            voltage_match = re.search(r'voltage\s*:\s*([\d.-]+)\s*V', line)
+            
+            # Parse voltage (NVUE format: "voltage : 3.2688 V" or ethtool: "Module voltage : 3.2096 V")
+            voltage_match = re.search(r'(?:Module\s+)?voltage\s*:\s*([\d.-]+)\s*V', line)
             if voltage_match:
                 optical_params['voltage_v'] = float(voltage_match.group(1))
 
-            # Parse multi-channel RX power (NVUE format: "ch-1-rx-power : 1.7055 mW / 2.32 dBm")
-            rx_power_match = re.search(r'ch-\d+-rx-power\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', line)
+            # Parse RX power (NVUE: "ch-1-rx-power : 1.7055 mW / 2.32 dBm" or ethtool: "Rcvr signal avg optical power(Channel 1) : 1.5601 mW / 1.93 dBm")
+            rx_power_match = re.search(r'(?:ch-\d+-rx-power|Rcvr signal avg optical power.*?Channel \d+)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', line)
             if rx_power_match:
                 rx_powers.append(float(rx_power_match.group(1)))
 
-            # Parse multi-channel TX power (NVUE format: "ch-1-tx-power : 1.1706 mW / 0.68 dBm")
-            tx_power_match = re.search(r'ch-\d+-tx-power\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', line)
+            # Parse TX power (NVUE: "ch-1-tx-power : 1.1706 mW / 0.68 dBm" or ethtool: "Transmit avg optical power (Channel 1) : 1.0466 mW / 0.20 dBm")
+            tx_power_match = re.search(r'(?:ch-\d+-tx-power|Transmit avg optical power.*?Channel \d+)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', line)
             if tx_power_match:
                 tx_powers.append(float(tx_power_match.group(1)))
 
-            # Parse multi-channel bias current (NVUE format: "ch-1-tx-bias-current : 7.056 mA")
-            bias_match = re.search(r'ch-\d+-tx-bias-current\s*:\s*([\d.-]+)\s*mA', line)
+            # Parse bias current (NVUE: "ch-1-tx-bias-current : 7.056 mA" or ethtool: "Laser tx bias current (Channel 1) : 72.500 mA")
+            bias_match = re.search(r'(?:ch-\d+-tx-bias-current|Laser tx bias current.*?Channel \d+)\s*:\s*([\d.-]+)\s*mA', line)
             if bias_match:
                 bias_currents.append(float(bias_match.group(1)))
 
