@@ -158,7 +158,8 @@ def parse_fans_from_hardware_file(device_name):
 
         fans = {}
         # Generic matcher: any line that has "Fan" and ends with an RPM value
-        for name, rpm in re.findall(r'^(.*?Fan[^:]*?):\s*([0-9]+)\s*RPM', content, re.MULTILINE):
+        # Match lines with 'fan' or 'Fan' keywords (case-insensitive)
+        for name, rpm in re.findall(r'^(.*?(?:fan)[^:]*?):\s*([0-9]+)\s*RPM', content, re.MULTILINE | re.IGNORECASE):
             clean_name = name.strip()
             try:
                 fans[clean_name] = int(rpm)
