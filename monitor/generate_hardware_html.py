@@ -36,22 +36,23 @@ def parse_temperature_from_hardware_file(device_name):
         if asic_match:
             asic_temp = float(asic_match.group(1))
         
-        # Parse CPU temperature: multiple possible formats
-        # Pattern 1: "temp1:        +47.0°C" (some devices)
-        cpu_matches = re.findall(r'temp1:\s*\+?(-?\d+\.?\d*)[°C]', content)
-        if cpu_matches:
-            cpu_temp = float(cpu_matches[0])
+        # Parse CPU temperature: prefer real CPU sensors and avoid unrelated ones (e.g., drivetemp)
+        # Pattern 1: Average of CPU cores "Core 0:        +40.0°C"
+        core_matches = re.findall(r'Core \d+:\s*\+?(-?\d+\.?\d*)[°C]', content)
+        if core_matches:
+            core_temps = [float(temp) for temp in core_matches]
+            cpu_temp = sum(core_temps) / len(core_temps)
         else:
-            # Pattern 2: "CPU ACPI temp:  +27.8°C" (other devices)
-            cpu_acpi_matches = re.findall(r'CPU ACPI temp:\s*\+?(-?\d+\.?\d*)[°C]', content)
-            if cpu_acpi_matches:
-                cpu_temp = float(cpu_acpi_matches[0])
+            # Pattern 2: CPU package temperature
+            package_match = re.search(r'Package id \d+:\s*\+?(-?\d+\.?\d*)[°C]', content)
+            if package_match:
+                cpu_temp = float(package_match.group(1))
             else:
-                # Pattern 3: Average of CPU cores "Core 0:        +40.0°C"
-                core_matches = re.findall(r'Core \d+:\s*\+?(-?\d+\.?\d*)[°C]', content)
-                if core_matches:
-                    core_temps = [float(temp) for temp in core_matches]
-                    cpu_temp = sum(core_temps) / len(core_temps)  # Average
+                # Pattern 3: "CPU ACPI temp:  +27.8°C"
+                cpu_acpi_matches = re.findall(r'CPU ACPI temp:\s*\+?(-?\d+\.?\d*)[°C]', content)
+                if cpu_acpi_matches:
+                    cpu_temp = float(cpu_acpi_matches[0])
+                # Intentionally not falling back to generic "temp1" to avoid picking up disks/PSU sensors
         
     except Exception as e:
         print(f"Warning: Could not parse temperatures for {device_name}: {e}")
@@ -120,6 +121,63 @@ def parse_psu_efficiency_from_hardware_file(device_name):
         print(f"Warning: Could not parse PSU efficiency for {device_name}: {e}")
     
     return None
+
+def _parse_size_to_gib(size_str: str) -> float:
+    """Convert a size token like '15Gi', '286Mi' into GiB float."""
+    try:
+        m = re.match(r'(\d+\.?\d*)([KMG]i)', size_str)
+        if not m:
+            return 0.0
+        value = float(m.group(1))
+        unit = m.group(2)
+        if unit == 'Ki':
+            return value / (1024 * 1024)
+        if unit == 'Mi':
+            return value / 1024
+        if unit == 'Gi':
+            return value
+        if unit == 'Ti':
+            return value * 1024
+    except Exception:
+        return 0.0
+    return 0.0
+
+def parse_resources_from_hardware_file(device_name):
+    """Parse memory usage percent, 5‑minute CPU load, and uptime string from raw file.
+
+    Returns dict keys possibly including: memory_usage (float), cpu_load (float), uptime (str)
+    """
+    hardware_file = f"monitor-results/hardware-data/{device_name}_hardware.txt"
+    results = {}
+    if not os.path.exists(hardware_file):
+        return results
+    try:
+        with open(hardware_file, 'r') as f:
+            content = f.read()
+
+        # Memory usage from the "Mem:" row
+        # Example: Mem: 15Gi 3.9Gi 9.9Gi 286Mi 2.1Gi 11Gi
+        mem_line = re.search(r'^Mem:\s+(\S+)\s+(\S+)\s+\S+\s+\S+\s+\S+\s+(\S+)', content, re.MULTILINE)
+        if mem_line:
+            total_s, used_s, avail_s = mem_line.group(1), mem_line.group(2), mem_line.group(3)
+            total_gi = _parse_size_to_gib(total_s)
+            avail_gi = _parse_size_to_gib(avail_s)
+            if total_gi > 0:
+                usage_percent = (1.0 - (avail_gi / total_gi)) * 100.0
+                results['memory_usage'] = max(0.0, min(100.0, usage_percent))
+
+        # CPU load 5‑min average from CPU_INFO first line: "1.28 0.68 0.43 ..."
+        cpu_line = re.search(r'^CPU_INFO:\n([0-9.]+)\s+([0-9.]+)\s+([0-9.]+)\s+', content, re.MULTILINE)
+        if cpu_line:
+            results['cpu_load'] = float(cpu_line.group(2))
+
+        # Uptime line after UPTIME_INFO
+        uptime_match = re.search(r'^UPTIME_INFO:\n.*?up\s+([^,]+)', content, re.MULTILINE)
+        if uptime_match:
+            results['uptime'] = uptime_match.group(1).strip()
+    except Exception as e:
+        print(f"Warning: Could not parse resources for {device_name}: {e}")
+    return results
 
 def calculate_device_health_grade(device_name, device_data):
     """Calculate overall health grade for a device based on our thresholds"""
@@ -288,6 +346,7 @@ def generate_hardware_html():
 <html>
 <head>
     <title>Hardware Health Analysis</title>
+    <meta charset="UTF-8">
     <link rel="stylesheet" type="text/css" href="/css/styles2.css">
     <style>
         .summary-grid {{ 
@@ -461,9 +520,19 @@ def generate_hardware_html():
         cpu_temp_str = f"{cpu_temp:.1f}°C" if cpu_temp is not None else "N/A"
         asic_temp_str = f"{asic_temp:.1f}°C" if asic_temp is not None else "N/A"
         
-        memory_usage = device_data.get("resources", {}).get("memory", {}).get("usage_percent", 0)
-        cpu_load = device_data.get("resources", {}).get("cpu", {}).get("load_5min", 0)
-        uptime = device_data.get("resources", {}).get("uptime", "N/A")
+        # Prefer values from JSON resources; otherwise parse from raw hardware file
+        memory_usage = device_data.get("resources", {}).get("memory", {}).get("usage_percent", None)
+        cpu_load = device_data.get("resources", {}).get("cpu", {}).get("load_5min", None)
+        uptime = device_data.get("resources", {}).get("uptime", None)
+
+        if memory_usage is None or cpu_load is None or not uptime:
+            parsed = parse_resources_from_hardware_file(device_name)
+            if memory_usage is None:
+                memory_usage = parsed.get('memory_usage', 0.0)
+            if cpu_load is None:
+                cpu_load = parsed.get('cpu_load', 0.0)
+            if not uptime:
+                uptime = parsed.get('uptime', 'N/A')
         
         # PSU Efficiency 
         psu_efficiency_parsed = parse_psu_efficiency_from_hardware_file(device_name)
@@ -500,8 +569,8 @@ def generate_hardware_html():
                     <td><span class="{health_class}">{health_grade.upper()}</span></td>
                     <td>{cpu_temp_str}</td>
                     <td>{asic_temp_str}</td>
-                    <td>{memory_usage:.1f}%</td>
-                    <td>{cpu_load:.2f}</td>
+                    <td>{memory_usage if isinstance(memory_usage, (int, float)) else 0.0:.1f}%</td>
+                    <td>{cpu_load if isinstance(cpu_load, (int, float)) else 0.0:.2f}</td>
                     <td><span class="{fan_class}">{fan_status}</span></td>
                     <td>{psu_efficiency:.1f}%</td>
                     <td>{uptime}</td>
