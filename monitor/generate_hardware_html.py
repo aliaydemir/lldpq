@@ -142,6 +142,33 @@ def _parse_size_to_gib(size_str: str) -> float:
         return 0.0
     return 0.0
 
+def parse_fans_from_hardware_file(device_name):
+    """Parse fan RPMs from the raw hardware file and return a dict {name: rpm}.
+
+    Supports chassis fan tach lines and PSU fan lines, e.g.:
+      "Chassis Fan Drawer-1 Tach 1: 9266 RPM"
+      "PSU-1(L) Fan 1: 9632 RPM"
+    """
+    hardware_file = f"monitor-results/hardware-data/{device_name}_hardware.txt"
+    if not os.path.exists(hardware_file):
+        return {}
+    try:
+        with open(hardware_file, 'r') as f:
+            content = f.read()
+
+        fans = {}
+        # Generic matcher: any line that has "Fan" and ends with an RPM value
+        for name, rpm in re.findall(r'^(.*?Fan[^:]*?):\s*([0-9]+)\s*RPM', content, re.MULTILINE):
+            clean_name = name.strip()
+            try:
+                fans[clean_name] = int(rpm)
+            except ValueError:
+                continue
+        return fans
+    except Exception as e:
+        print(f"Warning: Could not parse fans for {device_name}: {e}")
+        return {}
+
 def parse_resources_from_hardware_file(device_name):
     """Parse memory usage percent, 5‑minute CPU load, and uptime string from raw file.
 
@@ -242,6 +269,8 @@ def calculate_device_health_grade(device_name, device_data):
     
     # Fan status grade
     fans = device_data.get("fans", {})
+    if not fans:
+        fans = parse_fans_from_hardware_file(device_name)
     if fans:
         fan_grades = []
         for fan_name, fan_speed in fans.items():
@@ -538,8 +567,10 @@ def generate_hardware_html():
         psu_efficiency_parsed = parse_psu_efficiency_from_hardware_file(device_name)
         psu_efficiency = psu_efficiency_parsed if psu_efficiency_parsed is not None else 0.0
         
-        # Calculate fan status for display
+        # Calculate fan status for display (use JSON fans or parse from file if missing)
         fans = device_data.get("fans", {})
+        if not fans:
+            fans = parse_fans_from_hardware_file(device_name)
         if fans:
             priority = {"CRITICAL": 4, "WARNING": 3, "GOOD": 2, "EXCELLENT": 1}
             fan_grades_calculated = []
