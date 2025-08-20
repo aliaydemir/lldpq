@@ -32,30 +32,34 @@ def load_topology_config(config_path="topology_config.yaml"):
 def get_topology_script_name(config_path="topology_config.yaml"):
     """Determine which topology script to use based on config"""
     topology_type = load_topology_config(config_path)
-    
+
     if topology_type == 'full':
         script_name = "generate_topology_full.py"
         print("Using full topology generation")
     else:
         script_name = "generate_topology.py"
         print("Using minimal topology generation")
-    
+
     return script_name
 
 def parse_lldp_output(filename):
     neighbors = []
     port_status = {}
-    
+
     with open(filename, 'r') as file:
         content = file.read()
-        
-        # Parse LLDP neighbors (existing logic)
+
+        # Parse LLDP neighbors
         interfaces = re.split(r'-------------------------------------------------------------------------------', content)[1:-1]
         for interface in interfaces:
             data = {}
             interface_match = re.search(r'Interface:\s+(\S+)', interface)
             sys_name_match = re.search(r'SysName:\s+([^\n]+)', interface)
-            if "Cumulus" in interface:
+
+            sys_descr_match = re.search(r'SysDescr:\s+([^\n]+)', interface)
+            vendor = sys_descr_match.group(1) if sys_descr_match else ""
+
+            if "Cumulus" in vendor or "Cisco" in vendor:
                 port_id_match = re.search(r'PortID:\s+ifname\s+(\S+)', interface)
             else:
                 # For HGX devices, extract just the interface name from "Interface 4 as enp157s0f0np0"
@@ -83,22 +87,19 @@ def parse_lldp_output(filename):
                 data['sys_name'] = "Unknown"
                 data['port_id'] = port_id_match.group(1).strip()
                 neighbors.append(data)
-        
-        # Parse port status (NEW) - Use findall to get all sections and take the LAST one
         port_status_matches = re.findall(r'===PORT_STATUS_START===(.*?)===PORT_STATUS_END===', content, re.DOTALL)
         if port_status_matches:
-            # Take the LAST section (most recent port status)
             port_status_section = port_status_matches[-1]
             port_status_lines = port_status_section.strip().split('\n')
             for line in port_status_lines:
                 line = line.strip()
-                if line:  # Remove colon check since format is "swp1s0  UP"
+                if line:
                     parts = line.split()
                     if len(parts) >= 2:
-                        port_name = parts[0]  # Port name (no colon to remove)
-                        status = parts[-1]  # Take the last word (UP/DOWN)
+                        port_name = parts[0]
+                        status = parts[-1]
                         port_status[port_name] = status
-    
+
     return neighbors, port_status
 
 def get_device_neighbors(lldp_dir):
@@ -222,3 +223,4 @@ if __name__ == "__main__":
     for filename in files_in_order:
         if filename.endswith("_lldp_result.ini"):
             os.remove(os.path.join(lldp_results_folder, filename))
+
