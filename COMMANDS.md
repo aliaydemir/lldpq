@@ -229,9 +229,9 @@ cat /sys/class/net/$interface/carrier_changes
 | `sudo-fix.sh` | Sudo setup | ~2 commands | Once | Standard |
 | `lldp-trigger-monitor.sh` | Web triggers | Background daemon | Every 5 seconds | Lightweight |
 
-## 🚀 Performance Optimized Scripts (New)
+## 🚀 Performance Optimized Scripts
 
-### `monitor2.sh` - Native Linux Monitoring (20x Faster)
+### `monitor.sh` - Native Linux Monitoring (Optimized)
 ```bash
 # Interface status (native - replaces nv show interface)
 ip link show | grep -E ': (swp|bond|vlan)'
@@ -248,14 +248,19 @@ ip addr show | awk '/inet/ && !/127.0.0.1/ && !/::1/ {print $2, $NF}'
 
 ### `lldp-trigger-monitor.sh` - Web Interface Triggers
 ```bash
-# Background daemon for web-triggered LLDP checks
+# Background daemon for web-triggered actions (LLDP + Monitor)
+LLDP_TRIGGER=/tmp/.lldp_web_trigger
+MONITOR_TRIGGER=/tmp/.monitor_web_trigger
 while true; do
-    if [ -f /tmp/lldp_trigger ]; then
-        rm /tmp/lldp_trigger
-        /home/$USER/monitor/check-lldp.sh
-        python3 /home/$USER/monitor/lldp-validate.py
-    fi
-    sleep 5
+  if [ -f "$LLDP_TRIGGER" ] && [ "$LLDP_TRIGGER" -nt .last_lldp_trigger_check ]; then
+    date +%s > .last_lldp_trigger_check
+    ./assets.sh && ./check-lldp.sh
+  fi
+  if [ -f "$MONITOR_TRIGGER" ] && [ "$MONITOR_TRIGGER" -nt .last_monitor_trigger_check ]; then
+    date +%s > .last_monitor_trigger_check
+    ./monitor.sh
+  fi
+  sleep 5
 done
 ```
 
