@@ -26,7 +26,9 @@ class OpticalAnalyzer:
     # Industry standard optical power thresholds (dBm)
     DEFAULT_THRESHOLDS = {
         "rx_power_min_dbm": -14.0,      # Minimum receive power
-        "rx_power_max_dbm": 3.0,        # Maximum receive power
+        # High RX thresholds: treat >5 dBm as warning, >7 dBm as critical (typical DR optics)
+        "rx_power_warning_high_dbm": 5.0,
+        "rx_power_critical_high_dbm": 7.0,
         "tx_power_min_dbm": -11.0,      # Minimum transmit power
         "tx_power_max_dbm": 4.0,        # Maximum transmit power
         "temperature_max_c": 70.0,      # Maximum operating temperature
@@ -186,7 +188,8 @@ class OpticalAnalyzer:
         # Critical conditions (any one triggers critical status)
         if rx_power is not None and rx_power < self.thresholds['rx_power_min_dbm']:
             return OpticalHealth.CRITICAL
-        if rx_power is not None and rx_power > self.thresholds['rx_power_max_dbm']:
+        if rx_power is not None and \
+           rx_power > self.thresholds.get('rx_power_critical_high_dbm', 7.0):
             return OpticalHealth.CRITICAL
         if temperature is not None and temperature > self.thresholds['temperature_max_c']:
             return OpticalHealth.CRITICAL
@@ -205,6 +208,11 @@ class OpticalAnalyzer:
             link_margin = self.calculate_link_margin(rx_power)
             if link_margin < self.thresholds['link_margin_min_db']:
                 warning_count += 1
+
+        # High RX power warning (above warning high but below critical high)
+        if rx_power is not None and \
+           rx_power > self.thresholds.get('rx_power_warning_high_dbm', 5.0):
+            warning_count += 1
 
         # TX power near limits
         if tx_power is not None:
