@@ -7,6 +7,8 @@ DATE=$(date '+%Y-%m-%d--%H-%M')
 SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
 eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 
+mkdir -p "$SCRIPT_DIR/lldp-results"
+
 unreachable_hosts_file=$(mktemp)
 
 ping_test() {

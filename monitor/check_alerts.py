@@ -25,8 +25,8 @@ class LLDPqAlerts:
         self.state_dir = self.script_dir / "alert-states"
         self.monitor_results = self.script_dir / "monitor-results"
         
-        # Create state directory if it doesn't exist
-        self.state_dir.mkdir(exist_ok=True)
+        # Create state directory if it doesn't exist (like `mkdir -p`)
+        self.state_dir.mkdir(parents=True, exist_ok=True)
         
         # Load configuration
         self.config = self.load_config()
