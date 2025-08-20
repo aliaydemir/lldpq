@@ -31,10 +31,14 @@ def parse_temperature_from_hardware_file(device_name):
         with open(hardware_file, 'r') as f:
             content = f.read()
         
-        # Parse ASIC temperature: "Ambient ASIC Temp:  +50.0°C"
+        # Parse ASIC temperature: try sensors line, else HW_MGMT_ASIC injected by monitor.sh
         asic_match = re.search(r'Ambient ASIC Temp:\s*\+?(-?\d+\.?\d*)[°C]', content)
         if asic_match:
             asic_temp = float(asic_match.group(1))
+        else:
+            asic_mgmt = re.search(r'^HW_MGMT_ASIC:\s*([0-9]+\.?[0-9]*)', content, re.MULTILINE)
+            if asic_mgmt:
+                asic_temp = float(asic_mgmt.group(1))
         
         # Parse CPU temperature: prefer real CPU sensors and avoid unrelated ones (e.g., drivetemp)
         # Pattern 1: Average of CPU cores "Core 0:        +40.0°C"
@@ -52,6 +56,11 @@ def parse_temperature_from_hardware_file(device_name):
                 cpu_acpi_matches = re.findall(r'CPU ACPI temp:\s*\+?(-?\d+\.?\d*)[°C]', content)
                 if cpu_acpi_matches:
                     cpu_temp = float(cpu_acpi_matches[0])
+                else:
+                    # Pattern 4: HW_MGMT_CPU injected by monitor.sh
+                    cpu_mgmt = re.search(r'^HW_MGMT_CPU:\s*([0-9]+\.?[0-9]*)', content, re.MULTILINE)
+                    if cpu_mgmt:
+                        cpu_temp = float(cpu_mgmt.group(1))
                 # Intentionally not falling back to generic "temp1" to avoid picking up disks/PSU sensors
         
     except Exception as e:
