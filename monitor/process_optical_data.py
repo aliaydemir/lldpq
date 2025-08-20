@@ -51,8 +51,12 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
 
     print("🔬 Processing optical diagnostics data")
     print(f"📁 Data directory: {data_dir}")
-    print(f"📊 Using optical thresholds: RX Power={optical_analyzer.thresholds['rx_power_min_dbm']:.1f} to {optical_analyzer.thresholds['rx_power_max_dbm']:.1f} dBm, "
-          f"Temperature max={optical_analyzer.thresholds['temperature_max_c']:.1f}°C")
+    print(
+        f"📊 Using optical thresholds: RX Power min={optical_analyzer.thresholds['rx_power_min_dbm']:.1f} dBm, "
+        f"warn high={optical_analyzer.thresholds.get('rx_power_warning_high_dbm', 5.0):.1f} dBm, "
+        f"crit high={optical_analyzer.thresholds.get('rx_power_critical_high_dbm', 7.0):.1f} dBm, "
+        f"Temperature max={optical_analyzer.thresholds['temperature_max_c']:.1f}°C"
+    )
 
     if not os.path.exists(data_dir):
         print(f"❌ Optical data directory {data_dir} not found")
