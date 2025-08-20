@@ -101,17 +101,35 @@ class OpticalAnalyzer:
             # Parse RX power (NVUE: "ch-1-rx-power : 1.7055 mW / 2.32 dBm" or ethtool: "Rcvr signal avg optical power(Channel 1) : 1.5601 mW / 1.93 dBm")
             rx_power_match = re.search(r'(?:ch-\d+-rx-power|Rcvr signal avg optical power.*?Channel \d+)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', line)
             if rx_power_match:
-                rx_powers.append(float(rx_power_match.group(1)))
+                try:
+                    rx_dbm = float(rx_power_match.group(1))
+                    # Ignore placeholder lanes commonly reported as -40 dBm on unused channels
+                    if rx_dbm > -35.0:
+                        rx_powers.append(rx_dbm)
+                except ValueError:
+                    pass
 
             # Parse TX power (NVUE: "ch-1-tx-power : 1.1706 mW / 0.68 dBm" or ethtool: "Transmit avg optical power (Channel 1) : 1.0466 mW / 0.20 dBm")
             tx_power_match = re.search(r'(?:ch-\d+-tx-power|Transmit avg optical power.*?Channel \d+)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', line)
             if tx_power_match:
-                tx_powers.append(float(tx_power_match.group(1)))
+                try:
+                    tx_dbm = float(tx_power_match.group(1))
+                    # Ignore unused lanes at ~-40 dBm
+                    if tx_dbm > -35.0:
+                        tx_powers.append(tx_dbm)
+                except ValueError:
+                    pass
 
             # Parse bias current (NVUE: "ch-1-tx-bias-current : 7.056 mA" or ethtool: "Laser tx bias current (Channel 1) : 72.500 mA")
             bias_match = re.search(r'(?:ch-\d+-tx-bias-current|Laser tx bias current.*?Channel \d+)\s*:\s*([\d.-]+)\s*mA', line)
             if bias_match:
-                bias_currents.append(float(bias_match.group(1)))
+                try:
+                    bias_ma = float(bias_match.group(1))
+                    # Ignore zero bias reported on unused lanes
+                    if bias_ma > 0.1:
+                        bias_currents.append(bias_ma)
+                except ValueError:
+                    pass
 
         # Average multi-channel values
         if rx_powers:
@@ -125,18 +143,21 @@ class OpticalAnalyzer:
         if optical_params['rx_power_dbm'] is None:
             rx_all = re.findall(r'(?:Rcvr\s+signal\s+avg\s+optical\s+power(?:\s*\(Channel\s*\d+\))?|ch-\d+-rx-power)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', optical_data, flags=re.IGNORECASE)
             if rx_all:
-                rx_vals = [float(v) for v in rx_all]
-                optical_params['rx_power_dbm'] = sum(rx_vals) / len(rx_vals)
+                rx_vals = [float(v) for v in rx_all if float(v) > -35.0]
+                if rx_vals:
+                    optical_params['rx_power_dbm'] = sum(rx_vals) / len(rx_vals)
         if optical_params['tx_power_dbm'] is None:
             tx_all = re.findall(r'(?:Transmit\s+avg\s+optical\s+power(?:\s*\(Channel\s*\d+\))?|ch-\d+-tx-power)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', optical_data, flags=re.IGNORECASE)
             if tx_all:
-                tx_vals = [float(v) for v in tx_all]
-                optical_params['tx_power_dbm'] = sum(tx_vals) / len(tx_vals)
+                tx_vals = [float(v) for v in tx_all if float(v) > -35.0]
+                if tx_vals:
+                    optical_params['tx_power_dbm'] = sum(tx_vals) / len(tx_vals)
         if optical_params['bias_current_ma'] is None:
             bias_all = re.findall(r'(?:Laser\s+tx\s+bias\s+current(?:\s*\(Channel\s*\d+\))?|ch-\d+-tx-bias-current)\s*:\s*([\d.-]+)\s*mA', optical_data, flags=re.IGNORECASE)
             if bias_all:
-                bias_vals = [float(v) for v in bias_all]
-                optical_params['bias_current_ma'] = sum(bias_vals) / len(bias_vals)
+                bias_vals = [float(v) for v in bias_all if float(v) > 0.1]
+                if bias_vals:
+                    optical_params['bias_current_ma'] = sum(bias_vals) / len(bias_vals)
 
         return optical_params
 
