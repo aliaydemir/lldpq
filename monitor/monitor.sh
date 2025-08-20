@@ -359,6 +359,19 @@ EOF
     timeout 180 ssh $SSH_OPTS -q "$user@$device" '
         echo "HARDWARE_HEALTH:"
         sensors 2>/dev/null || echo "No sensors available"
+        echo "HW_MGMT_THERMAL:"
+        if [ -r "/var/run/hw-management/thermal/asic" ]; then
+            asic_raw=$(cat /var/run/hw-management/thermal/asic 2>/dev/null || echo "")
+            if [ -n "$asic_raw" ]; then
+                awk "BEGIN{printf \"HW_MGMT_ASIC: %.1f\n\", $asic_raw/1000}"
+            fi
+        fi
+        if [ -r "/var/run/hw-management/thermal/cpu_pack" ]; then
+            cpu_raw=$(cat /var/run/hw-management/thermal/cpu_pack 2>/dev/null || echo "")
+            if [ -n "$cpu_raw" ]; then
+                awk "BEGIN{printf \"HW_MGMT_CPU: %.1f\n\", $cpu_raw/1000}"
+            fi
+        fi
         echo "MEMORY_INFO:"  
         free -h 2>/dev/null || echo "No memory info available"
         echo "CPU_INFO:"
