@@ -22,7 +22,7 @@ echo ""
 echo "[1] Checking current authentication status..."
 
 # Check current status
-if grep -q "^[[:space:]]*auth_basic " /etc/nginx/sites-available/default; then
+if grep -q "^[[:space:]]*auth_basic " /etc/nginx/sites-available/lldp; then
     current_status="ENABLED"
     echo "✅ Authentication is currently ENABLED"
 else
@@ -99,8 +99,8 @@ case $choice in
         echo "[3] Enabling authentication in nginx config..."
         
         # Enable auth in nginx config
-        sed -i 's/^[[:space:]]*#[[:space:]]*auth_basic/            auth_basic/' /etc/nginx/sites-available/default
-        sed -i 's/^[[:space:]]*#[[:space:]]*auth_basic_user_file/            auth_basic_user_file/' /etc/nginx/sites-available/default
+        sed -i 's/^[[:space:]]*#[[:space:]]*auth_basic/            auth_basic/' /etc/nginx/sites-available/lldp
+        sed -i 's/^[[:space:]]*#[[:space:]]*auth_basic_user_file/            auth_basic_user_file/' /etc/nginx/sites-available/lldp
         
         echo "✅ Authentication enabled in nginx config"
         
@@ -127,8 +127,8 @@ case $choice in
         else
             echo "❌ Nginx configuration test failed"
             echo "Rolling back changes..."
-            sed -i 's/^[[:space:]]*auth_basic/            # auth_basic/' /etc/nginx/sites-available/default
-            sed -i 's/^[[:space:]]*auth_basic_user_file/            # auth_basic_user_file/' /etc/nginx/sites-available/default
+            sed -i 's/^[[:space:]]*auth_basic/            # auth_basic/' /etc/nginx/sites-available/lldp
+            sed -i 's/^[[:space:]]*auth_basic_user_file/            # auth_basic_user_file/' /etc/nginx/sites-available/lldp
             exit 1
         fi
         ;;
@@ -156,8 +156,8 @@ case $choice in
         echo "[2] Disabling authentication in nginx config..."
         
         # Disable auth in nginx config
-        sed -i 's/^[[:space:]]*auth_basic/            # auth_basic/' /etc/nginx/sites-available/default
-        sed -i 's/^[[:space:]]*auth_basic_user_file/            # auth_basic_user_file/' /etc/nginx/sites-available/default
+        sed -i 's/^[[:space:]]*auth_basic/            # auth_basic/' /etc/nginx/sites-available/lldp
+        sed -i 's/^[[:space:]]*auth_basic_user_file/            # auth_basic_user_file/' /etc/nginx/sites-available/lldp
         
         echo "✅ Authentication disabled in nginx config"
         
@@ -196,8 +196,8 @@ case $choice in
         else
             echo "❌ Nginx configuration test failed"
             echo "Rolling back changes..."
-            sed -i 's/^[[:space:]]*#[[:space:]]*auth_basic/            auth_basic/' /etc/nginx/sites-available/default
-            sed -i 's/^[[:space:]]*#[[:space:]]*auth_basic_user_file/            auth_basic_user_file/' /etc/nginx/sites-available/default
+            sed -i 's/^[[:space:]]*#[[:space:]]*auth_basic/            auth_basic/' /etc/nginx/sites-available/lldp
+            sed -i 's/^[[:space:]]*#[[:space:]]*auth_basic_user_file/            auth_basic_user_file/' /etc/nginx/sites-available/lldp
             exit 1
         fi
         ;;
