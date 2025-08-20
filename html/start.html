@@ -691,7 +691,7 @@
                             
                             // Count by state (BGP)
                             if (state === 'established') summaryData.established++;
-                            else if (state === 'idle' || state === 'down') summaryData.failed++;
+                            else if (state === 'idle' || state === 'active' || state === 'connect' || state === 'down') summaryData.failed++;
                             
                             // Count by stability (Link Flap uses 'ok' not 'stable')
                             if (status === 'stable' || status === 'ok') summaryData.stable++;
