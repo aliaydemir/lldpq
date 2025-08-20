@@ -220,8 +220,7 @@ cat /sys/class/net/$interface/carrier_changes
 
 | Script | Purpose | Commands/Device | Frequency | Performance |
 |--------|---------|----------------|-----------|-------------|
-| `monitor.sh` | Full monitoring | ~25 commands | Every 5 minutes | Standard |
-| `monitor2.sh` | Optimized monitoring | ~15 commands | Every 5 minutes | **20x faster** |
+| `monitor.sh` | Full monitoring | ~25 commands | Every 5 minutes | Optimized |
 | `check-lldp.sh` | LLDP topology | ~8 commands | Every minute | Optimized |
 | `get-configs.sh` | Configuration | ~3 commands | Every 12 hours | Standard |
 | `assets.sh` | Asset inventory | ~8 commands | Every 12 hours | **10x faster** |
