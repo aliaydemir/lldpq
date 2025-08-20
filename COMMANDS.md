@@ -46,6 +46,11 @@ free -h
 cat /proc/loadavg  
 uptime
 
+# HW-management thermal sensors (if present)
+# Values are usually in millidegree C; scripts convert to °C
+sudo cat /var/run/hw-management/thermal/asic 2>/dev/null      # ASIC temperature (m°C)
+sudo cat /var/run/hw-management/thermal/cpu_pack 2>/dev/null  # CPU package temperature (m°C)
+
 # Network interface statistics
 cat /proc/net/dev
 ```
@@ -187,6 +192,9 @@ sudo vtysh -c "show ip route bgp"
 ```bash
 # Temperature monitoring
 sensors | grep -E "(temp|Core|CPU|Ambient)"
+# HW-management (platform) temperatures (if available)
+sudo cat /var/run/hw-management/thermal/asic 2>/dev/null
+sudo cat /var/run/hw-management/thermal/cpu_pack 2>/dev/null
 
 # Power supply information
 sensors | grep -E "(PMIC|PSU|VR|Rail|Pwr)"
