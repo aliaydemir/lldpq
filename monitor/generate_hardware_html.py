@@ -469,6 +469,18 @@ def generate_hardware_html():
             from {{ transform: rotate(0deg); }}
             to {{ transform: rotate(360deg); }}
         }}
+
+        /* Per-metric status dots (non-intrusive) */
+        .status-dot {{
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-left: 6px;
+            vertical-align: middle;
+        }}
+        .status-dot.warning {{ background-color: #ff9800; }}
+        .status-dot.critical {{ background-color: #f44336; }}
     </style>
   </head>
   <body>
@@ -604,16 +616,101 @@ def generate_hardware_html():
         
         fan_class = f"hardware-{fan_status.lower()}" if fan_status != "N/A" else ""
         
+        # Compute per-metric grades for dot indicators
+        def grade_cpu(t):
+            if t is None:
+                return None
+            if t < 60:
+                return "EXCELLENT"
+            elif t < 70:
+                return "GOOD"
+            elif t < 80:
+                return "WARNING"
+            else:
+                return "CRITICAL"
+
+        def grade_asic(t):
+            if t is None:
+                return None
+            if t < 70:
+                return "EXCELLENT"
+            elif t < 82:
+                return "GOOD"
+            elif t < 90:
+                return "WARNING"
+            else:
+                return "CRITICAL"
+
+        def grade_memory(p):
+            if not isinstance(p, (int, float)):
+                return None
+            if p < 60:
+                return "EXCELLENT"
+            elif p < 75:
+                return "GOOD"
+            elif p < 85:
+                return "WARNING"
+            else:
+                return "CRITICAL"
+
+        def grade_cpu_load(l):
+            if not isinstance(l, (int, float)):
+                return None
+            if l < 1.0:
+                return "EXCELLENT"
+            elif l < 2.0:
+                return "GOOD"
+            elif l < 3.0:
+                return "WARNING"
+            else:
+                return "CRITICAL"
+
+        def grade_psu(eff, raw):
+            # Only grade when we have parsed value
+            if raw is None:
+                return None
+            if eff > 90:
+                return "EXCELLENT"
+            elif eff >= 80:
+                return "GOOD"
+            elif eff >= 70:
+                return "WARNING"
+            else:
+                return "CRITICAL"
+
+        cpu_g = grade_cpu(cpu_temp)
+        asic_g = grade_asic(asic_temp)
+        mem_g = grade_memory(memory_usage if isinstance(memory_usage, (int, float)) else None)
+        load_g = grade_cpu_load(cpu_load if isinstance(cpu_load, (int, float)) else None)
+        fan_g = fan_status if fan_status in ("EXCELLENT", "GOOD", "WARNING", "CRITICAL") else None
+        psu_g = grade_psu(psu_efficiency, psu_efficiency_parsed)
+
+        def dot_for(g):
+            if g == "CRITICAL":
+                return '<span class="status-dot critical" title="Critical"></span>'
+            if g == "WARNING":
+                return '<span class="status-dot warning" title="Warning"></span>'
+            return ''
+
+        show_dots = health_grade in ("WARNING", "CRITICAL")
+
+        cpu_cell_suffix = dot_for(cpu_g) if show_dots else ''
+        asic_cell_suffix = dot_for(asic_g) if show_dots else ''
+        mem_cell_suffix = dot_for(mem_g) if show_dots else ''
+        load_cell_suffix = dot_for(load_g) if show_dots else ''
+        fan_cell_suffix = dot_for(fan_g) if show_dots else ''
+        psu_cell_suffix = dot_for(psu_g) if show_dots else ''
+
         html_content += f"""
                 <tr data-status="{health_grade.lower()}">
                     <td>{device_name}</td>
                     <td><span class="{health_class}">{health_grade.upper()}</span></td>
-                    <td>{cpu_temp_str}</td>
-                    <td>{asic_temp_str}</td>
-                    <td>{memory_usage if isinstance(memory_usage, (int, float)) else 0.0:.1f}%</td>
-                    <td>{cpu_load if isinstance(cpu_load, (int, float)) else 0.0:.2f}</td>
-                    <td><span class="{fan_class}">{fan_status}</span></td>
-                    <td>{psu_efficiency:.1f}%</td>
+                    <td>{cpu_temp_str}{cpu_cell_suffix}</td>
+                    <td>{asic_temp_str}{asic_cell_suffix}</td>
+                    <td>{memory_usage if isinstance(memory_usage, (int, float)) else 0.0:.1f}%{mem_cell_suffix}</td>
+                    <td>{cpu_load if isinstance(cpu_load, (int, float)) else 0.0:.2f}{load_cell_suffix}</td>
+                    <td><span class="{fan_class}">{fan_status}</span>{fan_cell_suffix}</td>
+                    <td>{psu_efficiency:.1f}%{psu_cell_suffix}</td>
                     <td>{uptime}</td>
                 </tr>
 """
