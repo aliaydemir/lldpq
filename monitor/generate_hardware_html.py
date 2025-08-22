@@ -736,7 +736,7 @@ def generate_hardware_html():
         <tr><td>Memory Usage</td><td>&lt; 60%</td><td>60-75%</td><td>75-85%</td><td>&gt; 85%</td></tr>
         <tr><td>CPU Load (5min avg)</td><td>&lt; 1.0</td><td>1.0-2.0</td><td>2.0-3.0</td><td>&gt; 3.0</td></tr>
         <tr><td>Fan Speed</td><td>&gt; 4000 RPM</td><td>3000-4000 RPM</td><td>1000-3000 RPM</td><td>&lt; 1000 RPM</td></tr>
-        <tr><td>PSU Efficiency</td><td>&gt; 90%</td><td>75-90%</td><td>60-75%</td><td>&lt; 60%</td></tr>
+        <tr><td>PSU Efficiency</td><td>&gt; 90%</td><td>75-90%</td><td>50-75%</td><td>&lt; 50%</td></tr>
     </table>
 
 """
