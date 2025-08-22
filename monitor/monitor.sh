@@ -376,8 +376,7 @@ EOF
         free -h 2>/dev/null || echo "No memory info available"
         echo "CPU_INFO:"
         cat /proc/loadavg 2>/dev/null || echo "No CPU info available"
-        echo "UPTIME_INFO:"
-        uptime 2>/dev/null || echo "No uptime info available"
+        # Uptime not needed for hardware report anymore
     ' > "monitor-results/hardware-data/${hostname}_hardware.txt" 2>/dev/null
     
     end_section "Hardware Health" "$hardware_start"
