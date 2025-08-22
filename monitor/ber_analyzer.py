@@ -63,27 +63,21 @@ class BERAnalyzer:
             print("No previous BER history found, starting fresh")
 
     def _parse_raw_phy_ber_for_device(self, hostname: str) -> Dict[str, float]:
-        """Parse RAW PHY BER per interface for given device from detailed counters file.
+        """Parse RAW PHY BER per interface for given device.
 
-        Preferred:
-          - raw_ber = raw_ber_coef × 10^(raw_ber_magnitude)
-
-        Fallback:
-          - raw_ber ≈ phy_corrected_bits / phy_received_bits (if both available)
+        Sources (in order):
+          1) monitor-results/ber-data/<hostname>_l1_show.txt (direct l1-show output)
+             - Use raw_ber_coef × 10^(raw_ber_magnitude)
+             - Fallback to corrected_bits/received_bits
+          2) monitor-results/ber-data/<hostname>_detailed_counters.txt (legacy combined extract)
         """
         if hostname in self._raw_phy_ber_cache:
             return self._raw_phy_ber_cache[hostname]
 
         result: Dict[str, float] = {}
-        path = f"{self.data_dir}/ber-data/{hostname}_detailed_counters.txt"
-        if not os.path.exists(path):
-            self._raw_phy_ber_cache[hostname] = result
-            return result
 
-        try:
-            with open(path, "r") as f:
-                content = f.read()
-
+        def parse_content(content: str):
+            nonlocal result
             current_if: Optional[str] = None
             current_received_bits: Optional[int] = None
             current_corrected_bits: Optional[int] = None
@@ -94,7 +88,6 @@ class BERAnalyzer:
                 nonlocal current_if, current_received_bits, current_corrected_bits, current_raw_coef, current_raw_mag
                 if not current_if:
                     return
-                # Prefer explicit raw ber fields
                 if current_raw_coef is not None and current_raw_mag is not None:
                     try:
                         raw_ber = float(current_raw_coef) * (10.0 ** float(current_raw_mag))
@@ -102,14 +95,12 @@ class BERAnalyzer:
                             result[current_if] = raw_ber
                     except Exception:
                         pass
-                # Fallback to corrected/received ratio
                 elif current_received_bits and current_corrected_bits and current_received_bits > 0 and current_corrected_bits >= 0:
                     try:
                         raw_ber = float(current_corrected_bits) / float(current_received_bits)
                         result[current_if] = raw_ber
                     except Exception:
                         pass
-                # Reset for next block
                 current_if = None
                 current_received_bits = None
                 current_corrected_bits = None
@@ -120,9 +111,7 @@ class BERAnalyzer:
                 s = line.strip()
                 if not s:
                     continue
-                # Detect interface header lines
                 if s.startswith("Port:") or s.startswith("Interface:"):
-                    # Flush previous interface block
                     flush()
                     try:
                         name = s.split(":", 1)[1].strip()
@@ -130,8 +119,6 @@ class BERAnalyzer:
                     except Exception:
                         current_if = None
                     continue
-
-                # Parse key: value
                 if ":" in s and current_if:
                     key, val = s.split(":", 1)
                     key = key.strip().lower().replace(" ", "_")
@@ -147,13 +134,26 @@ class BERAnalyzer:
                             current_raw_mag = int(val)
                     except Exception:
                         pass
-
-            # Flush last one
             flush()
 
+        # 1) Prefer direct l1-show output if present
+        l1_path = f"{self.data_dir}/ber-data/{hostname}_l1_show.txt"
+        try:
+            if os.path.exists(l1_path):
+                with open(l1_path, "r") as f:
+                    parse_content(f.read())
         except Exception:
-            # On any parse issue, return what we have (possibly empty)
             pass
+
+        # 2) Fallback to legacy detailed counters
+        if not result:
+            legacy_path = f"{self.data_dir}/ber-data/{hostname}_detailed_counters.txt"
+            try:
+                if os.path.exists(legacy_path):
+                    with open(legacy_path, "r") as f:
+                        parse_content(f.read())
+            except Exception:
+                pass
 
         self._raw_phy_ber_cache[hostname] = result
         return result

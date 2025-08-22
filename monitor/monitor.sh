@@ -289,6 +289,18 @@ EOF
     
     end_section "Interface Data Collection" "$interface_start"
     
+    # RAW BER (PHY) collection using l1-show if available
+    start_section "RAW BER (PHY)"
+    local raw_start=$(date +%s)
+    timeout 300 ssh $SSH_OPTS -q "$user@$device" '
+        if command -v l1-show >/dev/null 2>&1; then
+            sudo l1-show all -p 2>/dev/null || echo "l1-show failed"
+        else
+            echo "l1-show not available"
+        fi
+    ' > "monitor-results/ber-data/${hostname}_l1_show.txt" 2>/dev/null
+    end_section "RAW BER (PHY)" "$raw_start"
+
     # Carrier transitions collection  
     start_section "Carrier Transitions"
     local carrier_start=$(date +%s)
