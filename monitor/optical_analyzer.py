@@ -495,7 +495,7 @@ class OpticalAnalyzer:
     <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
 
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2 style="margin: 0;">Summary</h2>
+        <h2 style="margin: 0;">Optical Summary</h2>
         <div style="display: flex; gap: 10px;">
             <button id="run-analysis" onclick="runAnalysis()"
                     style="background: #b57614; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
