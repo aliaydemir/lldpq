@@ -41,6 +41,7 @@ class BERAnalyzer:
         self.ber_history = {}  # port -> list of ber readings over time
         self.current_ber_stats = {}  # port -> current ber status
         self.config = self.DEFAULT_CONFIG.copy()
+        self._raw_phy_ber_cache = {}  # hostname -> { interface: raw_ber_float }
         
         # Ensure ber-data directory exists
         os.makedirs(f"{self.data_dir}/ber-data", exist_ok=True)
@@ -60,6 +61,102 @@ class BERAnalyzer:
                 self.cleanup_old_history()
         except (FileNotFoundError, json.JSONDecodeError):
             print("No previous BER history found, starting fresh")
+
+    def _parse_raw_phy_ber_for_device(self, hostname: str) -> Dict[str, float]:
+        """Parse RAW PHY BER per interface for given device from detailed counters file.
+
+        Preferred:
+          - raw_ber = raw_ber_coef × 10^(raw_ber_magnitude)
+
+        Fallback:
+          - raw_ber ≈ phy_corrected_bits / phy_received_bits (if both available)
+        """
+        if hostname in self._raw_phy_ber_cache:
+            return self._raw_phy_ber_cache[hostname]
+
+        result: Dict[str, float] = {}
+        path = f"{self.data_dir}/ber-data/{hostname}_detailed_counters.txt"
+        if not os.path.exists(path):
+            self._raw_phy_ber_cache[hostname] = result
+            return result
+
+        try:
+            with open(path, "r") as f:
+                content = f.read()
+
+            current_if: Optional[str] = None
+            current_received_bits: Optional[int] = None
+            current_corrected_bits: Optional[int] = None
+            current_raw_coef: Optional[int] = None
+            current_raw_mag: Optional[int] = None
+
+            def flush():
+                nonlocal current_if, current_received_bits, current_corrected_bits, current_raw_coef, current_raw_mag
+                if not current_if:
+                    return
+                # Prefer explicit raw ber fields
+                if current_raw_coef is not None and current_raw_mag is not None:
+                    try:
+                        raw_ber = float(current_raw_coef) * (10.0 ** float(current_raw_mag))
+                        if raw_ber >= 0:
+                            result[current_if] = raw_ber
+                    except Exception:
+                        pass
+                # Fallback to corrected/received ratio
+                elif current_received_bits and current_corrected_bits and current_received_bits > 0 and current_corrected_bits >= 0:
+                    try:
+                        raw_ber = float(current_corrected_bits) / float(current_received_bits)
+                        result[current_if] = raw_ber
+                    except Exception:
+                        pass
+                # Reset for next block
+                current_if = None
+                current_received_bits = None
+                current_corrected_bits = None
+                current_raw_coef = None
+                current_raw_mag = None
+
+            for line in content.splitlines():
+                s = line.strip()
+                if not s:
+                    continue
+                # Detect interface header lines
+                if s.startswith("Port:") or s.startswith("Interface:"):
+                    # Flush previous interface block
+                    flush()
+                    try:
+                        name = s.split(":", 1)[1].strip()
+                        current_if = name
+                    except Exception:
+                        current_if = None
+                    continue
+
+                # Parse key: value
+                if ":" in s and current_if:
+                    key, val = s.split(":", 1)
+                    key = key.strip().lower().replace(" ", "_")
+                    val = val.strip()
+                    try:
+                        if key == "phy_received_bits":
+                            current_received_bits = int(val)
+                        elif key == "phy_corrected_bits":
+                            current_corrected_bits = int(val)
+                        elif key == "raw_ber_coef":
+                            current_raw_coef = int(val)
+                        elif key == "raw_ber_magnitude":
+                            current_raw_mag = int(val)
+                    except Exception:
+                        pass
+
+            # Flush last one
+            flush()
+
+        except Exception:
+            # On any parse issue, return what we have (possibly empty)
+            pass
+
+        self._raw_phy_ber_cache[hostname] = result
+        return result
     
     def save_ber_history(self):
         """Save BER history to file"""
@@ -541,10 +638,11 @@ class BERAnalyzer:
                     <th class="sortable" data-column="1" data-type="port">Interface <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="2" data-type="ber-status">Status <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="3" data-type="ber-value">BER Value <span class="sort-arrow">▲▼</span></th>
-                    <th class="sortable" data-column="4" data-type="number">Total Packets <span class="sort-arrow">▲▼</span></th>
-                    <th class="sortable" data-column="5" data-type="number">RX Errors <span class="sort-arrow">▲▼</span></th>
-                    <th class="sortable" data-column="6" data-type="number">TX Errors <span class="sort-arrow">▲▼</span></th>
-                    <th class="sortable" data-column="7" data-type="time">Last Updated <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="4" data-type="ber-value">RAW PHY BER <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="5" data-type="number">Total Packets <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="6" data-type="number">RX Errors <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="7" data-type="number">TX Errors <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="8" data-type="time">Last Updated <span class="sort-arrow">▲▼</span></th>
                 </tr>
             </thead>
             <tbody id="ber-data">
@@ -592,6 +690,11 @@ class BERAnalyzer:
             
             ber_display = f"{ber_value:.2e}" if ber_value > 0 else "0"
             
+            # Lookup RAW PHY BER for this device/interface (if available)
+            raw_map = self._parse_raw_phy_ber_for_device(device)
+            raw_phy_val = raw_map.get(interface)
+            raw_phy_display = f"{raw_phy_val:.2e}" if isinstance(raw_phy_val, (int, float)) and raw_phy_val is not None else "N/A"
+
             timestamp = datetime.fromtimestamp(port_info['timestamp']).strftime('%H:%M:%S')
             
             html_content += f"""
@@ -600,6 +703,7 @@ class BERAnalyzer:
                     <td>{interface}</td>
                     <td><span class="{status_class}">{status}</span></td>
                     <td>{ber_display}</td>
+                    <td>{raw_phy_display}</td>
                     <td>{port_info['total_packets']:,}</td>
                     <td>{port_info['rx_errors']:,}</td>
                     <td>{port_info['tx_errors']:,}</td>
