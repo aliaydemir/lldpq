@@ -639,7 +639,7 @@ class BERAnalyzer:
                     <th class="sortable" data-column="1" data-type="port">Interface <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="2" data-type="ber-status">Status <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="3" data-type="ber-value">BER Value <span class="sort-arrow">▲▼</span></th>
-                    <th class="sortable" data-column="4" data-type="ber-value">RAW BER <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="4" data-type="ber-value">RAW BER Value <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="5" data-type="number">Total Packets <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="6" data-type="number">RX Errors <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="7" data-type="number">TX Errors <span class="sort-arrow">▲▼</span></th>
@@ -717,11 +717,11 @@ class BERAnalyzer:
         </table>
         
     <div class="anomaly-section">
-        <h2>Notes</h2>
+        <h2>Understanding BER Metrics</h2>
         <ul>
-            <li><strong>BER (Frame)</strong>: rx/tx frame sayaçlarından (bytes tabanlı), MTU'dan bağımsızdır.</li>
-            <li><strong>RAW BER (PHY)</strong>: l1-show/PHY katmanından gelir; FEC ile düzeltilmiş bit hatalarını da içerir.</li>
-            <li>Bu yüzden RAW BER > 0 iken Frame BER = 0 olabilir; bu normaldir.</li>
+            <li><strong>BER Value (Frame)</strong>: Computed from interface frame counters using bytes (total_bits = 8 × (rx_bytes + tx_bytes)). It is MTU-independent and reflects only errors that propagated to the frame level.</li>
+            <li><strong>RAW BER Value (PHY)</strong>: Sourced from l1-show at the PHY/PCS layer. It includes raw bit errors that were corrected by FEC and therefore never appeared as frame errors.</li>
+            <li><strong>Why values differ</strong>: It is expected to see RAW BER &gt; 0 while Frame BER = 0 when FEC corrects errors successfully. Persistent or rising RAW BER may indicate marginal optics or cabling even if frames look clean.</li>
         </ul>
     </div>
 
