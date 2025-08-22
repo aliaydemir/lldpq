@@ -94,27 +94,40 @@ def parse_psu_efficiency_from_hardware_file(device_name):
         total_input_power = 0.0
         total_output_power = 0.0
 
-        # PMIC/VR input formats
+        # PMIC/VR input formats (include (in) and (pin))
         input_matches_w = re.findall(r'PMIC-\d+.*\(in\):\s*(\d+\.?\d*)\s*W', content)
         input_matches_mw = re.findall(r'PMIC-\d+.*\(in\):\s*(\d+\.?\d*)\s*mW', content)
+        input_matches_pin_w = re.findall(r'PMIC-\d+.*Pwr\s*\(pin\):\s*(\d+\.?\d*)\s*W', content)
         vr_input_matches_w = re.findall(r'VR IC.*pwr\s*\(in\):\s*(\d+\.?\d*)\s*W', content)
-        # PMIC/VR output formats
+        # PMIC/VR output formats (include Rail Pwr (out) and Pwr (poutX))
         output_matches_w = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*W', content)
         output_matches_mw = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*mW', content)
+        output_matches_pout_w = re.findall(r'PMIC-\d+.*Pwr\s*\(pout\d*\):\s*(\d+\.?\d*)\s*W', content)
         vr_output_matches_w = re.findall(r'^(?!PMIC-).*(?:VR|VCORE).*Rail Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
+        # As a last resort include generic PSU Pwr(in/out) (non-rail) if present
+        psu_input_general_w = re.findall(r'^PSU-[^\n]*Pwr\s*\(in\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
+        psu_output_general_w = re.findall(r'^PSU-[^\n]*Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
 
         for power_str in input_matches_w:
             total_input_power += float(power_str)
         for power_str in input_matches_mw:
             total_input_power += float(power_str) / 1000.0
+        for power_str in input_matches_pin_w:
+            total_input_power += float(power_str)
         for power_str in vr_input_matches_w:
+            total_input_power += float(power_str)
+        for power_str in psu_input_general_w:
             total_input_power += float(power_str)
 
         for power_str in output_matches_w:
             total_output_power += float(power_str)
         for power_str in output_matches_mw:
             total_output_power += float(power_str) / 1000.0
+        for power_str in output_matches_pout_w:
+            total_output_power += float(power_str)
         for power_str in vr_output_matches_w:
+            total_output_power += float(power_str)
+        for power_str in psu_output_general_w:
             total_output_power += float(power_str)
 
         if total_input_power > 0 and total_output_power > 0:
