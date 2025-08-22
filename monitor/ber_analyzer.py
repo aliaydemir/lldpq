@@ -506,14 +506,15 @@ class BERAnalyzer:
         .ber-table th {{ background-color: #f2f2f2; font-weight: bold; }}
         
         /* Column width specifications */
-        .ber-table th:nth-child(1), .ber-table td:nth-child(1) {{ width: 15%; }} /* Device */
-        .ber-table th:nth-child(2), .ber-table td:nth-child(2) {{ width: 12%; }} /* Interface */
+        .ber-table th:nth-child(1), .ber-table td:nth-child(1) {{ width: 14%; }} /* Device */
+        .ber-table th:nth-child(2), .ber-table td:nth-child(2) {{ width: 14%; }} /* Interface */
         .ber-table th:nth-child(3), .ber-table td:nth-child(3) {{ width: 10%; }} /* Status */
-        .ber-table th:nth-child(4), .ber-table td:nth-child(4) {{ width: 12%; }} /* BER Value */
-        .ber-table th:nth-child(5), .ber-table td:nth-child(5) {{ width: 12%; }} /* Total Packets */
-        .ber-table th:nth-child(6), .ber-table td:nth-child(6) {{ width: 10%; }} /* RX Errors */
-        .ber-table th:nth-child(7), .ber-table td:nth-child(7) {{ width: 10%; }} /* TX Errors */
-        .ber-table th:nth-child(8), .ber-table td:nth-child(8) {{ width: 19%; }} /* Last Updated */
+        .ber-table th:nth-child(4), .ber-table td:nth-child(4) {{ width: 14%; }} /* BER Value */
+        .ber-table th:nth-child(5), .ber-table td:nth-child(5) {{ width: 14%; }} /* RAW BER */
+        .ber-table th:nth-child(6), .ber-table td:nth-child(6) {{ width: 10%; }} /* Total Packets */
+        .ber-table th:nth-child(7), .ber-table td:nth-child(7) {{ width: 10%; }} /* RX Errors */
+        .ber-table th:nth-child(8), .ber-table td:nth-child(8) {{ width: 10%; }} /* TX Errors */
+        .ber-table th:nth-child(9), .ber-table td:nth-child(9) {{ width: 14%; }} /* Last Updated */
         
         /* Sortable table styling */
         .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
@@ -638,7 +639,7 @@ class BERAnalyzer:
                     <th class="sortable" data-column="1" data-type="port">Interface <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="2" data-type="ber-status">Status <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="3" data-type="ber-value">BER Value <span class="sort-arrow">▲▼</span></th>
-                    <th class="sortable" data-column="4" data-type="ber-value">RAW PHY BER <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="4" data-type="ber-value">RAW BER <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="5" data-type="number">Total Packets <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="6" data-type="number">RX Errors <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="7" data-type="number">TX Errors <span class="sort-arrow">▲▼</span></th>
@@ -715,7 +716,15 @@ class BERAnalyzer:
             </tbody>
         </table>
         
-    
+    <div class="anomaly-section">
+        <h2>Notes</h2>
+        <ul>
+            <li><strong>BER (Frame)</strong>: rx/tx frame sayaçlarından (bytes tabanlı), MTU'dan bağımsızdır.</li>
+            <li><strong>RAW BER (PHY)</strong>: l1-show/PHY katmanından gelir; FEC ile düzeltilmiş bit hatalarını da içerir.</li>
+            <li>Bu yüzden RAW BER > 0 iken Frame BER = 0 olabilir; bu normaldir.</li>
+        </ul>
+    </div>
+
     <h2>BER Analysis Thresholds</h2>
     <table class="ber-table">
         <tr><th>Parameter</th><th>Threshold</th><th>Description</th></tr>
