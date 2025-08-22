@@ -140,6 +140,76 @@ def parse_psu_efficiency_from_hardware_file(device_name):
     
     return None
 
+def parse_psu_power_in_out_from_hardware_file(device_name):
+    """Return (total_input_watts, total_output_watts) for a device.
+
+    Preferred sources:
+      - PSU 220V Rail Pwr (in)
+      - PSU 54V/12V Rail Pwr (out)
+    Fallback when rails are absent:
+      - PMIC/VR pin/pout and in/out aggregates
+      - Generic PSU Pwr(in/out)
+    """
+    hardware_file = f"monitor-results/hardware-data/{device_name}_hardware.txt"
+    if not os.path.exists(hardware_file):
+        return None, None
+    try:
+        with open(hardware_file, 'r') as f:
+            content = f.read()
+
+        # Preferred PSU rails
+        psu_ac_in_w = re.findall(r'^PSU-[^\n]*220V\s+Rail\s+Pwr\s*\(in\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
+        psu_dc_out_w = re.findall(r'^PSU-[^\n]*(?:54V|12V)\s+Rail\s+Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
+
+        total_psu_in = sum(float(v) for v in psu_ac_in_w)
+        total_psu_out = sum(float(v) for v in psu_dc_out_w)
+
+        if total_psu_in > 0 and total_psu_out > 0:
+            return total_psu_in, total_psu_out
+
+        # Fallback: PMIC/VR and generic PSU Pwr(in/out)
+        total_input_power = 0.0
+        total_output_power = 0.0
+
+        input_matches_w = re.findall(r'PMIC-\d+.*\(in\):\s*(\d+\.?\d*)\s*W', content)
+        input_matches_mw = re.findall(r'PMIC-\d+.*\(in\):\s*(\d+\.?\d*)\s*mW', content)
+        input_matches_pin_w = re.findall(r'PMIC-\d+.*Pwr\s*\(pin\):\s*(\d+\.?\d*)\s*W', content)
+        vr_input_matches_w = re.findall(r'VR IC.*pwr\s*\(in\):\s*(\d+\.?\d*)\s*W', content)
+        output_matches_w = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*W', content)
+        output_matches_mw = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*mW', content)
+        output_matches_pout_w = re.findall(r'PMIC-\d+.*Pwr\s*\(pout\d*\):\s*(\d+\.?\d*)\s*W', content)
+        vr_output_matches_w = re.findall(r'^(?!PMIC-).*(?:VR|VCORE).*Rail Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
+        psu_input_general_w = re.findall(r'^PSU-[^\n]*Pwr\s*\(in\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
+        psu_output_general_w = re.findall(r'^PSU-[^\n]*Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
+
+        for s in input_matches_w:
+            total_input_power += float(s)
+        for s in input_matches_mw:
+            total_input_power += float(s) / 1000.0
+        for s in input_matches_pin_w:
+            total_input_power += float(s)
+        for s in vr_input_matches_w:
+            total_input_power += float(s)
+        for s in psu_input_general_w:
+            total_input_power += float(s)
+
+        for s in output_matches_w:
+            total_output_power += float(s)
+        for s in output_matches_mw:
+            total_output_power += float(s) / 1000.0
+        for s in output_matches_pout_w:
+            total_output_power += float(s)
+        for s in vr_output_matches_w:
+            total_output_power += float(s)
+        for s in psu_output_general_w:
+            total_output_power += float(s)
+
+        if total_input_power > 0 and total_output_power > 0:
+            return total_input_power, total_output_power
+        return None, None
+    except Exception:
+        return None, None
+
 def _parse_size_to_gib(size_str: str) -> float:
     """Convert a size token like '15Gi', '286Mi' into GiB float."""
     try:
@@ -217,10 +287,7 @@ def parse_resources_from_hardware_file(device_name):
         if cpu_line:
             results['cpu_load'] = float(cpu_line.group(2))
 
-        # Uptime line after UPTIME_INFO
-        uptime_match = re.search(r'^UPTIME_INFO:\n.*?up\s+([^,]+)', content, re.MULTILINE)
-        if uptime_match:
-            results['uptime'] = uptime_match.group(1).strip()
+        # Uptime no longer used in table; keep parser but do not require
     except Exception as e:
         print(f"Warning: Could not parse resources for {device_name}: {e}")
     return results
@@ -281,7 +348,7 @@ def calculate_device_health_grade(device_name, device_data):
         health_grades.append("EXCELLENT")
     elif psu_efficiency >= 75:
         health_grades.append("GOOD")
-    elif psu_efficiency >= 50:
+    elif psu_efficiency >= 30:
         health_grades.append("WARNING")
     elif psu_efficiency > 0:
         health_grades.append("CRITICAL")
@@ -440,7 +507,7 @@ def generate_hardware_html():
         .hardware-table th:nth-child(6), .hardware-table td:nth-child(6) {{ width: 8%; }} /* CPU Load */
         .hardware-table th:nth-child(7), .hardware-table td:nth-child(7) {{ width: 11%; }} /* Fan Status */
         .hardware-table th:nth-child(8), .hardware-table td:nth-child(8) {{ width: 13%; }} /* PSU Efficiency */
-        .hardware-table th:nth-child(9), .hardware-table td:nth-child(9) {{ width: 13%; }} /* Uptime */
+        .hardware-table th:nth-child(9), .hardware-table td:nth-child(9) {{ width: 15%; }} /* PSU Power IN/OUT */
         
         /* Sortable table styling */
         .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
@@ -560,7 +627,7 @@ def generate_hardware_html():
                     <th class="sortable" data-column="5" data-type="number">CPU Load <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="6" data-type="hardware-status">Fan Status <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="7" data-type="number">PSU Efficiency (%) <span class="sort-arrow">▲▼</span></th>
-                    <th class="sortable" data-column="8" data-type="string">Uptime <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="8" data-type="string">PSU Power (IN/OUT) <span class="sort-arrow">▲▼</span></th>
                 </tr>
             </thead>
             <tbody id="hardware-data">
@@ -583,7 +650,8 @@ def generate_hardware_html():
         # Prefer values from JSON resources; otherwise parse from raw hardware file
         memory_usage = device_data.get("resources", {}).get("memory", {}).get("usage_percent", None)
         cpu_load = device_data.get("resources", {}).get("cpu", {}).get("load_5min", None)
-        uptime = device_data.get("resources", {}).get("uptime", None)
+        # Uptime removed from table
+        uptime = None
 
         if memory_usage is None or cpu_load is None or not uptime:
             parsed = parse_resources_from_hardware_file(device_name)
@@ -591,8 +659,7 @@ def generate_hardware_html():
                 memory_usage = parsed.get('memory_usage', 0.0)
             if cpu_load is None:
                 cpu_load = parsed.get('cpu_load', 0.0)
-            if not uptime:
-                uptime = parsed.get('uptime', 'N/A')
+            # do not set uptime anymore
         
         # PSU Efficiency 
         psu_efficiency_parsed = parse_psu_efficiency_from_hardware_file(device_name)
@@ -682,7 +749,7 @@ def generate_hardware_html():
                 return "EXCELLENT"
             elif eff >= 75:
                 return "GOOD"
-            elif eff >= 50:
+            elif eff >= 30:
                 return "WARNING"
             else:
                 return "CRITICAL"
@@ -710,6 +777,12 @@ def generate_hardware_html():
         fan_cell_suffix = dot_for(fan_g) if show_dots else ''
         psu_cell_suffix = dot_for(psu_g) if show_dots else ''
 
+        # Compute PSU IN/OUT numbers for display
+        psu_in_w, psu_out_w = parse_psu_power_in_out_from_hardware_file(device_name)
+        psu_in_out_str = "N/A"
+        if psu_in_w is not None and psu_out_w is not None:
+            psu_in_out_str = f"{psu_in_w:.1f}W / {psu_out_w:.1f}W"
+
         html_content += f"""
                 <tr data-status="{health_grade.lower()}">
                     <td>{device_name}</td>
@@ -720,7 +793,7 @@ def generate_hardware_html():
                     <td>{cpu_load if isinstance(cpu_load, (int, float)) else 0.0:.2f}{load_cell_suffix}</td>
                     <td><span class="{fan_class}">{fan_status}</span>{fan_cell_suffix}</td>
                     <td>{psu_efficiency:.1f}%{psu_cell_suffix}</td>
-                    <td>{uptime}</td>
+                    <td>{psu_in_out_str}</td>
                 </tr>
 """
     
@@ -737,7 +810,7 @@ def generate_hardware_html():
         <tr><td>Memory Usage</td><td>&lt; 60%</td><td>60-75%</td><td>75-85%</td><td>&gt; 85%</td></tr>
         <tr><td>CPU Load (5min avg)</td><td>&lt; 1.0</td><td>1.0-2.0</td><td>2.0-3.0</td><td>&gt; 3.0</td></tr>
         <tr><td>Fan Speed</td><td>&gt; 4000 RPM</td><td>3000-4000 RPM</td><td>1000-3000 RPM</td><td>&lt; 1000 RPM</td></tr>
-        <tr><td>PSU Efficiency</td><td>&gt; 90%</td><td>75-90%</td><td>50-75%</td><td>&lt; 50%</td></tr>
+        <tr><td>PSU Efficiency</td><td>&gt; 90%</td><td>75-90%</td><td>30-75%</td><td>&lt; 30%</td></tr>
     </table>
 
 """
