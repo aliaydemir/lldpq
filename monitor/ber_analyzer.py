@@ -510,7 +510,7 @@ class BERAnalyzer:
         .ber-table th:nth-child(2), .ber-table td:nth-child(2) {{ width: 14%; }} /* Interface */
         .ber-table th:nth-child(3), .ber-table td:nth-child(3) {{ width: 10%; }} /* Status */
         .ber-table th:nth-child(4), .ber-table td:nth-child(4) {{ width: 14%; }} /* BER Value */
-        .ber-table th:nth-child(5), .ber-table td:nth-child(5) {{ width: 14%; }} /* RAW BER */
+        .ber-table th:nth-child(5), .ber-table td:nth-child(5) {{ width: 14%; }} /* Raw BER */
         .ber-table th:nth-child(6), .ber-table td:nth-child(6) {{ width: 10%; }} /* Total Packets */
         .ber-table th:nth-child(7), .ber-table td:nth-child(7) {{ width: 10%; }} /* RX Errors */
         .ber-table th:nth-child(8), .ber-table td:nth-child(8) {{ width: 10%; }} /* TX Errors */
@@ -639,7 +639,7 @@ class BERAnalyzer:
                     <th class="sortable" data-column="1" data-type="port">Interface <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="2" data-type="ber-status">Status <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="3" data-type="ber-value">BER Value <span class="sort-arrow">▲▼</span></th>
-                    <th class="sortable" data-column="4" data-type="ber-value">RAW BER Value <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="4" data-type="ber-value">Raw BER Value <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="5" data-type="number">Total Packets <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="6" data-type="number">RX Errors <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="7" data-type="number">TX Errors <span class="sort-arrow">▲▼</span></th>
@@ -716,15 +716,6 @@ class BERAnalyzer:
             </tbody>
         </table>
         
-    <div class="anomaly-section">
-        <h2>Understanding BER Metrics</h2>
-        <ul>
-            <li><strong>BER Value (Frame)</strong>: Computed from interface frame counters using bytes (total_bits = 8 × (rx_bytes + tx_bytes)). It is MTU-independent and reflects only errors that propagated to the frame level.</li>
-            <li><strong>RAW BER Value (PHY)</strong>: Sourced from l1-show at the PHY/PCS layer. It includes raw bit errors that were corrected by FEC and therefore never appeared as frame errors.</li>
-            <li><strong>Why values differ</strong>: It is expected to see RAW BER &gt; 0 while Frame BER = 0 when FEC corrects errors successfully. Persistent or rising RAW BER may indicate marginal optics or cabling even if frames look clean.</li>
-        </ul>
-    </div>
-
     <h2>BER Analysis Thresholds</h2>
     <table class="ber-table">
         <tr><th>Parameter</th><th>Threshold</th><th>Description</th></tr>
@@ -734,6 +725,15 @@ class BERAnalyzer:
         <tr><td>Critical</td><td>&gt; 1×10⁻⁵</td><td>Unacceptable error rate, immediate attention required</td></tr>
         <tr><td>Analysis Method</td><td>Interface statistics</td><td>Based on error counters and packet statistics</td></tr>
     </table>
+
+    <div class="anomaly-section">
+        <h2>Understanding BER Metrics</h2>
+        <ul>
+            <li><strong>BER Value (Frame)</strong>: Computed from interface frame counters using bytes (total_bits = 8 × (rx_bytes + tx_bytes)). It is MTU-independent and reflects only errors that propagated to the frame level.</li>
+            <li><strong>Raw BER Value (PHY)</strong>: Sourced from l1-show at the PHY/PCS layer. It includes raw bit errors that were corrected by FEC and therefore never appeared as frame errors.</li>
+            <li><strong>Why values differ</strong>: It is expected to see Raw BER &gt; 0 while Frame BER = 0 when FEC corrects errors successfully. Persistent or rising Raw BER may indicate marginal optics or cabling even if frames look clean.</li>
+        </ul>
+    </div>
 
 """
         
