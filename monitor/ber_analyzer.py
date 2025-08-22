@@ -106,22 +106,29 @@ class BERAnalyzer:
                 return True
         return False
     
-    def calculate_ber(self, rx_packets: int, tx_packets: int, rx_errors: int, tx_errors: int) -> float:
-        """Calculate Bit Error Rate"""
+    def calculate_ber(self, rx_packets: int, tx_packets: int, rx_errors: int, tx_errors: int, rx_bytes: int, tx_bytes: int) -> float:
+        """Calculate Bit Error Rate (MTU-independent using byte counters when available).
+
+        Falls back to a packet-size estimate only if byte counters are unavailable.
+        """
         total_packets = rx_packets + tx_packets
         total_errors = rx_errors + tx_errors
-        
+        total_bytes = rx_bytes + tx_bytes
+
         if total_packets < self.config["min_packets_for_analysis"]:
             return 0.0  # Not enough data for reliable BER calculation
-        
+
         if total_errors == 0:
             return 0.0  # Perfect transmission
-        
-        # BER = errors / total_bits
-        # Assuming average packet size of 1500 bytes = 12000 bits
-        avg_bits_per_packet = 12000
-        total_bits = total_packets * avg_bits_per_packet
-        
+
+        # Prefer exact bit volume from byte counters (MTU-independent)
+        total_bits = total_bytes * 8
+
+        # Fallback to estimated bits if byte counters are missing/zero
+        if total_bits <= 0:
+            avg_bits_per_packet = 12000  # 1500 bytes as conservative estimate
+            total_bits = total_packets * avg_bits_per_packet
+
         ber = total_errors / total_bits if total_bits > 0 else 0.0
         return ber
     
@@ -145,7 +152,9 @@ class BERAnalyzer:
             interface_stats.get('rx_packets', 0),
             interface_stats.get('tx_packets', 0), 
             interface_stats.get('rx_errors', 0),
-            interface_stats.get('tx_errors', 0)
+            interface_stats.get('tx_errors', 0),
+            interface_stats.get('rx_bytes', 0),
+            interface_stats.get('tx_bytes', 0)
         )
         
         # Get quality grade
