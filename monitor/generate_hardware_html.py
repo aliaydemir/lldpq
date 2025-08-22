@@ -346,7 +346,7 @@ def calculate_device_health_grade(device_name, device_data):
     psu_efficiency = parse_psu_efficiency_from_hardware_file(device_name) or 0.0
     if psu_efficiency > 90:
         health_grades.append("EXCELLENT")
-    elif psu_efficiency >= 75:
+    elif psu_efficiency >= 50:
         health_grades.append("GOOD")
     elif psu_efficiency >= 30:
         health_grades.append("WARNING")
@@ -747,7 +747,7 @@ def generate_hardware_html():
                 return None
             if eff > 90:
                 return "EXCELLENT"
-            elif eff >= 75:
+            elif eff >= 50:
                 return "GOOD"
             elif eff >= 30:
                 return "WARNING"
@@ -810,7 +810,7 @@ def generate_hardware_html():
         <tr><td>Memory Usage</td><td>&lt; 60%</td><td>60-75%</td><td>75-85%</td><td>&gt; 85%</td></tr>
         <tr><td>CPU Load (5min avg)</td><td>&lt; 1.0</td><td>1.0-2.0</td><td>2.0-3.0</td><td>&gt; 3.0</td></tr>
         <tr><td>Fan Speed</td><td>&gt; 4000 RPM</td><td>3000-4000 RPM</td><td>1000-3000 RPM</td><td>&lt; 1000 RPM</td></tr>
-        <tr><td>PSU Efficiency</td><td>&gt; 90%</td><td>75-90%</td><td>30-75%</td><td>&lt; 30%</td></tr>
+        <tr><td>PSU Efficiency</td><td>&gt; 90%</td><td>50-90%</td><td>30-50%</td><td>&lt; 30%</td></tr>
     </table>
 
 """
