@@ -79,9 +79,10 @@ def parse_psu_efficiency_from_hardware_file(device_name):
     try:
         with open(hardware_file, 'r') as f:
             content = f.read()
-        # 1) Preferred: use PSU AC-in and 54V DC-out rails only (avoids double counting)
+        # 1) Preferred: use PSU AC-in and DC-out rails only (avoids double counting)
         psu_ac_in_w = re.findall(r'^PSU-[^\n]*220V\s+Rail\s+Pwr\s*\(in\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
-        psu_dc_out_w = re.findall(r'^PSU-[^\n]*54V\s+Rail\s+Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
+        # Support both 54V (most switches) and 12V (some platforms)
+        psu_dc_out_w = re.findall(r'^PSU-[^\n]*(?:54V|12V)\s+Rail\s+Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
 
         total_psu_in = sum(float(v) for v in psu_ac_in_w)
         total_psu_out = sum(float(v) for v in psu_dc_out_w)
