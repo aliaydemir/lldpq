@@ -79,52 +79,47 @@ def parse_psu_efficiency_from_hardware_file(device_name):
     try:
         with open(hardware_file, 'r') as f:
             content = f.read()
-        
+        # 1) Preferred: use PSU AC-in and 54V DC-out rails only (avoids double counting)
+        psu_ac_in_w = re.findall(r'^PSU-[^\n]*220V\s+Rail\s+Pwr\s*\(in\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
+        psu_dc_out_w = re.findall(r'^PSU-[^\n]*54V\s+Rail\s+Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
+
+        total_psu_in = sum(float(v) for v in psu_ac_in_w)
+        total_psu_out = sum(float(v) for v in psu_dc_out_w)
+
+        if total_psu_in > 0 and total_psu_out > 0:
+            efficiency = (total_psu_out / total_psu_in) * 100.0
+            return min(efficiency, 100.0)
+
+        # 2) Fallback (legacy): aggregate PMIC/VR in/out if PSU rails are unavailable
         total_input_power = 0.0
         total_output_power = 0.0
-        
-        # Parse input power: Multiple formats
-        # Format 1: "PMIC-X ... (in): 12.00 W"
+
+        # PMIC/VR input formats
         input_matches_w = re.findall(r'PMIC-\d+.*\(in\):\s*(\d+\.?\d*)\s*W', content)
         input_matches_mw = re.findall(r'PMIC-\d+.*\(in\):\s*(\d+\.?\d*)\s*mW', content)
-        # Format 2: "PSU-X ... Pwr(in): 52.25 W" or "PSU-X ... Pwr (in): 94.62 W"
-        psu_input_matches_w = re.findall(r'PSU-\d+.*Pwr\s*\(in\):\s*(\d+\.?\d*)\s*W', content)
-        # Format 3: "VR IC ... pwr(in): 25.00 W"
         vr_input_matches_w = re.findall(r'VR IC.*pwr\s*\(in\):\s*(\d+\.?\d*)\s*W', content)
-        
-        # Sum all input power sources
+        # PMIC/VR output formats
+        output_matches_w = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*W', content)
+        output_matches_mw = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*mW', content)
+        vr_output_matches_w = re.findall(r'^(?!PMIC-).*(?:VR|VCORE).*Rail Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
+
         for power_str in input_matches_w:
             total_input_power += float(power_str)
         for power_str in input_matches_mw:
-            total_input_power += float(power_str) / 1000.0  # Convert mW to W
-        for power_str in psu_input_matches_w:
-            total_input_power += float(power_str)
+            total_input_power += float(power_str) / 1000.0
         for power_str in vr_input_matches_w:
             total_input_power += float(power_str)
-        
-        # Parse output power: Multiple formats
-        # Format 1: "PMIC-X ... Pwr (out1): 5.00 W"
-        output_matches_w = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*W', content)
-        output_matches_mw = re.findall(r'PMIC-\d+.*Pwr \(out\d*\):\s*(\d+\.?\d*)\s*mW', content)
-        # Format 2: "PSU-X ... Pwr(out): 45.88 W" or "PSU-X ... Pwr (out): 69.50 W"
-        psu_output_matches_w = re.findall(r'PSU-\d+.*Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content)
-        # Format 3: VR IC outputs only (avoid PMIC double counting)
-        vr_output_matches_w = re.findall(r'^(?!PMIC-).*(?:VR|VCORE).*Rail Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
-        
-        # Sum all output power sources
+
         for power_str in output_matches_w:
             total_output_power += float(power_str)
         for power_str in output_matches_mw:
-            total_output_power += float(power_str) / 1000.0  # Convert mW to W
-        for power_str in psu_output_matches_w:
-            total_output_power += float(power_str)
+            total_output_power += float(power_str) / 1000.0
         for power_str in vr_output_matches_w:
             total_output_power += float(power_str)
-        
-        # Calculate efficiency if we have both input and output
+
         if total_input_power > 0 and total_output_power > 0:
-            efficiency = (total_output_power / total_input_power) * 100
-            return min(efficiency, 100.0)  # Cap at 100%
+            efficiency = (total_output_power / total_input_power) * 100.0
+            return min(efficiency, 100.0)
         
     except Exception as e:
         print(f"Warning: Could not parse PSU efficiency for {device_name}: {e}")
