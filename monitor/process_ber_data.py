@@ -135,8 +135,9 @@ def process_ber_data_files(data_dir="monitor-results/ber-data"):
                     except Exception as e:
                         print(f"⚠️  Error processing detailed counters for {hostname}: {e}")
                 
-                # Process each interface
+                # Process each interface with delta-based calculation
                 processed_interfaces = 0
+                baseline_interfaces = 0
                 for interface_name, stats in interfaces.items():
                     # Only process physical interfaces
                     if not ber_analyzer.is_physical_port(interface_name):
@@ -144,29 +145,60 @@ def process_ber_data_files(data_dir="monitor-results/ber-data"):
                     
                     port_name = f"{hostname}:{interface_name}"
                     
-                    # Skip interfaces with no traffic
+                    # Calculate delta-based BER
+                    ber_value, is_baseline, delta_errors, delta_bytes = ber_analyzer.calculate_delta_ber(
+                        hostname, interface_name, stats
+                    )
+                    
+                    if is_baseline:
+                        print(f"  📊 {port_name}: Baseline established")
+                        baseline_interfaces += 1
+                        processed_interfaces += 1
+                        continue
+                    
+                    # Skip interfaces with no activity since baseline
                     total_packets = stats.get('rx_packets', 0) + stats.get('tx_packets', 0)
                     if total_packets < ber_analyzer.config['min_packets_for_analysis']:
                         continue
                     
-                    # Update BER statistics
-                    ber_record = ber_analyzer.update_interface_ber(port_name, stats)
+                    # Create BER record manually since we're using delta calculation
+                    current_time = time.time()
+                    grade = ber_analyzer.get_ber_grade(ber_value)
+                    
+                    ber_record = {
+                        'timestamp': current_time,
+                        'ber_value': ber_value,
+                        'grade': grade.value,
+                        'rx_packets': stats.get('rx_packets', 0),
+                        'tx_packets': stats.get('tx_packets', 0),
+                        'rx_errors': stats.get('rx_errors', 0),
+                        'tx_errors': stats.get('tx_errors', 0),
+                        'total_packets': total_packets,
+                        'delta_errors': delta_errors,
+                        'delta_bytes': delta_bytes
+                    }
+                    
+                    # Update current stats and history
+                    if port_name not in ber_analyzer.ber_history:
+                        ber_analyzer.ber_history[port_name] = []
+                    ber_analyzer.ber_history[port_name].append(ber_record)
+                    ber_analyzer.current_ber_stats[port_name] = ber_record
                     
                     # Log interface details
-                    ber_value = ber_record['ber_value']
-                    grade = ber_record['grade']
-                    
-                    if grade == 'critical':
-                        print(f"  🔴 {port_name}: BER={ber_value:.2e} (CRITICAL)")
-                    elif grade == 'warning':
-                        print(f"  🟡 {port_name}: BER={ber_value:.2e} (WARNING)")
-                    elif grade == 'good':
-                        print(f"  🟢 {port_name}: BER={ber_value:.2e} (GOOD)")
+                    if grade.value == 'critical':
+                        print(f"  🔴 {port_name}: BER={ber_value:.2e} (CRITICAL) - Δ{delta_errors} errors")
+                    elif grade.value == 'warning':
+                        print(f"  🟡 {port_name}: BER={ber_value:.2e} (WARNING) - Δ{delta_errors} errors")
+                    elif grade.value == 'good':
+                        print(f"  🟢 {port_name}: BER={ber_value:.2e} (GOOD) - Δ{delta_errors} errors")
                     else:
-                        print(f"  ✅ {port_name}: BER={ber_value:.2e} (EXCELLENT)")
+                        print(f"  ✅ {port_name}: BER={ber_value:.2e} (EXCELLENT) - Δ{delta_errors} errors")
                     
                     processed_interfaces += 1
                     total_interfaces_processed += 1
+                
+                if baseline_interfaces > 0:
+                    print(f"📊 Established baseline for {baseline_interfaces} new interfaces")
                 
                 print(f"📈 Processed {processed_interfaces} interfaces for {hostname}")
                 

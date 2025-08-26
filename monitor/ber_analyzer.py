@@ -42,12 +42,14 @@ class BERAnalyzer:
         self.current_ber_stats = {}  # port -> current ber status
         self.config = self.DEFAULT_CONFIG.copy()
         self._raw_phy_ber_cache = {}  # hostname -> { interface: raw_ber_float }
+        self.baseline_data = {}  # hostname -> { interface: {counters, timestamp} }
         
         # Ensure ber-data directory exists
         os.makedirs(f"{self.data_dir}/ber-data", exist_ok=True)
         
-        # Load historical data
+        # Load historical data and baseline
         self.load_ber_history()
+        self.load_baseline_data()
     
     def load_ber_history(self):
         """Load historical BER data from file"""
@@ -61,6 +63,23 @@ class BERAnalyzer:
                 self.cleanup_old_history()
         except (FileNotFoundError, json.JSONDecodeError):
             print("No previous BER history found, starting fresh")
+    
+    def load_baseline_data(self):
+        """Load baseline counter data for delta calculations"""
+        try:
+            with open(f"{self.data_dir}/ber_baseline.json", "r") as f:
+                self.baseline_data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            print("No baseline data found, will establish on first run")
+            self.baseline_data = {}
+    
+    def save_baseline_data(self):
+        """Save baseline counter data"""
+        try:
+            with open(f"{self.data_dir}/ber_baseline.json", "w") as f:
+                json.dump(self.baseline_data, f, indent=2)
+        except Exception as e:
+            print(f"Error saving baseline data: {e}")
 
     def _parse_raw_phy_ber_for_device(self, hostname: str) -> Dict[str, float]:
         """Parse RAW PHY BER per interface for given device.
@@ -203,10 +222,88 @@ class BERAnalyzer:
                 return True
         return False
     
-    def calculate_ber(self, rx_packets: int, tx_packets: int, rx_errors: int, tx_errors: int, rx_bytes: int, tx_bytes: int) -> float:
-        """Calculate Bit Error Rate (MTU-independent using byte counters when available).
+    def calculate_delta_ber(self, hostname: str, interface: str, current_stats: Dict[str, int]) -> tuple:
+        """Calculate delta-based BER using only new errors since last measurement.
+        
+        Returns: (ber_value, is_baseline_run, delta_errors, delta_bytes)
+        """
+        port_key = f"{hostname}:{interface}"
+        current_time = time.time()
+        
+        # Extract current values
+        current_rx_errors = current_stats.get('rx_errors', 0)
+        current_tx_errors = current_stats.get('tx_errors', 0)
+        current_rx_bytes = current_stats.get('rx_bytes', 0)
+        current_tx_bytes = current_stats.get('tx_bytes', 0)
+        current_rx_packets = current_stats.get('rx_packets', 0)
+        current_tx_packets = current_stats.get('tx_packets', 0)
+        
+        # Check if we have baseline data for this interface
+        if hostname not in self.baseline_data:
+            self.baseline_data[hostname] = {}
+        
+        if interface not in self.baseline_data[hostname]:
+            # First run - establish baseline
+            self.baseline_data[hostname][interface] = {
+                'rx_errors': current_rx_errors,
+                'tx_errors': current_tx_errors,
+                'rx_bytes': current_rx_bytes,
+                'tx_bytes': current_tx_bytes,
+                'rx_packets': current_rx_packets,
+                'tx_packets': current_tx_packets,
+                'timestamp': current_time
+            }
+            self.save_baseline_data()
+            return 0.0, True, 0, 0  # Baseline run, no BER calculation
+        
+        # Calculate deltas
+        baseline = self.baseline_data[hostname][interface]
+        delta_rx_errors = max(0, current_rx_errors - baseline['rx_errors'])
+        delta_tx_errors = max(0, current_tx_errors - baseline['tx_errors'])
+        delta_rx_bytes = max(0, current_rx_bytes - baseline['rx_bytes'])
+        delta_tx_bytes = max(0, current_tx_bytes - baseline['tx_bytes'])
+        delta_rx_packets = max(0, current_rx_packets - baseline['rx_packets'])
+        delta_tx_packets = max(0, current_tx_packets - baseline['tx_packets'])
+        
+        total_delta_errors = delta_rx_errors + delta_tx_errors
+        total_delta_bytes = delta_rx_bytes + delta_tx_bytes
+        total_delta_packets = delta_rx_packets + delta_tx_packets
+        
+        # Update baseline for next run
+        self.baseline_data[hostname][interface] = {
+            'rx_errors': current_rx_errors,
+            'tx_errors': current_tx_errors,
+            'rx_bytes': current_rx_bytes,
+            'tx_bytes': current_tx_bytes,
+            'rx_packets': current_rx_packets,
+            'tx_packets': current_tx_packets,
+            'timestamp': current_time
+        }
+        self.save_baseline_data()
+        
+        # Calculate BER from deltas
+        if total_delta_errors == 0:
+            return 0.0, False, 0, total_delta_bytes
+        
+        if total_delta_packets < self.config["min_packets_for_analysis"]:
+            return 0.0, False, total_delta_errors, total_delta_bytes
+        
+        # Prefer byte-based calculation
+        if total_delta_bytes > 0:
+            total_delta_bits = total_delta_bytes * 8
+            ber = total_delta_errors / total_delta_bits
+        else:
+            # Fallback to packet estimation
+            avg_bits_per_packet = 12000  # 1500 bytes conservative estimate
+            total_delta_bits = total_delta_packets * avg_bits_per_packet
+            ber = total_delta_errors / total_delta_bits if total_delta_bits > 0 else 0.0
+        
+        return ber, False, total_delta_errors, total_delta_bytes
 
-        Falls back to a packet-size estimate only if byte counters are unavailable.
+    def calculate_ber(self, rx_packets: int, tx_packets: int, rx_errors: int, tx_errors: int, rx_bytes: int, tx_bytes: int) -> float:
+        """Legacy BER calculation - kept for compatibility.
+        
+        Note: Use calculate_delta_ber() for accurate delta-based measurements.
         """
         total_packets = rx_packets + tx_packets
         total_errors = rx_errors + tx_errors
@@ -639,7 +736,7 @@ class BERAnalyzer:
                     <th class="sortable" data-column="1" data-type="port">Interface <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="2" data-type="ber-status">Status <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="3" data-type="ber-value">BER Value <span class="sort-arrow">▲▼</span></th>
-                    <th class="sortable" data-column="4" data-type="ber-value">Raw BER Value <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="4" data-type="ber-value">PHY BER <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="5" data-type="number">Total Packets <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="6" data-type="number">RX Errors <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="7" data-type="number">TX Errors <span class="sort-arrow">▲▼</span></th>
@@ -729,9 +826,9 @@ class BERAnalyzer:
     <div class="anomaly-section">
         <h2>Understanding BER Metrics</h2>
         <ul>
-            <li><strong>BER Value (Frame)</strong>: Computed from interface frame counters using bytes (total_bits = 8 × (rx_bytes + tx_bytes)). It is MTU-independent and reflects only errors that propagated to the frame level.</li>
-            <li><strong>Raw BER Value (PHY)</strong>: Sourced from l1-show at the PHY/PCS layer. It includes raw bit errors that were corrected by FEC and therefore never appeared as frame errors.</li>
-            <li><strong>Why values differ</strong>: It is expected to see Raw BER &gt; 0 while Frame BER = 0 when FEC corrects errors successfully. Persistent or rising Raw BER may indicate marginal optics or cabling even if frames look clean.</li>
+            <li><strong>BER Value</strong>: Computed from interface error counters to show overall link quality. Uses delta measurement (new errors since last check) for accurate current status.</li>
+            <li><strong>PHY BER</strong>: Physical layer bit error rate from l1-show/PCS layer. Shows actual fiber and optics health including FEC-corrected errors.</li>
+            <li><strong>Delta-based measurement</strong>: Both metrics use only new errors since the last measurement to avoid showing accumulated historical errors. First measurement establishes baseline.</li>
         </ul>
     </div>
 
