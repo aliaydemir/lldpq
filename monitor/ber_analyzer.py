@@ -735,8 +735,8 @@ class BERAnalyzer:
                     <th class="sortable" data-column="0" data-type="string">Device <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="1" data-type="port">Interface <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="2" data-type="ber-status">Status <span class="sort-arrow">▲▼</span></th>
-                    <th class="sortable" data-column="3" data-type="ber-value">BER Value <span class="sort-arrow">▲▼</span></th>
-                    <th class="sortable" data-column="4" data-type="ber-value">PHY BER <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="3" data-type="ber-value">Frame BER <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="4" data-type="ber-value">Physical BER <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="5" data-type="number">Total Packets <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="6" data-type="number">RX Errors <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="7" data-type="number">TX Errors <span class="sort-arrow">▲▼</span></th>
@@ -826,8 +826,8 @@ class BERAnalyzer:
     <div class="anomaly-section">
         <h2>Understanding BER Metrics</h2>
         <ul>
-            <li><strong>BER Value</strong>: Computed from interface error counters to show overall link quality. Uses delta measurement (new errors since last check) for accurate current status.</li>
-            <li><strong>PHY BER</strong>: Physical layer bit error rate from l1-show/PCS layer. Shows actual fiber and optics health including FEC-corrected errors.</li>
+            <li><strong>Frame BER</strong>: Computed from interface error counters to show overall link quality. Uses delta measurement (new errors since last check) for accurate current status.</li>
+            <li><strong>Physical BER</strong>: Physical layer bit error rate from l1-show/PCS layer. Shows actual fiber and optics health including FEC-corrected errors.</li>
             <li><strong>Delta-based measurement</strong>: Both metrics use only new errors since the last measurement to avoid showing accumulated historical errors. First measurement establishes baseline.</li>
         </ul>
     </div>
