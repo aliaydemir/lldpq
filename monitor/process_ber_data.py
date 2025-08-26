@@ -10,6 +10,7 @@ Licensed under MIT License - see LICENSE file for details
 import os
 import re
 import sys
+import time
 from datetime import datetime
 from ber_analyzer import BERAnalyzer
 
