@@ -144,7 +144,7 @@ class BGPAnalyzer:
     def parse_bgp_output(self, bgp_data: str) -> List[BGPNeighbor]:
         """Parse BGP neighbor output from vtysh command"""
         neighbors = []
-        seen_neighbors = set()  # Track unique neighbors to avoid duplicates
+        neighbor_dict = {}  # Track unique neighbors by IP, keep last seen
         
         lines = bgp_data.strip().split('\n')
         current_vrf = "default"
@@ -169,7 +169,7 @@ class BGPAnalyzer:
             if re.match(r'^[A-Za-z0-9._-]+.*\s+\d+\s+\d+\s+\d+\s+\d+', line):
                 parts = line.split()
                 if len(parts) >= 10:
-                    print(f"DEBUG: Parsing line: '{line}' -> parts: {parts}")  # DEBUG
+
                     try:
                         neighbor_name = parts[0]
                         version = int(parts[1])
@@ -206,39 +206,35 @@ class BGPAnalyzer:
                         else:
                             neighbor_ip = neighbor_name
                         
-                        # Create unique identifier to avoid duplicates
-                        unique_key = (neighbor_name, interface or 'N/A', state.value)
-                        print(f"DEBUG: unique_key: {unique_key}, already seen: {unique_key in seen_neighbors}")  # DEBUG
+                        # Store neighbor (overwrite if duplicate IP found - keep last seen)
+                        neighbor = BGPNeighbor(
+                            hostname="",  # Will be set by caller
+                            neighbor_name=neighbor_name,
+                            neighbor_ip=neighbor_ip,
+                            version=version,
+                            asn=neighbor_asn,
+                            messages_received=msg_rcvd,
+                            messages_sent=msg_sent,
+                            table_version=tbl_ver,
+                            in_queue=in_q,
+                            out_queue=out_q,
+                            uptime=uptime,
+                            state=state,
+                            prefixes_received=pfx_rcvd,
+                            prefixes_sent=pfx_sent,
+                            description=description,
+                            interface=interface
+                        )
                         
-                        if unique_key not in seen_neighbors:
-                            seen_neighbors.add(unique_key)
-                            
-                            neighbor = BGPNeighbor(
-                                hostname="",  # Will be set by caller
-                                neighbor_name=neighbor_name,
-                                neighbor_ip=neighbor_ip,
-                                version=version,
-                                asn=neighbor_asn,
-                                messages_received=msg_rcvd,
-                                messages_sent=msg_sent,
-                                table_version=tbl_ver,
-                                in_queue=in_q,
-                                out_queue=out_q,
-                                uptime=uptime,
-                                state=state,
-                                prefixes_received=pfx_rcvd,
-                                prefixes_sent=pfx_sent,
-                                description=description,
-                                interface=interface
-                            )
-                            
-                            neighbors.append(neighbor)
+                        # Use neighbor IP as unique key, overwrite duplicates
+                        neighbor_dict[neighbor_ip] = neighbor
                         
                     except (ValueError, IndexError) as e:
                         print(f"Error parsing BGP neighbor line: {line}, Error: {e}")
                         continue
         
-        return neighbors
+        # Return unique neighbors (duplicates by IP are filtered out)
+        return list(neighbor_dict.values())
     
     def assess_neighbor_health(self, neighbor: BGPNeighbor) -> BGPHealth:
         """Assess health of a BGP neighbor"""
