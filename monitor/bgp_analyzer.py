@@ -169,6 +169,7 @@ class BGPAnalyzer:
             if re.match(r'^[A-Za-z0-9._-]+.*\s+\d+\s+\d+\s+\d+\s+\d+', line):
                 parts = line.split()
                 if len(parts) >= 10:
+                    print(f"DEBUG: Parsing line: '{line}' -> parts: {parts}")  # DEBUG
                     try:
                         neighbor_name = parts[0]
                         version = int(parts[1])
@@ -207,6 +208,7 @@ class BGPAnalyzer:
                         
                         # Create unique identifier to avoid duplicates
                         unique_key = (neighbor_name, interface or 'N/A', state.value)
+                        print(f"DEBUG: unique_key: {unique_key}, already seen: {unique_key in seen_neighbors}")  # DEBUG
                         
                         if unique_key not in seen_neighbors:
                             seen_neighbors.add(unique_key)
