@@ -138,7 +138,12 @@ def check_connections(topology_file, device_neighbors, device_port_status):
             active_neighbor = next((n for n in neighbors if n['interface'] == expected_interface), None)
             active_neighbor_sys_name = 'None'
             active_neighbor_port = 'None'
-            if not active_neighbor:
+            
+            # Check if port is DOWN first - this should be considered a Fail
+            interface_port_status = port_status.get(expected_interface, 'N/A')
+            if interface_port_status == 'DOWN':
+                status = 'Fail'
+            elif not active_neighbor:
                 status = 'No-Info'
             else:
                 if expected_neighbor_sys_name == 'None':
@@ -155,8 +160,7 @@ def check_connections(topology_file, device_neighbors, device_port_status):
                     active_neighbor_port = active_neighbor['port_id']
             if expected_interface == 'eth0' or active_neighbor_port == 'eth0':
                 continue
-            # Get port status for this interface
-            interface_port_status = port_status.get(expected_interface, 'N/A')
+            # Port status was already retrieved above for DOWN check
             device_results.append({
                 'Port': expected_interface,
                 'interface': expected_interface,
