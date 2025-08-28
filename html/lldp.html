@@ -326,8 +326,17 @@
                     };
                 }
             } else if (lldpStatus === 'Fail') {
+                // Check if port is physically down first
+                if (portStatus === 'DOWN') {
+                    return {
+                        status: 'FAILED',
+                        healthClass: 'lldp-critical',
+                        statusClass: 'status-fail',
+                        health: 'Local Port is DOWN'
+                    };
+                }
                 // Check if it's a port mismatch
-                if (actualDevice && expectedDevice && actualDevice === expectedDevice && 
+                else if (actualDevice && expectedDevice && actualDevice === expectedDevice && 
                     actualPort && expectedPort && actualPort !== expectedPort) {
                     return {
                         status: 'WARNING',
