@@ -23,6 +23,27 @@
         .card-warning { border-left-color: #ff9800; }
         .card-critical { border-left-color: #f44336; }
         .card-total { border-left-color: #2196f3; }
+        
+        /* Active filter card styling */
+        .summary-card.active-filter {
+            background: #e3f2fd !important;
+            border-left-width: 6px !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+            transform: scale(1.02);
+            cursor: default;
+        }
+        
+        /* Make cards clickable */
+        .summary-card {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .summary-card:hover:not(.active-filter) {
+            background: #f5f5f5;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
         .card-value { font-size: 24px; font-weight: bold; color: #333; }
         
         /* Colored card values */
@@ -326,9 +347,9 @@
             
             if (lineText.includes('ssh-failed') || (ipAddress && ipAddress !== 'No-Info' && macAddress === 'SSH-FAILED')) {
                 status = 'SSH FAILED';
-                healthClass = 'assets-warning';
+                healthClass = 'assets-critical';
                 statusClass = 'status-ssh-failed';
-                warningCount++;
+                failCount++;
             } else if (lineText.includes('fail') || lineText.includes('error') || lineText.includes('timeout')) {
                 status = 'FAILED';
                 healthClass = 'assets-critical';
@@ -381,6 +402,9 @@
         document.getElementById('fail-count').textContent = failCount;
         document.getElementById('warning-count').textContent = warningCount;
         document.getElementById('no-info-count').textContent = noInfoCount;
+        
+        // Add click handlers to cards for filtering
+        addCardClickHandlers();
         
         // Sort table by health (problems first)
         sortTableByHealth();
@@ -730,6 +754,59 @@
             console.error('❌ Error generating CSV:', error);
             alert('Error generating CSV file. Please try again.');
         }
+    }
+
+    // Card filtering functionality
+    let currentFilter = 'all';
+    
+    function addCardClickHandlers() {
+        // Add click handlers to summary cards for filtering
+        document.querySelector('.card-total').addEventListener('click', () => filterTable('all'));
+        document.querySelector('.card-excellent').addEventListener('click', () => filterTable('success'));
+        document.querySelector('.card-critical').addEventListener('click', () => filterTable('failed'));
+        document.querySelector('.card-warning').addEventListener('click', () => filterTable('warning'));
+        document.querySelector('.card-info').addEventListener('click', () => filterTable('no-info'));
+    }
+    
+    function filterTable(filterType) {
+        currentFilter = filterType;
+        const table = document.getElementById('assets-table');
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.rows);
+        
+        // Remove active class from all cards
+        document.querySelectorAll('.summary-card').forEach(card => card.classList.remove('active-filter'));
+        
+        rows.forEach(row => {
+            const statusCell = row.cells[7]; // Status is column 7
+            const statusText = statusCell.querySelector('span')?.textContent || statusCell.textContent;
+            let shouldShow = true;
+            
+            switch(filterType) {
+                case 'all':
+                    shouldShow = true;
+                    document.querySelector('.card-total').classList.add('active-filter');
+                    break;
+                case 'success':
+                    shouldShow = statusText === 'SUCCESS';
+                    document.querySelector('.card-excellent').classList.add('active-filter');
+                    break;
+                case 'failed':
+                    shouldShow = statusText === 'FAILED' || statusText === 'SSH FAILED';
+                    document.querySelector('.card-critical').classList.add('active-filter');
+                    break;
+                case 'warning':
+                    shouldShow = statusText === 'WARNING';
+                    document.querySelector('.card-warning').classList.add('active-filter');
+                    break;
+                case 'no-info':
+                    shouldShow = statusText === 'NO INFO';
+                    document.querySelector('.card-info').classList.add('active-filter');
+                    break;
+            }
+            
+            row.style.display = shouldShow ? '' : 'none';
+        });
     }
 
     window.onload = function() {

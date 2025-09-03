@@ -510,7 +510,7 @@
                         const lineText = line.toLowerCase();
                         
                         if (lineText.includes('ssh-failed') || (ipAddress && ipAddress !== 'No-Info' && macAddress === 'SSH-FAILED')) {
-                            summaryData.warning++;
+                            summaryData.failed++;
                         } else if (lineText.includes('fail') || lineText.includes('error') || lineText.includes('timeout')) {
                             summaryData.failed++;
                         } else if (lineText.includes('no-info') || lineText.includes('no info') || 
