@@ -509,7 +509,9 @@
                         // Use exact same status determination logic as assets.html
                         const lineText = line.toLowerCase();
                         
-                        if (lineText.includes('fail') || lineText.includes('error') || lineText.includes('timeout')) {
+                        if (lineText.includes('ssh-failed') || (ipAddress && ipAddress !== 'No-Info' && macAddress === 'SSH-FAILED')) {
+                            summaryData.warning++;
+                        } else if (lineText.includes('fail') || lineText.includes('error') || lineText.includes('timeout')) {
                             summaryData.failed++;
                         } else if (lineText.includes('no-info') || lineText.includes('no info') || 
                                    (!ipAddress || ipAddress === 'N/A' || !macAddress || macAddress === 'N/A')) {

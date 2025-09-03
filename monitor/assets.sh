@@ -1,3 +1,4 @@
+
 #!/bin/bash
 # LLDPq Topology Check Script  
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License
