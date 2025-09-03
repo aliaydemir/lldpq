@@ -52,9 +52,20 @@ ping_test() {
 
 collect() {
   local ip=$1 user=$2 host=$3
-  ssh -o ConnectTimeout=5 -o BatchMode=yes -o StrictHostKeyChecking=no \
+  
+  # Try SSH connection and capture result
+  if ssh -o ConnectTimeout=5 -o BatchMode=yes -o StrictHostKeyChecking=no \
       "$user@$ip" "$(declare -f remote_info); remote_info" \
-    >> "$TMPFILE" 2>/dev/null
+    >> "$TMPFILE" 2>/dev/null; then
+    # SSH successful - data already written to TMPFILE
+    return 0
+  else
+    # SSH failed - add device with SSH FAILED status
+    printf '%-20s %-15s %-17s %-12s %-12s %-8s %s\n' \
+      "$host" "$ip" "SSH-FAILED" "SSH-FAILED" "SSH-FAILED" "SSH-FAILED" "SSH-FAILED" \
+      >> "$TMPFILE"
+    return 1
+  fi
 }
 
 process_one() {
