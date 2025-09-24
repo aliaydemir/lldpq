@@ -377,6 +377,42 @@ EOF
             if [ -n "$asic_raw" ]; then
                 awk "BEGIN{printf \"HW_MGMT_ASIC: %.1f\n\", $asic_raw/1000}"
             fi
+        else
+            # Fallback: Try alternative ASIC temperature sources
+            echo "ASIC_FALLBACK_DEBUG:"
+            # Check thermal zones
+            for zone in /sys/class/thermal/thermal_zone*/type; do
+                if [ -r "$zone" ]; then
+                    zone_type=$(cat "$zone" 2>/dev/null)
+                    if echo "$zone_type" | grep -qi "asic\|switch\|mlxsw"; then
+                        zone_dir=$(dirname "$zone")
+                        temp_file="$zone_dir/temp"
+                        if [ -r "$temp_file" ]; then
+                            temp_raw=$(cat "$temp_file" 2>/dev/null)
+                            if [ -n "$temp_raw" ] && [ "$temp_raw" -gt 0 ]; then
+                                awk "BEGIN{printf \"THERMAL_ZONE_ASIC: %.1f\n\", $temp_raw/1000}"
+                                break
+                            fi
+                        fi
+                    fi
+                fi
+            done
+            # Check hwmon for ASIC
+            for hwmon in /sys/class/hwmon/hwmon*/temp*_label; do
+                if [ -r "$hwmon" ]; then
+                    label=$(cat "$hwmon" 2>/dev/null)
+                    if echo "$label" | grep -qi "asic\|switch"; then
+                        temp_file=$(echo "$hwmon" | sed 's/_label$/_input/')
+                        if [ -r "$temp_file" ]; then
+                            temp_raw=$(cat "$temp_file" 2>/dev/null)
+                            if [ -n "$temp_raw" ] && [ "$temp_raw" -gt 0 ]; then
+                                awk "BEGIN{printf \"HWMON_ASIC: %.1f\n\", $temp_raw/1000}"
+                                break
+                            fi
+                        fi
+                    fi
+                fi
+            done
         fi
         if [ -r "/var/run/hw-management/thermal/cpu_pack" ]; then
             cpu_raw=$(cat /var/run/hw-management/thermal/cpu_pack 2>/dev/null || echo "")

@@ -31,14 +31,26 @@ def parse_temperature_from_hardware_file(device_name):
         with open(hardware_file, 'r') as f:
             content = f.read()
         
-        # Parse ASIC temperature: try sensors line, else HW_MGMT_ASIC injected by monitor.sh
+        # Parse ASIC temperature: try multiple sources in priority order
+        # 1. sensors output
         asic_match = re.search(r'Ambient ASIC Temp:\s*\+?(-?\d+\.?\d*)[°C]', content)
         if asic_match:
             asic_temp = float(asic_match.group(1))
         else:
+            # 2. HW_MGMT_ASIC (primary hw-management source)
             asic_mgmt = re.search(r'^HW_MGMT_ASIC:\s*([0-9]+\.?[0-9]*)', content, re.MULTILINE)
             if asic_mgmt:
                 asic_temp = float(asic_mgmt.group(1))
+            else:
+                # 3. THERMAL_ZONE_ASIC (fallback thermal zone)
+                thermal_zone_asic = re.search(r'^THERMAL_ZONE_ASIC:\s*([0-9]+\.?[0-9]*)', content, re.MULTILINE)
+                if thermal_zone_asic:
+                    asic_temp = float(thermal_zone_asic.group(1))
+                else:
+                    # 4. HWMON_ASIC (fallback hwmon)
+                    hwmon_asic = re.search(r'^HWMON_ASIC:\s*([0-9]+\.?[0-9]*)', content, re.MULTILINE)
+                    if hwmon_asic:
+                        asic_temp = float(hwmon_asic.group(1))
         
         # Parse CPU temperature: prefer real CPU sensors and avoid unrelated ones (e.g., drivetemp)
         # Pattern 1: Average of CPU cores "Core 0:        +40.0°C"
