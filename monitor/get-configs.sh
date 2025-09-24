@@ -94,6 +94,29 @@ else
     exit 1
 fi
 
+# Configuration Anomaly Detection
+echo "🔍 Running configuration anomaly detection..."
+mkdir -p monitor-results/config-analysis
+
+for device in "${!devices[@]}"; do
+    IFS=' ' read -r user hostname <<< "${devices[$device]}"
+    
+    # Analyze latest configuration
+    config_file="/var/www/html/configs/${hostname}-nv-set.txt"
+    if [[ -f "$config_file" ]]; then
+        echo "Analyzing $hostname configuration..."
+        python3 "$SCRIPT_DIR/config_anomaly_detector.py" \
+            --config-file "$config_file" \
+            --device-name "$hostname" \
+            --output "monitor-results/config-analysis/${hostname}_anomalies.txt" \
+            2>/dev/null
+    fi
+done
+
+# Generate summary HTML
+python3 "$SCRIPT_DIR/generate_config_analysis_html.py" 2>/dev/null
+
+echo "📊 Configuration anomaly reports available in monitor-results/config-analysis/"
 rm -f "$unreachable_hosts_file"
 
 exit 0
