@@ -1087,7 +1087,7 @@ def generate_hardware_html():
                     'CPU Load',
                     'Fan Status',
                     'PSU Efficiency (%)',
-                    'Uptime'
+                    'PSU Power (IN/OUT)'
                 ];
                 
                 let csvContent = headers.join(',') + '\\n';
@@ -1121,7 +1121,7 @@ def generate_hardware_html():
                                 cells[5].textContent.trim(), // CPU Load
                                 cells[6].querySelector('span') ? cells[6].querySelector('span').textContent.trim() : cells[6].textContent.trim(), // Fan Status
                                 cells[7].textContent.trim(), // PSU Efficiency
-                                cells[8].textContent.trim()  // Uptime
+                                cells[8].textContent.trim()  // PSU Power
                             ];
                             
                             // Escape commas and quotes in data
