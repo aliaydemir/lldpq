@@ -135,13 +135,25 @@ def parse_psu_efficiency_from_hardware_file(device_name):
     try:
         with open(hardware_file, 'r') as f:
             content = f.read()
-        # 1) Preferred: use PSU AC-in and DC-out rails only (avoids double counting)
-        psu_ac_in_w = re.findall(r'^PSU-[^\n]*220V\s+Rail\s+Pwr\s*\(in\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
+        # 1) Preferred: use PSU AC-in and DC-out rails only (avoids double counting) - supports kW/W
+        psu_ac_in_w = re.findall(r'^PSU-[^\n]*220V\s+Rail\s+Pwr\s*\(in\):\s*(\d+\.?\d*)\s*([km]?W)', content, re.MULTILINE)
         # Support both 54V (most switches) and 12V (some platforms)
-        psu_dc_out_w = re.findall(r'^PSU-[^\n]*(?:54V|12V)\s+Rail\s+Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
+        psu_dc_out_w = re.findall(r'^PSU-[^\n]*(?:54V|12V)\s+Rail\s+Pwr\s*\(out\):\s*(\d+\.?\d*)\s*([km]?W)', content, re.MULTILINE)
 
-        total_psu_in = sum(float(v) for v in psu_ac_in_w)
-        total_psu_out = sum(float(v) for v in psu_dc_out_w)
+        # Convert kW to W, handle both W and kW units
+        total_psu_in = 0.0
+        for value, unit in psu_ac_in_w:
+            watts = float(value)
+            if unit == 'kW':
+                watts *= 1000
+            total_psu_in += watts
+            
+        total_psu_out = 0.0  
+        for value, unit in psu_dc_out_w:
+            watts = float(value)
+            if unit == 'kW':
+                watts *= 1000
+            total_psu_out += watts
 
         if total_psu_in > 0 and total_psu_out > 0:
             efficiency = (total_psu_out / total_psu_in) * 100.0
@@ -213,12 +225,24 @@ def parse_psu_power_in_out_from_hardware_file(device_name):
         with open(hardware_file, 'r') as f:
             content = f.read()
 
-        # Preferred PSU rails - enhanced regex patterns
-        psu_ac_in_w = re.findall(r'^PSU-[^\n]*220V\s+Rail\s+Pwr\s*\(in\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
-        psu_dc_out_w = re.findall(r'^PSU-[^\n]*(?:54V|12V)\s+Rail\s+Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
+        # Enhanced PSU rails - support both W and kW units
+        psu_ac_in_w = re.findall(r'^PSU-[^\n]*220V\s+Rail\s+Pwr\s*\(in\):\s*(\d+\.?\d*)\s*([km]?W)', content, re.MULTILINE)
+        psu_dc_out_w = re.findall(r'^PSU-[^\n]*(?:54V|12V)\s+Rail\s+Pwr\s*\(out\):\s*(\d+\.?\d*)\s*([km]?W)', content, re.MULTILINE)
 
-        total_psu_in = sum(float(v) for v in psu_ac_in_w)
-        total_psu_out = sum(float(v) for v in psu_dc_out_w)
+        # Convert kW to W, handle both W and kW units
+        total_psu_in = 0.0
+        for value, unit in psu_ac_in_w:
+            watts = float(value)
+            if unit == 'kW':
+                watts *= 1000
+            total_psu_in += watts
+            
+        total_psu_out = 0.0  
+        for value, unit in psu_dc_out_w:
+            watts = float(value)
+            if unit == 'kW':
+                watts *= 1000
+            total_psu_out += watts
 
         print(f"🔌 {device_name} PSU Rails: IN={psu_ac_in_w} ({total_psu_in}W), OUT={psu_dc_out_w} ({total_psu_out}W)")
 
