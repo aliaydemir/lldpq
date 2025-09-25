@@ -213,14 +213,20 @@ def parse_psu_power_in_out_from_hardware_file(device_name):
         with open(hardware_file, 'r') as f:
             content = f.read()
 
-        # Preferred PSU rails
+        # Preferred PSU rails - enhanced regex patterns
         psu_ac_in_w = re.findall(r'^PSU-[^\n]*220V\s+Rail\s+Pwr\s*\(in\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
         psu_dc_out_w = re.findall(r'^PSU-[^\n]*(?:54V|12V)\s+Rail\s+Pwr\s*\(out\):\s*(\d+\.?\d*)\s*W', content, re.MULTILINE)
 
         total_psu_in = sum(float(v) for v in psu_ac_in_w)
         total_psu_out = sum(float(v) for v in psu_dc_out_w)
 
+        print(f"🔌 {device_name} PSU Rails: IN={psu_ac_in_w} ({total_psu_in}W), OUT={psu_dc_out_w} ({total_psu_out}W)")
+
         if total_psu_in > 0 and total_psu_out > 0:
+            # Sanity check: Output should never be higher than input (physics!)
+            if total_psu_out > total_psu_in:
+                print(f"⚠️  {device_name}: PSU output ({total_psu_out}W) > input ({total_psu_in}W) - IMPOSSIBLE!")
+                return total_psu_in, total_psu_out  # Still return for debugging
             return total_psu_in, total_psu_out
 
         # Fallback: PMIC/VR and generic PSU Pwr(in/out)
