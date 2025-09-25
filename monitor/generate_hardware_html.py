@@ -22,25 +22,42 @@ def parse_assets_file(assets_file_path="assets.ini"):
     try:
         with open(assets_file_path, 'r') as file:
             lines = file.readlines()
-            for line in lines[2:]:  # Skip timestamp and empty line
+            print(f"🔍 Parsing assets.ini with {len(lines)} lines")
+            
+            header_found = False
+            for i, line in enumerate(lines):
                 line = line.strip()
-                if not line or line.startswith("#"):
+                if not line or line.startswith("#") or line.startswith("Created"):
                     continue
+                    
                 parts = line.split()
-                if len(parts) >= 5:
-                    device_name = parts[0]
-                    # Skip header line
-                    if device_name == "DEVICE-NAME":
-                        continue
+                if len(parts) < 5:
+                    continue
+                    
+                device_name = parts[0]
+                
+                # Skip header line
+                if device_name == "DEVICE-NAME":
+                    header_found = True
+                    print(f"📋 Found header at line {i+1}: {parts}")
+                    continue
+                    
+                if header_found and len(parts) >= 5:
+                    model = parts[4] if parts[4] != "No-Info" and parts[4] != "SSH-FAILED" else "N/A"
                     device_info[device_name] = {
                         "ip": parts[1] if len(parts) > 1 else "N/A",
                         "mac": parts[2] if len(parts) > 2 else "N/A", 
                         "serial": parts[3] if len(parts) > 3 else "N/A",
-                        "model": parts[4] if len(parts) > 4 else "N/A",
+                        "model": model,
                         "release": parts[5] if len(parts) > 5 else "N/A"
                     }
-    except (FileNotFoundError, IndexError):
-        pass
+                    print(f"📱 Device {device_name}: Model = {model}")
+                    
+    except FileNotFoundError:
+        print(f"❌ assets.ini file not found at {assets_file_path}")
+    except Exception as e:
+        print(f"❌ Error parsing assets.ini: {e}")
+        
     return device_info
 
 def parse_temperature_from_hardware_file(device_name):
@@ -422,6 +439,7 @@ def generate_hardware_html():
     
     # Parse assets.ini to get device model information
     assets_data = parse_assets_file("assets.ini")
+    print(f"📋 Loaded {len(assets_data)} device models from assets.ini")
     
     # Read existing hardware history (create empty if doesn't exist)
     hardware_history = {}
@@ -541,15 +559,16 @@ def generate_hardware_html():
         .hardware-table th {{ background-color: #f2f2f2; font-weight: bold; }}
         
         /* Column width specifications */
-        .hardware-table th:nth-child(1), .hardware-table td:nth-child(1) {{ width: 13%; }} /* Device */
-        .hardware-table th:nth-child(2), .hardware-table td:nth-child(2) {{ width: 8%; }} /* Health */
-        .hardware-table th:nth-child(3), .hardware-table td:nth-child(3) {{ width: 12%; }} /* CPU Temp */
-        .hardware-table th:nth-child(4), .hardware-table td:nth-child(4) {{ width: 12%; }} /* ASIC Temp */
-        .hardware-table th:nth-child(5), .hardware-table td:nth-child(5) {{ width: 10%; }} /* Memory */
-        .hardware-table th:nth-child(6), .hardware-table td:nth-child(6) {{ width: 8%; }} /* CPU Load */
-        .hardware-table th:nth-child(7), .hardware-table td:nth-child(7) {{ width: 11%; }} /* Fan Status */
-        .hardware-table th:nth-child(8), .hardware-table td:nth-child(8) {{ width: 13%; }} /* PSU Efficiency */
-        .hardware-table th:nth-child(9), .hardware-table td:nth-child(9) {{ width: 15%; }} /* PSU Power IN/OUT */
+        .hardware-table th:nth-child(1), .hardware-table td:nth-child(1) {{ width: 12%; }} /* Device */
+        .hardware-table th:nth-child(2), .hardware-table td:nth-child(2) {{ width: 7%; }} /* Health */
+        .hardware-table th:nth-child(3), .hardware-table td:nth-child(3) {{ width: 10%; }} /* CPU Temp */
+        .hardware-table th:nth-child(4), .hardware-table td:nth-child(4) {{ width: 10%; }} /* ASIC Temp */
+        .hardware-table th:nth-child(5), .hardware-table td:nth-child(5) {{ width: 8%; }} /* Memory */
+        .hardware-table th:nth-child(6), .hardware-table td:nth-child(6) {{ width: 7%; }} /* CPU Load */
+        .hardware-table th:nth-child(7), .hardware-table td:nth-child(7) {{ width: 9%; }} /* Fan Status */
+        .hardware-table th:nth-child(8), .hardware-table td:nth-child(8) {{ width: 11%; }} /* PSU Efficiency */
+        .hardware-table th:nth-child(9), .hardware-table td:nth-child(9) {{ width: 14%; }} /* PSU Power IN/OUT */
+        .hardware-table th:nth-child(10), .hardware-table td:nth-child(10) {{ width: 12%; }} /* Model */
         
         /* Sortable table styling */
         .sortable {{ cursor: pointer; user-select: none; position: relative; padding-right: 20px; }}
