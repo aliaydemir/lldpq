@@ -16,6 +16,33 @@ import os
 import re
 from datetime import datetime
 
+def parse_assets_file(assets_file_path="assets.ini"):
+    """Parse assets.ini file to get device model information"""
+    device_info = {}
+    try:
+        with open(assets_file_path, 'r') as file:
+            lines = file.readlines()
+            for line in lines[2:]:  # Skip timestamp and empty line
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split()
+                if len(parts) >= 5:
+                    device_name = parts[0]
+                    # Skip header line
+                    if device_name == "DEVICE-NAME":
+                        continue
+                    device_info[device_name] = {
+                        "ip": parts[1] if len(parts) > 1 else "N/A",
+                        "mac": parts[2] if len(parts) > 2 else "N/A", 
+                        "serial": parts[3] if len(parts) > 3 else "N/A",
+                        "model": parts[4] if len(parts) > 4 else "N/A",
+                        "release": parts[5] if len(parts) > 5 else "N/A"
+                    }
+    except (FileNotFoundError, IndexError):
+        pass
+    return device_info
+
 def parse_temperature_from_hardware_file(device_name):
     """Parse CPU and ASIC temperatures from raw hardware file"""
     
@@ -393,6 +420,9 @@ def calculate_device_health_grade(device_name, device_data):
 def generate_hardware_html():
     """Generate hardware analysis HTML using existing data"""
     
+    # Parse assets.ini to get device model information
+    assets_data = parse_assets_file("assets.ini")
+    
     # Read existing hardware history (create empty if doesn't exist)
     hardware_history = {}
     try:
@@ -640,6 +670,7 @@ def generate_hardware_html():
                     <th class="sortable" data-column="6" data-type="hardware-status">Fan Status <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="7" data-type="number">PSU Efficiency (%) <span class="sort-arrow">▲▼</span></th>
                     <th class="sortable" data-column="8" data-type="string">PSU Power (IN/OUT) <span class="sort-arrow">▲▼</span></th>
+                    <th class="sortable" data-column="9" data-type="string">Model <span class="sort-arrow">▲▼</span></th>
                 </tr>
             </thead>
             <tbody id="hardware-data">
@@ -795,6 +826,9 @@ def generate_hardware_html():
         if psu_in_w is not None and psu_out_w is not None:
             psu_in_out_str = f"{psu_in_w:.1f}W / {psu_out_w:.1f}W"
 
+        # Get model information from assets
+        device_model = assets_data.get(device_name, {}).get("model", "N/A")
+        
         html_content += f"""
                 <tr data-status="{health_grade.lower()}">
                     <td>{device_name}</td>
@@ -806,6 +840,7 @@ def generate_hardware_html():
                     <td><span class="{fan_class}">{fan_status}</span>{fan_cell_suffix}</td>
                     <td>{psu_efficiency:.1f}%{psu_cell_suffix}</td>
                     <td>{psu_in_out_str}</td>
+                    <td>{device_model}</td>
                 </tr>
 """
     
@@ -1087,7 +1122,8 @@ def generate_hardware_html():
                     'CPU Load',
                     'Fan Status',
                     'PSU Efficiency (%)',
-                    'PSU Power (IN/OUT)'
+                    'PSU Power (IN/OUT)',
+                    'Model'
                 ];
                 
                 let csvContent = headers.join(',') + '\\n';
@@ -1111,7 +1147,7 @@ def generate_hardware_html():
                 rows.forEach(row => {
                     if (row.style.display !== 'none') {
                         const cells = row.querySelectorAll('td');
-                        if (cells.length >= 9) {
+                        if (cells.length >= 10) {
                             const rowData = [
                                 cells[0].textContent.trim(), // Device
                                 cells[1].querySelector('span') ? cells[1].querySelector('span').textContent.trim() : cells[1].textContent.trim(), // Health
@@ -1121,7 +1157,8 @@ def generate_hardware_html():
                                 cells[5].textContent.trim(), // CPU Load
                                 cells[6].querySelector('span') ? cells[6].querySelector('span').textContent.trim() : cells[6].textContent.trim(), // Fan Status
                                 cells[7].textContent.trim(), // PSU Efficiency
-                                cells[8].textContent.trim()  // PSU Power
+                                cells[8].textContent.trim(), // PSU Power
+                                cells[9].textContent.trim()  // Model
                             ];
                             
                             // Escape commas and quotes in data
