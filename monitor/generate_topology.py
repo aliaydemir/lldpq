@@ -212,12 +212,26 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
 
             raw_port_id_ifname = get_lldp_field(section, "PortID", r'PortID:\s+ifname\s+(\S+)')
             # Enhanced PortDescr parsing - extract interface name after "as"
-            raw_port_descr = get_lldp_field(section, "PortDescr", r'PortDescr:\s*.*?(?:as\s+)?(\S+)\s*$')
-            # Fallback: try to get interface name from "Interface X as <name>" format
-            if not raw_port_descr or raw_port_descr in ["Interface", "as"]:
-                port_descr_full = get_lldp_field(section, "PortDescr", r'PortDescr:\s*(.*)')
-                if port_descr_full and " as " in port_descr_full:
-                    raw_port_descr = port_descr_full.split(" as ")[-1].strip()
+            # First try to extract from "Interface X as <interface_name>" pattern
+            port_descr_full = get_lldp_field(section, "PortDescr", r'PortDescr:\s*(.*?)(?:\n|$)')
+            raw_port_descr = None
+            
+            if port_descr_full and " as " in port_descr_full:
+                # Extract interface name after "as", before any spaces/newlines
+                as_match = re.search(r' as\s+(\S+)', port_descr_full)
+                if as_match:
+                    raw_port_descr = as_match.group(1)
+            
+            # Fallback: try simple PortDescr extraction (avoid TLV data)
+            if not raw_port_descr:
+                raw_port_descr = get_lldp_field(section, "PortDescr", r'PortDescr:\s*(\S+)')
+                # Filter out obvious non-interface patterns
+                if raw_port_descr and (
+                    raw_port_descr == "Interface" or 
+                    "," in raw_port_descr or 
+                    raw_port_descr.startswith("TLV")
+                ):
+                    raw_port_descr = None
 
             if not interface_name or not neighbor_device:
                 continue
