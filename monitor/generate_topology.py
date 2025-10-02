@@ -241,17 +241,24 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
             neighbor_device = get_lldp_field(section, "SysName", r'SysName:\s*(\S+)')
 
             raw_port_id_ifname = get_lldp_field(section, "PortID", r'PortID:\s+ifname\s+(\S+)')
-            # Optimized PortDescr parsing - extract interface name after "as"
+            # Optimized PortDescr parsing - handle multiple formats
             raw_port_descr = None
             port_descr_full = get_lldp_field(section, "PortDescr", r'PortDescr:\s*(.*?)(?:\n|$)')
             
-            # Fast path: direct "as" extraction
-            if port_descr_full and " as " in port_descr_full:
-                as_match = re.search(r' as\s+(\S+)', port_descr_full)
-                if as_match:
-                    candidate = as_match.group(1)
-                    # Quick validation: avoid TLV data
-                    if "," not in candidate and not candidate.startswith("TLV"):
+            if port_descr_full:
+                # Format 1: "Interface X as <interface_name>" (HGX/NVSwitch)
+                if " as " in port_descr_full:
+                    as_match = re.search(r' as\s+(\S+)', port_descr_full)
+                    if as_match:
+                        candidate = as_match.group(1)
+                        # Quick validation: avoid TLV data
+                        if "," not in candidate and not candidate.startswith("TLV"):
+                            raw_port_descr = candidate
+                # Format 2: Direct interface name (GB200/Hosts)
+                else:
+                    # Extract first non-TLV word
+                    candidate = port_descr_full.strip().split()[0] if port_descr_full.strip() else None
+                    if candidate and "," not in candidate and not candidate.startswith("TLV"):
                         raw_port_descr = candidate
 
             if not interface_name or not neighbor_device:
