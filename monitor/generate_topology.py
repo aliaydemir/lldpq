@@ -197,6 +197,25 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
         device_nodes[device_name] = device_id
         device_id += 1
 
+    # Also add host-only devices to device_nodes (they might be LLDP neighbors)
+    for host_device in hosts_only_devices:
+        if host_device not in device_nodes:  # Avoid duplicates
+            layer_sort_preference, dev_icon = categorize_device(host_device, topology_config)
+            device_node = {
+                "icon": dev_icon,
+                "id": device_id,
+                "layerSortPreference": layer_sort_preference,
+                "name": host_device,
+                "primaryIP": "N/A",
+                "model": "N/A", 
+                "serial_number": "N/A",
+                "version": "N/A",
+                "dcimDeviceLink": f"/monitor-results/{host_device}.html"
+            }
+            topology_data["nodes"].append(device_node)
+            device_nodes[host_device] = device_id
+            device_id += 1
+
     link_id = 0
     reachable_devices = set()
 
@@ -264,10 +283,53 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
                 topology_data["links"].append(link)
                 link_id += 1
 
-                all_lldp_links_found.add((device_name_from_lldp, interface_name, neighbor_device, tgt_ifname))
-                all_lldp_links_found.add((neighbor_device, tgt_ifname, device_name_from_lldp, interface_name))
-            else:
-                pass
+    # Special handling for host devices - they don't run LLDP collection
+    # so we need to create reverse links from actual LLDP data
+    host_reverse_links = set()
+    
+    for filename in os.listdir(directory):
+        filepath = os.path.join(directory, filename)
+        if not filename.endswith("_lldp_result.ini"):
+            continue
+
+        device_name_from_lldp = filename.split("_lldp_result.ini")[0]
+        try:
+            with open(filepath, 'r') as file:
+                data = file.read()
+        except FileNotFoundError:
+            continue
+
+        interface_sections = re.split(r'-------------------------------------------------------------------------------', data)
+        interface_sections = [s.strip() for s in interface_sections if s.strip()]
+
+        for section in interface_sections:
+            interface_name = get_lldp_field(section, "Interface", r'Interface:\s*(\S+),')
+            neighbor_device = get_lldp_field(section, "SysName", r'SysName:\s*(\S+)')
+
+            # Enhanced PortDescr parsing (same as before)
+            raw_port_descr = None
+            port_descr_full = get_lldp_field(section, "PortDescr", r'PortDescr:\s*(.*?)(?:\n|$)')
+            
+            if port_descr_full and " as " in port_descr_full:
+                as_match = re.search(r' as\s+(\S+)', port_descr_full)
+                if as_match:
+                    candidate = as_match.group(1)
+                    if "," not in candidate and not candidate.startswith("TLV"):
+                        raw_port_descr = candidate
+
+            if not interface_name or not neighbor_device or not raw_port_descr:
+                continue
+
+            if interface_name.lower() == "eth0" or raw_port_descr.lower() == "eth0":
+                continue
+
+            # If neighbor is a host device (in hosts_only_devices), create reverse link
+            if neighbor_device in hosts_only_devices:
+                # Add reverse link: host -> switch (even though host doesn't run LLDP)
+                host_reverse_links.add((neighbor_device, raw_port_descr, device_name_from_lldp, interface_name))
+                
+    # Add host reverse links to all_lldp_links_found
+    all_lldp_links_found.update(host_reverse_links)
 
 
     for node in topology_data["nodes"]:
