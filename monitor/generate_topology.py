@@ -135,15 +135,26 @@ def get_lldp_field(section, field_name, regex_pattern=None):
     return match.group(1).strip() if match else None
 
 def normalize_interface_name(iface_name, known_device_names):
+    """
+    Normalize interface names by removing device prefixes.
+    This function handles device names with dashes (e.g., GB200-1-01).
+    Only removes device prefix if interface actually contains it.
+    """
     best_match_device_name = None
     for device_name in known_device_names:
-        if iface_name.startswith(f"{device_name}-"):
+        # Only try to normalize if interface name actually starts with device name + dash
+        device_prefix = f"{device_name}-"
+        if iface_name.startswith(device_prefix):
             if best_match_device_name is None or len(device_name) > len(best_match_device_name):
                 best_match_device_name = device_name
 
     if best_match_device_name:
-        normalized_name = iface_name[len(f"{best_match_device_name}-"):]
+        device_prefix = f"{best_match_device_name}-"
+        normalized_name = iface_name[len(device_prefix):]
         return normalized_name
+    
+    # If no device prefix found, return interface name as-is
+    # This handles cases like eth_rail0, enP6p3s0f0np0, etc.
     return iface_name
 
 
