@@ -397,11 +397,11 @@ def calculate_device_health_grade(device_name, device_data):
     
     # ASIC Temperature grade  
     if asic_temp is not None:
-        if asic_temp < 70:
+        if asic_temp < 85:
             health_grades.append("EXCELLENT")
-        elif asic_temp < 82:
+        elif asic_temp < 105:
             health_grades.append("GOOD")
-        elif asic_temp < 90:
+        elif asic_temp < 115:
             health_grades.append("WARNING")
         else:
             health_grades.append("CRITICAL")
@@ -800,11 +800,11 @@ def generate_hardware_html():
         def grade_asic(t):
             if t is None:
                 return None
-            if t < 70:
+            if t < 85:
                 return "EXCELLENT"
-            elif t < 82:
+            elif t < 105:
                 return "GOOD"
-            elif t < 90:
+            elif t < 115:
                 return "WARNING"
             else:
                 return "CRITICAL"
@@ -902,7 +902,7 @@ def generate_hardware_html():
     <table class="hardware-table">
         <tr><th>Parameter</th><th>Excellent</th><th>Good</th><th>Warning</th><th>Critical</th></tr>
         <tr><td>CPU Temperature</td><td>&lt; 60°C</td><td>60-70°C</td><td>70-80°C</td><td>&gt; 80°C</td></tr>
-        <tr><td>ASIC Temperature</td><td>&lt; 70°C</td><td>70-82°C</td><td>82-90°C</td><td>&gt; 90°C</td></tr>
+        <tr><td>ASIC Temperature</td><td>&lt; 85°C</td><td>85-105°C</td><td>105-115°C</td><td>&gt; 115°C</td></tr>
         <tr><td>Memory Usage</td><td>&lt; 60%</td><td>60-75%</td><td>75-85%</td><td>&gt; 85%</td></tr>
         <tr><td>CPU Load (5min avg)</td><td>&lt; 1.0</td><td>1.0-2.0</td><td>2.0-3.0</td><td>&gt; 3.0</td></tr>
         <tr><td>Fan Speed</td><td>&gt; 4000 RPM</td><td>3000-4000 RPM</td><td>1000-3000 RPM</td><td>&lt; 1000 RPM</td></tr>
