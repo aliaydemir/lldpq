@@ -31,6 +31,13 @@ USERNAME="cumulus"
 PASSWORD=""
 TIMEOUT=10
 
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -73,23 +80,54 @@ if [[ ${#devices[@]} -eq 0 ]]; then
     exit 1
 fi
 
-# Prompt for password if not provided
-if [[ -z "$PASSWORD" ]]; then
-    echo -n "Enter password for $USERNAME: "
-    read -s PASSWORD
-    echo ""
-fi
+# Get password if not provided
+get_password() {
+    if [ -z "$PASSWORD" ]; then
+        echo -e "${BLUE}🔐 Sudo Passwordless Setup${NC}"
+        echo "=================================="
+        echo -e "${YELLOW}This script will configure passwordless sudo for $USERNAME${NC}"
+        echo -e "${YELLOW}on all ${#devices[@]} devices in devices.yaml${NC}"
+        echo ""
+        echo -e "${YELLOW}Enter SSH password for $USERNAME:${NC}"
+        read -s PASSWORD
+        echo ""
+        
+        if [ -z "$PASSWORD" ]; then
+            echo -e "${RED}❌ Error: Password cannot be empty${NC}"
+            exit 1
+        fi
+        
+        # Confirm password
+        echo -e "${YELLOW}Confirm password:${NC}"
+        read -s PASSWORD_CONFIRM
+        echo ""
+        
+        if [ "$PASSWORD" != "$PASSWORD_CONFIRM" ]; then
+            echo -e "${RED}❌ Error: Passwords do not match${NC}"
+            exit 1
+        fi
+        
+        echo -e "${GREEN}✅ Password confirmed, starting sudo setup...${NC}"
+        echo ""
+    fi
+}
 
-if [[ -z "$PASSWORD" ]]; then
-    echo "ERROR: Password is required"
+get_password
+
+# Check if sshpass is available
+if ! command -v sshpass >/dev/null 2>&1; then
+    echo -e "${RED}❌ ERROR: sshpass is required but not installed${NC}"
+    echo -e "${YELLOW}Install with:${NC}"
+    echo -e "${GREEN}  - Ubuntu/Debian: sudo apt-get install sshpass${NC}"
+    echo -e "${GREEN}  - macOS: brew install sshpass${NC}"
     exit 1
 fi
 
-echo "Sudo Passwordless Setup"
-echo "======================"
-echo "Username: $USERNAME"
-echo "Devices: ${#devices[@]}"
-echo "Timeout: ${TIMEOUT}s"
+echo -e "${BLUE}📋 Configuration Summary${NC}"
+echo "=================================="
+echo -e "${GREEN}Username: ${USERNAME}${NC}"
+echo -e "${GREEN}Devices: ${#devices[@]}${NC}"
+echo -e "${GREEN}Timeout: ${TIMEOUT}s${NC}"
 echo ""
 
 # SSH options
@@ -101,16 +139,23 @@ setup_sudo() {
     local user=$2
     local hostname=$3
     
-    echo "Setting up $hostname..."
+    echo -e "${YELLOW}Setting up $hostname...${NC}"
     
     # Setup passwordless sudo
     result=$(sshpass -p "$PASSWORD" ssh $SSH_OPTS -q "$user@$device" \
         "echo '$PASSWORD' | sudo -S bash -c 'echo \"$USERNAME ALL=(ALL) NOPASSWD:ALL\" > /etc/sudoers.d/10_$USERNAME && chmod 440 /etc/sudoers.d/10_$USERNAME'" 2>&1)
     
     if [[ $? -eq 0 ]]; then
-        echo "SUCCESS: $hostname - Passwordless sudo configured"
+        echo -e "${GREEN}------------------------------------${NC}"
+        echo -e "${GREEN}✅ SUCCESS: $hostname${NC}"
+        echo -e "${GREEN}------------------------------------${NC}"
+        return 0
     else
-        echo "FAILED: $hostname - $result"
+        echo -e "${RED}------------------------------------${NC}"
+        echo -e "${RED}❌ FAILED: $hostname${NC}"
+        echo -e "${RED}Error: $result${NC}"
+        echo -e "${RED}------------------------------------${NC}"
+        return 1
     fi
 }
 
@@ -121,25 +166,42 @@ if ! command -v sshpass >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "Starting parallel sudo setup..."
+echo -e "${BLUE}🚀 Starting parallel sudo setup...${NC}"
 echo ""
 
 # Process all devices in parallel
 pids=()
+success_count=0
+total_count=${#devices[@]}
+
 for device in "${!devices[@]}"; do
     IFS=' ' read -r user hostname <<< "${devices[$device]}"
     setup_sudo "$device" "$user" "$hostname" &
     pids+=($!)
 done
 
-# Wait for all to complete
-echo "Waiting for all devices to complete..."
+# Wait for all to complete and count successes
+echo -e "${YELLOW}⏳ Waiting for all devices to complete...${NC}"
 for pid in "${pids[@]}"; do
-    wait $pid
+    if wait $pid; then
+        ((success_count++))
+    fi
 done
 
 echo ""
-echo "Sudo setup completed!"
+echo "=================================="
+echo -e "${BLUE}📊 Summary: ${success_count}/${total_count} devices configured${NC}"
 echo ""
-echo "Test with: ssh user@device 'sudo whoami'"
+
+if [ $success_count -eq $total_count ]; then
+    echo -e "${GREEN}🎉 All devices configured successfully!${NC}"
+    echo -e "${GREEN}✅ Passwordless sudo is now enabled${NC}"
+else
+    echo -e "${YELLOW}⚠️  ${success_count} succeeded, $((total_count - success_count)) failed${NC}"
+    echo -e "${YELLOW}💡 Check error messages above for failed devices${NC}"
+fi
+
+echo ""
+echo -e "${BLUE}🧪 Test with:${NC}"
+echo -e "${GREEN}   ssh $USERNAME@device 'sudo whoami'${NC}"
 echo ""
