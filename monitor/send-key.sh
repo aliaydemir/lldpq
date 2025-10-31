@@ -32,7 +32,8 @@ SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
 eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 
 # Default values
-SSH_KEY="$HOME/.ssh/id_rsa.pub"
+DEFAULT_SSH_KEY="$HOME/.ssh/id_rsa.pub"
+SSH_KEY=""
 PASSWORD=""
 
 # Colors for output
@@ -49,11 +50,22 @@ while [[ $# -gt 0 ]]; do
             PASSWORD="$2"
             shift 2
             ;;
+        -k|--key)
+            SSH_KEY="$2"
+            shift 2
+            ;;
         -h|--help)
-            echo "Usage: $0 [-p password]"
+            echo "Usage: $0 [-p password] [-k ssh_key_path]"
             echo "  -p, --password    SSH password for initial authentication"
+            echo "  -k, --key         Path to SSH public key (default: ~/.ssh/id_rsa.pub)"
             echo ""
             echo "Distributes SSH keys to all devices defined in devices.yaml"
+            echo ""
+            echo "Examples:"
+            echo "  $0                                    # Interactive mode"
+            echo "  $0 -p 'mypassword'                    # Use default key with password"
+            echo "  $0 -k ~/.ssh/custom_key.pub           # Use custom key"
+            echo "  $0 -p 'mypassword' -k ~/.ssh/custom_key.pub  # Both specified"
             exit 0
             ;;
         *)
@@ -66,14 +78,79 @@ done
 
 # Check and setup dependencies
 check_dependencies() {
-    # Check and generate SSH key if needed
-    if [ ! -f "$SSH_KEY" ]; then
-        echo -e "${YELLOW}SSH key not found. Generating new key...${NC}"
-        ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N "" -q
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}✅ SSH key generated successfully${NC}"
+    # SSH Key Selection (skip if already provided via command line)
+    if [ -z "$SSH_KEY" ]; then
+        echo -e "${BLUE}🔑 SSH Key Selection${NC}"
+        echo "=================================="
+        
+        # Check if default key exists
+        if [ -f "$DEFAULT_SSH_KEY" ]; then
+            echo -e "${GREEN}Default SSH key found: ${DEFAULT_SSH_KEY}${NC}"
+            echo -n -e "${YELLOW}Use this key? [Y/n]: ${NC}"
+            read -r USE_DEFAULT
+            
+            if [[ "$USE_DEFAULT" =~ ^[Nn]$ ]]; then
+                # User wants to specify custom key
+                echo -e "${YELLOW}Enter path to your SSH public key:${NC}"
+                read -r CUSTOM_KEY_PATH
+                
+                # Expand ~ to home directory
+                CUSTOM_KEY_PATH="${CUSTOM_KEY_PATH/#\~/$HOME}"
+                
+                if [ -f "$CUSTOM_KEY_PATH" ]; then
+                    SSH_KEY="$CUSTOM_KEY_PATH"
+                    echo -e "${GREEN}✅ Using custom key: ${SSH_KEY}${NC}"
+                else
+                    echo -e "${RED}❌ Key file not found: ${CUSTOM_KEY_PATH}${NC}"
+                    exit 1
+                fi
+            else
+                # Use default key
+                SSH_KEY="$DEFAULT_SSH_KEY"
+                echo -e "${GREEN}✅ Using default key: ${SSH_KEY}${NC}"
+            fi
         else
-            echo -e "${RED}❌ Failed to generate SSH key${NC}"
+            # Default key doesn't exist
+            echo -e "${YELLOW}Default SSH key not found: ${DEFAULT_SSH_KEY}${NC}"
+            echo -n -e "${YELLOW}Generate new SSH key? [Y/n]: ${NC}"
+            read -r GENERATE_KEY
+            
+            if [[ "$GENERATE_KEY" =~ ^[Nn]$ ]]; then
+                # User doesn't want to generate, ask for custom path
+                echo -e "${YELLOW}Enter path to your SSH public key:${NC}"
+                read -r CUSTOM_KEY_PATH
+                CUSTOM_KEY_PATH="${CUSTOM_KEY_PATH/#\~/$HOME}"
+                
+                if [ -f "$CUSTOM_KEY_PATH" ]; then
+                    SSH_KEY="$CUSTOM_KEY_PATH"
+                    echo -e "${GREEN}✅ Using custom key: ${SSH_KEY}${NC}"
+                else
+                    echo -e "${RED}❌ Key file not found: ${CUSTOM_KEY_PATH}${NC}"
+                    exit 1
+                fi
+            else
+                # Generate new key
+                echo -e "${YELLOW}Generating new SSH key...${NC}"
+                ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N "" -q
+                if [ $? -eq 0 ]; then
+                    SSH_KEY="$DEFAULT_SSH_KEY"
+                    echo -e "${GREEN}✅ SSH key generated successfully: ${SSH_KEY}${NC}"
+                else
+                    echo -e "${RED}❌ Failed to generate SSH key${NC}"
+                    exit 1
+                fi
+            fi
+        fi
+        
+        echo ""
+    else
+        # SSH_KEY provided via command line - validate it
+        SSH_KEY="${SSH_KEY/#\~/$HOME}"
+        if [ -f "$SSH_KEY" ]; then
+            echo -e "${GREEN}✅ Using SSH key from command line: ${SSH_KEY}${NC}"
+            echo ""
+        else
+            echo -e "${RED}❌ SSH key not found: ${SSH_KEY}${NC}"
             exit 1
         fi
     fi

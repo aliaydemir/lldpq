@@ -135,26 +135,15 @@ def get_lldp_field(section, field_name, regex_pattern=None):
     return match.group(1).strip() if match else None
 
 def normalize_interface_name(iface_name, known_device_names):
-    """
-    Normalize interface names by removing device prefixes.
-    This function handles device names with dashes (e.g., GB200-1-01).
-    Only removes device prefix if interface actually contains it.
-    """
     best_match_device_name = None
     for device_name in known_device_names:
-        # Only try to normalize if interface name actually starts with device name + dash
-        device_prefix = f"{device_name}-"
-        if iface_name.startswith(device_prefix):
+        if iface_name.startswith(f"{device_name}-"):
             if best_match_device_name is None or len(device_name) > len(best_match_device_name):
                 best_match_device_name = device_name
 
     if best_match_device_name:
-        device_prefix = f"{best_match_device_name}-"
-        normalized_name = iface_name[len(device_prefix):]
+        normalized_name = iface_name[len(f"{best_match_device_name}-"):]
         return normalized_name
-    
-    # If no device prefix found, return interface name as-is
-    # This handles cases like eth_rail0, enP6p3s0f0np0, etc.
     return iface_name
 
 
@@ -197,25 +186,6 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
         device_nodes[device_name] = device_id
         device_id += 1
 
-    # Also add host-only devices to device_nodes (they might be LLDP neighbors)
-    for host_device in hosts_only_devices:
-        if host_device not in device_nodes:  # Avoid duplicates
-            layer_sort_preference, dev_icon = categorize_device(host_device, topology_config)
-            device_node = {
-                "icon": dev_icon,
-                "id": device_id,
-                "layerSortPreference": layer_sort_preference,
-                "name": host_device,
-                "primaryIP": "N/A",
-                "model": "N/A", 
-                "serial_number": "N/A",
-                "version": "N/A",
-                "dcimDeviceLink": f"/monitor-results/{host_device}.html"
-            }
-            topology_data["nodes"].append(device_node)
-            device_nodes[host_device] = device_id
-            device_id += 1
-
     link_id = 0
     reachable_devices = set()
 
@@ -241,24 +211,17 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
             neighbor_device = get_lldp_field(section, "SysName", r'SysName:\s*(\S+)')
 
             raw_port_id_ifname = get_lldp_field(section, "PortID", r'PortID:\s+ifname\s+(\S+)')
-            # Optimized PortDescr parsing - handle multiple formats
+            # Optimized PortDescr parsing - extract interface name after "as"
             raw_port_descr = None
             port_descr_full = get_lldp_field(section, "PortDescr", r'PortDescr:\s*(.*?)(?:\n|$)')
             
-            if port_descr_full:
-                # Format 1: "Interface X as <interface_name>" (HGX/NVSwitch)
-                if " as " in port_descr_full:
-                    as_match = re.search(r' as\s+(\S+)', port_descr_full)
-                    if as_match:
-                        candidate = as_match.group(1)
-                        # Quick validation: avoid TLV data
-                        if "," not in candidate and not candidate.startswith("TLV"):
-                            raw_port_descr = candidate
-                # Format 2: Direct interface name (GB200/Hosts)
-                else:
-                    # Extract first non-TLV word
-                    candidate = port_descr_full.strip().split()[0] if port_descr_full.strip() else None
-                    if candidate and "," not in candidate and not candidate.startswith("TLV"):
+            # Fast path: direct "as" extraction
+            if port_descr_full and " as " in port_descr_full:
+                as_match = re.search(r' as\s+(\S+)', port_descr_full)
+                if as_match:
+                    candidate = as_match.group(1)
+                    # Quick validation: avoid TLV data
+                    if "," not in candidate and not candidate.startswith("TLV"):
                         raw_port_descr = candidate
 
             if not interface_name or not neighbor_device:
@@ -289,11 +252,11 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
                 }
                 topology_data["links"].append(link)
                 link_id += 1
-                
-                # Add to all_lldp_links_found for matching with topology.dot
+
                 all_lldp_links_found.add((device_name_from_lldp, interface_name, neighbor_device, tgt_ifname))
-                # Also add reverse for bidirectional matching
                 all_lldp_links_found.add((neighbor_device, tgt_ifname, device_name_from_lldp, interface_name))
+            else:
+                pass
 
 
     for node in topology_data["nodes"]:

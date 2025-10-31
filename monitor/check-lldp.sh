@@ -31,23 +31,18 @@ execute_commands() {
     echo -e "=========================================${hostname}=========================================\n" >> lldp-results/${hostname}_lldp_result.ini
     ssh -o StrictHostKeyChecking=no -T -q "$user@$device" "sudo lldpcli show neighbors" >> lldp-results/${hostname}_lldp_result.ini
     
-    # Port status collection (operational state + carrier check)
+    # Port status collection (operational state)
     echo -e "\n===PORT_STATUS_START===" >> lldp-results/${hostname}_lldp_result.ini
     ssh -o StrictHostKeyChecking=no -T -q "$user@$device" "
         for port in /sys/class/net/swp*; do
             [ -d \"\$port\" ] || continue
             port_name=\$(basename \"\$port\")
             oper_state=\$(cat \"\$port/operstate\" 2>/dev/null || echo \"unknown\")
-            carrier=\$(cat \"\$port/carrier\" 2>/dev/null || echo \"0\")
-            
-            # Real link state = operstate AND carrier must both be up
-            if [ \"\$oper_state\" = \"up\" ] && [ \"\$carrier\" = \"1\" ]; then
-                echo \"\$port_name UP\"
-            elif [ \"\$oper_state\" = \"down\" ] || [ \"\$carrier\" = \"0\" ]; then
-                echo \"\$port_name DOWN\"
-            else
-                echo \"\$port_name UNKNOWN\"
-            fi
+            case \"\$oper_state\" in
+                \"up\") echo \"\$port_name UP\" ;;
+                \"down\") echo \"\$port_name DOWN\" ;;
+                *) echo \"\$port_name UNKNOWN\" ;;
+            esac
         done | sort -V
     " >> lldp-results/${hostname}_lldp_result.ini
     echo -e "===PORT_STATUS_END===\n" >> lldp-results/${hostname}_lldp_result.ini
