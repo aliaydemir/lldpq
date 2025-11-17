@@ -101,7 +101,8 @@ class OpticalAnalyzer:
                 optical_params['voltage_v'] = float(voltage_match.group(1))
 
             # Parse RX power (NVUE: "ch-1-rx-power : 1.7055 mW / 2.32 dBm" or ethtool: "Rcvr signal avg optical power(Channel 1) : 1.5601 mW / 1.93 dBm")
-            rx_power_match = re.search(r'(?:ch-\d+-rx-power|Rcvr signal avg optical power.*?Channel \d+)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', line)
+            # Enhanced regex to handle parentheses around Channel
+            rx_power_match = re.search(r'(?:ch-\d+-rx-power|Rcvr\s+signal\s+avg\s+optical\s+power\s*\(?\s*Channel\s+\d+\s*\)?)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', line)
             if rx_power_match:
                 try:
                     rx_dbm = float(rx_power_match.group(1))
@@ -112,7 +113,8 @@ class OpticalAnalyzer:
                     pass
 
             # Parse TX power (NVUE: "ch-1-tx-power : 1.1706 mW / 0.68 dBm" or ethtool: "Transmit avg optical power (Channel 1) : 1.0466 mW / 0.20 dBm")
-            tx_power_match = re.search(r'(?:ch-\d+-tx-power|Transmit avg optical power.*?Channel \d+)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', line)
+            # Enhanced regex to handle parentheses around Channel
+            tx_power_match = re.search(r'(?:ch-\d+-tx-power|Transmit\s+avg\s+optical\s+power\s*\(?\s*Channel\s+\d+\s*\)?)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', line)
             if tx_power_match:
                 try:
                     tx_dbm = float(tx_power_match.group(1))
@@ -123,7 +125,8 @@ class OpticalAnalyzer:
                     pass
 
             # Parse bias current (NVUE: "ch-1-tx-bias-current : 7.056 mA" or ethtool: "Laser tx bias current (Channel 1) : 72.500 mA")
-            bias_match = re.search(r'(?:ch-\d+-tx-bias-current|Laser tx bias current.*?Channel \d+)\s*:\s*([\d.-]+)\s*mA', line)
+            # Enhanced regex to handle parentheses around Channel
+            bias_match = re.search(r'(?:ch-\d+-tx-bias-current|Laser\s+tx\s+bias\s+current\s*\(?\s*Channel\s+\d+\s*\)?)\s*:\s*([\d.-]+)\s*mA', line)
             if bias_match:
                 try:
                     bias_ma = float(bias_match.group(1))
@@ -142,20 +145,21 @@ class OpticalAnalyzer:
             optical_params['bias_current_ma'] = sum(bias_currents) / len(bias_currents)
 
         # Fallback: parse on full blob if line-by-line missed values (ethtool formatting variations)
+        # Enhanced to handle both "Channel 1" and "(Channel 1)" formats
         if optical_params['rx_power_dbm'] is None:
-            rx_all = re.findall(r'(?:Rcvr\s+signal\s+avg\s+optical\s+power(?:\s*\(Channel\s*\d+\))?|ch-\d+-rx-power)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', optical_data, flags=re.IGNORECASE)
+            rx_all = re.findall(r'(?:Rcvr\s+signal\s+avg\s+optical\s+power\s*\(?\s*Channel\s*\d+\s*\)?|ch-\d+-rx-power)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', optical_data, flags=re.IGNORECASE)
             if rx_all:
                 rx_vals = [float(v) for v in rx_all if float(v) > -35.0]
                 if rx_vals:
                     optical_params['rx_power_dbm'] = sum(rx_vals) / len(rx_vals)
         if optical_params['tx_power_dbm'] is None:
-            tx_all = re.findall(r'(?:Transmit\s+avg\s+optical\s+power(?:\s*\(Channel\s*\d+\))?|ch-\d+-tx-power)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', optical_data, flags=re.IGNORECASE)
+            tx_all = re.findall(r'(?:Transmit\s+avg\s+optical\s+power\s*\(?\s*Channel\s*\d+\s*\)?|ch-\d+-tx-power)\s*:\s*[\d.-]+\s*mW\s*/\s*([-\d.]+)\s*dBm', optical_data, flags=re.IGNORECASE)
             if tx_all:
                 tx_vals = [float(v) for v in tx_all if float(v) > -35.0]
                 if tx_vals:
                     optical_params['tx_power_dbm'] = sum(tx_vals) / len(tx_vals)
         if optical_params['bias_current_ma'] is None:
-            bias_all = re.findall(r'(?:Laser\s+tx\s+bias\s+current(?:\s*\(Channel\s*\d+\))?|ch-\d+-tx-bias-current)\s*:\s*([\d.-]+)\s*mA', optical_data, flags=re.IGNORECASE)
+            bias_all = re.findall(r'(?:Laser\s+tx\s+bias\s+current\s*\(?\s*Channel\s*\d+\s*\)?|ch-\d+-tx-bias-current)\s*:\s*([\d.-]+)\s*mA', optical_data, flags=re.IGNORECASE)
             if bias_all:
                 bias_vals = [float(v) for v in bias_all if float(v) > 0.1]
                 if bias_vals:
