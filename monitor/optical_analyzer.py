@@ -73,7 +73,26 @@ class OpticalAnalyzer:
             print(f"Error saving optical history: {e}")
 
     def parse_optical_data(self, optical_data: str) -> Dict[str, float]:
-        """Parse optical output (NVUE transceiver commands) for optical parameters"""
+        """Parse optical output (NVUE transceiver commands) for optical parameters
+        
+        Returns None if this is a DAC/Copper cable (not optical)
+        """
+        # Check for DAC/Copper cable - these don't have optical diagnostics
+        cable_type_indicators = [
+            'Passive copper',
+            'Active copper',
+            'Copper cable',
+            'Base-CR',  # Copper (e.g., 100G Base-CR4)
+            'DAC',
+            'Twinax',
+            'No separable connector'  # DAC cables
+        ]
+        
+        for indicator in cable_type_indicators:
+            if indicator in optical_data:
+                # This is a copper/DAC cable, not optical - skip optical analysis
+                return None
+        
         optical_params = {
             'rx_power_dbm': None,
             'tx_power_dbm': None,
@@ -238,8 +257,16 @@ class OpticalAnalyzer:
             return OpticalHealth.EXCELLENT
 
     def update_optical_stats(self, port_name: str, optical_data: str):
-        """Update optical statistics for a port"""
+        """Update optical statistics for a port
+        
+        Returns False if port is DAC/Copper (skipped), True if processed
+        """
         optical_params = self.parse_optical_data(optical_data)
+        
+        # Skip DAC/Copper cables - parse_optical_data returns None for these
+        if optical_params is None:
+            return False
+        
         health = self.assess_optical_health(optical_params)
 
         # Calculate additional metrics
@@ -277,6 +304,8 @@ class OpticalAnalyzer:
         self.optical_history[port_name].append(history_entry)
         if len(self.optical_history[port_name]) > 100:
             self.optical_history[port_name] = self.optical_history[port_name][-100:]
+        
+        return True
 
     def get_optical_summary(self) -> Dict[str, Any]:
         """Get optical analysis summary"""

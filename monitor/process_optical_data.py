@@ -123,6 +123,14 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                      "rx-power" not in optical_data and "tx-power" not in optical_data)):
                     print(f"  {port_name}: No transceiver or insufficient data")
                     continue
+                
+                # Skip DAC/Copper cables - they don't have optical diagnostics
+                if any(indicator in optical_data for indicator in [
+                    'Passive copper', 'Active copper', 'Copper cable',
+                    'Base-CR', 'DAC', 'Twinax', 'No separable connector'
+                ]):
+                    print(f"  {port_name}: Skipped (DAC/Copper cable - not optical)")
+                    continue
 
                 # Update optical analyzer
                 optical_analyzer.update_optical_stats(port_name, optical_data)
