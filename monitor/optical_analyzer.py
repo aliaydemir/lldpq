@@ -26,6 +26,7 @@ class OpticalAnalyzer:
     # Industry standard optical power thresholds (dBm)
     DEFAULT_THRESHOLDS = {
         "rx_power_min_dbm": -14.0,      # Minimum receive power
+        "rx_power_max_dbm": 7.0,        # Maximum receive power (critical high)
         # High RX thresholds: treat >5 dBm as warning, >7 dBm as critical (typical DR optics)
         "rx_power_warning_high_dbm": 5.0,
         "rx_power_critical_high_dbm": 7.0,
