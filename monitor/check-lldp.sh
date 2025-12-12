@@ -29,7 +29,7 @@ execute_commands() {
 
     # LLDP data collection
     echo -e "=========================================${hostname}=========================================\n" >> lldp-results/${hostname}_lldp_result.ini
-    ssh -o StrictHostKeyChecking=no -T -q "$user@$device" "sudo lldpcli show neighbors" >> lldp-results/${hostname}_lldp_result.ini
+    ssh -o StrictHostKeyChecking=no -T -q "$user@$device" "sudo lldpctl" >> lldp-results/${hostname}_lldp_result.ini
 
     # Port status collection (operational state + carrier check)
     echo -e "\n===PORT_STATUS_START===" >> lldp-results/${hostname}_lldp_result.ini
