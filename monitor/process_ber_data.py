@@ -152,7 +152,6 @@ def process_ber_data_files(data_dir="monitor-results/ber-data"):
                     )
                     
                     if is_baseline:
-                        print(f"  📊 {port_name}: Baseline established")
                         baseline_interfaces += 1
                         processed_interfaces += 1
                         continue
@@ -209,6 +208,9 @@ def process_ber_data_files(data_dir="monitor-results/ber-data"):
     if processed_devices == 0:
         print("❌ No BER data files found to process")
         return
+    
+    # Save baseline data once after all interfaces processed
+    ber_analyzer.save_baseline_data()
     
     # Generate summary
     summary = ber_analyzer.get_ber_summary()

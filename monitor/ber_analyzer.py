@@ -253,7 +253,7 @@ class BERAnalyzer:
                 'tx_packets': current_tx_packets,
                 'timestamp': current_time
             }
-            self.save_baseline_data()
+            # Note: save_baseline_data() called once after all interfaces processed
             return 0.0, True, 0, 0  # Baseline run, no BER calculation
         
         # Calculate deltas
@@ -279,7 +279,7 @@ class BERAnalyzer:
             'tx_packets': current_tx_packets,
             'timestamp': current_time
         }
-        self.save_baseline_data()
+        # Note: save_baseline_data() called once after all interfaces processed
         
         # Calculate BER from deltas
         if total_delta_errors == 0:
