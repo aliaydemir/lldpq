@@ -3,5 +3,6 @@
     "ShortcutMenuBar.userButton01Command": "extension.ansible-playbook.run",
     "ansible.python.interpreterPath": "/bin/python3",
     "git.postCommitCommand": "push",
-    "markdown.validate.enabled": true
+    "markdown.validate.enabled": true,
+    "terminal.integrated.scrollback": 500000
 }
