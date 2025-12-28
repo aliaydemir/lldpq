@@ -86,17 +86,14 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
 
                 # Skip non-optical interfaces (management, virtual interfaces)
                 if any(skip_iface in interface.lower() for skip_iface in ['eth0', 'lo', 'bond', 'mgmt', 'vlan']):
-                    print(f"  {port_name}: Skipped (non-optical interface)")
                     continue
 
                 # Skip if no meaningful data (Fixed: don't filter on error-status N/A)
                 if not optical_data or len(optical_data.strip()) < 10:
-                    print(f"  {port_name}: No optical data available")
                     continue
 
                 # Skip down/unplugged ports - these don't have meaningful optical readings
                 if "status                      : unplugged" in optical_data:
-                    print(f"  {port_name}: Skipped (port unplugged/down)")
                     continue
 
                 # Check for extremely low RX power indicating link down (even if status shows plugged)
@@ -105,7 +102,6 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                     rx_power_dbm = float(rx_power_match.group(1))
                     # If RX power is extremely low (< -20 dBm), this indicates no real signal/link down
                     if rx_power_dbm < -20.0:
-                        print(f"  {port_name}: Skipped (link down - RX power {rx_power_dbm:.2f} dBm too low)")
                         continue
 
                 # Check for ports with no meaningful optical readings (N/A values, temp 0.0, etc.)
@@ -113,7 +109,6 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                      "temperature                 : 0.00" in optical_data) and
                     ("voltage                     : 0.0" in optical_data or
                      "voltage                     : 0.00" in optical_data)):
-                    print(f"  {port_name}: Skipped (no meaningful optical readings - temp/voltage 0.0)")
                     continue
 
                 # Skip ports without optical modules
@@ -121,7 +116,6 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                     ("diagnostics-status          : N/A" in optical_data and
                      "temperature" not in optical_data and "voltage" not in optical_data and
                      "rx-power" not in optical_data and "tx-power" not in optical_data)):
-                    print(f"  {port_name}: No transceiver or insufficient data")
                     continue
                 
                 # Skip DAC/Copper cables - they don't have optical diagnostics
@@ -129,7 +123,6 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                     'Passive copper', 'Active copper', 'Copper cable',
                     'Base-CR', 'DAC', 'Twinax', 'No separable connector'
                 ]):
-                    print(f"  {port_name}: Skipped (DAC/Copper cable - not optical)")
                     continue
 
                 # Update optical analyzer
@@ -147,9 +140,7 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                     temp_str = f"{temperature:.1f}°C" if temperature is not None else "N/A"
                     voltage_str = f"{voltage:.2f}V" if voltage is not None else "N/A"
 
-                    print(f"  ✅ {port_name}: Health={health.upper()}, RX Power={rx_power_str}, Temp={temp_str}, Voltage={voltage_str}")
                 else:
-                    print(f"  ❌ {port_name}: No optical parameters detected")
 
     print(f"\n📊 Processed {total_processed} files total")
 
