@@ -30,6 +30,18 @@ class LogAnalyzer:
             r'port-counter-transaction',       # Port counter transaction errors
         ]
         
+        # Patterns to completely ignore (not even counted as info)
+        # These are our own monitoring commands or noise
+        self.skip_patterns = [
+            r'ethtool -m swp',               # Our optical monitoring commands
+            r'cumulus.*sudo.*ethtool',       # sudo logs from our monitoring
+            r'cumulus.*COMMAND=.*ethtool',   # sudo command logs
+            r'cumulus.*COMMAND=.*l1-show',   # sudo l1-show commands
+            r'cumulus.*COMMAND=.*sensors',   # sudo sensors commands
+            r'pam_unix.*session opened',     # PAM session logs
+            r'pam_unix.*session closed',     # PAM session logs
+        ]
+        
         # Enhanced severity patterns for network infrastructure
         self.severity_patterns = {
             'critical': [
@@ -86,7 +98,12 @@ class LogAnalyzer:
         """Categorize a log line by severity"""
         line_lower = line.lower()
         
-        # First check if this should be excluded from critical
+        # First check if this should be completely skipped (our own monitoring noise)
+        for pattern in self.skip_patterns:
+            if re.search(pattern, line_lower):
+                return None  # Skip completely, don't count at all
+        
+        # Then check if this should be excluded from critical
         # These are transient issues that look critical but aren't
         for pattern in self.excluded_from_critical:
             if re.search(pattern, line_lower):
@@ -196,6 +213,11 @@ class LogAnalyzer:
                         continue
                     
                     severity = self.categorize_log_line(line)
+                    
+                    # Skip if severity is None (monitoring noise)
+                    if severity is None:
+                        continue
+                    
                     timestamp = self.parse_timestamp(line)
                     
                     log_entry = {
