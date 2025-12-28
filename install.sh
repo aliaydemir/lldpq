@@ -85,13 +85,13 @@ sudo sed -i '/lldpq\|monitor\|get-conf/d' /etc/crontab
 
 # Add new cron jobs
 echo "* * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab
-echo "*/10 * * * * $(whoami) /usr/local/bin/monitor" | sudo tee -a /etc/crontab
+echo "*/5 * * * * $(whoami) /usr/local/bin/monitor" | sudo tee -a /etc/crontab
 echo "0 */12 * * * $(whoami) /usr/local/bin/get-conf" | sudo tee -a /etc/crontab
 echo "* * * * * $(whoami) $HOME/monitor/lldp-trigger-monitor.sh" | sudo tee -a /etc/crontab
 
 echo "Cron jobs added:"
 echo "   - lldpq:           every minute (fast LLDP analysis)"
-echo "   - monitor:         every 10 minutes (system monitoring)"  
+echo "   - monitor:         every 5 minutes (system monitoring)"  
 echo "   - get-conf:        every 12 hours"
 echo "   - web triggers:    daemon (checks every 5 seconds, enables Run LLDP Check button)"
 
