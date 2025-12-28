@@ -57,7 +57,6 @@ def process_carrier_transition_files(data_dir="monitor-results/flap-data"):
                             
                             # Update flap analyzer with current data
                             flap_analyzer.update_carrier_transitions(port_name, transitions)
-                            print(f"  {port_name}: {transitions} carrier transitions")
                             processed_interfaces += 1
                             
                         except ValueError:
