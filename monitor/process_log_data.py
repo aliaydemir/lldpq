@@ -20,6 +20,16 @@ class LogAnalyzer:
         self.log_analysis = defaultdict(lambda: {"critical": [], "warning": [], "error": [], "info": []})
         self.log_counts = defaultdict(lambda: {"critical": 0, "warning": 0, "error": 0, "info": 0})
         
+        # Patterns that should NOT be critical (demoted to warning)
+        # These are transient issues, not real critical problems
+        self.excluded_from_critical = [
+            r'sx_sdk.*bulk_counter',           # ASIC counter read errors
+            r'bulk-cntr.*ioctl.*failed',       # Driver busy errors
+            r'bulk-read.*transaction',         # Transaction errors
+            r'device or resource busy',        # Resource busy
+            r'port-counter-transaction',       # Port counter transaction errors
+        ]
+        
         # Enhanced severity patterns for network infrastructure
         self.severity_patterns = {
             'critical': [
@@ -75,6 +85,12 @@ class LogAnalyzer:
     def categorize_log_line(self, line):
         """Categorize a log line by severity"""
         line_lower = line.lower()
+        
+        # First check if this should be excluded from critical
+        # These are transient issues that look critical but aren't
+        for pattern in self.excluded_from_critical:
+            if re.search(pattern, line_lower):
+                return 'warning'  # Demote to warning instead of critical
         
         # Check critical patterns first (highest priority)
         for pattern in self.severity_patterns['critical']:
