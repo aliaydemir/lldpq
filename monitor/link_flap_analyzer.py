@@ -56,6 +56,7 @@ class LinkFlapAnalyzer:
         self.flapping_hist = {}  # port -> deque of (time, transitions, flap_count)
         self.carrier_transitions_stats = {}  # port -> current transition count
         self.flapping_counters = {}  # port -> {period: count}
+        self._port_cache = {}  # Cache for calculated port status/counters
         
         # Ensure flap-data directory exists
         os.makedirs(f"{self.data_dir}/flap-data", exist_ok=True)
@@ -160,6 +161,20 @@ class LinkFlapAnalyzer:
         
         return flap_counters
     
+    def _build_port_cache(self):
+        """Build cache of all port statuses and counters - call once before bulk operations"""
+        self._port_cache = {}
+        for port_name in self.carrier_transitions_stats.keys():
+            counters = self.calculate_flapping_rate(port_name)
+            # Determine status from counters
+            if counters['flap_30_sec'] > 0 or counters['flap_1_min'] > 0:
+                status = FlapStatus.FLAPPING
+            elif any(count > 0 for count in counters.values()):
+                status = FlapStatus.FLAPPED
+            else:
+                status = FlapStatus.OK
+            self._port_cache[port_name] = {'status': status, 'counters': counters}
+    
     def get_port_flap_status(self, port_name: str) -> FlapStatus:
         """Get current flap status for a port"""
         counters = self.calculate_flapping_rate(port_name)
@@ -175,7 +190,7 @@ class LinkFlapAnalyzer:
         return FlapStatus.OK
     
     def get_flap_summary(self) -> Dict[str, Any]:
-        """Get summary of all flapping ports"""
+        """Get summary of all flapping ports - uses cache for performance"""
         summary = {
             "total_ports": len(self.carrier_transitions_stats),
             "flapping_ports": [],
@@ -184,9 +199,13 @@ class LinkFlapAnalyzer:
             "timestamp": datetime.now().isoformat()
         }
         
-        for port_name in self.carrier_transitions_stats.keys():
-            status = self.get_port_flap_status(port_name)
-            counters = self.calculate_flapping_rate(port_name)
+        # Build cache if empty
+        if not self._port_cache:
+            self._build_port_cache()
+        
+        for port_name, cached in self._port_cache.items():
+            status = cached['status']
+            counters = cached['counters']
             
             port_info = {
                 "port": port_name,
@@ -205,12 +224,16 @@ class LinkFlapAnalyzer:
         return summary
     
     def detect_flap_anomalies(self) -> List[Dict[str, Any]]:
-        """Detect interface flapping anomalies"""
+        """Detect interface flapping anomalies - uses cache for performance"""
         anomalies = []
         
-        for port_name in self.carrier_transitions_stats.keys():
-            status = self.get_port_flap_status(port_name)
-            counters = self.calculate_flapping_rate(port_name)
+        # Build cache if empty
+        if not self._port_cache:
+            self._build_port_cache()
+        
+        for port_name, cached in self._port_cache.items():
+            status = cached['status']
+            counters = cached['counters']
             
             if status == FlapStatus.FLAPPING:
                 anomalies.append({
@@ -245,7 +268,10 @@ class LinkFlapAnalyzer:
         return anomalies
     
     def export_flap_data_for_web(self, output_file: str):
-        """Export flap data for web display"""
+        """Export flap data for web display - optimized with caching"""
+        # Build cache once at the start
+        self._build_port_cache()
+        
         summary = self.get_flap_summary()
         anomalies = self.detect_flap_anomalies()
         
@@ -395,19 +421,17 @@ class LinkFlapAnalyzer:
     </div>
 """
         
-        # Collect all ports for display
+        # Collect all ports for display - using cache
         all_ports = []
-        for port_name in self.carrier_transitions_stats.keys():
-            status = self.get_port_flap_status(port_name)
-            counters = self.calculate_flapping_rate(port_name)
+        for port_name, cached in self._port_cache.items():
             device = port_name.split(':')[0] if ':' in port_name else "unknown"
             interface = port_name.split(':')[1] if ':' in port_name else port_name
             
             port_info = {
                 'device': device,
                 'interface': interface,
-                'status': status,
-                'counters': counters,
+                'status': cached['status'],
+                'counters': cached['counters'],
                 'total_transitions': self.carrier_transitions_stats.get(port_name, 0)
             }
             all_ports.append(port_info)
