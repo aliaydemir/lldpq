@@ -463,6 +463,8 @@ class LinkFlapAnalyzer:
             1 if x['status'] == FlapStatus.FLAPPED else 2
         ))
         
+        # Build table rows using list for O(n) performance instead of O(n²) string concat
+        table_rows = []
         for port in sorted_ports:
             counters = port['counters']
             status_class = f"status-{port['status'].value}"
@@ -474,7 +476,7 @@ class LinkFlapAnalyzer:
             elif port['total_transitions'] > 10:
                 transition_class = "transition-warning"
                 
-            html_content += f"""
+            table_rows.append(f"""
         <tr data-status="{port['status'].value}">
             <td>{port['device']}</td>
             <td>{port['interface']}</td>
@@ -486,8 +488,9 @@ class LinkFlapAnalyzer:
             <td>{counters['flap_12_hrs']}</td>
             <td>{counters['flap_24_hrs']}</td>
             <td><span class="{transition_class}">{port['total_transitions']}</span></td>
-        </tr>
-"""
+        </tr>""")
+        
+        html_content += ''.join(table_rows)
         
         html_content += """
     </table>
