@@ -14,7 +14,7 @@ SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
 eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 
 # === TUNING PARAMETERS ===
-MAX_PARALLEL=30  # Maximum parallel SSH connections (adjust based on your server)
+MAX_PARALLEL=150  # Maximum parallel SSH connections (adjust based on your server)
 SSH_TIMEOUT=60   # SSH connection timeout in seconds
 
 mkdir -p "$SCRIPT_DIR/monitor-results"
@@ -51,7 +51,11 @@ execute_commands_optimized() {
     local hostname=$3
     local device_start=$(date +%s)
     
-    echo "🔄 [$hostname] Starting data collection..."
+    # Arrays to store timing data for summary
+    declare -a section_names
+    declare -a section_times
+    
+    echo "🚀 Processing $hostname..."
     
     # Create HTML header
     cat > monitor-results/${hostname}.html << EOF
@@ -100,7 +104,10 @@ EOF
     # =========================================================================
     # SINGLE SSH SESSION - Collect ALL data at once
     # =========================================================================
-    timeout 120 ssh $SSH_OPTS -q "$user@$device" '
+    echo "🔄 [$hostname] Starting data collection..."
+    local ssh_start=$(date +%s)
+    
+    timeout 180 ssh $SSH_OPTS -q "$user@$device" '
         HOSTNAME_VAR="'"$hostname"'"
         
         # =====================================================================
@@ -238,7 +245,7 @@ EOF
         echo "===L1_DATA_END==="
         
         # =====================================================================
-        # SECTION 7: Hardware Health
+        # SECTION 7: Hardware Health (with fallback)
         # =====================================================================
         echo "===HARDWARE_DATA_START==="
         echo "HARDWARE_HEALTH:"
@@ -249,6 +256,42 @@ EOF
             if [ -n "$asic_raw" ]; then
                 awk "BEGIN{printf \"HW_MGMT_ASIC: %.1f\n\", $asic_raw/1000}"
             fi
+        else
+            # Fallback: Try alternative ASIC temperature sources
+            echo "ASIC_FALLBACK_DEBUG:"
+            # Check thermal zones
+            for zone in /sys/class/thermal/thermal_zone*/type; do
+                if [ -r "$zone" ]; then
+                    zone_type=$(cat "$zone" 2>/dev/null)
+                    if echo "$zone_type" | grep -qi "asic\|switch\|mlxsw"; then
+                        zone_dir=$(dirname "$zone")
+                        temp_file="$zone_dir/temp"
+                        if [ -r "$temp_file" ]; then
+                            temp_raw=$(cat "$temp_file" 2>/dev/null)
+                            if [ -n "$temp_raw" ] && [ "$temp_raw" -gt 0 ]; then
+                                awk "BEGIN{printf \"THERMAL_ZONE_ASIC: %.1f\n\", $temp_raw/1000}"
+                                break
+                            fi
+                        fi
+                    fi
+                fi
+            done
+            # Check hwmon for ASIC
+            for hwmon in /sys/class/hwmon/hwmon*/temp*_label; do
+                if [ -r "$hwmon" ]; then
+                    label=$(cat "$hwmon" 2>/dev/null)
+                    if echo "$label" | grep -qi "asic\|switch"; then
+                        temp_file=$(echo "$hwmon" | sed "s/_label$/_input/")
+                        if [ -r "$temp_file" ]; then
+                            temp_raw=$(cat "$temp_file" 2>/dev/null)
+                            if [ -n "$temp_raw" ] && [ "$temp_raw" -gt 0 ]; then
+                                awk "BEGIN{printf \"HWMON_ASIC: %.1f\n\", $temp_raw/1000}"
+                                break
+                            fi
+                        fi
+                    fi
+                fi
+            done
         fi
         if [ -r "/var/run/hw-management/thermal/cpu_pack" ]; then
             cpu_raw=$(cat /var/run/hw-management/thermal/cpu_pack 2>/dev/null || echo "")
@@ -263,37 +306,112 @@ EOF
         echo "===HARDWARE_DATA_END==="
         
         # =====================================================================
-        # SECTION 8: System Logs
+        # SECTION 8: System Logs (comprehensive)
         # =====================================================================
         echo "===LOG_DATA_START==="
+        echo "=== COMPREHENSIVE SYSTEM LOGS ==="
         
+        # FRR Routing Logs
         echo "FRR_ROUTING_LOGS:"
         if systemctl is-active --quiet frr 2>/dev/null; then
-            sudo journalctl -u frr --since="2 hours ago" --no-pager --lines=100 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|DOWN|BGP|neighbor|peer)" || echo "No recent FRR issues"
+            sudo journalctl -u frr --since="2 hours ago" --no-pager --lines=200 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|DOWN|BGP|neighbor|peer)" || echo "No recent FRR routing issues"
+        elif [ -f "/var/log/frr/frr.log" ]; then
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/frr/frr.log 2>/dev/null | tail -30 | grep -E "(error|warn|crit|fail|down|bgp)" || echo "No recent FRR routing issues"
         else
-            echo "FRR not available"
+            echo "FRR service/log not available"
         fi
         
+        # Switch daemon logs
         echo "SWITCHD_LOGS:"
         if systemctl is-active --quiet switchd 2>/dev/null; then
-            sudo journalctl -u switchd --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|port|link)" || echo "No recent switchd issues"
+            sudo journalctl -u switchd --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|CRIT|FAIL|EXCEPT|port|link|vlan)" || echo "No recent switchd issues"
+        elif [ -f "/var/log/switchd.log" ]; then
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/switchd.log 2>/dev/null | tail -30 | grep -E "(error|warn|crit|fail|except)" || echo "No recent switchd issues"
         else
-            echo "Switchd not available"
+            echo "Switchd service/log not available"
         fi
         
-        echo "JOURNALCTL_PRIORITY_LOGS:"
-        sudo journalctl --since="3 hours ago" --priority=0..3 --no-pager --lines=50 2>/dev/null | grep -E "(CRIT|ALERT|EMERG|ERROR|fail|crash)" || echo "No high priority logs"
+        # NVUE configuration logs
+        echo "NVUE_CONFIG_LOGS:"
+        if systemctl is-active --quiet nvued 2>/dev/null; then
+            sudo journalctl -u nvued --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|FAIL|EXCEPT|config|commit|rollback)" || echo "No recent NVUE config issues"
+        elif [ -f "/var/log/nvued.log" ]; then
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/nvued.log 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|FAIL|EXCEPT|config|commit|rollback)" || echo "No recent NVUE config issues"
+        else
+            echo "NVUE log not found"
+        fi
         
+        # Spanning Tree Protocol logs
+        echo "MSTPD_STP_LOGS:"
+        if systemctl is-active --quiet mstpd 2>/dev/null; then
+            sudo journalctl -u mstpd --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|TOPOLOGY|CHANGE|port|state|bridge)" || echo "No recent STP issues"
+        elif [ -f "/var/log/mstpd" ]; then
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/mstpd 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|TOPOLOGY|CHANGE|port|state|bridge)" || echo "No recent STP issues"
+        else
+            echo "MSTPD log not found"
+        fi
+        
+        # MLAG coordination logs
+        echo "CLAGD_MLAG_LOGS:"
+        if systemctl is-active --quiet clagd 2>/dev/null; then
+            sudo journalctl -u clagd --since="2 hours ago" --no-pager --lines=50 2>/dev/null | grep -E "(ERROR|WARN|FAIL|CONFLICT|PEER|bond|backup|primary)" || echo "No recent MLAG issues"
+        elif [ -f "/var/log/clagd.log" ]; then
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/clagd.log 2>/dev/null | tail -30 | grep -E "(ERROR|WARN|FAIL|CONFLICT|PEER|bond|backup|primary)" || echo "No recent MLAG issues"
+        else
+            echo "CLAG log not found"
+        fi
+        
+        # Authentication and security logs
+        echo "AUTH_SECURITY_LOGS:"
+        if systemctl is-active --quiet systemd-journald 2>/dev/null; then
+            sudo journalctl --since="2 hours ago" --grep="FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized" --no-pager --lines=50 2>/dev/null | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|--since|--grep|swp\|bond\|vlan\|carrier\|link|vtysh|sudo.*authentication.*grantor=pam_permit|USER_AUTH.*res=success)" || echo "No recent auth issues"
+        elif [ -f "/var/log/auth.log" ]; then
+            sudo grep "$(date '\''+%b %d'\'')" /var/log/auth.log 2>/dev/null | tail -30 | grep -E "(FAIL|ERROR|INVALID|DENIED|ATTACK|authentication|unauthorized)" | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|--since|swp\|bond\|vlan\|carrier\|link|vtysh|sudo.*authentication.*grantor=pam_permit|USER_AUTH.*res=success)" || echo "No recent auth issues"
+        else
+            echo "Auth log not found"
+        fi
+        
+        # System critical logs
+        CRITICAL_LOGS=""
+        if systemctl is-active --quiet systemd-journald 2>/dev/null; then
+            CRITICAL_LOGS=$(sudo journalctl --since="2 hours ago" --priority=0..3 --grep="ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault" --no-pager --lines=50 2>/dev/null)
+        elif [ -f "/var/log/syslog" ]; then
+            CRITICAL_LOGS=$(sudo grep "$(date '\''+%b %d'\'')" /var/log/syslog 2>/dev/null | tail -50 | grep -E "(ERROR|CRIT|ALERT|EMERG|FAIL|kernel|oom|segfault)")
+        fi
+        
+        if [ -n "$CRITICAL_LOGS" ]; then
+            echo "SYSTEM_CRITICAL_LOGS:"
+            echo "$CRITICAL_LOGS"
+        fi
+        
+        # High priority journalctl logs
+        echo "JOURNALCTL_PRIORITY_LOGS:"
+        sudo journalctl --since="3 hours ago" --priority=0..3 --no-pager --lines=75 2>/dev/null | grep -E "(CRIT|ALERT|EMERG|ERROR|fail|crash|panic)" || echo "No high priority journal logs"
+        
+        # Hardware and kernel critical messages
         echo "DMESG_HARDWARE_LOGS:"
-        sudo dmesg --since="3 hours ago" --level=crit,alert,emerg 2>/dev/null | tail -30 || echo "No critical hardware logs"
+        sudo dmesg --since="3 hours ago" --level=crit,alert,emerg 2>/dev/null | tail -40 || echo "No critical hardware logs"
+        
+        # Network interface state changes
+        echo "NETWORK_INTERFACE_LOGS:"
+        sudo journalctl --since="3 hours ago" --grep="swp|bond|vlan|carrier|link.*up|link.*down|port.*up|port.*down" --no-pager --lines=40 2>/dev/null | grep -v -E "(journalctl|monitor\.sh|monitor2\.sh|sudo.*journalctl)" || echo "No interface state changes"
         
         echo "===LOG_DATA_END==="
         
     ' > "monitor-results/${hostname}_raw_data.txt" 2>/dev/null
     
+    local ssh_end=$(date +%s)
+    local ssh_duration=$((ssh_end - ssh_start))
+    echo "✅ [$hostname] SSH data collection completed in ${ssh_duration}s"
+    section_names+=("SSH Data Collection")
+    section_times+=("$ssh_duration")
+    
     # =========================================================================
     # Parse raw data into separate files
     # =========================================================================
+    echo "🔄 [$hostname] Starting data processing..."
+    local parse_start=$(date +%s)
+    
     if [ -f "monitor-results/${hostname}_raw_data.txt" ]; then
         # Extract HTML output
         sed -n '/===HTML_OUTPUT_START===/,/===HTML_OUTPUT_END===/p' "monitor-results/${hostname}_raw_data.txt" | \
@@ -333,7 +451,16 @@ EOF
         rm -f "monitor-results/${hostname}_raw_data.txt"
     fi
     
+    local parse_end=$(date +%s)
+    local parse_duration=$((parse_end - parse_start))
+    echo "✅ [$hostname] Data processing completed in ${parse_duration}s"
+    section_names+=("Data Processing")
+    section_times+=("$parse_duration")
+    
     # Add config section to HTML
+    echo "🔄 [$hostname] Adding configuration section..."
+    local config_start=$(date +%s)
+    
     cat >> monitor-results/${hostname}.html << EOF
 
 <h1></h1><h1><font color="#b57614">Device Configuration - ${hostname}</font></h1><h3></h3>
@@ -345,6 +472,9 @@ EOF
         cat "/var/www/html/configs/${hostname}.txt" | sed '
             s/</\&lt;/g; s/>/\&gt;/g;
             s/^#.*/<span class="comment">&<\/span>/;
+            /description/ {
+                s/\(.*\)\(description\s\+\)\(.*\)$/\1\2<span class="comment">\3<\/span>/;
+            }
         ' >> monitor-results/${hostname}.html
         echo "</div>" >> monitor-results/${hostname}.html
     else
@@ -360,9 +490,29 @@ EOF
 </html>
 EOF
 
-    local device_end=$(date +%s)
-    local duration=$((device_end - device_start))
-    echo "✅ [$hostname] Completed in ${duration}s"
+    local config_end=$(date +%s)
+    local config_duration=$((config_end - config_start))
+    section_names+=("Configuration Section")
+    section_times+=("$config_duration")
+
+    # Display timing summary
+    echo ""
+    echo "📊 [$hostname] Section Timing Summary:"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    local total_time=0
+    for i in "${!section_names[@]}"; do
+        local section="${section_names[i]}"
+        local time="${section_times[i]}"
+        total_time=$((total_time + time))
+        printf "%-25s : %3ds\n" "$section" "$time"
+    done
+    
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    printf "%-25s : %3ds\n" "TOTAL DEVICE TIME" "$total_time"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    echo "🎉 [$hostname] All sections completed successfully!"
 }
 
 process_device() {
@@ -408,6 +558,10 @@ echo -e "\e[1;34m✅ Data collection completed!\e[0m"
 echo -e "\n🔬 \e[1;34mStarting PARALLEL Analysis Phase...\e[0m"
 analysis_start=$(date +%s)
 
+# Arrays to store analysis timing data
+declare -a analysis_names
+declare -a analysis_times
+
 # Run all analyses in parallel
 python3 process_bgp_data.py &
 pid_bgp=$!
@@ -427,17 +581,27 @@ pid_hardware=$!
 python3 process_log_data.py &
 pid_log=$!
 
-# Wait for all analyses
-wait $pid_bgp && echo "✅ BGP analysis done" || echo "⚠️ BGP analysis failed"
-wait $pid_flap && echo "✅ Flap analysis done" || echo "⚠️ Flap analysis failed"
-wait $pid_optical && echo "✅ Optical analysis done" || echo "⚠️ Optical analysis failed"
-wait $pid_ber && echo "✅ BER analysis done" || echo "⚠️ BER analysis failed"
-wait $pid_hardware && echo "✅ Hardware analysis done" || echo "⚠️ Hardware analysis failed"
-wait $pid_log && echo "✅ Log analysis done" || echo "⚠️ Log analysis failed"
+# Wait for all analyses and record results
+wait $pid_bgp && { echo "✅ BGP analysis done"; analysis_names+=("BGP Analysis"); analysis_times+=("OK"); } || { echo "⚠️ BGP analysis failed"; analysis_names+=("BGP Analysis"); analysis_times+=("FAILED"); }
+wait $pid_flap && { echo "✅ Flap analysis done"; analysis_names+=("Link Flap Analysis"); analysis_times+=("OK"); } || { echo "⚠️ Flap analysis failed"; analysis_names+=("Link Flap Analysis"); analysis_times+=("FAILED"); }
+wait $pid_optical && { echo "✅ Optical analysis done"; analysis_names+=("Optical Analysis"); analysis_times+=("OK"); } || { echo "⚠️ Optical analysis failed"; analysis_names+=("Optical Analysis"); analysis_times+=("FAILED"); }
+wait $pid_ber && { echo "✅ BER analysis done"; analysis_names+=("BER Analysis"); analysis_times+=("OK"); } || { echo "⚠️ BER analysis failed"; analysis_names+=("BER Analysis"); analysis_times+=("FAILED"); }
+wait $pid_hardware && { echo "✅ Hardware analysis done"; analysis_names+=("Hardware Analysis"); analysis_times+=("OK"); } || { echo "⚠️ Hardware analysis failed"; analysis_names+=("Hardware Analysis"); analysis_times+=("FAILED"); }
+wait $pid_log && { echo "✅ Log analysis done"; analysis_names+=("Log Analysis"); analysis_times+=("OK"); } || { echo "⚠️ Log analysis failed"; analysis_names+=("Log Analysis"); analysis_times+=("FAILED"); }
 
 analysis_end=$(date +%s)
 analysis_duration=$((analysis_end - analysis_start))
-echo "📊 Total analysis time: ${analysis_duration}s"
+
+# Display analysis timing summary
+echo ""
+echo "🔬 Analysis Phase Summary:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+for i in "${!analysis_names[@]}"; do
+    printf "%-25s : %s\n" "${analysis_names[i]}" "${analysis_times[i]}"
+done
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+printf "%-25s : %3ds\n" "TOTAL ANALYSIS TIME" "$analysis_duration"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ============================================================================
 # COPY RESULTS
@@ -462,5 +626,5 @@ echo "📊 Devices processed: ${#devices[@]}"
 echo "🔧 Max parallel: $MAX_PARALLEL"
 echo "🔬 Analysis time: ${analysis_duration}s"
 echo "🌐 Results available at web interface"
-echo "==============================================="
+echo "=================================================="
 exit 0
