@@ -152,8 +152,23 @@ def process_ber_data_files(data_dir="monitor-results/ber-data"):
                     )
                     
                     if is_baseline:
+                        # Create baseline record for web display
+                        baseline_record = {
+                            'timestamp': time.time(),
+                            'ber_value': 0.0,
+                            'grade': 'excellent',
+                            'rx_packets': stats.get('rx_packets', 0),
+                            'tx_packets': stats.get('tx_packets', 0),
+                            'rx_errors': stats.get('rx_errors', 0),
+                            'tx_errors': stats.get('tx_errors', 0),
+                            'total_packets': stats.get('rx_packets', 0) + stats.get('tx_packets', 0),
+                            'delta_errors': 0,
+                            'delta_bytes': 0
+                        }
+                        ber_analyzer.current_ber_stats[port_name] = baseline_record
                         baseline_interfaces += 1
                         processed_interfaces += 1
+                        total_interfaces_processed += 1
                         continue
                     
                     # Skip interfaces with no activity since baseline
