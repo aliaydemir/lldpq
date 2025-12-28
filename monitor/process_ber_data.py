@@ -184,15 +184,8 @@ def process_ber_data_files(data_dir="monitor-results/ber-data"):
                     ber_analyzer.ber_history[port_name].append(ber_record)
                     ber_analyzer.current_ber_stats[port_name] = ber_record
                     
-                    # Log interface details
-                    if grade.value == 'critical':
-                        print(f"  🔴 {port_name}: BER={ber_value:.2e} (CRITICAL) - Δ{delta_errors} errors")
-                    elif grade.value == 'warning':
-                        print(f"  🟡 {port_name}: BER={ber_value:.2e} (WARNING) - Δ{delta_errors} errors")
-                    elif grade.value == 'good':
-                        print(f"  🟢 {port_name}: BER={ber_value:.2e} (GOOD) - Δ{delta_errors} errors")
-                    else:
-                        print(f"  ✅ {port_name}: BER={ber_value:.2e} (EXCELLENT) - Δ{delta_errors} errors")
+                    # Per-interface logging removed for performance
+                    # Only summary and critical issues are shown
                     
                     processed_interfaces += 1
                     total_interfaces_processed += 1
