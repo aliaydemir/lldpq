@@ -64,7 +64,7 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
 
     # List files in directory
     files = os.listdir(data_dir)
-    print(f"📂 Found {len(files)} files in {data_dir}: {files}")
+    print(f"📂 Found {len(files)} optical data files")
 
     # Process all optical diagnostic files
     total_processed = 0
