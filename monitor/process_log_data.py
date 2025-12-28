@@ -40,6 +40,7 @@ class LogAnalyzer:
             r'cumulus.*COMMAND=.*sensors',   # sudo sensors commands
             r'pam_unix.*session opened',     # PAM session logs
             r'pam_unix.*session closed',     # PAM session logs
+            r'connection collision resolution',  # Normal BGP behavior
         ]
         
         # Enhanced severity patterns for network infrastructure
