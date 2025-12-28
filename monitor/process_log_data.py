@@ -90,7 +90,7 @@ class LogAnalyzer:
         # These are transient issues that look critical but aren't
         for pattern in self.excluded_from_critical:
             if re.search(pattern, line_lower):
-                return 'warning'  # Demote to warning instead of critical
+                return 'info'     # These are just noise, not real warnings
         
         # Check critical patterns first (highest priority)
         for pattern in self.severity_patterns['critical']:
