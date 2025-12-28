@@ -15,7 +15,7 @@ cd lldpq
 ## [01] what it does
 
 - validation lldp every minutes
-- monitors switches every 5 minutes (optimized performance)  
+- monitors switches every 10 minutes (optimized performance)  
 - collects bgp, optical, ber, link flap, hardware health data
 - shows network topology with lldp
 - web dashboard with real-time stats
@@ -47,7 +47,7 @@ edit these 7 files:
 
 ```
 * * * * * lldpq                         # fast LLDP analysis every minute
-*/5 * * * * monitor                     # system monitoring every 5 minutes
+*/10 * * * * monitor                    # system monitoring every 10 minutes
 0 */12 * * * get-conf                   # configs every 12 hours
 * * * * * lldp-trigger-monitor.sh       # web triggers daemon (checks every 5 seconds)
 ```
