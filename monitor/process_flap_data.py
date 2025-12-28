@@ -39,7 +39,6 @@ def process_carrier_transition_files(data_dir="monitor-results/flap-data"):
                 if not content:
                     continue
                 
-                print(f"Processing carrier transitions for {hostname}")
                 processed_devices += 1
                 
                 # Parse carrier transition data
@@ -63,7 +62,6 @@ def process_carrier_transition_files(data_dir="monitor-results/flap-data"):
                             print(f"  Warning: Invalid transition count '{transitions_str}' for {interface}")
                             continue
                 
-                print(f"  {hostname}: Processed {processed_interfaces} interfaces")
                 
             except Exception as e:
                 print(f"Error processing {filepath}: {e}")

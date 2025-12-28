@@ -73,12 +73,9 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
             hostname = filename.replace("_optical.txt", "")
             filepath = os.path.join(data_dir, filename)
 
-            print(f"\n🔍 Processing optical data for {hostname}")
-            print(f"📄 File: {filepath}")
 
             # Parse optical diagnostics file
             port_data = parse_optical_diagnostics_file(filepath)
-            print(f"📋 Found {len(port_data)} ports in {filename}")
             total_processed += 1
 
             for interface, optical_data in port_data.items():
