@@ -51,7 +51,6 @@ def parse_assets_file(assets_file_path="assets.ini"):
                         "model": model,
                         "release": parts[5] if len(parts) > 5 else "N/A"
                     }
-                    print(f"📱 Device {device_name}: Model = {model}")
                     
     except FileNotFoundError:
         print(f"❌ assets.ini file not found at {assets_file_path}")
@@ -244,7 +243,6 @@ def parse_psu_power_in_out_from_hardware_file(device_name):
                 watts *= 1000
             total_psu_out += watts
 
-        print(f"🔌 {device_name} PSU Rails: IN={psu_ac_in_w} ({total_psu_in}W), OUT={psu_dc_out_w} ({total_psu_out}W)")
 
         if total_psu_in > 0 and total_psu_out > 0:
             # Sanity check: Output should never be higher than input (physics!)

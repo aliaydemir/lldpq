@@ -40,13 +40,11 @@ def process_bgp_data_files(data_dir="monitor-results/bgp-data"):
             hostname = filename.replace("_bgp.txt", "")
             filepath = os.path.join(data_dir, filename)
             
-            print(f"Processing BGP data for {hostname}")
             
             # Parse BGP data file
             bgp_data = parse_bgp_file(filepath)
             
             if not bgp_data or len(bgp_data.strip()) < 50:
-                print(f"  {hostname}: No BGP data available")
                 continue
             
             # Update BGP analyzer
@@ -59,21 +57,9 @@ def process_bgp_data_files(data_dir="monitor-results/bgp-data"):
                 established = stats["established_neighbors"]
                 down = stats["down_neighbors"]
                 
-                print(f"  {hostname}: Total={total}, Established={established}, Down={down}")
                 
-                # Show problematic neighbors
-                for neighbor_data in stats["neighbors"]:
-                    from bgp_analyzer import BGPNeighbor, BGPState
-                    # Handle string state values
-                    neighbor_dict = neighbor_data.copy()
-                    if isinstance(neighbor_dict['state'], str):
-                        neighbor_dict['state'] = BGPState(neighbor_dict['state'])
-                    
-                    neighbor = BGPNeighbor(**neighbor_dict)
-                    if neighbor.state in [BGPState.IDLE, BGPState.ACTIVE, BGPState.CONNECT]:
-                        print(f"    ⚠️  {neighbor.neighbor_name}: {neighbor.state.value.upper()}")
-            else:
-                print(f"  {hostname}: No BGP neighbors detected")
+                # Per-device logging removed for performance
+                # Only summary and critical issues are shown
     
     # Save updated BGP history
     bgp_analyzer.save_bgp_history()

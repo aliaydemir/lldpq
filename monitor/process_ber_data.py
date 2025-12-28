@@ -115,7 +115,6 @@ def process_ber_data_files(data_dir="monitor-results/ber-data"):
                     print(f"⚠️  Empty file: {filename}")
                     continue
                 
-                print(f"🔍 Processing BER data for {hostname}")
                 processed_devices += 1
                 
                 # Parse /proc/net/dev format
@@ -205,10 +204,7 @@ def process_ber_data_files(data_dir="monitor-results/ber-data"):
                     processed_interfaces += 1
                     total_interfaces_processed += 1
                 
-                if baseline_interfaces > 0:
-                    print(f"📊 Established baseline for {baseline_interfaces} new interfaces")
                 
-                print(f"📈 Processed {processed_interfaces} interfaces for {hostname}")
                 
             except Exception as e:
                 print(f"❌ Error processing {filename}: {e}")

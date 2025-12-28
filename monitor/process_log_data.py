@@ -115,7 +115,6 @@ class LogAnalyzer:
             print(f"⚠️  Log file not found: {log_file_path}")
             return
         
-        print(f"📊 Processing logs for {device_name}")
         
         try:
             with open(log_file_path, 'r', encoding='utf-8', errors='ignore') as f:
