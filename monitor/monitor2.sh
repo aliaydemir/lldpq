@@ -559,35 +559,83 @@ echo -e "\n🔬 \e[1;34mStarting PARALLEL Analysis Phase...\e[0m"
 analysis_start=$(date +%s)
 
 # Arrays to store analysis timing data
-declare -a analysis_names
-declare -a analysis_times
+declare -A analysis_start_times
+declare -A analysis_durations
+declare -a analysis_order=("BGP Analysis" "Link Flap Analysis" "Optical Analysis" "BER Analysis" "Hardware Analysis" "Log Analysis")
 
-# Run all analyses in parallel
+# Run all analyses in parallel with timing
+analysis_start_times["BGP Analysis"]=$(date +%s)
 python3 process_bgp_data.py &
 pid_bgp=$!
 
+analysis_start_times["Link Flap Analysis"]=$(date +%s)
 python3 process_flap_data.py &
 pid_flap=$!
 
+analysis_start_times["Optical Analysis"]=$(date +%s)
 python3 process_optical_data.py &
 pid_optical=$!
 
+analysis_start_times["BER Analysis"]=$(date +%s)
 python3 process_ber_data.py &
 pid_ber=$!
 
+analysis_start_times["Hardware Analysis"]=$(date +%s)
 python3 process_hardware_data.py &
 pid_hardware=$!
 
+analysis_start_times["Log Analysis"]=$(date +%s)
 python3 process_log_data.py &
 pid_log=$!
 
-# Wait for all analyses and record results
-wait $pid_bgp && { echo "✅ BGP analysis done"; analysis_names+=("BGP Analysis"); analysis_times+=("OK"); } || { echo "⚠️ BGP analysis failed"; analysis_names+=("BGP Analysis"); analysis_times+=("FAILED"); }
-wait $pid_flap && { echo "✅ Flap analysis done"; analysis_names+=("Link Flap Analysis"); analysis_times+=("OK"); } || { echo "⚠️ Flap analysis failed"; analysis_names+=("Link Flap Analysis"); analysis_times+=("FAILED"); }
-wait $pid_optical && { echo "✅ Optical analysis done"; analysis_names+=("Optical Analysis"); analysis_times+=("OK"); } || { echo "⚠️ Optical analysis failed"; analysis_names+=("Optical Analysis"); analysis_times+=("FAILED"); }
-wait $pid_ber && { echo "✅ BER analysis done"; analysis_names+=("BER Analysis"); analysis_times+=("OK"); } || { echo "⚠️ BER analysis failed"; analysis_names+=("BER Analysis"); analysis_times+=("FAILED"); }
-wait $pid_hardware && { echo "✅ Hardware analysis done"; analysis_names+=("Hardware Analysis"); analysis_times+=("OK"); } || { echo "⚠️ Hardware analysis failed"; analysis_names+=("Hardware Analysis"); analysis_times+=("FAILED"); }
-wait $pid_log && { echo "✅ Log analysis done"; analysis_names+=("Log Analysis"); analysis_times+=("OK"); } || { echo "⚠️ Log analysis failed"; analysis_names+=("Log Analysis"); analysis_times+=("FAILED"); }
+# Wait for all analyses and record durations
+wait $pid_bgp && { 
+    analysis_durations["BGP Analysis"]=$(($(date +%s) - ${analysis_start_times["BGP Analysis"]}))
+    echo "✅ BGP analysis done (${analysis_durations["BGP Analysis"]}s)"
+} || { 
+    analysis_durations["BGP Analysis"]="FAILED"
+    echo "⚠️ BGP analysis failed"
+}
+
+wait $pid_flap && { 
+    analysis_durations["Link Flap Analysis"]=$(($(date +%s) - ${analysis_start_times["Link Flap Analysis"]}))
+    echo "✅ Flap analysis done (${analysis_durations["Link Flap Analysis"]}s)"
+} || { 
+    analysis_durations["Link Flap Analysis"]="FAILED"
+    echo "⚠️ Flap analysis failed"
+}
+
+wait $pid_optical && { 
+    analysis_durations["Optical Analysis"]=$(($(date +%s) - ${analysis_start_times["Optical Analysis"]}))
+    echo "✅ Optical analysis done (${analysis_durations["Optical Analysis"]}s)"
+} || { 
+    analysis_durations["Optical Analysis"]="FAILED"
+    echo "⚠️ Optical analysis failed"
+}
+
+wait $pid_ber && { 
+    analysis_durations["BER Analysis"]=$(($(date +%s) - ${analysis_start_times["BER Analysis"]}))
+    echo "✅ BER analysis done (${analysis_durations["BER Analysis"]}s)"
+} || { 
+    analysis_durations["BER Analysis"]="FAILED"
+    echo "⚠️ BER analysis failed"
+}
+
+wait $pid_hardware && { 
+    analysis_durations["Hardware Analysis"]=$(($(date +%s) - ${analysis_start_times["Hardware Analysis"]}))
+    echo "✅ Hardware analysis done (${analysis_durations["Hardware Analysis"]}s)"
+} || { 
+    analysis_durations["Hardware Analysis"]="FAILED"
+    echo "⚠️ Hardware analysis failed"
+}
+
+wait $pid_log && { 
+    analysis_durations["Log Analysis"]=$(($(date +%s) - ${analysis_start_times["Log Analysis"]}))
+    echo "✅ Log analysis done (${analysis_durations["Log Analysis"]}s)"
+} || { 
+    analysis_durations["Log Analysis"]="FAILED"
+    echo "⚠️ Log analysis failed"
+}
 
 analysis_end=$(date +%s)
 analysis_duration=$((analysis_end - analysis_start))
@@ -596,8 +644,13 @@ analysis_duration=$((analysis_end - analysis_start))
 echo ""
 echo "🔬 Analysis Phase Summary:"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-for i in "${!analysis_names[@]}"; do
-    printf "%-25s : %s\n" "${analysis_names[i]}" "${analysis_times[i]}"
+for name in "${analysis_order[@]}"; do
+    duration="${analysis_durations[$name]}"
+    if [[ "$duration" == "FAILED" ]]; then
+        printf "%-25s : %s\n" "$name" "FAILED"
+    else
+        printf "%-25s : %3ds\n" "$name" "$duration"
+    fi
 done
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 printf "%-25s : %3ds\n" "TOTAL ANALYSIS TIME" "$analysis_duration"
