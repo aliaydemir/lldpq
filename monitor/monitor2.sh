@@ -1,5 +1,5 @@
 #!/bin/bash
-# Monitor2 Script - OPTIMIZED VERSION
+# Monitor Script - OPTIMIZED VERSION
 # Single SSH session per device + Parallel limits + Parallel analysis
 #
 # Copyright (c) 2024 LLDPq Project
