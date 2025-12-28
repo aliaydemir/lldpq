@@ -208,10 +208,14 @@ class BERAnalyzer:
                     del self.ber_history[port_name]
     
     def is_physical_port(self, interface_name: str) -> bool:
-        """Check if interface is a physical port"""
+        """Check if interface is a physical port (excludes management interfaces)"""
+        # Exclude management interfaces
+        if interface_name in ['eth0', 'mgmt', 'lo']:
+            return False
+        
         physical_patterns = [
             r'^swp\d+',      # Cumulus swp interfaces
-            r'^eth\d+',      # Ethernet interfaces
+            r'^eth\d+',      # Ethernet interfaces (eth1, eth2, etc. but not eth0)
             r'^eno\d+',      # Predictable network interface names
             r'^ens\d+',      # Systemd predictable names
             r'^enp\d+s\d+',  # PCI slot names
