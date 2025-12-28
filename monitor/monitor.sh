@@ -551,6 +551,8 @@ wait
 
 echo ""
 echo -e "\e[1;34m✅ Data collection completed!\e[0m"
+data_collection_end=$(date +%s)
+data_collection_duration=$((data_collection_end - START_TIME))
 
 # ============================================================================
 # PARALLEL ANALYSIS PHASE
@@ -664,6 +666,7 @@ echo "⚡ OPTIMIZED monitoring completed!"
 echo "⏱️  Total execution time: ${MINUTES}m ${SECONDS}s"
 echo "📊 Devices processed: ${#devices[@]}"
 echo "🔧 Max parallel: $MAX_PARALLEL"
+echo "📡 Data collection: ${data_collection_duration}s"
 echo "🔬 Analysis time: ${analysis_duration}s"
 echo "🌐 Results available at web interface"
 echo "=================================================="
