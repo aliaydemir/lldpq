@@ -139,8 +139,9 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                     rx_power_str = f"{rx_power:.2f} dBm" if rx_power is not None else "N/A"
                     temp_str = f"{temperature:.1f}°C" if temperature is not None else "N/A"
                     voltage_str = f"{voltage:.2f}V" if voltage is not None else "N/A"
-
+                    # Per-interface logging removed for performance
                 else:
+                    pass  # No optical parameters detected
 
     print(f"\n📊 Processed {total_processed} files total")
 
