@@ -14,7 +14,7 @@ SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
 eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 
 # === TUNING PARAMETERS ===
-MAX_PARALLEL=150  # Maximum parallel SSH connections (adjust based on your server)
+MAX_PARALLEL=300  # Maximum parallel SSH connections (adjust based on your server)
 SSH_TIMEOUT=60   # SSH connection timeout in seconds
 
 mkdir -p "$SCRIPT_DIR/monitor-results"
@@ -558,84 +558,71 @@ echo -e "\e[1;34m✅ Data collection completed!\e[0m"
 echo -e "\n🔬 \e[1;34mStarting PARALLEL Analysis Phase...\e[0m"
 analysis_start=$(date +%s)
 
-# Arrays to store analysis timing data
-declare -A analysis_start_times
-declare -A analysis_durations
+# Timing files for parallel analysis
+timing_dir="/tmp/monitor_timing_$$"
+mkdir -p "$timing_dir"
 declare -a analysis_order=("BGP Analysis" "Link Flap Analysis" "Optical Analysis" "BER Analysis" "Hardware Analysis" "Log Analysis")
 
-# Run all analyses in parallel with timing
-analysis_start_times["BGP Analysis"]=$(date +%s)
-python3 process_bgp_data.py &
+# Run all analyses in parallel - each writes its own timing
+{
+    start_t=$(date +%s)
+    python3 process_bgp_data.py
+    echo $(($(date +%s) - start_t)) > "$timing_dir/bgp"
+} &
 pid_bgp=$!
 
-analysis_start_times["Link Flap Analysis"]=$(date +%s)
-python3 process_flap_data.py &
+{
+    start_t=$(date +%s)
+    python3 process_flap_data.py
+    echo $(($(date +%s) - start_t)) > "$timing_dir/flap"
+} &
 pid_flap=$!
 
-analysis_start_times["Optical Analysis"]=$(date +%s)
-python3 process_optical_data.py &
+{
+    start_t=$(date +%s)
+    python3 process_optical_data.py
+    echo $(($(date +%s) - start_t)) > "$timing_dir/optical"
+} &
 pid_optical=$!
 
-analysis_start_times["BER Analysis"]=$(date +%s)
-python3 process_ber_data.py &
+{
+    start_t=$(date +%s)
+    python3 process_ber_data.py
+    echo $(($(date +%s) - start_t)) > "$timing_dir/ber"
+} &
 pid_ber=$!
 
-analysis_start_times["Hardware Analysis"]=$(date +%s)
-python3 process_hardware_data.py &
+{
+    start_t=$(date +%s)
+    python3 process_hardware_data.py
+    echo $(($(date +%s) - start_t)) > "$timing_dir/hardware"
+} &
 pid_hardware=$!
 
-analysis_start_times["Log Analysis"]=$(date +%s)
-python3 process_log_data.py &
+{
+    start_t=$(date +%s)
+    python3 process_log_data.py
+    echo $(($(date +%s) - start_t)) > "$timing_dir/log"
+} &
 pid_log=$!
 
-# Wait for all analyses and record durations
-wait $pid_bgp && { 
-    analysis_durations["BGP Analysis"]=$(($(date +%s) - ${analysis_start_times["BGP Analysis"]}))
-    echo "✅ BGP analysis done (${analysis_durations["BGP Analysis"]}s)"
-} || { 
-    analysis_durations["BGP Analysis"]="FAILED"
-    echo "⚠️ BGP analysis failed"
-}
+# Wait for all analyses
+wait $pid_bgp && echo "✅ BGP analysis done" || echo "⚠️ BGP analysis failed"
+wait $pid_flap && echo "✅ Flap analysis done" || echo "⚠️ Flap analysis failed"
+wait $pid_optical && echo "✅ Optical analysis done" || echo "⚠️ Optical analysis failed"
+wait $pid_ber && echo "✅ BER analysis done" || echo "⚠️ BER analysis failed"
+wait $pid_hardware && echo "✅ Hardware analysis done" || echo "⚠️ Hardware analysis failed"
+wait $pid_log && echo "✅ Log analysis done" || echo "⚠️ Log analysis failed"
 
-wait $pid_flap && { 
-    analysis_durations["Link Flap Analysis"]=$(($(date +%s) - ${analysis_start_times["Link Flap Analysis"]}))
-    echo "✅ Flap analysis done (${analysis_durations["Link Flap Analysis"]}s)"
-} || { 
-    analysis_durations["Link Flap Analysis"]="FAILED"
-    echo "⚠️ Flap analysis failed"
-}
-
-wait $pid_optical && { 
-    analysis_durations["Optical Analysis"]=$(($(date +%s) - ${analysis_start_times["Optical Analysis"]}))
-    echo "✅ Optical analysis done (${analysis_durations["Optical Analysis"]}s)"
-} || { 
-    analysis_durations["Optical Analysis"]="FAILED"
-    echo "⚠️ Optical analysis failed"
-}
-
-wait $pid_ber && { 
-    analysis_durations["BER Analysis"]=$(($(date +%s) - ${analysis_start_times["BER Analysis"]}))
-    echo "✅ BER analysis done (${analysis_durations["BER Analysis"]}s)"
-} || { 
-    analysis_durations["BER Analysis"]="FAILED"
-    echo "⚠️ BER analysis failed"
-}
-
-wait $pid_hardware && { 
-    analysis_durations["Hardware Analysis"]=$(($(date +%s) - ${analysis_start_times["Hardware Analysis"]}))
-    echo "✅ Hardware analysis done (${analysis_durations["Hardware Analysis"]}s)"
-} || { 
-    analysis_durations["Hardware Analysis"]="FAILED"
-    echo "⚠️ Hardware analysis failed"
-}
-
-wait $pid_log && { 
-    analysis_durations["Log Analysis"]=$(($(date +%s) - ${analysis_start_times["Log Analysis"]}))
-    echo "✅ Log analysis done (${analysis_durations["Log Analysis"]}s)"
-} || { 
-    analysis_durations["Log Analysis"]="FAILED"
-    echo "⚠️ Log analysis failed"
-}
+# Read timing results
+declare -A analysis_durations
+analysis_durations["BGP Analysis"]=$(cat "$timing_dir/bgp" 2>/dev/null || echo "FAILED")
+analysis_durations["Link Flap Analysis"]=$(cat "$timing_dir/flap" 2>/dev/null || echo "FAILED")
+analysis_durations["Optical Analysis"]=$(cat "$timing_dir/optical" 2>/dev/null || echo "FAILED")
+analysis_durations["BER Analysis"]=$(cat "$timing_dir/ber" 2>/dev/null || echo "FAILED")
+analysis_durations["Hardware Analysis"]=$(cat "$timing_dir/hardware" 2>/dev/null || echo "FAILED")
+analysis_durations["Log Analysis"]=$(cat "$timing_dir/log" 2>/dev/null || echo "FAILED")
+rm -rf "$timing_dir"
 
 analysis_end=$(date +%s)
 analysis_duration=$((analysis_end - analysis_start))
