@@ -227,7 +227,7 @@ class BGPAnalyzer:
                         )
                         
                         # Use neighbor IP as unique key, overwrite duplicates
-                        neighbor_dict[neighbor_ip] = neighbor
+                        neighbor_dict[neighbor_name] = neighbor
                         
                     except (ValueError, IndexError) as e:
                         print(f"Error parsing BGP neighbor line: {line}, Error: {e}")
