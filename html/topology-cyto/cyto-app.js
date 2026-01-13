@@ -305,6 +305,62 @@ function hideTooltip() {
 }
 
 /**
+ * Highlight a node's neighbors and dim others
+ */
+function highlightNeighbors(node) {
+    const neighborhood = node.closedNeighborhood(); // node + connected edges + neighbor nodes
+    
+    cy.batch(function() {
+        // Dim all elements
+        cy.elements().addClass('dimmed');
+        
+        // Highlight the neighborhood
+        neighborhood.removeClass('dimmed');
+        neighborhood.addClass('highlighted');
+    });
+    
+    // Dim icon overlays for non-neighbors
+    updateOverlayOpacity(neighborhood);
+}
+
+/**
+ * Reset highlight - restore all elements
+ */
+function resetHighlight() {
+    cy.batch(function() {
+        cy.elements().removeClass('dimmed highlighted');
+    });
+    
+    // Restore all icon overlays
+    resetOverlayOpacity();
+}
+
+/**
+ * Update icon overlay opacity for highlighting
+ */
+function updateOverlayOpacity(neighborhood) {
+    const neighborIds = new Set(neighborhood.nodes().map(n => n.id()));
+    
+    iconOverlays.forEach(overlay => {
+        const nodeId = overlay.dataset.nodeId;
+        if (neighborIds.has(nodeId)) {
+            overlay.style.opacity = '1';
+        } else {
+            overlay.style.opacity = '0.15';
+        }
+    });
+}
+
+/**
+ * Reset icon overlay opacity
+ */
+function resetOverlayOpacity() {
+    iconOverlays.forEach(overlay => {
+        overlay.style.opacity = '1';
+    });
+}
+
+/**
  * Search for a device and show results
  */
 function searchDevice(query) {
@@ -552,6 +608,36 @@ function initCytoscape() {
                 style: {
                     'width': 4
                 }
+            },
+            // Dimmed elements (for neighbor highlight)
+            {
+                selector: '.dimmed',
+                style: {
+                    'opacity': 0.15
+                }
+            },
+            // Highlighted elements
+            {
+                selector: '.highlighted',
+                style: {
+                    'opacity': 1
+                }
+            },
+            // Highlighted node border
+            {
+                selector: 'node.highlighted',
+                style: {
+                    'border-width': 2,
+                    'border-color': '#76b900'
+                }
+            },
+            // Highlighted edge
+            {
+                selector: 'edge.highlighted',
+                style: {
+                    'width': 2,
+                    'opacity': 1
+                }
             }
         ],
         layout: { name: 'preset' }, // Initial - will switch to vertical after
@@ -577,10 +663,12 @@ function initCytoscape() {
     document.getElementById('count-missing').textContent = missingCount > 0 ? `[${missingCount}]` : '';
     document.getElementById('count-unexpected').textContent = unexpectedCount > 0 ? `[${unexpectedCount}]` : '';
     
-    // Node hover - show tooltip
+    // Node hover - show tooltip and highlight neighbors
     cy.on('mouseover', 'node', function(event) {
         const node = event.target;
         const data = node.data();
+        
+        // Show tooltip
         const content = `
             <h4>${data.label}</h4>
             <p><span class="label">IP:</span> ${data.primaryIP}</p>
@@ -589,9 +677,15 @@ function initCytoscape() {
             <p><span class="label">Version:</span> ${data.version}</p>
         `;
         showTooltip(event, content);
+        
+        // Highlight neighbors
+        highlightNeighbors(node);
     });
     
-    cy.on('mouseout', 'node', hideTooltip);
+    cy.on('mouseout', 'node', function() {
+        hideTooltip();
+        resetHighlight();
+    });
     
     // Edge hover - show tooltip
     cy.on('mouseover', 'edge', function(event) {
