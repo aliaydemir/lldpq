@@ -105,6 +105,7 @@ function convertToCytoscapeFormat(topologyData) {
                 srcPortStatus: link.srcPortStatus,
                 tgtPortStatus: link.tgtPortStatus,
                 srcPortSpeed: link.srcPortSpeed || 'N/A',
+                tgtPortSpeed: link.tgtPortSpeed || 'N/A',
                 color: getLinkColor(link),
                 lineStyle: getLinkStyle(link),
                 is_missing: link.is_missing,
@@ -630,6 +631,7 @@ function contextDetails() {
                     <tr>
                         <th>Local Port</th>
                         <th>Port State</th>
+                        <th>Speed</th>
                         <th>Remote Device</th>
                         <th>Remote Port</th>
                         <th>Link Status</th>
@@ -638,15 +640,26 @@ function contextDetails() {
                 <tbody>
         `;
         
-        // Build port status lookup from all edges where this node is source
+        // Build port status and speed lookup from all edges
         const portStatusLookup = {};
+        const portSpeedLookup = {};
         connectedEdges.forEach(e => {
             const d = e.data();
-            if (d.srcDevice === nodeData.label && d.srcPortStatus && d.srcPortStatus !== 'N/A') {
-                portStatusLookup[d.srcIfName] = d.srcPortStatus;
+            if (d.srcDevice === nodeData.label) {
+                if (d.srcPortStatus && d.srcPortStatus !== 'N/A') {
+                    portStatusLookup[d.srcIfName] = d.srcPortStatus;
+                }
+                if (d.srcPortSpeed && d.srcPortSpeed !== 'N/A') {
+                    portSpeedLookup[d.srcIfName] = d.srcPortSpeed;
+                }
             }
-            if (d.tgtDevice === nodeData.label && d.tgtPortStatus && d.tgtPortStatus !== 'N/A') {
-                portStatusLookup[d.tgtIfName] = d.tgtPortStatus;
+            if (d.tgtDevice === nodeData.label) {
+                if (d.tgtPortStatus && d.tgtPortStatus !== 'N/A') {
+                    portStatusLookup[d.tgtIfName] = d.tgtPortStatus;
+                }
+                if (d.tgtPortSpeed && d.tgtPortSpeed !== 'N/A') {
+                    portSpeedLookup[d.tgtIfName] = d.tgtPortSpeed;
+                }
             }
         });
         
@@ -680,6 +693,13 @@ function contextDetails() {
                 portStateText = '✓ UP';
             }
             
+            // Get port speed - first try direct, then lookup
+            let portSpeed = isSource ? edgeData.srcPortSpeed : edgeData.tgtPortSpeed;
+            if (!portSpeed || portSpeed === 'N/A') {
+                portSpeed = portSpeedLookup[localPort] || 'N/A';
+            }
+            const speedClass = (portSpeed === 'N/A') ? 'status-missing' : 'status-ok';
+            
             // Use is_missing from topology data
             const isMissing = edgeData.is_missing === 'yes';
             const isUnexpected = edgeData.is_missing === 'fail';
@@ -698,6 +718,7 @@ function contextDetails() {
                 <tr>
                     <td>${localPort || 'N/A'}</td>
                     <td class="${portStateClass}">${portStateText}</td>
+                    <td class="${speedClass}">${portSpeed}</td>
                     <td>${remoteLabel}</td>
                     <td>${remotePort || 'N/A'}</td>
                     <td class="${statusClass}">${statusText}</td>

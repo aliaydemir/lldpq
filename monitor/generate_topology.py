@@ -348,6 +348,7 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
                 tgt_port_status = all_port_status.get(neighbor_device, {}).get(tgt_ifname, "N/A")
                 # Get port speed (in Mbps)
                 src_port_speed = all_port_speed.get(device_name_from_lldp, {}).get(interface_name, 0)
+                tgt_port_speed = all_port_speed.get(neighbor_device, {}).get(tgt_ifname, 0)
                 
                 link = {
                     "id": link_id,
@@ -360,6 +361,7 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
                     "tgtDevice": neighbor_device,
                     "tgtIfName": tgt_ifname,
                     "tgtPortStatus": tgt_port_status,
+                    "tgtPortSpeed": format_speed(tgt_port_speed),
                     "is_missing": "no"
                 }
                 topology_data["links"].append(link)
@@ -441,6 +443,7 @@ def generate_topology_file(output_filename, directory, assets_file_path, hosts_f
                 tgt_port_status = all_port_status.get(tgt_device, {}).get(tgt_ifname, "N/A")
                 # Get port speed (in Mbps) - for missing links, likely N/A
                 src_port_speed = all_port_speed.get(src_device, {}).get(src_ifname, 0)
+                tgt_port_speed = all_port_speed.get(tgt_device, {}).get(tgt_ifname, 0)
                 
                 link = {
                     "id": current_link_id,
@@ -453,6 +456,7 @@ def generate_topology_file(output_filename, directory, assets_file_path, hosts_f
                     "tgtDevice": tgt_device,
                     "tgtIfName": tgt_ifname,
                     "tgtPortStatus": tgt_port_status,
+                    "tgtPortSpeed": format_speed(tgt_port_speed),
                     "is_missing": "yes"
                 }
                 final_links_to_add.append(link)
