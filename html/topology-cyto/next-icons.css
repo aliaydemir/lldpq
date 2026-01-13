@@ -1,0 +1,11 @@
+/* NeXt UI Icon Font */
+@font-face {
+    font-family: 'next-font';
+    src: url('fonts/next-font.eot');
+    src: url('fonts/next-font.eot?#iefix') format('embedded-opentype'),
+         url('fonts/next-font.woff') format('woff'),
+         url('fonts/next-font.ttf') format('truetype'),
+         url('fonts/next-font.svg#next-font') format('svg');
+    font-weight: normal;
+    font-style: normal;
+}
