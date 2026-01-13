@@ -178,6 +178,37 @@ def parse_port_status(filepath):
         pass
     return port_status
 
+def parse_port_speed(filepath):
+    """Parse port speed from LLDP result file (in Mbps)"""
+    port_speed = {}
+    try:
+        with open(filepath, 'r') as file:
+            data = file.read()
+        
+        # Find PORT_SPEED section
+        match = re.search(r'===PORT_SPEED_START===\s*(.*?)\s*===PORT_SPEED_END===', data, re.DOTALL)
+        if match:
+            speed_lines = match.group(1).strip().split('\n')
+            for line in speed_lines:
+                parts = line.strip().split()
+                if len(parts) == 2:
+                    port_name, speed = parts
+                    try:
+                        port_speed[port_name] = int(speed)  # Speed in Mbps
+                    except ValueError:
+                        pass
+    except Exception:
+        pass
+    return port_speed
+
+def format_speed(speed_mbps):
+    """Format speed in Mbps to human readable (e.g., 400Gbps)"""
+    if not speed_mbps or speed_mbps == 0:
+        return "N/A"
+    if speed_mbps >= 1000:
+        return f"{speed_mbps // 1000}Gbps"
+    return f"{speed_mbps}Mbps"
+
 def parse_lldp_results(directory, device_info, hosts_only_devices):
     topology_data = {
         "links": [],
@@ -189,8 +220,9 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
 
     all_lldp_links_found = set()
     
-    # Store port status per device
+    # Store port status and speed per device
     all_port_status = {}
+    all_port_speed = {}
 
     known_device_names_for_normalization = set(device_info.keys())
 
@@ -242,13 +274,14 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
     link_id = 0
     reachable_devices = set()
 
-    # First pass: collect ALL port status from all devices
+    # First pass: collect ALL port status and speed from all devices
     for filename in os.listdir(directory):
         if not filename.endswith("_lldp_result.ini"):
             continue
         filepath = os.path.join(directory, filename)
         device_name = filename.split("_lldp_result.ini")[0]
         all_port_status[device_name] = parse_port_status(filepath)
+        all_port_speed[device_name] = parse_port_speed(filepath)
         reachable_devices.add(device_name)
 
     # Second pass: process LLDP data and create links
@@ -313,6 +346,8 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
                 # Get port status for both source and target interfaces
                 src_port_status = all_port_status.get(device_name_from_lldp, {}).get(interface_name, "N/A")
                 tgt_port_status = all_port_status.get(neighbor_device, {}).get(tgt_ifname, "N/A")
+                # Get port speed (in Mbps)
+                src_port_speed = all_port_speed.get(device_name_from_lldp, {}).get(interface_name, 0)
                 
                 link = {
                     "id": link_id,
@@ -320,6 +355,7 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
                     "srcDevice": device_name_from_lldp,
                     "srcIfName": interface_name,
                     "srcPortStatus": src_port_status,
+                    "srcPortSpeed": format_speed(src_port_speed),
                     "target": device_nodes[neighbor_device],
                     "tgtDevice": neighbor_device,
                     "tgtIfName": tgt_ifname,
@@ -403,6 +439,8 @@ def generate_topology_file(output_filename, directory, assets_file_path, hosts_f
                 # Get port status for both source and target interfaces
                 src_port_status = all_port_status.get(src_device, {}).get(src_ifname, "N/A")
                 tgt_port_status = all_port_status.get(tgt_device, {}).get(tgt_ifname, "N/A")
+                # Get port speed (in Mbps) - for missing links, likely N/A
+                src_port_speed = all_port_speed.get(src_device, {}).get(src_ifname, 0)
                 
                 link = {
                     "id": current_link_id,
@@ -410,6 +448,7 @@ def generate_topology_file(output_filename, directory, assets_file_path, hosts_f
                     "srcDevice": src_device,
                     "srcIfName": src_ifname,
                     "srcPortStatus": src_port_status,
+                    "srcPortSpeed": format_speed(src_port_speed),
                     "target": device_nodes[tgt_device],
                     "tgtDevice": tgt_device,
                     "tgtIfName": tgt_ifname,

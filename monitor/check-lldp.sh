@@ -51,6 +51,21 @@ execute_commands() {
         done | sort -V
     " >> lldp-results/${hostname}_lldp_result.ini
     echo -e "===PORT_STATUS_END===\n" >> lldp-results/${hostname}_lldp_result.ini
+
+    # Port speed collection (in Mbps)
+    echo -e "===PORT_SPEED_START===" >> lldp-results/${hostname}_lldp_result.ini
+    ssh -o StrictHostKeyChecking=no -T -q "$user@$device" "
+        for port in /sys/class/net/swp*; do
+            [ -d \"\$port\" ] || continue
+            port_name=\$(basename \"\$port\")
+            speed=\$(cat \"\$port/speed\" 2>/dev/null || echo \"0\")
+            # Only output if speed > 0 (valid)
+            if [ \"\$speed\" -gt 0 ] 2>/dev/null; then
+                echo \"\$port_name \$speed\"
+            fi
+        done | sort -V
+    " >> lldp-results/${hostname}_lldp_result.ini
+    echo -e "===PORT_SPEED_END===\n" >> lldp-results/${hostname}_lldp_result.ini
 }
 
 process_device() {

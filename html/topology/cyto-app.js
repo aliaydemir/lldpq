@@ -104,6 +104,7 @@ function convertToCytoscapeFormat(topologyData) {
                 tgtDevice: link.tgtDevice,
                 srcPortStatus: link.srcPortStatus,
                 tgtPortStatus: link.tgtPortStatus,
+                srcPortSpeed: link.srcPortSpeed || 'N/A',
                 color: getLinkColor(link),
                 lineStyle: getLinkStyle(link),
                 is_missing: link.is_missing,
@@ -1060,12 +1061,16 @@ function initCytoscape() {
         else if (data.is_dead === 'yes') { status = 'Dead'; statusColor = '#E40039'; }
         else if (data.is_new === 'yes') { status = 'New'; statusColor = '#76b900'; }
         
+        // BW display - N/A in red for missing links
+        const speed = data.srcPortSpeed || 'N/A';
+        const speedColor = (speed === 'N/A') ? '#FF0000' : statusColor;
+        
         const content = `
             <h4 style="color:${statusColor}">Link</h4>
             <p><strong>${data.srcDevice}</strong> : ${data.srcIfName}</p>
             <p>↕</p>
             <p><strong>${data.tgtDevice}</strong> : ${data.tgtIfName}</p>
-            <p><span class="label">Status:</span> <span style="color:${statusColor}">${status}</span></p>
+            <p><span class="label">Status:</span> <span style="color:${statusColor}">${status}</span> &nbsp; <span class="label">BW:</span> <span style="color:${speedColor}">${speed}</span></p>
         `;
         showTooltip(event, content);
     });
