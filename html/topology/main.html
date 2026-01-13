@@ -251,6 +251,37 @@
         .search-result-item:last-child {
             border-bottom: none;
         }
+
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: #2a2a2a;
+            border: 1px solid #4a4a4a;
+            border-radius: 6px;
+            padding: 6px 0;
+            min-width: 160px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            z-index: 99999;
+        }
+        
+        .context-menu-item {
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #ccc;
+            transition: background 0.15s;
+        }
+        
+        .context-menu-item:hover {
+            background: #3a3a3a;
+            color: #fff;
+        }
+        
+        .context-menu-separator {
+            height: 1px;
+            background: #4a4a4a;
+            margin: 6px 0;
+        }
     </style>
 </head>
 <body>
@@ -306,5 +337,15 @@
     
     <!-- Tooltip - must be last in body for z-index -->
     <div class="cy-tooltip" id="tooltip" style="display:none;"></div>
+    
+    <!-- Context Menu -->
+    <div class="context-menu" id="contextMenu" style="display:none;">
+        <div class="context-menu-item" onclick="contextCopyHostname()">📋 Copy Hostname</div>
+        <div class="context-menu-item" onclick="contextCopyIP()">📋 Copy IP</div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" onclick="contextOpenDevice()">🔗 Open Device</div>
+        <div class="context-menu-item" onclick="contextFocus()">🎯 Focus</div>
+        <div class="context-menu-item" onclick="contextIsolate()">👁️ Isolate</div>
+    </div>
 </body>
 </html>

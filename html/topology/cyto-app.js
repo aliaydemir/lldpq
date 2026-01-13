@@ -436,7 +436,134 @@ document.addEventListener('click', function(e) {
     if (searchBox && !searchBox.contains(e.target)) {
         document.getElementById('searchResults').classList.remove('show');
     }
+    // Also hide context menu
+    hideContextMenu();
 });
+
+// Context menu state
+let contextMenuTarget = null;
+
+/**
+ * Show context menu for a node
+ */
+function showContextMenu(event, node) {
+    const menu = document.getElementById('contextMenu');
+    contextMenuTarget = node;
+    
+    // Get mouse position
+    const e = event.originalEvent;
+    menu.style.left = e.clientX + 'px';
+    menu.style.top = e.clientY + 'px';
+    menu.style.display = 'block';
+    
+    // Prevent menu from going off screen
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) {
+        menu.style.left = (e.clientX - rect.width) + 'px';
+    }
+    if (rect.bottom > window.innerHeight) {
+        menu.style.top = (e.clientY - rect.height) + 'px';
+    }
+}
+
+/**
+ * Hide context menu
+ */
+function hideContextMenu() {
+    document.getElementById('contextMenu').style.display = 'none';
+    contextMenuTarget = null;
+}
+
+/**
+ * Copy hostname to clipboard
+ */
+function contextCopyHostname() {
+    if (!contextMenuTarget) return;
+    const hostname = contextMenuTarget.data('label');
+    navigator.clipboard.writeText(hostname).then(() => {
+        showNotification('Copied: ' + hostname);
+    });
+    hideContextMenu();
+}
+
+/**
+ * Copy IP to clipboard
+ */
+function contextCopyIP() {
+    if (!contextMenuTarget) return;
+    const ip = contextMenuTarget.data('primaryIP') || 'N/A';
+    navigator.clipboard.writeText(ip).then(() => {
+        showNotification('Copied: ' + ip);
+    });
+    hideContextMenu();
+}
+
+/**
+ * Open device page
+ */
+function contextOpenDevice() {
+    if (!contextMenuTarget) return;
+    const link = contextMenuTarget.data('dcimDeviceLink');
+    if (link && link !== '#') {
+        window.open(link, '_blank');
+    }
+    hideContextMenu();
+}
+
+/**
+ * Focus on device
+ */
+function contextFocus() {
+    if (!contextMenuTarget) return;
+    focusNode(contextMenuTarget.id());
+    hideContextMenu();
+}
+
+/**
+ * Isolate device - show only this device and its neighbors
+ */
+function contextIsolate() {
+    if (!contextMenuTarget) return;
+    const neighborhood = contextMenuTarget.closedNeighborhood();
+    
+    cy.batch(function() {
+        cy.elements().addClass('dimmed');
+        neighborhood.removeClass('dimmed');
+    });
+    
+    updateOverlayOpacity(neighborhood);
+    showNotification('Showing: ' + contextMenuTarget.data('label') + ' + neighbors. Click elsewhere to reset.');
+    hideContextMenu();
+}
+
+// Prevent default context menu on cy container
+document.addEventListener('contextmenu', function(e) {
+    const cyContainer = document.getElementById('cy');
+    if (cyContainer && cyContainer.contains(e.target)) {
+        e.preventDefault();
+    }
+});
+
+/**
+ * Show a brief notification
+ */
+function showNotification(message) {
+    // Create notification element if doesn't exist
+    let notif = document.getElementById('notification');
+    if (!notif) {
+        notif = document.createElement('div');
+        notif.id = 'notification';
+        notif.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#76b900;color:#000;padding:10px 20px;border-radius:6px;font-size:13px;font-weight:bold;z-index:99999;opacity:0;transition:opacity 0.3s;';
+        document.body.appendChild(notif);
+    }
+    
+    notif.textContent = message;
+    notif.style.opacity = '1';
+    
+    setTimeout(() => {
+        notif.style.opacity = '0';
+    }, 2000);
+}
 
 /**
  * Toggle fullscreen mode
@@ -754,6 +881,21 @@ function initCytoscape() {
         const link = node.data('dcimDeviceLink');
         if (link && link !== '#') {
             window.open(link, '_blank');
+        }
+    });
+    
+    // Node right-click - show context menu
+    cy.on('cxttap', 'node', function(event) {
+        event.originalEvent.preventDefault();
+        hideTooltip(); // Hide tooltip first
+        showContextMenu(event, event.target);
+    });
+    
+    // Click on background to reset isolation
+    cy.on('tap', function(event) {
+        if (event.target === cy) {
+            // Clicked on background
+            resetHighlight();
         }
     });
     
