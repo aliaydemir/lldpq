@@ -304,6 +304,84 @@ function hideTooltip() {
     if (tooltip) tooltip.style.display = 'none';
 }
 
+/**
+ * Search for a device and show results
+ */
+function searchDevice(query) {
+    const resultsDiv = document.getElementById('searchResults');
+    
+    if (!query || query.length < 2) {
+        resultsDiv.classList.remove('show');
+        return;
+    }
+    
+    const lowerQuery = query.toLowerCase();
+    const matches = cy.nodes().filter(node => {
+        const label = node.data('label') || '';
+        return label.toLowerCase().includes(lowerQuery);
+    });
+    
+    if (matches.length === 0) {
+        resultsDiv.innerHTML = '<div class="search-result-item" style="color:#888;">No results</div>';
+        resultsDiv.classList.add('show');
+        return;
+    }
+    
+    // Limit to 10 results
+    const limitedMatches = matches.slice(0, 10);
+    
+    resultsDiv.innerHTML = limitedMatches.map(node => 
+        `<div class="search-result-item" onclick="focusNode('${node.id()}')">${node.data('label')}</div>`
+    ).join('');
+    
+    resultsDiv.classList.add('show');
+}
+
+/**
+ * Focus on a specific node
+ */
+function focusNode(nodeId) {
+    const node = cy.getElementById(nodeId);
+    if (!node || node.length === 0) return;
+    
+    // Hide search results
+    document.getElementById('searchResults').classList.remove('show');
+    document.getElementById('searchInput').value = node.data('label');
+    
+    // Animate to the node
+    cy.animate({
+        center: { eles: node },
+        zoom: 1.5
+    }, {
+        duration: 500
+    });
+    
+    // Highlight the node temporarily
+    const originalBorderWidth = node.style('border-width');
+    const originalBorderColor = node.style('border-color');
+    
+    node.style({
+        'border-width': 4,
+        'border-color': '#76b900'
+    });
+    
+    // Reset after 3 seconds
+    setTimeout(() => {
+        node.style({
+            'border-width': originalBorderWidth,
+            'border-color': originalBorderColor
+        });
+    }, 3000);
+}
+
+// Close search results when clicking outside
+document.addEventListener('click', function(e) {
+    const searchBox = document.querySelector('.search-box');
+    if (searchBox && !searchBox.contains(e.target)) {
+        document.getElementById('searchResults').classList.remove('show');
+    }
+});
+
 // Visibility states
 let showPorts = false;  // Ports hidden by default
 let showHostnames = true;

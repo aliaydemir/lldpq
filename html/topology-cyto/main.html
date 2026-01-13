@@ -191,6 +191,60 @@
             top: 50%;
             transform: translate(-50%, -50%);
         }
+
+        /* Search box */
+        .search-box {
+            position: relative;
+        }
+        
+        .search-box input {
+            background: #3a3a3a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            padding: 6px 12px;
+            color: #fff;
+            font-size: 13px;
+            width: 180px;
+            outline: none;
+        }
+        
+        .search-box input:focus {
+            border-color: #76b900;
+        }
+        
+        .search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #2a2a2a;
+            border: 1px solid #4a4a4a;
+            border-radius: 4px;
+            margin-top: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            z-index: 2000;
+        }
+        
+        .search-results.show {
+            display: block;
+        }
+        
+        .search-result-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            border-bottom: 1px solid #3a3a3a;
+        }
+        
+        .search-result-item:hover {
+            background: #3a3a3a;
+        }
+        
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
     </style>
 </head>
 <body>
@@ -224,6 +278,12 @@
         </div>
 
         <div class="spacer"></div>
+        
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="🔍 Search device..." onkeyup="searchDevice(this.value)" onfocus="this.select()">
+            <div id="searchResults" class="search-results"></div>
+        </div>
+        
         <span class="status" id="status">Loading...</span>
     </div>
 
