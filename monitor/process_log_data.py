@@ -143,6 +143,72 @@ class LogAnalyzer:
                 return match.group(1)
         return None
     
+    def parse_timestamp_to_datetime(self, line):
+        """Extract timestamp from log line and convert to datetime object"""
+        now = datetime.now()
+        
+        # Pattern 1: "Jan 13 18:37:49" format
+        match = re.search(r'(\w{3})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})', line)
+        if match:
+            try:
+                month_str, day, hour, minute, second = match.groups()
+                month_map = {'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                            'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12}
+                month = month_map.get(month_str, 1)
+                year = now.year
+                log_dt = datetime(year, month, int(day), int(hour), int(minute), int(second))
+                # Handle year rollover (if log is from December and now is January)
+                if log_dt > now + timedelta(days=1):
+                    log_dt = datetime(year - 1, month, int(day), int(hour), int(minute), int(second))
+                return log_dt
+            except:
+                pass
+        
+        # Pattern 2: "2024-01-13T18:37:49" format
+        match = re.search(r'(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})', line)
+        if match:
+            try:
+                year, month, day, hour, minute, second = match.groups()
+                return datetime(int(year), int(month), int(day), int(hour), int(minute), int(second))
+            except:
+                pass
+        
+        # Pattern 3: Just time "18:37:49" - assume today
+        match = re.search(r'(\d{2}):(\d{2}):(\d{2})', line)
+        if match:
+            try:
+                hour, minute, second = match.groups()
+                return datetime(now.year, now.month, now.day, int(hour), int(minute), int(second))
+            except:
+                pass
+        
+        return None
+    
+    def adjust_severity_by_age(self, severity, log_datetime):
+        """Adjust severity based on log age - older logs are less critical"""
+        if log_datetime is None:
+            return severity  # Can't determine age, keep original
+        
+        now = datetime.now()
+        age = now - log_datetime
+        age_minutes = age.total_seconds() / 60
+        
+        # Time-based severity adjustment:
+        # - Last 30 minutes: Keep original severity
+        # - 30 min to 2 hours: Demote critical → warning
+        # - Over 2 hours: Demote critical/warning → info
+        
+        if age_minutes < 30:
+            return severity  # Fresh log, keep original
+        elif age_minutes < 120:  # 30 min - 2 hours
+            if severity == 'critical':
+                return 'warning'  # Demote critical to warning
+            return severity
+        else:  # Over 2 hours
+            if severity in ('critical', 'warning'):
+                return 'info'  # Demote to info (historical)
+            return severity
+    
     def process_device_logs(self, device_name, log_file_path):
         """Process logs for a single device"""
         if not os.path.exists(log_file_path):
@@ -221,11 +287,17 @@ class LogAnalyzer:
                     
                     timestamp = self.parse_timestamp(line)
                     
+                    # Adjust severity based on log age (older logs are less critical)
+                    log_datetime = self.parse_timestamp_to_datetime(line)
+                    original_severity = severity
+                    severity = self.adjust_severity_by_age(severity, log_datetime)
+                    
                     log_entry = {
                         'timestamp': timestamp,
                         'section': section_name,
                         'message': line.strip(),
-                        'severity': severity
+                        'severity': severity,
+                        'original_severity': original_severity if original_severity != severity else None
                     }
                     
                     self.log_analysis[device_name][severity].append(log_entry)
