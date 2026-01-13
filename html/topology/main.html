@@ -69,6 +69,12 @@
             font-size: 12px;
             color: #888;
         }
+        
+        .toolbar .timestamp {
+            font-size: 11px;
+            color: #666;
+            margin-right: 15px;
+        }
 
         .toggle-group {
             display: flex;
@@ -279,6 +285,8 @@
         </div>
 
         <div class="spacer"></div>
+        
+        <span class="timestamp" id="topologyTimestamp"></span>
         
         <div class="search-box">
             <input type="text" id="searchInput" placeholder="🔍 Search device..." onkeyup="searchDevice(this.value)" onfocus="this.select()">

@@ -683,6 +683,11 @@ function initCytoscape() {
     const linkCount = topologyData.links.length;
     document.getElementById('status').textContent = `✅ ${nodeCount} nodes, ${linkCount} links`;
     
+    // Update timestamp
+    if (topologyData.timestamp) {
+        document.getElementById('topologyTimestamp').textContent = `🕐 ${topologyData.timestamp}`;
+    }
+    
     // Update legend counts
     let normalCount = 0, missingCount = 0, unexpectedCount = 0;
     topologyData.links.forEach(link => {
