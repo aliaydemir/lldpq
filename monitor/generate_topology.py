@@ -242,6 +242,16 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
     link_id = 0
     reachable_devices = set()
 
+    # First pass: collect ALL port status from all devices
+    for filename in os.listdir(directory):
+        if not filename.endswith("_lldp_result.ini"):
+            continue
+        filepath = os.path.join(directory, filename)
+        device_name = filename.split("_lldp_result.ini")[0]
+        all_port_status[device_name] = parse_port_status(filepath)
+        reachable_devices.add(device_name)
+
+    # Second pass: process LLDP data and create links
     for filename in os.listdir(directory):
         filepath = os.path.join(directory, filename)
 
@@ -249,10 +259,6 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
             continue
 
         device_name_from_lldp = filename.split("_lldp_result.ini")[0]
-        reachable_devices.add(device_name_from_lldp)
-        
-        # Parse port status for this device
-        all_port_status[device_name_from_lldp] = parse_port_status(filepath)
         
         try:
             with open(filepath, 'r') as file:
