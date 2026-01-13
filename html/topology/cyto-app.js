@@ -637,6 +637,18 @@ function contextDetails() {
                 <tbody>
         `;
         
+        // Build port status lookup from all edges where this node is source
+        const portStatusLookup = {};
+        connectedEdges.forEach(e => {
+            const d = e.data();
+            if (d.srcDevice === nodeData.label && d.srcPortStatus && d.srcPortStatus !== 'N/A') {
+                portStatusLookup[d.srcIfName] = d.srcPortStatus;
+            }
+            if (d.tgtDevice === nodeData.label && d.tgtPortStatus && d.tgtPortStatus !== 'N/A') {
+                portStatusLookup[d.tgtIfName] = d.tgtPortStatus;
+            }
+        });
+        
         sortedEdges.forEach(edge => {
             const edgeData = edge.data();
             // Use device names for reliable comparison
@@ -648,8 +660,11 @@ function contextDetails() {
             const remoteDevice = isSource ? edgeData.tgtDevice : edgeData.srcDevice;
             const remoteLabel = remoteDevice || 'N/A';
             
-            // Get port status (UP/DOWN/UNKNOWN) - use correct side based on perspective
-            const portStatus = isSource ? edgeData.srcPortStatus : edgeData.tgtPortStatus;
+            // Get port status - first try direct, then lookup
+            let portStatus = isSource ? edgeData.srcPortStatus : edgeData.tgtPortStatus;
+            if (!portStatus || portStatus === 'N/A') {
+                portStatus = portStatusLookup[localPort] || 'N/A';
+            }
             let portStateClass = 'status-ok';
             let portStateText = portStatus || 'N/A';
             
