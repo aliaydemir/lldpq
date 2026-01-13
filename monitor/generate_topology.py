@@ -417,6 +417,9 @@ def generate_topology_file(output_filename, directory, assets_file_path, hosts_f
         link["source"] = id_map[link["source"]]
         link["target"] = id_map[link["target"]]
 
+    # Add timestamp
+    topology_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+
     try:
         with open(output_filename, "w") as file:
             file.write("var topologyData = ")
