@@ -635,15 +635,20 @@ function contextDetails() {
             const remoteNode = cy.getElementById(remoteNodeId);
             const remoteLabel = remoteNode ? remoteNode.data('label') : remoteNodeId;
             
-            // Get port status (UP/DOWN/UNKNOWN)
-            const portStatus = isSource ? edgeData.srcPortStatus : 'N/A';
+            // Get port status (UP/DOWN/UNKNOWN) - use correct side based on perspective
+            const portStatus = isSource ? edgeData.srcPortStatus : edgeData.tgtPortStatus;
             let portStateClass = 'status-ok';
             let portStateText = portStatus || 'N/A';
             
             if (portStatus === 'DOWN') {
                 portStateClass = 'status-missing';  // Red for DOWN
-            } else if (portStatus === 'UNKNOWN') {
-                portStateClass = 'status-unexpected';  // Yellow for unknown
+                portStateText = '✗ DOWN';
+            } else if (portStatus === 'UNKNOWN' || portStatus === 'N/A' || !portStatus) {
+                portStateClass = '';  // No color for unknown/N/A
+                portStateText = portStatus || 'N/A';
+            } else if (portStatus === 'UP') {
+                portStateClass = 'status-ok';
+                portStateText = '✓ UP';
             }
             
             // Use is_missing from topology data

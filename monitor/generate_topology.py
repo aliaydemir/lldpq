@@ -304,8 +304,9 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
                 continue
 
             if device_name_from_lldp in device_nodes and neighbor_device in device_nodes:
-                # Get port status for source interface
-                src_port_status = all_port_status.get(device_name_from_lldp, {}).get(interface_name, "UNKNOWN")
+                # Get port status for both source and target interfaces
+                src_port_status = all_port_status.get(device_name_from_lldp, {}).get(interface_name, "N/A")
+                tgt_port_status = all_port_status.get(neighbor_device, {}).get(tgt_ifname, "N/A")
                 
                 link = {
                     "id": link_id,
@@ -316,6 +317,7 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
                     "target": device_nodes[neighbor_device],
                     "tgtDevice": neighbor_device,
                     "tgtIfName": tgt_ifname,
+                    "tgtPortStatus": tgt_port_status,
                     "is_missing": "no"
                 }
                 topology_data["links"].append(link)
@@ -392,8 +394,9 @@ def generate_topology_file(output_filename, directory, assets_file_path, hosts_f
         if forward_link_tuple not in all_lldp_links_found and reverse_link_tuple not in all_lldp_links_found:
 
             if src_device in device_nodes and tgt_device in device_nodes:
-                # Get port status for source interface
-                src_port_status = all_port_status.get(src_device, {}).get(src_ifname, "UNKNOWN")
+                # Get port status for both source and target interfaces
+                src_port_status = all_port_status.get(src_device, {}).get(src_ifname, "N/A")
+                tgt_port_status = all_port_status.get(tgt_device, {}).get(tgt_ifname, "N/A")
                 
                 link = {
                     "id": current_link_id,
@@ -404,6 +407,7 @@ def generate_topology_file(output_filename, directory, assets_file_path, hosts_f
                     "target": device_nodes[tgt_device],
                     "tgtDevice": tgt_device,
                     "tgtIfName": tgt_ifname,
+                    "tgtPortStatus": tgt_port_status,
                     "is_missing": "yes"
                 }
                 final_links_to_add.append(link)
