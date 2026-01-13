@@ -282,6 +282,114 @@
             background: #4a4a4a;
             margin: 6px 0;
         }
+
+        /* Details Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100000;
+        }
+        
+        .modal-overlay.show {
+            display: flex;
+        }
+        
+        .modal {
+            background: #2a2a2a;
+            border: 1px solid #4a4a4a;
+            border-radius: 8px;
+            max-width: 700px;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #4a4a4a;
+            background: #333;
+        }
+        
+        .modal-header h3 {
+            color: #76b900;
+            font-size: 16px;
+            margin: 0;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+        
+        .modal-close:hover {
+            color: #fff;
+        }
+        
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            max-height: calc(80vh - 60px);
+        }
+        
+        .modal-info {
+            display: grid;
+            grid-template-columns: 100px 1fr;
+            gap: 8px;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+        
+        .modal-info .label {
+            color: #888;
+        }
+        
+        .modal-info .value {
+            color: #fff;
+        }
+        
+        .modal-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        
+        .modal-table th {
+            background: #333;
+            color: #76b900;
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 500;
+            border-bottom: 1px solid #4a4a4a;
+        }
+        
+        .modal-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #3a3a3a;
+            color: #ccc;
+        }
+        
+        .modal-table tr:hover td {
+            background: #333;
+        }
+        
+        .status-ok { color: #4CAF50; }
+        .status-missing { color: #FF0000; }
+        .status-unexpected { color: #FFED29; }
     </style>
 </head>
 <body>
@@ -345,9 +453,23 @@
         <div class="context-menu-separator"></div>
         <div class="context-menu-item" onclick="contextSSH()"> SSH</div>
         <div class="context-menu-item" onclick="contextOpenDevice()"> Open Device</div>
+        <div class="context-menu-item" onclick="contextDetails()"> Port Details</div>
         <div class="context-menu-separator"></div>
         <div class="context-menu-item" onclick="contextFocus()"> Focus</div>
         <div class="context-menu-item" onclick="contextIsolate()"> Isolate</div>
+    </div>
+    
+    <!-- Details Modal -->
+    <div class="modal-overlay" id="detailsModal" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 id="modalTitle">Device Details</h3>
+                <button class="modal-close" onclick="closeDetailsModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content will be inserted here -->
+            </div>
+        </div>
     </div>
 </body>
 </html>

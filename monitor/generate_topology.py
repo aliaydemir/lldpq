@@ -158,6 +158,26 @@ def normalize_interface_name(iface_name, known_device_names):
     return iface_name
 
 
+def parse_port_status(filepath):
+    """Parse port status from LLDP result file"""
+    port_status = {}
+    try:
+        with open(filepath, 'r') as file:
+            data = file.read()
+        
+        # Find PORT_STATUS section
+        match = re.search(r'===PORT_STATUS_START===\s*(.*?)\s*===PORT_STATUS_END===', data, re.DOTALL)
+        if match:
+            status_lines = match.group(1).strip().split('\n')
+            for line in status_lines:
+                parts = line.strip().split()
+                if len(parts) == 2:
+                    port_name, status = parts
+                    port_status[port_name] = status  # UP, DOWN, or UNKNOWN
+    except Exception:
+        pass
+    return port_status
+
 def parse_lldp_results(directory, device_info, hosts_only_devices):
     topology_data = {
         "links": [],
@@ -168,6 +188,9 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
     device_id = 0
 
     all_lldp_links_found = set()
+    
+    # Store port status per device
+    all_port_status = {}
 
     known_device_names_for_normalization = set(device_info.keys())
 
@@ -227,6 +250,10 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
 
         device_name_from_lldp = filename.split("_lldp_result.ini")[0]
         reachable_devices.add(device_name_from_lldp)
+        
+        # Parse port status for this device
+        all_port_status[device_name_from_lldp] = parse_port_status(filepath)
+        
         try:
             with open(filepath, 'r') as file:
                 data = file.read()
@@ -277,11 +304,15 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
                 continue
 
             if device_name_from_lldp in device_nodes and neighbor_device in device_nodes:
+                # Get port status for source interface
+                src_port_status = all_port_status.get(device_name_from_lldp, {}).get(interface_name, "UNKNOWN")
+                
                 link = {
                     "id": link_id,
                     "source": device_nodes[device_name_from_lldp],
                     "srcDevice": device_name_from_lldp,
                     "srcIfName": interface_name,
+                    "srcPortStatus": src_port_status,
                     "target": device_nodes[neighbor_device],
                     "tgtDevice": neighbor_device,
                     "tgtIfName": tgt_ifname,
@@ -302,7 +333,7 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
            node["name"] not in reachable_devices:
             node["icon"] = "unknown"
 
-    return topology_data, device_nodes, link_id, all_lldp_links_found
+    return topology_data, device_nodes, link_id, all_lldp_links_found, all_port_status
 
 def parse_topology_dot_file(dot_file_path):
     defined_links = set()
@@ -335,7 +366,7 @@ def generate_topology_file(output_filename, directory, assets_file_path, hosts_f
                 "version": "N/A"
             }
 
-    topology_data, device_nodes, current_link_id, all_lldp_links_found = parse_lldp_results(directory, device_info, hosts_only_devices)
+    topology_data, device_nodes, current_link_id, all_lldp_links_found, all_port_status = parse_lldp_results(directory, device_info, hosts_only_devices)
 
     defined_links = parse_topology_dot_file(dot_file_path)
 
@@ -361,11 +392,15 @@ def generate_topology_file(output_filename, directory, assets_file_path, hosts_f
         if forward_link_tuple not in all_lldp_links_found and reverse_link_tuple not in all_lldp_links_found:
 
             if src_device in device_nodes and tgt_device in device_nodes:
+                # Get port status for source interface
+                src_port_status = all_port_status.get(src_device, {}).get(src_ifname, "UNKNOWN")
+                
                 link = {
                     "id": current_link_id,
                     "source": device_nodes[src_device],
                     "srcDevice": src_device,
                     "srcIfName": src_ifname,
+                    "srcPortStatus": src_port_status,
                     "target": device_nodes[tgt_device],
                     "tgtDevice": tgt_device,
                     "tgtIfName": tgt_ifname,

@@ -580,6 +580,126 @@ function contextIsolate() {
     hideContextMenu();
 }
 
+/**
+ * Show device details in modal
+ */
+function contextDetails() {
+    if (!contextMenuTarget) return;
+    
+    const nodeData = contextMenuTarget.data();
+    const nodeId = contextMenuTarget.id();
+    
+    // Get all connected edges
+    const connectedEdges = cy.edges().filter(edge => 
+        edge.data('source') === nodeId || edge.data('target') === nodeId
+    );
+    
+    // Build info section
+    let html = `
+        <div class="modal-info">
+            <span class="label">Hostname:</span>
+            <span class="value">${nodeData.label || 'N/A'}</span>
+            <span class="label">IP Address:</span>
+            <span class="value">${nodeData.primaryIP || 'N/A'}</span>
+            <span class="label">Serial:</span>
+            <span class="value">${nodeData.serial_number || 'N/A'}</span>
+            <span class="label">Connections:</span>
+            <span class="value">${connectedEdges.length}</span>
+        </div>
+    `;
+    
+    // Build connections table
+    if (connectedEdges.length > 0) {
+        html += `
+            <table class="modal-table">
+                <thead>
+                    <tr>
+                        <th>Local Port</th>
+                        <th>Port State</th>
+                        <th>Remote Device</th>
+                        <th>Remote Port</th>
+                        <th>Link Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
+        connectedEdges.forEach(edge => {
+            const edgeData = edge.data();
+            const isSource = edgeData.source === nodeId;
+            
+            // Use srcIfName/tgtIfName from topology data
+            const localPort = isSource ? edgeData.srcIfName : edgeData.tgtIfName;
+            const remotePort = isSource ? edgeData.tgtIfName : edgeData.srcIfName;
+            const remoteNodeId = isSource ? edgeData.target : edgeData.source;
+            const remoteNode = cy.getElementById(remoteNodeId);
+            const remoteLabel = remoteNode ? remoteNode.data('label') : remoteNodeId;
+            
+            // Get port status (UP/DOWN/UNKNOWN)
+            const portStatus = isSource ? edgeData.srcPortStatus : 'N/A';
+            let portStateClass = 'status-ok';
+            let portStateText = portStatus || 'N/A';
+            
+            if (portStatus === 'DOWN') {
+                portStateClass = 'status-missing';  // Red for DOWN
+            } else if (portStatus === 'UNKNOWN') {
+                portStateClass = 'status-unexpected';  // Yellow for unknown
+            }
+            
+            // Use is_missing from topology data
+            const isMissing = edgeData.is_missing === 'yes';
+            const isUnexpected = edgeData.is_missing === 'fail';
+            let statusClass = 'status-ok';
+            let statusText = '✓ OK';
+            
+            if (isMissing) {
+                statusClass = 'status-missing';
+                statusText = '✗ Missing';
+            } else if (isUnexpected) {
+                statusClass = 'status-unexpected';
+                statusText = '⚠ Unexpected';
+            }
+            
+            html += `
+                <tr>
+                    <td>${localPort || 'N/A'}</td>
+                    <td class="${portStateClass}">${portStateText}</td>
+                    <td>${remoteLabel}</td>
+                    <td>${remotePort || 'N/A'}</td>
+                    <td class="${statusClass}">${statusText}</td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table>';
+    } else {
+        html += '<p style="color:#888;">No connections found.</p>';
+    }
+    
+    // Update modal
+    document.getElementById('modalTitle').textContent = nodeData.label || 'Device Details';
+    document.getElementById('modalBody').innerHTML = html;
+    document.getElementById('detailsModal').classList.add('show');
+    
+    hideContextMenu();
+}
+
+/**
+ * Close details modal
+ */
+function closeDetailsModal() {
+    document.getElementById('detailsModal').classList.remove('show');
+}
+
+/**
+ * Close modal when clicking overlay
+ */
+function closeModal(event) {
+    if (event.target.id === 'detailsModal') {
+        closeDetailsModal();
+    }
+}
+
 // Prevent default context menu on cy container
 document.addEventListener('contextmenu', function(e) {
     const cyContainer = document.getElementById('cy');
