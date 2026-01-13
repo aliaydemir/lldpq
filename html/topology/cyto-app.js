@@ -447,7 +447,7 @@ function toggleFullscreen() {
     if (!document.fullscreenElement) {
         // Enter fullscreen
         document.documentElement.requestFullscreen().then(() => {
-            btn.textContent = '■ Exit';
+            btn.textContent = '⤡ Exit';
             btn.classList.add('active');
         }).catch(err => {
             console.error('Fullscreen error:', err);
@@ -455,7 +455,7 @@ function toggleFullscreen() {
     } else {
         // Exit fullscreen
         document.exitFullscreen().then(() => {
-            btn.textContent = '□ Fullscreen';
+            btn.textContent = '⤢ Full';
             btn.classList.remove('active');
         });
     }
@@ -465,7 +465,7 @@ function toggleFullscreen() {
 document.addEventListener('fullscreenchange', function() {
     const btn = document.getElementById('btn-fullscreen');
     if (!document.fullscreenElement) {
-        btn.textContent = '□ Fullscreen';
+        btn.textContent = '⤢ Full';
         btn.classList.remove('active');
     }
 });
@@ -685,7 +685,7 @@ function initCytoscape() {
     
     // Update timestamp
     if (topologyData.timestamp) {
-        document.getElementById('topologyTimestamp').textContent = `🕐 ${topologyData.timestamp}`;
+        document.getElementById('topologyTimestamp').textContent = `◷ ${topologyData.timestamp}`;
     }
     
     // Update legend counts
