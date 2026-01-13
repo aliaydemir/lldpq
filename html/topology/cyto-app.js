@@ -308,6 +308,9 @@ function hideTooltip() {
  * Highlight a node's neighbors and dim others
  */
 function highlightNeighbors(node) {
+    // Don't override isolation
+    if (isIsolated) return;
+    
     const neighborhood = node.closedNeighborhood(); // node + connected edges + neighbor nodes
     
     cy.batch(function() {
@@ -327,11 +330,25 @@ function highlightNeighbors(node) {
  * Reset highlight - restore all elements
  */
 function resetHighlight() {
+    // Don't reset if isolated (unless explicitly clearing isolation)
+    if (isIsolated) return;
+    
     cy.batch(function() {
         cy.elements().removeClass('dimmed highlighted');
     });
     
     // Restore all icon overlays
+    resetOverlayOpacity();
+}
+
+/**
+ * Clear isolation and reset highlight
+ */
+function clearIsolation() {
+    isIsolated = false;
+    cy.batch(function() {
+        cy.elements().removeClass('dimmed highlighted');
+    });
     resetOverlayOpacity();
 }
 
@@ -442,6 +459,7 @@ document.addEventListener('click', function(e) {
 
 // Context menu state
 let contextMenuTarget = null;
+let isIsolated = false; // Track if isolation is active
 
 /**
  * Show context menu for a node
@@ -499,6 +517,29 @@ function contextCopyIP() {
 }
 
 /**
+ * SSH to device - opens in iTerm2 if available, otherwise default terminal
+ */
+function contextSSH() {
+    if (!contextMenuTarget) return;
+    const ip = contextMenuTarget.data('primaryIP');
+    const hostname = contextMenuTarget.data('label');
+    
+    if (!ip || ip === 'N/A') {
+        showNotification('No IP address available for ' + hostname);
+        hideContextMenu();
+        return;
+    }
+    
+    // Use ssh:// URL scheme - macOS will open in default terminal app
+    // If iTerm2 is set as default handler, it opens there
+    // Otherwise opens in Terminal.app
+    window.location.href = 'ssh://' + ip;
+    
+    showNotification('Opening SSH to ' + ip);
+    hideContextMenu();
+}
+
+/**
  * Open device page
  */
 function contextOpenDevice() {
@@ -526,13 +567,16 @@ function contextIsolate() {
     if (!contextMenuTarget) return;
     const neighborhood = contextMenuTarget.closedNeighborhood();
     
+    isIsolated = true; // Set isolation flag
+    
     cy.batch(function() {
         cy.elements().addClass('dimmed');
         neighborhood.removeClass('dimmed');
+        neighborhood.addClass('highlighted');
     });
     
     updateOverlayOpacity(neighborhood);
-    showNotification('Showing: ' + contextMenuTarget.data('label') + ' + neighbors. Click elsewhere to reset.');
+    showNotification('Isolated: ' + contextMenuTarget.data('label') + '. Click background to reset.');
     hideContextMenu();
 }
 
@@ -894,8 +938,8 @@ function initCytoscape() {
     // Click on background to reset isolation
     cy.on('tap', function(event) {
         if (event.target === cy) {
-            // Clicked on background
-            resetHighlight();
+            // Clicked on background - clear isolation
+            clearIsolation();
         }
     });
     
