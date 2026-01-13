@@ -438,6 +438,38 @@ document.addEventListener('click', function(e) {
     }
 });
 
+/**
+ * Toggle fullscreen mode
+ */
+function toggleFullscreen() {
+    const btn = document.getElementById('btn-fullscreen');
+    
+    if (!document.fullscreenElement) {
+        // Enter fullscreen
+        document.documentElement.requestFullscreen().then(() => {
+            btn.textContent = '■ Exit';
+            btn.classList.add('active');
+        }).catch(err => {
+            console.error('Fullscreen error:', err);
+        });
+    } else {
+        // Exit fullscreen
+        document.exitFullscreen().then(() => {
+            btn.textContent = '□ Fullscreen';
+            btn.classList.remove('active');
+        });
+    }
+}
+
+// Listen for fullscreen change (e.g., user presses Escape)
+document.addEventListener('fullscreenchange', function() {
+    const btn = document.getElementById('btn-fullscreen');
+    if (!document.fullscreenElement) {
+        btn.textContent = '□ Fullscreen';
+        btn.classList.remove('active');
+    }
+});
+
 // Visibility states
 let showPorts = false;  // Ports hidden by default
 let showHostnames = true;
