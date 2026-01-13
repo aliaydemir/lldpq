@@ -102,6 +102,8 @@ function convertToCytoscapeFormat(topologyData) {
                 tgtIfName: link.tgtIfName,
                 srcDevice: link.srcDevice,
                 tgtDevice: link.tgtDevice,
+                srcPortStatus: link.srcPortStatus,
+                tgtPortStatus: link.tgtPortStatus,
                 color: getLinkColor(link),
                 lineStyle: getLinkStyle(link),
                 is_missing: link.is_missing,
@@ -610,6 +612,17 @@ function contextDetails() {
     
     // Build connections table
     if (connectedEdges.length > 0) {
+        // Sort edges by local port name (natural sort for swp1, swp2, swp10, etc.)
+        const sortedEdges = connectedEdges.toArray().sort((a, b) => {
+            const aData = a.data();
+            const bData = b.data();
+            const aIsSource = aData.srcDevice === nodeData.label;
+            const bIsSource = bData.srcDevice === nodeData.label;
+            const aPort = aIsSource ? aData.srcIfName : aData.tgtIfName;
+            const bPort = bIsSource ? bData.srcIfName : bData.tgtIfName;
+            return aPort.localeCompare(bPort, undefined, { numeric: true, sensitivity: 'base' });
+        });
+        
         html += `
             <table class="modal-table">
                 <thead>
@@ -624,16 +637,16 @@ function contextDetails() {
                 <tbody>
         `;
         
-        connectedEdges.forEach(edge => {
+        sortedEdges.forEach(edge => {
             const edgeData = edge.data();
-            const isSource = edgeData.source === nodeId;
+            // Use device names for reliable comparison
+            const isSource = edgeData.srcDevice === nodeData.label;
             
             // Use srcIfName/tgtIfName from topology data
             const localPort = isSource ? edgeData.srcIfName : edgeData.tgtIfName;
             const remotePort = isSource ? edgeData.tgtIfName : edgeData.srcIfName;
-            const remoteNodeId = isSource ? edgeData.target : edgeData.source;
-            const remoteNode = cy.getElementById(remoteNodeId);
-            const remoteLabel = remoteNode ? remoteNode.data('label') : remoteNodeId;
+            const remoteDevice = isSource ? edgeData.tgtDevice : edgeData.srcDevice;
+            const remoteLabel = remoteDevice || 'N/A';
             
             // Get port status (UP/DOWN/UNKNOWN) - use correct side based on perspective
             const portStatus = isSource ? edgeData.srcPortStatus : edgeData.tgtPortStatus;
