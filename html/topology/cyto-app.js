@@ -23,19 +23,19 @@ const LINK_COLORS = {
 const NODE_COLORS = {
     switch: '#5b9bd5',
     router: '#70ad47', 
-    firewall: '#c00000',
-    server: '#7030a0',
+    firewall: '#FF9800',    // Turuncu - daha görünür
+    server: '#00BCD4',
+    host: '#7030a0',        // Cyan/Turkuaz
     unknown: '#666666'
 };
 
 // NeXt UI font icon unicode characters
 const ICON_CHARS = {
     switch: '\ue618',
-    switchbg: '\ue619',
     router: '\ue61c',
-    routerbg: '\ue61d',
-    firewall: '\ue640',
-    server: '\ue612',
+    firewall: '\ue61c',
+    server: '\ue642',
+    host: '\ue642',
     unknown: '?'
 };
 
