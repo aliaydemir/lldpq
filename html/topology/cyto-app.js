@@ -852,6 +852,76 @@ function toggleHostnames(show) {
 }
 
 /**
+ * Highlight links by type (normal, missing, unexpected)
+ * Click on legend item to highlight all links of that type
+ */
+let highlightedLinkType = null;
+
+function highlightLinkType(type) {
+    if (!cy) return;
+    
+    // If same type clicked again, clear highlight
+    if (highlightedLinkType === type) {
+        clearLinkHighlight();
+        return;
+    }
+    
+    highlightedLinkType = type;
+    
+    cy.batch(function() {
+        // Dim all elements first
+        cy.elements().addClass('dimmed');
+        
+        // Highlight edges of the selected type
+        cy.edges().forEach(edge => {
+            const isMissing = edge.data('is_missing') === 'yes';
+            const isUnexpected = edge.data('is_missing') === 'fail';
+            
+            let shouldHighlight = false;
+            if (type === 'normal' && !isMissing && !isUnexpected) shouldHighlight = true;
+            if (type === 'missing' && isMissing) shouldHighlight = true;
+            if (type === 'unexpected' && isUnexpected) shouldHighlight = true;
+            
+            if (shouldHighlight) {
+                edge.removeClass('dimmed').addClass('highlighted');
+                // Also highlight connected nodes
+                edge.source().removeClass('dimmed').addClass('highlighted');
+                edge.target().removeClass('dimmed').addClass('highlighted');
+            }
+        });
+    });
+    
+    // Update overlay opacity for dimmed nodes
+    document.querySelectorAll('.node-overlay').forEach(overlay => {
+        const nodeId = overlay.dataset.nodeId;
+        const node = cy.getElementById(nodeId);
+        if (node && node.hasClass('dimmed')) {
+            overlay.style.opacity = '0.2';
+        } else {
+            overlay.style.opacity = '1';
+        }
+    });
+    
+    // Show notification
+    const typeLabels = { 'normal': 'Normal', 'missing': 'Missing', 'unexpected': 'Unexpected' };
+    showNotification(`Highlighting ${typeLabels[type]} links. Click again to clear.`);
+}
+
+function clearLinkHighlight() {
+    if (!cy) return;
+    highlightedLinkType = null;
+    
+    cy.batch(function() {
+        cy.elements().removeClass('dimmed highlighted');
+    });
+    
+    // Reset overlay opacity
+    document.querySelectorAll('.node-overlay').forEach(overlay => {
+        overlay.style.opacity = '1';
+    });
+}
+
+/**
  * Toggle problems only filter - show only missing/unexpected links
  */
 function toggleProblems(show) {
