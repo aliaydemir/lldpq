@@ -46,8 +46,7 @@ edit these 7 files:
 ## [04] cron jobs (auto setup)
 
 ```
-* * * * * lldpq                         # fast LLDP analysis every minute
-*/5 * * * * monitor                     # system monitoring every 5 minutes
+*/5 * * * * lldpq                       # system monitoring every 5 minutes
 0 */12 * * * get-conf                   # configs every 12 hours
 * * * * * lldp-trigger-monitor.sh       # web triggers daemon (checks every 5 seconds)
 ```

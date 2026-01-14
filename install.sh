@@ -84,14 +84,12 @@ echo "[05] Adding cron jobs..."
 sudo sed -i '/lldpq\|monitor\|get-conf/d' /etc/crontab
 
 # Add new cron jobs
-echo "* * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab
-echo "*/5 * * * * $(whoami) /usr/local/bin/monitor" | sudo tee -a /etc/crontab
+echo "*/5 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab
 echo "0 */12 * * * $(whoami) /usr/local/bin/get-conf" | sudo tee -a /etc/crontab
 echo "* * * * * $(whoami) $HOME/monitor/lldp-trigger-monitor.sh" | sudo tee -a /etc/crontab
 
 echo "Cron jobs added:"
-echo "   - lldpq:           every minute (fast LLDP analysis)"
-echo "   - monitor:         every 5 minutes (system monitoring)"  
+echo "   - lldpq:           every 5 minutes (system monitoring)"  
 echo "   - get-conf:        every 12 hours"
 echo "   - web triggers:    daemon (checks every 5 seconds, enables Run LLDP Check button)"
 
@@ -112,7 +110,6 @@ echo "   1. Edit the 4 configuration files mentioned above"
 echo "   2. Setup SSH keys for all devices"
 echo "   3. Test the tools manually:"
 echo "      - lldpq"
-echo "      - monitor" 
 echo "      - get-conf"
 echo "      - zzh"
 echo "      - pping"

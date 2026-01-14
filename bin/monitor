@@ -1,8 +1,0 @@
-#!/bin/bash
-cd ~/monitor/
-# Wait for any existing monitor.sh to finish
-while pgrep -f "./monitor\.sh" >/dev/null; do
-    sleep 10
-done
-/bin/bash ./monitor.sh >/dev/null 2>&1
-exit 0
