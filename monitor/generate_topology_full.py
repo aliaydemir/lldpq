@@ -226,6 +226,12 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
         for section in interface_sections:
             interface_name = get_lldp_field(section, "Interface", r'Interface:\s*(\S+),')
             neighbor_device = get_lldp_field(section, "SysName", r'SysName:\s*(\S+)')
+            
+            # Clean up FQDN suffix from neighbor device name (e.g., ".cm.cluster", ".local")
+            # This matches the logic in lldp-validate.py for consistency
+            if neighbor_device:
+                neighbor_device = neighbor_device.split(".cm.cluster")[0]
+                neighbor_device = neighbor_device.split(".local")[0]
 
             raw_port_id_ifname = get_lldp_field(section, "PortID", r'PortID:\s+ifname\s+(\S+)')
             raw_port_descr = get_lldp_field(section, "PortDescr", r'PortDescr:\s*(\S+)')
