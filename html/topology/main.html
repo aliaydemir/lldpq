@@ -111,6 +111,11 @@
             background: #212121;
             position: relative;
         }
+        
+        /* Force Cytoscape canvas layers below icon overlays */
+        #cy canvas {
+            z-index: 1 !important;
+        }
 
         /* Legend in toolbar */
         .legend {
@@ -180,7 +185,7 @@
             font-family: 'next-font';
             font-size: 24px;
             transform: translate(-50%, -50%);
-            z-index: 100;
+            z-index: 9999;
         }
 
         .node-icon-overlay .icon-bg {
