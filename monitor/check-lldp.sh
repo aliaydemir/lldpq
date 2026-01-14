@@ -1,15 +1,34 @@
 #!/bin/bash
-# LLDPq Topology Check Script
+# LLDPq Topology Check Script - OPTIMIZED VERSION
+# Single SSH session per device + Parallel limits
+#
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License
+
+# Start timing
+START_TIME=$(date +%s)
+echo "🚀 Starting OPTIMIZED LLDP check at $(date)"
 
 DATE=$(date '+%Y-%m-%d--%H-%M')
 
 SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
 eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 
+# === TUNING PARAMETERS ===
+MAX_PARALLEL=300  # Maximum parallel SSH connections
+SSH_TIMEOUT=30    # SSH connection timeout in seconds
+
 mkdir -p "$SCRIPT_DIR/lldp-results"
 
 unreachable_hosts_file=$(mktemp)
+active_jobs_file=$(mktemp)
+completed_count_file=$(mktemp)
+echo "0" > "$completed_count_file"
+
+# Total device count for progress
+TOTAL_DEVICES=${#devices[@]}
+
+# SSH options with multiplexing
+SSH_OPTS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPath=~/.ssh/cm-%r@%h:%p -o ControlPersist=60 -o BatchMode=yes -o ConnectTimeout=$SSH_TIMEOUT"
 
 ping_test() {
     local device=$1
@@ -22,69 +41,106 @@ ping_test() {
     return 0
 }
 
-execute_commands() {
+# ============================================================================
+# OPTIMIZED: Single SSH session collects ALL LLDP data
+# ============================================================================
+execute_commands_optimized() {
     local device=$1
     local user=$2
     local hostname=$3
-
-    # LLDP data collection
-    echo -e "=========================================${hostname}=========================================\n" >> lldp-results/${hostname}_lldp_result.ini
-    ssh -o StrictHostKeyChecking=no -T -q "$user@$device" "sudo lldpctl" >> lldp-results/${hostname}_lldp_result.ini
-
-    # Port status collection (operational state + carrier check)
-    echo -e "\n===PORT_STATUS_START===" >> lldp-results/${hostname}_lldp_result.ini
-    ssh -o StrictHostKeyChecking=no -T -q "$user@$device" "
+    
+    # Single SSH connection collects everything
+    ssh $SSH_OPTS -T -q "$user@$device" "
+        echo '=========================================${hostname}========================================='
+        echo ''
+        
+        # LLDP data
+        sudo lldpctl 2>/dev/null
+        
+        # Port status
+        echo ''
+        echo '===PORT_STATUS_START==='
         for port in /sys/class/net/swp*; do
             [ -d \"\$port\" ] || continue
             port_name=\$(basename \"\$port\")
-            oper_state=\$(cat \"\$port/operstate\" 2>/dev/null || echo \"unknown\")
-            carrier=\$(cat \"\$port/carrier\" 2>/dev/null || echo \"0\")
-
-            # Real link state = operstate AND carrier must both be up
-            if [ \"\$oper_state\" = \"up\" ] && [ \"\$carrier\" = \"1\" ]; then
+            oper_state=\$(cat \"\$port/operstate\" 2>/dev/null || echo 'unknown')
+            carrier=\$(cat \"\$port/carrier\" 2>/dev/null || echo '0')
+            
+            if [ \"\$oper_state\" = 'up' ] && [ \"\$carrier\" = '1' ]; then
                 echo \"\$port_name UP\"
-            elif [ \"\$oper_state\" = \"down\" ] || [ \"\$carrier\" = \"0\" ]; then
+            elif [ \"\$oper_state\" = 'down' ] || [ \"\$carrier\" = '0' ]; then
                 echo \"\$port_name DOWN\"
             else
                 echo \"\$port_name UNKNOWN\"
             fi
         done | sort -V
-    " >> lldp-results/${hostname}_lldp_result.ini
-    echo -e "===PORT_STATUS_END===\n" >> lldp-results/${hostname}_lldp_result.ini
-
-    # Port speed collection (in Mbps)
-    echo -e "===PORT_SPEED_START===" >> lldp-results/${hostname}_lldp_result.ini
-    ssh -o StrictHostKeyChecking=no -T -q "$user@$device" "
+        echo '===PORT_STATUS_END==='
+        
+        # Port speed
+        echo ''
+        echo '===PORT_SPEED_START==='
         for port in /sys/class/net/swp*; do
             [ -d \"\$port\" ] || continue
             port_name=\$(basename \"\$port\")
-            speed=\$(cat \"\$port/speed\" 2>/dev/null || echo \"0\")
-            # Only output if speed > 0 (valid)
+            speed=\$(cat \"\$port/speed\" 2>/dev/null || echo '0')
             if [ \"\$speed\" -gt 0 ] 2>/dev/null; then
                 echo \"\$port_name \$speed\"
             fi
         done | sort -V
-    " >> lldp-results/${hostname}_lldp_result.ini
-    echo -e "===PORT_SPEED_END===\n" >> lldp-results/${hostname}_lldp_result.ini
+        echo '===PORT_SPEED_END==='
+        echo ''
+    " > "lldp-results/${hostname}_lldp_result.ini" 2>/dev/null
 }
 
 process_device() {
     local device=$1
     local user=$2
     local hostname=$3
+    
     ping_test "$device" "$hostname"
     if [ $? -eq 0 ]; then
-        execute_commands "$device" "$user" "$hostname"
+        execute_commands_optimized "$device" "$user" "$hostname"
     fi
+    
+    # Update progress counter (thread-safe with flock)
+    (
+        flock -x 200
+        count=$(cat "$completed_count_file")
+        count=$((count + 1))
+        echo "$count" > "$completed_count_file"
+        printf "\r📊 Progress: %d/%d devices completed" "$count" "$TOTAL_DEVICES"
+    ) 200>"$completed_count_file.lock"
 }
 
+# ============================================================================
+# PARALLEL EXECUTION WITH LIMITS
+# ============================================================================
+echo "📡 Collecting LLDP data from $TOTAL_DEVICES devices (max $MAX_PARALLEL parallel)..."
+echo ""
+
+job_count=0
 for device in "${!devices[@]}"; do
     IFS=' ' read -r user hostname <<< "${devices[$device]}"
+    
+    # Start job in background
     process_device "$device" "$user" "$hostname" &
+    
+    job_count=$((job_count + 1))
+    
+    # Limit parallel jobs
+    if [ $job_count -ge $MAX_PARALLEL ]; then
+        wait -n 2>/dev/null || wait
+        job_count=$((job_count - 1))
+    fi
 done
 
+# Wait for all remaining jobs
 wait
 
+echo ""
+echo ""
+
+# Show unreachable hosts
 if [ -s "$unreachable_hosts_file" ]; then
     echo -e "\e[0;36mUnreachable hosts:\e[0m"
     echo ""
@@ -95,7 +151,11 @@ if [ -s "$unreachable_hosts_file" ]; then
     echo ""
 fi
 
+# Run validation
+echo "🔍 Running LLDP validation..."
 /usr/bin/python3 ./lldp-validate.py
+
+# Process results
 grep -v Pass lldp-results/lldp_results.ini > lldp-results/raw-problems-lldp_results.ini
 
 awk 'NF' RS='\n\n' lldp-results/raw-problems-lldp_results.ini | awk '/No-Info/ || /Fail/' RS= | sed '/^================================/i\\' > lldp-results/problems-lldp_results.ini
@@ -118,9 +178,13 @@ if ! grep -q "Created on" lldp-results/down-lldp_results.ini; then
     echo "$header" | cat - lldp-results/down-lldp_results.ini > temp && mv temp lldp-results/down-lldp_results.ini
 fi
 
+# Copy results to web server
+echo "📤 Copying results to web server..."
 sudo cp lldp-results/lldp_results.ini /var/www/html/
-sudo mv /var/www/html/problems-lldp_results.ini /var/www/html/hstr/Problems-${DATE}.ini
+sudo mv /var/www/html/problems-lldp_results.ini /var/www/html/hstr/Problems-${DATE}.ini 2>/dev/null
 sudo cp lldp-results/problems-lldp_results.ini /var/www/html/
+
+# Cleanup old history files (keep 1 per day for last 30 days)
 folder_path="/var/www/html/hstr"
 cd "$folder_path" || exit 1
 declare -a keep_files
@@ -142,5 +206,12 @@ find . -type f -name "*.ini" | while read file; do
     fi
 done
 
-rm -f "$unreachable_hosts_file"
+# Cleanup temp files
+rm -f "$unreachable_hosts_file" "$active_jobs_file" "$completed_count_file" "$completed_count_file.lock"
+
+# Show timing
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+echo ""
+echo "✅ LLDP check completed in ${DURATION} seconds"
 exit 0
