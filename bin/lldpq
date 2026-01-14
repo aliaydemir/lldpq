@@ -14,6 +14,8 @@ wait_until_not_running "assets.sh"
 /bin/bash ./assets.sh >/dev/null 2>&1
 wait_until_not_running "check-lldp.sh"
 /bin/bash ./check-lldp.sh >/dev/null 2>&1
+wait_until_not_running "monitor.sh"
+/bin/bash ./monitor.sh >/dev/null 2>&1
 # Check for network alerts (only if monitoring data exists)
 if [[ -d "monitor-results" ]] && [[ -f "notifications.yaml" ]]; then
     python3 ./check_alerts.py >/dev/null 2>&1 || echo "⚠️  Alert check failed (non-critical)"
