@@ -35,6 +35,12 @@ class BGPHealth(Enum):
     CRITICAL = "critical"
     UNKNOWN = "unknown"
 
+def get_enum_value(obj):
+    """Safely get value from enum or return string as-is"""
+    if hasattr(obj, 'value'):
+        return obj.value
+    return str(obj)
+
 @dataclass
 class BGPNeighbor:
     """BGP neighbor information"""
@@ -337,7 +343,7 @@ class BGPAnalyzer:
         neighbor_dicts = []
         for neighbor in neighbors:
             neighbor_dict = neighbor.__dict__.copy()
-            neighbor_dict['state'] = neighbor.state.value  # Convert enum to string
+            neighbor_dict['state'] = get_enum_value(neighbor.state)
             neighbor_dicts.append(neighbor_dict)
         
         self.current_bgp_stats[hostname] = {
@@ -388,8 +394,8 @@ class BGPAnalyzer:
                     problem_neighbors.append({
                         "hostname": hostname,
                         "neighbor": neighbor.neighbor_name,
-                        "state": neighbor.state.value,
-                        "health": health.value,
+                        "state": get_enum_value(neighbor.state),
+                        "health": get_enum_value(health),
                         "uptime": neighbor.uptime
                     })
         
@@ -419,9 +425,9 @@ class BGPAnalyzer:
                         "neighbor": neighbor.neighbor_name,
                         "type": "BGP_NEIGHBOR_DOWN",
                         "severity": "critical",
-                        "message": f"BGP neighbor {neighbor.neighbor_name} is in {neighbor.state.value.upper()} state",
+                        "message": f"BGP neighbor {neighbor.neighbor_name} is in {get_enum_value(neighbor.state).upper()} state",
                         "details": {
-                            "state": neighbor.state.value,
+                            "state": get_enum_value(neighbor.state),
                             "uptime": neighbor.uptime,
                             "asn": neighbor.asn,
                             "interface": neighbor.interface
@@ -441,7 +447,7 @@ class BGPAnalyzer:
                         "details": {
                             "in_queue": neighbor.in_queue,
                             "out_queue": neighbor.out_queue,
-                            "state": neighbor.state.value
+                            "state": get_enum_value(neighbor.state)
                         },
                         "action": "Monitor for potential congestion or processing delays"
                     })
@@ -458,7 +464,7 @@ class BGPAnalyzer:
                         "details": {
                             "prefixes_received": neighbor.prefixes_received,
                             "prefixes_sent": neighbor.prefixes_sent,
-                            "state": neighbor.state.value
+                            "state": get_enum_value(neighbor.state)
                         },
                         "action": "Verify route advertisements and filtering policies"
                     })
@@ -718,21 +724,24 @@ class BGPAnalyzer:
             health = neighbor_info['health']
             hostname = neighbor_info['hostname']
             
-            state_class = f"state-{neighbor.state.value}"
-            health_class = f"bgp-{health.value}"
+            state_val = get_enum_value(neighbor.state)
+            health_val = get_enum_value(health)
+            
+            state_class = f"state-{state_val}"
+            health_class = f"bgp-{health_val}"
             
             html_content += f"""
-        <tr data-health="{health.value}" data-state="{neighbor.state.value}">
+        <tr data-health="{health_val}" data-state="{state_val}">
             <td>{hostname}</td>
             <td>{neighbor.neighbor_name}</td>
             <td>{neighbor.interface or 'N/A'}</td>
-            <td><span class="{state_class}">{neighbor.state.value.upper()}</span></td>
+            <td><span class="{state_class}">{state_val.upper()}</span></td>
             <td>{neighbor.asn}</td>
             <td>{neighbor.uptime}</td>
             <td>{neighbor.prefixes_received}/{neighbor.prefixes_sent}</td>
             <td>{neighbor.messages_received}/{neighbor.messages_sent}</td>
             <td>{neighbor.in_queue}/{neighbor.out_queue}</td>
-            <td><span class="{health_class}">{health.value.upper()}</span></td>
+            <td><span class="{health_class}">{health_val.upper()}</span></td>
         </tr>
 """
         
