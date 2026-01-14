@@ -379,7 +379,7 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
            node["name"] not in reachable_devices:
             node["icon"] = "unknown"
 
-    return topology_data, device_nodes, link_id, all_lldp_links_found, all_port_status
+    return topology_data, device_nodes, link_id, all_lldp_links_found, all_port_status, all_port_speed
 
 def parse_topology_dot_file(dot_file_path):
     defined_links = set()
@@ -412,7 +412,7 @@ def generate_topology_file(output_filename, directory, assets_file_path, hosts_f
                 "version": "N/A"
             }
 
-    topology_data, device_nodes, current_link_id, all_lldp_links_found, all_port_status = parse_lldp_results(directory, device_info, hosts_only_devices)
+    topology_data, device_nodes, current_link_id, all_lldp_links_found, all_port_status, all_port_speed = parse_lldp_results(directory, device_info, hosts_only_devices)
 
     defined_links = parse_topology_dot_file(dot_file_path)
 
