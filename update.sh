@@ -64,6 +64,7 @@ rm -rf "$system_config_backup"
 echo "   - Updating html/* to /var/www/html/"
 sudo cp -r html/* /var/www/html/
 sudo chmod +x /var/www/html/trigger-lldp.sh
+sudo chmod +x /var/www/html/trigger-monitor.sh
 sudo chmod +x /var/www/html/edit-topology.sh
 
 echo "   - Updating /etc/lldpq.conf"

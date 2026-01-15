@@ -44,6 +44,7 @@ sudo cp -r etc/* /etc/
 echo "   - Copying html/* to /var/www/html/"
 sudo cp -r html/* /var/www/html/
 sudo chmod +x /var/www/html/trigger-lldp.sh
+sudo chmod +x /var/www/html/trigger-monitor.sh
 sudo chmod +x /var/www/html/edit-topology.sh
 
 echo "   - Copying bin/* to /usr/local/bin/"
