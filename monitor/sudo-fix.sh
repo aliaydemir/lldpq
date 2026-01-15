@@ -66,7 +66,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Load devices
-SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 if [[ ! -f "$SCRIPT_DIR/devices.yaml" ]]; then
     echo "ERROR: devices.yaml not found in $SCRIPT_DIR"
     exit 1

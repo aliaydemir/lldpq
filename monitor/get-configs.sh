@@ -2,7 +2,7 @@
 # LLDPq Topology Check Script  
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 
-SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 date=$(date +%F--%H-%M)
 mkdir -p ~/configs/configs-${date}/nv-yaml

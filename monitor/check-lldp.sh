@@ -10,7 +10,7 @@ echo "🚀 Starting OPTIMIZED LLDP check at $(date)"
 
 DATE=$(date '+%Y-%m-%d--%H-%M')
 
-SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 
 # === TUNING PARAMETERS ===

@@ -10,7 +10,7 @@ START_TIME=$(date +%s)
 echo "🚀 Starting OPTIMIZED monitoring at $(date)"
 
 DATE=$(date '+%Y-%m-%d %H-%M-%S')
-SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 
 # === TUNING PARAMETERS ===
@@ -648,7 +648,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # ============================================================================
 # COPY RESULTS
 # ============================================================================
-sudo cp -r monitor-results/ /var/www/html/
+sudo cp -r monitor-results /var/www/html/
 sudo chmod 644 /var/www/html/monitor-results/* 2>/dev/null
 
 rm -f "$unreachable_hosts_file"
