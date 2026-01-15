@@ -59,8 +59,9 @@ def parse_lldp_output(filename):
             sys_descr_match = re.search(r'SysDescr:\s+([^\n]+)', interface)
             vendor = sys_descr_match.group(1) if sys_descr_match else ""
 
-            if "Cumulus" in vendor or "Cisco" in vendor:
-                port_id_match = re.search(r'PortID:\s+ifname\s+(\S+)', interface)
+            if "Cumulus" in vendor or "Cisco" in vendor or "FortiGate" in vendor:
+                # ifname for Cumulus/Cisco, ifalias for FortiGate
+                port_id_match = re.search(r'PortID:\s+(?:ifname|ifalias)\s+(\S+)', interface)
             else:
                 # For HGX devices, extract just the interface name from "Interface 4 as enp157s0f0np0"
                 port_descr_match = re.search(r'PortDescr:\s+(.+)', interface)

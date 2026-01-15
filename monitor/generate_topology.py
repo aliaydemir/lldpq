@@ -312,7 +312,8 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
                 neighbor_device = neighbor_device.split(".cm.cluster")[0]
                 neighbor_device = neighbor_device.split(".local")[0]
 
-            raw_port_id_ifname = get_lldp_field(section, "PortID", r'PortID:\s+ifname\s+(\S+)')
+            # ifname for Cumulus/Cisco, ifalias for FortiGate
+            raw_port_id_ifname = get_lldp_field(section, "PortID", r'PortID:\s+(?:ifname|ifalias)\s+(\S+)')
             # Optimized PortDescr parsing - handle multiple formats
             raw_port_descr = None
             port_descr_full = get_lldp_field(section, "PortDescr", r'PortDescr:\s*(.*?)(?:\n|$)')
