@@ -140,6 +140,15 @@
                 </svg>
                 <span id="run-lldp-text">Run LLDP Check</span>
             </button>
+            <button id="edit-topology" onclick="openTopologyEditor()" 
+                    style="background: #607d8b; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
+                    onmouseover="this.style.background='#546e7a'" 
+                    onmouseout="this.style.background='#607d8b'">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"/>
+                </svg>
+                Edit Topology
+            </button>
             <button id="download-csv" onclick="downloadCSV()" 
                     style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
                     onmouseover="this.style.background='#45a049'" 
@@ -932,6 +941,112 @@
             loadLLDPData();
             initTableSorting();
         });
+
+        // ===== Topology Editor Functions =====
+        function openTopologyEditor() {
+            document.getElementById('topologyEditorModal').style.display = 'flex';
+            document.getElementById('topologyEditorStatus').textContent = 'Loading...';
+            
+            fetch('/edit-topology')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('topologyEditor').value = data.content;
+                        document.getElementById('topologyEditorStatus').textContent = '';
+                    } else {
+                        document.getElementById('topologyEditor').value = '# Error loading file: ' + data.error;
+                        document.getElementById('topologyEditorStatus').textContent = 'Error: ' + data.error;
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('topologyEditor').value = '# Error loading file';
+                    document.getElementById('topologyEditorStatus').textContent = 'Error: ' + err.message;
+                });
+        }
+
+        function closeTopologyEditor(event) {
+            if (event.target === document.getElementById('topologyEditorModal')) {
+                closeTopologyEditorModal();
+            }
+        }
+
+        function closeTopologyEditorModal() {
+            document.getElementById('topologyEditorModal').style.display = 'none';
+        }
+
+        function saveTopologyOnly() {
+            const content = document.getElementById('topologyEditor').value;
+            document.getElementById('topologyEditorStatus').textContent = 'Saving...';
+            
+            fetch('/edit-topology', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: content })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('topologyEditorStatus').textContent = 'Saved successfully!';
+                    setTimeout(() => {
+                        document.getElementById('topologyEditorStatus').textContent = '';
+                    }, 3000);
+                } else {
+                    document.getElementById('topologyEditorStatus').textContent = 'Error: ' + data.error;
+                }
+            })
+            .catch(err => {
+                document.getElementById('topologyEditorStatus').textContent = 'Error: ' + err.message;
+            });
+        }
+
+        function saveTopologyAndRun() {
+            const content = document.getElementById('topologyEditor').value;
+            document.getElementById('topologyEditorStatus').textContent = 'Saving...';
+            
+            fetch('/edit-topology', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: content })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('topologyEditorStatus').textContent = 'Saved! Running LLDP check...';
+                    closeTopologyEditorModal();
+                    runLLDPCheck();
+                } else {
+                    document.getElementById('topologyEditorStatus').textContent = 'Error: ' + data.error;
+                }
+            })
+            .catch(err => {
+                document.getElementById('topologyEditorStatus').textContent = 'Error: ' + err.message;
+            });
+        }
     </script>
+
+    <!-- Topology Editor Modal -->
+    <div id="topologyEditorModal" onclick="closeTopologyEditor(event)" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center;">
+        <div onclick="event.stopPropagation()" style="background: #2d2d2d; border-radius: 8px; width: 80%; max-width: 900px; max-height: 90vh; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+            <div style="padding: 15px 20px; background: #1a1a1a; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; color: #76b900; font-size: 16px;">Edit Topology (topology.dot)</h3>
+                <button onclick="closeTopologyEditorModal()" style="background: none; border: none; color: #888; font-size: 24px; cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+            </div>
+            <div style="padding: 0;">
+                <div style="padding: 15px; background: #333; border-bottom: 1px solid #4a4a4a; font-size: 12px; color: #888;">
+                    Format: <code style="color: #76b900;">"device1":"port1" -- "device2":"port2"</code>
+                    &nbsp;|&nbsp; One link per line &nbsp;|&nbsp; Lines starting with # are comments
+                </div>
+                <textarea id="topologyEditor" style="width: 100%; height: 50vh; padding: 15px; border: none; background: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; resize: vertical; box-sizing: border-box;" placeholder="Loading..."></textarea>
+                <div style="padding: 15px; background: #333; border-top: 1px solid #4a4a4a; text-align: right; display: flex; justify-content: space-between; align-items: center;">
+                    <span id="topologyEditorStatus" style="color: #888; font-size: 12px;"></span>
+                    <div>
+                        <button onclick="closeTopologyEditorModal()" style="background: #555; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">Cancel</button>
+                        <button onclick="saveTopologyOnly()" style="background: #607d8b; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">Save</button>
+                        <button onclick="saveTopologyAndRun()" style="background: #76b900; color: #000; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">Save & Run LLDPq</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
