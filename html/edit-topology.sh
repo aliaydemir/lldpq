@@ -2,23 +2,9 @@
 # edit-topology.sh - Read/Write topology.dot via CGI
 # Called by nginx fcgiwrap
 
-# Load config from /etc/lldpq.conf (created by install.sh)
-if [ -f /etc/lldpq.conf ]; then
-    source /etc/lldpq.conf
-fi
-
-# Default to /home directory scan if not configured
-if [ -z "$MONITOR_DIR" ]; then
-    # Try common locations
-    for dir in /home/*/monitor; do
-        if [ -d "$dir" ] && [ -f "$dir/topology.dot" ]; then
-            MONITOR_DIR="$dir"
-            break
-        fi
-    done
-fi
-
-TOPOLOGY_FILE="${MONITOR_DIR}/topology.dot"
+# topology.dot is stored in /var/www/html for www-data access
+# A symlink in ~/monitor/topology.dot points to this file
+TOPOLOGY_FILE="/var/www/html/topology.dot"
 
 # Read request method
 METHOD="${REQUEST_METHOD:-GET}"

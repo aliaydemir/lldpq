@@ -54,6 +54,14 @@ sudo chmod +x /usr/local/bin/*
 echo "   - Copying monitor to ~/monitor"
 cp -r monitor ~/monitor
 
+echo "   - Setting up topology.dot for web editing"
+# Move topology.dot to /var/www/html for www-data access
+sudo mv ~/monitor/topology.dot /var/www/html/topology.dot
+sudo chown $USER:$USER /var/www/html/topology.dot
+sudo chmod 664 /var/www/html/topology.dot
+# Create symlink so monitor scripts can access it
+ln -sf /var/www/html/topology.dot ~/monitor/topology.dot
+
 echo "   - Creating /etc/lldpq.conf"
 echo "# LLDPq Configuration" | sudo tee /etc/lldpq.conf > /dev/null
 echo "MONITOR_DIR=$HOME/monitor" | sudo tee -a /etc/lldpq.conf > /dev/null
