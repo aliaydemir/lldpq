@@ -982,6 +982,109 @@ function runLLDPCheck() {
 }
 
 /**
+ * Open topology editor modal
+ */
+function openTopologyEditor() {
+    const modal = document.getElementById('topologyEditorModal');
+    const editor = document.getElementById('topologyEditor');
+    const status = document.getElementById('topologyEditorStatus');
+    
+    modal.classList.add('show');
+    editor.value = 'Loading...';
+    editor.disabled = true;
+    status.textContent = 'Loading topology.dot...';
+    
+    fetch('/edit-topology', {
+        method: 'GET'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            editor.value = data.content;
+            editor.disabled = false;
+            status.textContent = 'Loaded successfully. Edit and save.';
+        } else {
+            editor.value = '# Error loading file: ' + (data.error || 'Unknown error');
+            status.textContent = 'Error: ' + (data.error || 'Unknown');
+        }
+    })
+    .catch(error => {
+        editor.value = '# Network error loading topology.dot';
+        status.textContent = 'Network error';
+    });
+}
+
+/**
+ * Close topology editor modal
+ */
+function closeTopologyEditor(event) {
+    if (event && event.target !== event.currentTarget) return;
+    document.getElementById('topologyEditorModal').classList.remove('show');
+}
+
+function closeTopologyEditorModal() {
+    document.getElementById('topologyEditorModal').classList.remove('show');
+}
+
+/**
+ * Save topology only (no LLDPq run)
+ */
+function saveTopologyOnly() {
+    const editor = document.getElementById('topologyEditor');
+    const status = document.getElementById('topologyEditorStatus');
+    const content = editor.value;
+    
+    status.textContent = 'Saving...';
+    
+    fetch('/edit-topology', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: content })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            status.textContent = 'Saved successfully!';
+        } else {
+            status.textContent = 'Error: ' + (data.error || 'Save failed');
+        }
+    })
+    .catch(error => {
+        status.textContent = 'Network error saving';
+    });
+}
+
+/**
+ * Save topology and run LLDPq
+ */
+function saveTopology() {
+    const editor = document.getElementById('topologyEditor');
+    const status = document.getElementById('topologyEditorStatus');
+    const content = editor.value;
+    
+    status.textContent = 'Saving...';
+    
+    fetch('/edit-topology', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: content })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            status.textContent = 'Saved! Running LLDPq...';
+            closeTopologyEditorModal();
+            runLLDPCheck();
+        } else {
+            status.textContent = 'Error: ' + (data.error || 'Save failed');
+        }
+    })
+    .catch(error => {
+        status.textContent = 'Network error saving';
+    });
+}
+
+/**
  * Initialize Cytoscape
  */
 function initCytoscape() {

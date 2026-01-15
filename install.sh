@@ -44,6 +44,7 @@ sudo cp -r etc/* /etc/
 echo "   - Copying html/* to /var/www/html/"
 sudo cp -r html/* /var/www/html/
 sudo chmod +x /var/www/html/trigger-lldp.sh
+sudo chmod +x /var/www/html/edit-topology.sh
 
 echo "   - Copying bin/* to /usr/local/bin/"
 sudo cp bin/* /usr/local/bin/
@@ -51,6 +52,10 @@ sudo chmod +x /usr/local/bin/*
 
 echo "   - Copying monitor to ~/monitor"
 cp -r monitor ~/monitor
+
+echo "   - Creating /etc/lldpq.conf"
+echo "# LLDPq Configuration" | sudo tee /etc/lldpq.conf > /dev/null
+echo "MONITOR_DIR=$HOME/monitor" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "Files copied successfully"
 
 echo ""
