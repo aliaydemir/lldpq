@@ -164,7 +164,31 @@ if [[ -d "$HOME/monitor" ]]; then
         cp "$HOME/monitor/notifications.yaml" "$temp_dir/"
     fi
     
-    # Remove old monitor
+    # Check if monitor processes are running before removing directory
+    if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldp-trigger-monitor" >/dev/null 2>&1; then
+        echo ""
+        echo "   WARNING: Monitor processes are currently running!"
+        echo "   Waiting for processes to finish..."
+        # Wait up to 30 seconds for processes to finish
+        for i in {1..30}; do
+            if ! pgrep -f "monitor\.sh" >/dev/null 2>&1 && ! pgrep -f "lldp-trigger-monitor" >/dev/null 2>&1; then
+                break
+            fi
+            sleep 1
+            echo -n "."
+        done
+        echo ""
+        # Final check
+        if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldp-trigger-monitor" >/dev/null 2>&1; then
+            echo "   Processes still running. Proceeding anyway, but this may cause issues."
+            echo "   Consider stopping monitor processes manually: pkill -f monitor.sh"
+        else
+            echo "   Processes finished, safe to proceed"
+        fi
+    fi
+    
+    # Remove old monitor directory (now safer)
+    echo "   - Removing old monitor directory..."
     rm -rf "$HOME/monitor"
 fi
 

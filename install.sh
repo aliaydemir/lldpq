@@ -54,13 +54,22 @@ echo "   - Copying monitor to ~/monitor"
 cp -r monitor ~/monitor
 
 echo "   - Setting up topology.dot for web editing"
-# Move topology.dot to /var/www/html for www-data access
-sudo mv ~/monitor/topology.dot /var/www/html/topology.dot
-# www-data owns it (for web editing), user's group has access too
-sudo chown www-data:$USER /var/www/html/topology.dot
-sudo chmod 664 /var/www/html/topology.dot
-# Create symlink so monitor scripts can access it
-ln -sf /var/www/html/topology.dot ~/monitor/topology.dot
+# Move topology.dot to /var/www/html for www-data access (if it exists)
+if [[ -f ~/monitor/topology.dot ]]; then
+    sudo mv ~/monitor/topology.dot /var/www/html/topology.dot
+    # www-data owns it (for web editing), user's group has access too
+    sudo chown www-data:$USER /var/www/html/topology.dot
+    sudo chmod 664 /var/www/html/topology.dot
+    # Create symlink so monitor scripts can access it
+    ln -sf /var/www/html/topology.dot ~/monitor/topology.dot
+else
+    echo "  topology.dot not found in monitor/, will be created on first use"
+    # Create empty topology.dot in /var/www/html for web editing
+    echo "# LLDPq Topology Definition" | sudo tee /var/www/html/topology.dot > /dev/null
+    sudo chown www-data:$USER /var/www/html/topology.dot
+    sudo chmod 664 /var/www/html/topology.dot
+    ln -sf /var/www/html/topology.dot ~/monitor/topology.dot
+fi
 
 echo "   - Creating /etc/lldpq.conf"
 echo "# LLDPq Configuration" | sudo tee /etc/lldpq.conf > /dev/null
