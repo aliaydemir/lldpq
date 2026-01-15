@@ -85,8 +85,8 @@ echo "[04] Configuring nginx..."
 # Enable LLDPq site
 sudo ln -sf /etc/nginx/sites-available/lldpq /etc/nginx/sites-enabled/lldpq
 
-# Disable Default site
-sudo unlink /etc/nginx/sites-enabled/default
+# Disable Default site (if exists)
+[ -L /etc/nginx/sites-enabled/default ] && sudo unlink /etc/nginx/sites-enabled/default || true
 
 # Test and restart nginx
 sudo nginx -t

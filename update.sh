@@ -70,6 +70,8 @@ sudo chmod +x /var/www/html/edit-topology.sh
 echo "   - Setting up topology.dot for web editing"
 # If topology.dot exists in /var/www/html, it's already set up - just ensure symlink
 if [[ -f "/var/www/html/topology.dot" ]]; then
+    # Ensure monitor directory exists before creating symlink
+    mkdir -p "$HOME/monitor"
     # Ensure symlink exists
     if [[ ! -L "$HOME/monitor/topology.dot" ]]; then
         rm -f "$HOME/monitor/topology.dot" 2>/dev/null
@@ -169,8 +171,9 @@ fi
 # Copy updated files with preserved configs
 mv "$temp_dir" "$HOME/monitor"
 
-# Ensure topology.dot symlink exists
+# Ensure topology.dot symlink exists (after monitor directory is created)
 if [[ -f "/var/www/html/topology.dot" ]] && [[ ! -L "$HOME/monitor/topology.dot" ]]; then
+    mkdir -p "$HOME/monitor"  # Ensure directory exists
     rm -f "$HOME/monitor/topology.dot" 2>/dev/null
     ln -sf /var/www/html/topology.dot "$HOME/monitor/topology.dot"
 fi
