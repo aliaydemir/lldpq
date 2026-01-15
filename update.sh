@@ -79,7 +79,8 @@ else
     # First time setup: move topology.dot to /var/www/html
     if [[ -f "$HOME/monitor/topology.dot" ]] && [[ ! -L "$HOME/monitor/topology.dot" ]]; then
         sudo mv "$HOME/monitor/topology.dot" /var/www/html/topology.dot
-        sudo chown $USER:$USER /var/www/html/topology.dot
+        # www-data owns it (for web editing), user's group has access too
+        sudo chown www-data:$USER /var/www/html/topology.dot
         sudo chmod 664 /var/www/html/topology.dot
         ln -sf /var/www/html/topology.dot "$HOME/monitor/topology.dot"
     fi
@@ -139,9 +140,16 @@ if [[ -d "$HOME/monitor" ]]; then
         cp "$HOME/monitor/hosts.ini" "$temp_dir/"
     fi
     
-    if [[ -f "$HOME/monitor/topology.dot" ]]; then
-        echo "     • topology.dot"
-        cp "$HOME/monitor/topology.dot" "$temp_dir/"
+    # topology.dot is now stored in /var/www/html with symlink in ~/monitor
+    # If it's a symlink, just note it; if it's a real file, migrate to /var/www/html
+    if [[ -L "$HOME/monitor/topology.dot" ]]; then
+        echo "     • topology.dot (symlink to /var/www/html)"
+        # Symlink will be recreated later
+    elif [[ -f "$HOME/monitor/topology.dot" ]]; then
+        echo "     • topology.dot (migrating to /var/www/html)"
+        sudo cp "$HOME/monitor/topology.dot" /var/www/html/topology.dot
+        sudo chown www-data:$USER /var/www/html/topology.dot
+        sudo chmod 664 /var/www/html/topology.dot
     fi
     
     if [[ -f "$HOME/monitor/topology_config.yaml" ]]; then

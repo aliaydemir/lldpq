@@ -57,7 +57,8 @@ cp -r monitor ~/monitor
 echo "   - Setting up topology.dot for web editing"
 # Move topology.dot to /var/www/html for www-data access
 sudo mv ~/monitor/topology.dot /var/www/html/topology.dot
-sudo chown $USER:$USER /var/www/html/topology.dot
+# www-data owns it (for web editing), user's group has access too
+sudo chown www-data:$USER /var/www/html/topology.dot
 sudo chmod 664 /var/www/html/topology.dot
 # Create symlink so monitor scripts can access it
 ln -sf /var/www/html/topology.dot ~/monitor/topology.dot
