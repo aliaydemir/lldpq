@@ -38,11 +38,23 @@ if [ "$METHOD" = "GET" ]; then
     fi
     
 elif [ "$METHOD" = "POST" ]; then
-    # Read POST data (content to save)
-    read -n "$CONTENT_LENGTH" POST_DATA
+    # Read POST data from stdin
+    # Use dd for reliable reading with CONTENT_LENGTH, fallback to cat
+    if [ -n "$CONTENT_LENGTH" ] && [ "$CONTENT_LENGTH" -gt 0 ] 2>/dev/null; then
+        POST_DATA=$(dd bs=1 count="$CONTENT_LENGTH" 2>/dev/null)
+    else
+        POST_DATA=$(cat)
+    fi
     
-    # Extract content from JSON
-    CONTENT=$(echo "$POST_DATA" | python3 -c 'import sys,json; data=json.load(sys.stdin); print(data.get("content", ""))')
+    # Extract content from JSON using Python
+    CONTENT=$(echo "$POST_DATA" | python3 -c '
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    print(data.get("content", ""))
+except:
+    print("")
+' 2>/dev/null)
     
     if [ -n "$CONTENT" ]; then
         # Backup existing file
