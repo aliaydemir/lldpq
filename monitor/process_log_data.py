@@ -916,7 +916,29 @@ class LogAnalyzer:
             .then(data => {
                 if (data.status === 'success') {
                     console.log('✅ Monitor analysis triggered successfully');
-                    // Auto-refresh page after 15 seconds
+                    // Show notification
+                    const notification = document.createElement('div');
+                    notification.style.cssText = `
+                        position: fixed;
+                        top: 20px;
+                        right: 20px;
+                        background: #c87f0a;
+                        color: white;
+                        padding: 15px 20px;
+                        border-radius: 8px;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                        z-index: 1000;
+                        font-size: 14px;
+                        max-width: 350px;
+                        font-family: monospace;
+                    `;
+                    notification.innerHTML = `
+                        <strong>✅ Monitor Analysis Started</strong><br>
+                        The full system analysis is running in the background.<br>
+                        <small>Page will automatically refresh in 35 seconds to show the latest results.</small>
+                    `;
+                    document.body.appendChild(notification);
+                    // Auto-refresh page after 35 seconds
                     setTimeout(() => {
                         window.location.reload();
                     }, 35000);
