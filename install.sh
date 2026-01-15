@@ -27,7 +27,6 @@ echo ""
 echo "[01] Installing required packages..."
 sudo apt update
 sudo apt install -y nginx fcgiwrap python3 python3-pip python3-yaml util-linux bsdextrautils sshpass
-sudo apt install -y fcgiwrap
 sudo systemctl enable --now nginx
 sudo systemctl enable --now fcgiwrap
 
