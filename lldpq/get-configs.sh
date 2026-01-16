@@ -75,16 +75,19 @@ sudo rm -rf "$WEB_ROOT/configs/"*
 sudo cp ~/configs/configs-${date}/nv-set/* "$WEB_ROOT/configs/"
 sudo cp ~/configs/configs-${date}/nv-yaml/* "$WEB_ROOT/configs/"
 
-for dir in ~/[^.]*; do
-    if [[ -d "$dir" && \
-          -d "$dir/inventory" && \
-          -d "$dir/playbooks" && \
-          -d "$dir/roles" && \
-          -d "$dir/assets" ]]; then
-        PROJECT_DIR="$dir"
-        break
-    fi
-done
+# Use PROJECT_DIR from lldpq.conf or search for it
+if [[ -z "$PROJECT_DIR" ]]; then
+    for dir in ~/[^.]*; do
+        if [[ -d "$dir" && \
+              -d "$dir/inventory" && \
+              -d "$dir/playbooks" && \
+              -d "$dir/roles" && \
+              -d "$dir/assets" ]]; then
+            PROJECT_DIR="$dir"
+            break
+        fi
+    done
+fi
 
 if [[ -n "$PROJECT_DIR" ]]; then
     echo "Project Folder is: $PROJECT_DIR"
