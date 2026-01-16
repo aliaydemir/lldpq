@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # LLDP Web Trigger Script
 # Called by nginx via fcgiwrap
 

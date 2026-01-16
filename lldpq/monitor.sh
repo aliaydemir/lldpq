@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Monitor Script - OPTIMIZED VERSION
 # Single SSH session per device + Parallel limits + Parallel analysis
 #
@@ -12,6 +12,10 @@ echo "🚀 Starting OPTIMIZED monitoring at $(date)"
 DATE=$(date '+%Y-%m-%d %H-%M-%S')
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
+
+# Load config with fallback
+source /etc/lldpq.conf 2>/dev/null || true
+WEB_ROOT="${WEB_ROOT:-/var/www/html}"
 
 # === TUNING PARAMETERS ===
 MAX_PARALLEL=300  # Maximum parallel SSH connections (adjust based on your server)
@@ -466,10 +470,10 @@ EOF
 <h1></h1><h1><font color="#b57614">Device Configuration - ${hostname}</font></h1><h3></h3>
 EOF
 
-    if [ -f "/var/www/html/configs/${hostname}.txt" ]; then
+    if [ -f "$WEB_ROOT/configs/${hostname}.txt" ]; then
         echo "<h2><font color='steelblue'>NV Set Commands</font></h2>" >> monitor-results/${hostname}.html
         echo "<div class='config-content' id='config-content'>" >> monitor-results/${hostname}.html
-        cat "/var/www/html/configs/${hostname}.txt" | sed '
+        cat "$WEB_ROOT/configs/${hostname}.txt" | sed '
             s/</\&lt;/g; s/>/\&gt;/g;
             s/^#.*/<span class="comment">&<\/span>/;
             /description/ {
@@ -648,8 +652,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # ============================================================================
 # COPY RESULTS
 # ============================================================================
-sudo cp -r monitor-results /var/www/html/
-sudo chmod 644 /var/www/html/monitor-results/* 2>/dev/null
+sudo cp -r monitor-results "$WEB_ROOT/"
+sudo chmod 644 "$WEB_ROOT/monitor-results/"* 2>/dev/null
 
 rm -f "$unreachable_hosts_file"
 rm -f "$active_jobs_file"

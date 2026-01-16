@@ -1,13 +1,18 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # LLDPq Topology Check Script  
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
+
+# Load config with fallback
+source /etc/lldpq.conf 2>/dev/null || true
+WEB_ROOT="${WEB_ROOT:-/var/www/html}"
+
 date=$(date +%F--%H-%M)
 mkdir -p ~/configs/configs-${date}/nv-yaml
 mkdir -p ~/configs/configs-${date}/nv-set
-sudo mkdir -p /var/www/html/configs
+sudo mkdir -p "$WEB_ROOT/configs"
 unreachable_hosts_file=$(mktemp)
 
 ping_test() {
@@ -66,9 +71,9 @@ else
     echo ""
 fi
 
-sudo rm -rf /var/www/html/configs/*
-sudo cp ~/configs/configs-${date}/nv-set/* /var/www/html/configs/
-sudo cp ~/configs/configs-${date}/nv-yaml/* /var/www/html/configs/
+sudo rm -rf "$WEB_ROOT/configs/"*
+sudo cp ~/configs/configs-${date}/nv-set/* "$WEB_ROOT/configs/"
+sudo cp ~/configs/configs-${date}/nv-yaml/* "$WEB_ROOT/configs/"
 
 for dir in ~/[^.]*; do
     if [[ -d "$dir" && \

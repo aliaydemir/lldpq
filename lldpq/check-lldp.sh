@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # LLDPq Topology Check Script - OPTIMIZED VERSION
 # Single SSH session per device + Parallel limits
 #
@@ -12,6 +12,10 @@ DATE=$(date '+%Y-%m-%d--%H-%M')
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
+
+# Load config with fallback
+source /etc/lldpq.conf 2>/dev/null || true
+WEB_ROOT="${WEB_ROOT:-/var/www/html}"
 
 # === TUNING PARAMETERS ===
 MAX_PARALLEL=300  # Maximum parallel SSH connections
@@ -180,12 +184,12 @@ fi
 
 # Copy results to web server
 echo "📤 Copying results to web server..."
-sudo cp lldp-results/lldp_results.ini /var/www/html/
-sudo mv /var/www/html/problems-lldp_results.ini /var/www/html/hstr/Problems-${DATE}.ini 2>/dev/null
-sudo cp lldp-results/problems-lldp_results.ini /var/www/html/
+sudo cp lldp-results/lldp_results.ini "$WEB_ROOT/"
+sudo mv "$WEB_ROOT/problems-lldp_results.ini" "$WEB_ROOT/hstr/Problems-${DATE}.ini" 2>/dev/null
+sudo cp lldp-results/problems-lldp_results.ini "$WEB_ROOT/"
 
 # Cleanup old history files (keep 1 per day for last 30 days)
-folder_path="/var/www/html/hstr"
+folder_path="$WEB_ROOT/hstr"
 cd "$folder_path" || exit 1
 declare -a keep_files
 for i in {1..30}; do

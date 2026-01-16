@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Trigger script for monitor.sh
 # This script is called by Nginx to trigger a monitor analysis

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 cd ~/lldpq/
 wait_until_not_running() {
     script_name="$1"

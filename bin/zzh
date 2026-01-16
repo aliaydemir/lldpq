@@ -371,7 +371,7 @@ box - set this value similar to:
 and then create the target script similar to:
 
 ```
-#!/bin/bash
+#!/usr/bin/env bash
 
 scp /usr/local/lib/kenmode.sh $1:/tmp/
 ssh $1 chmod 664 /tmp/kenmode.sh

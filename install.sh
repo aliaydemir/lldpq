@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # LLDPq Installation Script
 # 
 # Copyright (c) 2024 LLDPq Project  
@@ -23,6 +23,9 @@ if [[ ! -f "README.md" ]] || [[ ! -d "lldpq" ]]; then
     exit 1
 fi
 
+# Web root directory (default for Linux, can be changed in /etc/lldpq.conf for macOS etc.)
+WEB_ROOT="/var/www/html"
+
 echo ""
 echo "[01] Installing required packages..."
 sudo apt update
@@ -40,11 +43,11 @@ echo "[02] Copying files to system directories..."
 echo "   - Copying etc/* to /etc/"
 sudo cp -r etc/* /etc/
 
-echo "   - Copying html/* to /var/www/html/"
-sudo cp -r html/* /var/www/html/
-sudo chmod +x /var/www/html/trigger-lldp.sh
-sudo chmod +x /var/www/html/trigger-monitor.sh
-sudo chmod +x /var/www/html/edit-topology.sh
+echo "   - Copying html/* to $WEB_ROOT/"
+sudo cp -r html/* "$WEB_ROOT/"
+sudo chmod +x "$WEB_ROOT/trigger-lldp.sh"
+sudo chmod +x "$WEB_ROOT/trigger-monitor.sh"
+sudo chmod +x "$WEB_ROOT/edit-topology.sh"
 
 echo "   - Copying bin/* to /usr/local/bin/"
 sudo cp bin/* /usr/local/bin/
@@ -54,26 +57,27 @@ echo "   - Copying lldpq to ~/lldpq"
 cp -r lldpq ~/lldpq
 
 echo "   - Setting up topology.dot for web editing"
-# Move topology.dot to /var/www/html for www-data access (if it exists)
+# Move topology.dot to web root for www-data access (if it exists)
 if [[ -f ~/lldpq/topology.dot ]]; then
-    sudo mv ~/lldpq/topology.dot /var/www/html/topology.dot
+    sudo mv ~/lldpq/topology.dot "$WEB_ROOT/topology.dot"
     # www-data owns it (for web editing), user's group has access too
-    sudo chown www-data:$USER /var/www/html/topology.dot
-    sudo chmod 664 /var/www/html/topology.dot
+    sudo chown www-data:$USER "$WEB_ROOT/topology.dot"
+    sudo chmod 664 "$WEB_ROOT/topology.dot"
     # Create symlink so lldpq scripts can access it
-    ln -sf /var/www/html/topology.dot ~/lldpq/topology.dot
+    ln -sf "$WEB_ROOT/topology.dot" ~/lldpq/topology.dot
 else
     echo "  topology.dot not found in lldpq/, will be created on first use"
-    # Create empty topology.dot in /var/www/html for web editing
-    echo "# LLDPq Topology Definition" | sudo tee /var/www/html/topology.dot > /dev/null
-    sudo chown www-data:$USER /var/www/html/topology.dot
-    sudo chmod 664 /var/www/html/topology.dot
-    ln -sf /var/www/html/topology.dot ~/lldpq/topology.dot
+    # Create empty topology.dot in web root for web editing
+    echo "# LLDPq Topology Definition" | sudo tee "$WEB_ROOT/topology.dot" > /dev/null
+    sudo chown www-data:$USER "$WEB_ROOT/topology.dot"
+    sudo chmod 664 "$WEB_ROOT/topology.dot"
+    ln -sf "$WEB_ROOT/topology.dot" ~/lldpq/topology.dot
 fi
 
 echo "   - Creating /etc/lldpq.conf"
 echo "# LLDPq Configuration" | sudo tee /etc/lldpq.conf > /dev/null
 echo "LLDPQ_DIR=$HOME/lldpq" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "WEB_ROOT=$WEB_ROOT" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "Files copied successfully"
 
 echo ""

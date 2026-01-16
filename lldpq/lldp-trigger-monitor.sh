@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # LLDP & Monitor Trigger Monitor - Self-loop daemon for web interface triggers
 # Add to crontab: * * * * * /path/to/lldp_trigger_monitor.sh
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License

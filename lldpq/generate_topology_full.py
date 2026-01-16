@@ -16,6 +16,19 @@ import json
 import yaml
 from datetime import datetime
 
+def get_web_root():
+    """Read WEB_ROOT from /etc/lldpq.conf with fallback to default"""
+    web_root = "/var/www/html"  # default fallback
+    try:
+        with open("/etc/lldpq.conf", "r") as f:
+            for line in f:
+                if line.startswith("WEB_ROOT="):
+                    web_root = line.strip().split("=", 1)[1]
+                    break
+    except (FileNotFoundError, IOError):
+        pass
+    return web_root
+
 def load_topology_config(config_path="topology_config.yaml"):
     """Load device categorization configuration from YAML file"""
     try:
@@ -538,9 +551,12 @@ if __name__ == "__main__":
     assets_file_path = "assets.ini"
     hosts_file_path = "hosts.ini"
     dot_file_path = "topology.dot"
-    output_file = "/var/www/html/topology/topology.js"
+    
+    # Get web root from config with fallback
+    WEB_ROOT = get_web_root()
+    output_file = f"{WEB_ROOT}/topology/topology.js"
 
-    append_creation_time_to_html("/var/www/html/topology/main.html")
+    append_creation_time_to_html(f"{WEB_ROOT}/topology/main.html")
     if not os.path.isdir(lldp_results_directory):
         exit(1)
 

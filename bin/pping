@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Ali Aydemir
 # v10.0 Added parallel execution support for faster ping operations

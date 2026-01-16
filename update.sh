@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # LLDPq Update Script
 # Updates system files while preserving configuration
 # 
@@ -23,6 +23,10 @@ if [[ ! -f "README.md" ]] || [[ ! -d "lldpq" ]]; then
     echo "   Make sure you're in the directory containing README.md and lldpq/"
     exit 1
 fi
+
+# Load config with fallback
+source /etc/lldpq.conf 2>/dev/null || true
+WEB_ROOT="${WEB_ROOT:-/var/www/html}"
 
 echo ""
 echo "[01] Backup existing lldpq directory?"
@@ -61,36 +65,37 @@ echo "   - Restoring user system configs..."
 # Clean up backup
 rm -rf "$system_config_backup"
 
-echo "   - Updating html/* to /var/www/html/"
-sudo cp -r html/* /var/www/html/
-sudo chmod +x /var/www/html/trigger-lldp.sh
-sudo chmod +x /var/www/html/trigger-monitor.sh
-sudo chmod +x /var/www/html/edit-topology.sh
+echo "   - Updating html/* to $WEB_ROOT/"
+sudo cp -r html/* "$WEB_ROOT/"
+sudo chmod +x "$WEB_ROOT/trigger-lldp.sh"
+sudo chmod +x "$WEB_ROOT/trigger-monitor.sh"
+sudo chmod +x "$WEB_ROOT/edit-topology.sh"
 
 echo "   - Setting up topology.dot for web editing"
-# If topology.dot exists in /var/www/html, it's already set up - just ensure symlink
-if [[ -f "/var/www/html/topology.dot" ]]; then
+# If topology.dot exists in web root, it's already set up - just ensure symlink
+if [[ -f "$WEB_ROOT/topology.dot" ]]; then
     # Ensure lldpq directory exists before creating symlink
     mkdir -p "$HOME/lldpq"
     # Ensure symlink exists
     if [[ ! -L "$HOME/lldpq/topology.dot" ]]; then
         rm -f "$HOME/lldpq/topology.dot" 2>/dev/null
-        ln -sf /var/www/html/topology.dot "$HOME/lldpq/topology.dot"
+        ln -sf "$WEB_ROOT/topology.dot" "$HOME/lldpq/topology.dot"
     fi
 else
-    # First time setup: move topology.dot to /var/www/html
+    # First time setup: move topology.dot to web root
     if [[ -f "$HOME/lldpq/topology.dot" ]] && [[ ! -L "$HOME/lldpq/topology.dot" ]]; then
-        sudo mv "$HOME/lldpq/topology.dot" /var/www/html/topology.dot
+        sudo mv "$HOME/lldpq/topology.dot" "$WEB_ROOT/topology.dot"
         # www-data owns it (for web editing), user's group has access too
-        sudo chown www-data:$USER /var/www/html/topology.dot
-        sudo chmod 664 /var/www/html/topology.dot
-        ln -sf /var/www/html/topology.dot "$HOME/lldpq/topology.dot"
+        sudo chown www-data:$USER "$WEB_ROOT/topology.dot"
+        sudo chmod 664 "$WEB_ROOT/topology.dot"
+        ln -sf "$WEB_ROOT/topology.dot" "$HOME/lldpq/topology.dot"
     fi
 fi
 
 echo "   - Updating /etc/lldpq.conf"
 echo "# LLDPq Configuration" | sudo tee /etc/lldpq.conf > /dev/null
 echo "LLDPQ_DIR=$HOME/lldpq" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "WEB_ROOT=$WEB_ROOT" | sudo tee -a /etc/lldpq.conf > /dev/null
 
 echo "   - Updating bin/* to /usr/local/bin/"
 sudo cp bin/* /usr/local/bin/
@@ -142,16 +147,16 @@ if [[ -d "$HOME/lldpq" ]]; then
         cp "$HOME/lldpq/hosts.ini" "$temp_dir/"
     fi
     
-    # topology.dot is now stored in /var/www/html with symlink in ~/lldpq
-    # If it's a symlink, just note it; if it's a real file, migrate to /var/www/html
+    # topology.dot is now stored in web root with symlink in ~/lldpq
+    # If it's a symlink, just note it; if it's a real file, migrate to web root
     if [[ -L "$HOME/lldpq/topology.dot" ]]; then
-        echo "     • topology.dot (symlink to /var/www/html)"
+        echo "     • topology.dot (symlink to $WEB_ROOT)"
         # Symlink will be recreated later
     elif [[ -f "$HOME/lldpq/topology.dot" ]]; then
-        echo "     • topology.dot (migrating to /var/www/html)"
-        sudo cp "$HOME/lldpq/topology.dot" /var/www/html/topology.dot
-        sudo chown www-data:$USER /var/www/html/topology.dot
-        sudo chmod 664 /var/www/html/topology.dot
+        echo "     • topology.dot (migrating to $WEB_ROOT)"
+        sudo cp "$HOME/lldpq/topology.dot" "$WEB_ROOT/topology.dot"
+        sudo chown www-data:$USER "$WEB_ROOT/topology.dot"
+        sudo chmod 664 "$WEB_ROOT/topology.dot"
     fi
     
     if [[ -f "$HOME/lldpq/topology_config.yaml" ]]; then
@@ -196,10 +201,10 @@ fi
 mv "$temp_dir" "$HOME/lldpq"
 
 # Ensure topology.dot symlink exists (after lldpq directory is created)
-if [[ -f "/var/www/html/topology.dot" ]] && [[ ! -L "$HOME/lldpq/topology.dot" ]]; then
+if [[ -f "$WEB_ROOT/topology.dot" ]] && [[ ! -L "$HOME/lldpq/topology.dot" ]]; then
     mkdir -p "$HOME/lldpq"  # Ensure directory exists
     rm -f "$HOME/lldpq/topology.dot" 2>/dev/null
-    ln -sf /var/www/html/topology.dot "$HOME/lldpq/topology.dot"
+    ln -sf "$WEB_ROOT/topology.dot" "$HOME/lldpq/topology.dot"
 fi
 echo "lldpq directory updated with preserved configs"
 
@@ -228,7 +233,7 @@ echo "     • /etc/ip_list"
 echo "     • /etc/nccm.yml"
 echo "     • ~/lldpq/devices.yaml"
 echo "     • ~/lldpq/hosts.ini"
-echo "     • /var/www/html/topology.dot (web-editable, symlinked from ~/lldpq)"
+echo "     • $WEB_ROOT/topology.dot (web-editable, symlinked from ~/lldpq)"
 echo "     • ~/lldpq/topology_config.yaml"
 echo "     • ~/lldpq/notifications.yaml"
 if [[ -n "$backup_data_dir" ]] || [[ -d "$HOME/lldpq/monitor-results" ]] || [[ -d "$HOME/lldpq/lldp-results" ]] || [[ -d "$HOME/lldpq/alert-states" ]]; then

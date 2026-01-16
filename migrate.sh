@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # LLDPq Migration Script
 # Migrates from ~/monitor to ~/lldpq
 # 
@@ -12,6 +12,10 @@ echo "========================="
 echo ""
 echo "This script migrates your installation from ~/monitor to ~/lldpq"
 echo ""
+
+# Load config with fallback
+source /etc/lldpq.conf 2>/dev/null || true
+WEB_ROOT="${WEB_ROOT:-/var/www/html}"
 
 # ============================================================================
 # PRE-FLIGHT CHECKS
@@ -155,27 +159,27 @@ fi
 echo "   - Fixing topology.dot symlink..."
 if [[ -L "$HOME/lldpq/topology.dot" ]]; then
     # Already a symlink, just verify it points to the right place
-    if [[ "$(readlink "$HOME/lldpq/topology.dot")" == "/var/www/html/topology.dot" ]]; then
+    if [[ "$(readlink "$HOME/lldpq/topology.dot")" == "$WEB_ROOT/topology.dot" ]]; then
         echo "   ✅ topology.dot symlink is correct"
     else
         rm -f "$HOME/lldpq/topology.dot"
-        ln -sf /var/www/html/topology.dot "$HOME/lldpq/topology.dot"
+        ln -sf "$WEB_ROOT/topology.dot" "$HOME/lldpq/topology.dot"
         echo "   ✅ topology.dot symlink fixed"
     fi
 elif [[ -f "$HOME/lldpq/topology.dot" ]]; then
     # It's a real file, need to migrate it
-    if [[ -f /var/www/html/topology.dot ]]; then
+    if [[ -f "$WEB_ROOT/topology.dot" ]]; then
         # Web version exists, backup local and create symlink
         mv "$HOME/lldpq/topology.dot" "$HOME/lldpq/topology.dot.local.backup"
-        ln -sf /var/www/html/topology.dot "$HOME/lldpq/topology.dot"
+        ln -sf "$WEB_ROOT/topology.dot" "$HOME/lldpq/topology.dot"
         echo "   ✅ topology.dot migrated (backup: topology.dot.local.backup)"
     else
         # Move to web location
-        sudo mv "$HOME/lldpq/topology.dot" /var/www/html/topology.dot
-        sudo chown www-data:$USER /var/www/html/topology.dot
-        sudo chmod 664 /var/www/html/topology.dot
-        ln -sf /var/www/html/topology.dot "$HOME/lldpq/topology.dot"
-        echo "   ✅ topology.dot moved to /var/www/html and symlinked"
+        sudo mv "$HOME/lldpq/topology.dot" "$WEB_ROOT/topology.dot"
+        sudo chown www-data:$USER "$WEB_ROOT/topology.dot"
+        sudo chmod 664 "$WEB_ROOT/topology.dot"
+        ln -sf "$WEB_ROOT/topology.dot" "$HOME/lldpq/topology.dot"
+        echo "   ✅ topology.dot moved to $WEB_ROOT and symlinked"
     fi
 fi
 

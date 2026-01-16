@@ -1,5 +1,4 @@
-
-#!/bin/bash
+#!/usr/bin/env bash
 # LLDPq Topology Check Script  
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 set -euo pipefail
@@ -7,6 +6,10 @@ set -euo pipefail
 #### CONFIGURATION
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
+
+# Load config with fallback
+source /etc/lldpq.conf 2>/dev/null || true
+WEB_ROOT="${WEB_ROOT:-/var/www/html}"
 
 TMPFILE="$SCRIPT_DIR/assets.tmp"
 UNREACH="$SCRIPT_DIR/unreachable.tmp"
@@ -108,5 +111,5 @@ printf '%-20s %-15s %-17s %-12s %-12s %-8s %s\n' \
   "DEVICE-NAME" "IP" "ETH0-MAC" "SERIAL" "MODEL" "RELEASE" "UPTIME" >> "$FINAL.tmp"
 tail -n +2 "$SCRIPT_DIR/assets.sorted2" >> "$FINAL.tmp"
 mv "$FINAL.tmp" "$FINAL"
-sudo cp "$FINAL" /var/www/html/
+sudo cp "$FINAL" "$WEB_ROOT/"
 rm -f "$TMPFILE" "$UNREACH"

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # send-key.sh - LLDPq SSH Key Distribution Script
 #
 # Purpose:

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # LLDPq Authentication Manager - Enable/Disable web interface authentication
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 

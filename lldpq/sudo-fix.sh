@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # sudo-fix.sh - Sudo Passwordless Setup Tool
 #
 # Purpose:

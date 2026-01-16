@@ -1,10 +1,14 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # edit-topology.sh - Read/Write topology.dot via CGI
 # Called by nginx fcgiwrap
 
-# topology.dot is stored in /var/www/html for www-data access
+# Load config with fallback
+source /etc/lldpq.conf 2>/dev/null || true
+WEB_ROOT="${WEB_ROOT:-/var/www/html}"
+
+# topology.dot is stored in web root for www-data access
 # A symlink in ~/lldpq/topology.dot points to this file
-TOPOLOGY_FILE="/var/www/html/topology.dot"
+TOPOLOGY_FILE="$WEB_ROOT/topology.dot"
 
 # Read request method
 METHOD="${REQUEST_METHOD:-GET}"
