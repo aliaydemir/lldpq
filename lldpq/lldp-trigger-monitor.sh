@@ -6,6 +6,11 @@
 # Ensure PATH includes GNU tools (coreutils, sed, grep, awk), bash 4+, python3, flock
 export PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:/opt/homebrew/opt/gnu-sed/libexec/gnubin:/opt/homebrew/opt/grep/libexec/gnubin:/opt/homebrew/opt/gawk/libexec/gnubin:/opt/homebrew/bin:/opt/homebrew/opt/util-linux/bin:/usr/local/bin:$PATH"
 
+# SSH agent socket for key authentication (macOS)
+if [ -z "$SSH_AUTH_SOCK" ]; then
+    export SSH_AUTH_SOCK=$(ls /private/tmp/com.apple.launchd.*/Listeners 2>/dev/null | head -1)
+fi
+
 MONITOR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LLDP_TRIGGER_FILE="/tmp/.lldp_web_trigger"
 MONITOR_TRIGGER_FILE="/tmp/.monitor_web_trigger"
