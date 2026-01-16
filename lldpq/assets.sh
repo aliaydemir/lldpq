@@ -113,3 +113,6 @@ tail -n +2 "$SCRIPT_DIR/assets.sorted2" >> "$FINAL.tmp"
 mv "$FINAL.tmp" "$FINAL"
 sudo cp "$FINAL" "$WEB_ROOT/"
 rm -f "$TMPFILE" "$UNREACH"
+rm -rf "$SCRIPT_DIR/assets.sorted2"
+
+exit 0
