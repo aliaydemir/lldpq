@@ -17,12 +17,12 @@ topology: minimal  # [full] or [minimal]
 # This file defines device categorization for topology generation
 # Edit this file to customize device layers and icons
 # Possible icons:
-# - switch
-# - router
-# - firewall
-# - server
-# - host
-# - unknown
+# - switch    🔀
+# - router    🌐
+# - firewall  🔥
+# - server    🖥️
+# - host      💻
+# - unknown   ❓
 
 device_categories:
   - pattern: "inband-fw"
