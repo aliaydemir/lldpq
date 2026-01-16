@@ -103,5 +103,6 @@ else
 fi
 
 rm -f "$unreachable_hosts_file"
+rm -rf ~/configs
 
 exit 0
