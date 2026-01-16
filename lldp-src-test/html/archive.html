@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLDP Result Archive</title>
+    <link rel="shortcut icon" href="/png/favicon.ico">
+    <link rel="stylesheet" type="text/css" href="/css/styles2.css">
+    <style>
+        .file-selector {
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .file-dropdown {
+            padding: 10px 15px;
+            border: 1px solid #43453B;
+            border-radius: 4px;
+            background-color: #2a2a2a;
+            color: #666666;
+            font-size: 14px;
+            min-width: 300px;
+            cursor: pointer;
+        }
+        
+        .file-dropdown:focus {
+            outline: none;
+            border-color: #b57614;
+        }
+        
+        .results-container {
+            background: #1a1a1a;
+            border: 1px solid #43453B;
+            border-radius: 8px;
+            margin: 20px 0;
+            max-height: 600px;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        .results-header {
+            background: #43453B;
+            padding: 10px 15px;
+            border-bottom: 1px solid #43453B;
+            font-weight: bold;
+            color: #b57614;
+        }
+        
+        .results-content {
+            padding: 15px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        
+        .steelBlue { color: #4682b4; font-weight: bold; }
+        .tomato { color: #ff6347; font-weight: bold; }
+        .red { color: #ff4444; font-weight: bold; }
+        .green { color: #4caf50; }
+        .lime { color: #32cd32; }
+        
+        .loading-text {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .error-text {
+            text-align: center;
+            padding: 40px;
+            color: #f44336;
+            background: #2a1a1a;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1></h1>
+    <h1><font color="#b57614">LLDP Result Archive on the Fabric</font></h1>
+    <p><strong>Last Updated:</strong> <span id="last-updated"></span></p>
+    
+    <h2>Historical LLDP Results</h2>
+    
+    <div class="file-selector">
+        <select id="fileDropdown" class="file-dropdown" onchange="handleFileSelection()">
+            <option value="">-- Select a historical result file --</option>
+        </select>
+    </div>
+    
+    <div id="resultsContainer" class="results-container">
+        <div class="results-header">
+            <span id="fileName">Selected File</span>
+        </div>
+        <div id="metinAlani" class="results-content"></div>
+    </div>
+    
+    <div id="loadingText" class="loading-text" style="display: none;">
+        Loading file content...
+    </div>
+
+    <script>
+        function setLastUpdated() {
+            const now = new Date();
+            const options = { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            };
+            const formattedDate = now.toLocaleString('en-US', options);
+            document.getElementById('last-updated').textContent = formattedDate;
+        }
+
+        function listFiles() {
+            fetch('/hstr/')
+                .then(response => response.text())
+                .then(data => {
+                    const parser = new DOMParser();
+                    const htmlDoc = parser.parseFromString(data, 'text/html');
+                    const files = Array.from(htmlDoc.querySelectorAll('a')).map(a => a.href).filter(href => href.includes('Problems'));
+                    const fileDropdown = document.getElementById('fileDropdown');
+
+                    files.forEach(file => {
+                        const fileName = file.split('/').pop();
+                        const option = document.createElement('option');
+                        option.value = fileName;
+                        option.textContent = fileName;
+                        fileDropdown.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching file list:', error);
+                    showError('Error loading file list: ' + error.message);
+                });
+        }
+
+        function handleFileSelection() {
+            const fileDropdown = document.getElementById('fileDropdown');
+            const selectedFile = fileDropdown.value;
+            if (selectedFile) {
+                fetchFileContent(selectedFile);
+            } else {
+                hideResults();
+            }
+        }
+
+        function fetchFileContent(fileName) {
+            showLoading();
+            
+            fetch(`/hstr/${fileName}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    hideLoading();
+                    document.getElementById('fileName').textContent = fileName;
+                    displayLLDPResults(data);
+                    showResults();
+                })
+                .catch(error => {
+                    hideLoading();
+                    showError('Error fetching LLDP results: ' + error.message);
+                });
+        }
+
+        function displayLLDPResults(results) {
+            const element = document.getElementById('metinAlani');
+            element.innerHTML = '';
+            
+            const lines = results.split('\n');
+            lines.forEach(line => {
+                let colorClass = 'lime';
+                if (line.startsWith('====')) {
+                    colorClass = 'steelBlue';
+                } else if (line.toLowerCase().includes('fail')) {
+                    colorClass = 'tomato';
+                } else if (line.toLowerCase().includes('created') || line.toLowerCase().includes('reated')) {
+                    colorClass = 'steelBlue';
+                } else if (line.toLowerCase().includes('no-info')) {
+                    colorClass = 'red';
+                } else if (line.toLowerCase().includes('pass')) {
+                    colorClass = 'green';
+                }
+                
+                const span = document.createElement('span');
+                span.className = colorClass;
+                span.textContent = line;
+                element.appendChild(span);
+                element.appendChild(document.createElement('br'));
+            });
+        }
+
+        function showLoading() {
+            document.getElementById('loadingText').style.display = 'block';
+            document.getElementById('resultsContainer').style.display = 'none';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingText').style.display = 'none';
+        }
+
+        function showResults() {
+            document.getElementById('resultsContainer').style.display = 'block';
+        }
+
+        function hideResults() {
+            document.getElementById('resultsContainer').style.display = 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-text';
+            errorDiv.textContent = message;
+            
+            // Remove any existing error messages
+            const existingError = document.querySelector('.error-text');
+            if (existingError) {
+                existingError.remove();
+            }
+            
+            // Insert error message after file selector
+            const fileSelector = document.querySelector('.file-selector');
+            fileSelector.parentNode.insertBefore(errorDiv, fileSelector.nextSibling);
+            
+            // Auto-remove error after 5 seconds
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.remove();
+                }
+            }, 5000);
+        }
+
+        window.onload = function() {
+            setLastUpdated();
+            listFiles();
+        };
+    </script>
+</body>
+</html>

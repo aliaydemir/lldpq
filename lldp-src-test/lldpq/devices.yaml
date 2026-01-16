@@ -1,0 +1,58 @@
+# Copyright (c) 2024 LLDPq Project
+# Licensed under MIT License - see LICENSE file for details
+#
+# =============================================================================
+# devices.yaml - LLDPq Network Device Configuration
+# =======================================================
+#
+# PURPOSE:
+#   Clean YAML-based device configuration for LLDPq monitoring.
+#
+# STRUCTURE:
+#   defaults:
+#     username: Default SSH username for all devices
+#   
+#   devices:
+#     IP_ADDRESS: HOSTNAME              # Uses default username  
+#     IP_ADDRESS:                       # Override username
+#       hostname: HOSTNAME
+#       username: CUSTOM_USERNAME
+#
+# EXAMPLES:
+#   10.101.100.1: BorderLeaf01          # Uses 'cumulus' username
+#   192.168.1.10:                       # Custom username
+#     hostname: AdminSwitch01
+#     username: admin
+#
+# SSH REQUIREMENTS:
+#   - SSH key-based authentication configured. You can use send-keys.sh to send the key to the devices.
+#   - User must have sudo privileges on devices. You can use sudo-fix.sh to fix the sudoers file.
+#   - Network connectivity to management IPs
+#
+# =======================================================
+
+defaults:
+  username: cumulus
+
+devices:
+  10.10.100.101: Border1
+  10.10.100.102: Border2
+  10.10.100.252: Core1
+  10.10.100.253: Core2
+  10.10.100.10: Spine1
+  10.10.100.11: Spine2
+  10.10.100.12: Leaf1
+  10.10.100.13: Leaf2
+  10.10.100.14: Leaf3
+  10.10.100.15: Leaf4
+  10.10.100.20: Switch1
+  10.10.100.21: Switch2
+  10.10.100.22: Switch3
+  10.10.100.23: Switch4
+  10.10.100.210: inband-fw
+  10.10.100.212: oob-fw
+
+  # Example: Custom username override
+  # 192.168.1.10:
+  #   hostname: AdminSwitch01
+  #   username: admin

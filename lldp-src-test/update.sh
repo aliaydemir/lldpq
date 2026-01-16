@@ -1,0 +1,267 @@
+#!/bin/bash
+# LLDPq Update Script
+# Updates system files while preserving configuration
+# 
+# Copyright (c) 2024 LLDPq Project
+# Licensed under MIT License - see LICENSE file for details
+
+set -e
+
+echo "🔄 LLDPq Update Script"
+echo "======================"
+
+# Check if running as root
+if [[ $EUID -eq 0 ]]; then
+   echo "❌ Please do not run this script as root (use your regular user account)"
+   echo "   The script will ask for sudo when needed"
+   #exit 1
+fi
+
+# Check if we're in the lldpq-src directory
+if [[ ! -f "README.md" ]] || [[ ! -d "lldpq" ]]; then
+    echo "❌ Please run this script from the lldpq-src directory"
+    echo "   Make sure you're in the directory containing README.md and lldpq/"
+    exit 1
+fi
+
+echo ""
+echo "[01] Backup existing lldpq directory?"
+if [[ -d "$HOME/lldpq" ]]; then
+    read -p "Create backup of existing lldpq? [y/N]: " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        backup_dir="$HOME/lldpq.backup.$(date +%Y%m%d_%H%M%S)"
+        echo "   Backing up $HOME/lldpq to $backup_dir"
+        cp -r "$HOME/lldpq" "$backup_dir"
+        echo "Backup created: $backup_dir"
+    else
+        echo "   Skipping backup as requested"
+    fi
+else
+    echo "   No existing lldpq directory found, skipping backup"
+fi
+
+echo ""
+echo "[02] Updating system files..."
+
+# Backup user's system config files before overwriting
+echo "   - Backing up user system configs..."
+system_config_backup=$(mktemp -d)
+[[ -f "/etc/ip_list" ]] && cp "/etc/ip_list" "$system_config_backup/" && echo "     • /etc/ip_list backed up"
+[[ -f "/etc/nccm.yml" ]] && cp "/etc/nccm.yml" "$system_config_backup/" && echo "     • /etc/nccm.yml backed up"
+
+echo "   - Updating etc/* to /etc/"
+sudo cp -r etc/* /etc/
+
+# Restore user's system config files
+echo "   - Restoring user system configs..."
+[[ -f "$system_config_backup/ip_list" ]] && sudo cp "$system_config_backup/ip_list" "/etc/" && echo "     • /etc/ip_list restored"
+[[ -f "$system_config_backup/nccm.yml" ]] && sudo cp "$system_config_backup/nccm.yml" "/etc/" && echo "     • /etc/nccm.yml restored"
+
+# Clean up backup
+rm -rf "$system_config_backup"
+
+echo "   - Updating html/* to /var/www/html/"
+sudo cp -r html/* /var/www/html/
+sudo chmod +x /var/www/html/trigger-lldp.sh
+sudo chmod +x /var/www/html/trigger-monitor.sh
+sudo chmod +x /var/www/html/edit-topology.sh
+
+echo "   - Setting up topology.dot for web editing"
+# If topology.dot exists in /var/www/html, it's already set up - just ensure symlink
+if [[ -f "/var/www/html/topology.dot" ]]; then
+    # Ensure lldpq directory exists before creating symlink
+    mkdir -p "$HOME/lldpq"
+    # Ensure symlink exists
+    if [[ ! -L "$HOME/lldpq/topology.dot" ]]; then
+        rm -f "$HOME/lldpq/topology.dot" 2>/dev/null
+        ln -sf /var/www/html/topology.dot "$HOME/lldpq/topology.dot"
+    fi
+else
+    # First time setup: move topology.dot to /var/www/html
+    if [[ -f "$HOME/lldpq/topology.dot" ]] && [[ ! -L "$HOME/lldpq/topology.dot" ]]; then
+        sudo mv "$HOME/lldpq/topology.dot" /var/www/html/topology.dot
+        # www-data owns it (for web editing), user's group has access too
+        sudo chown www-data:$USER /var/www/html/topology.dot
+        sudo chmod 664 /var/www/html/topology.dot
+        ln -sf /var/www/html/topology.dot "$HOME/lldpq/topology.dot"
+    fi
+fi
+
+echo "   - Updating /etc/lldpq.conf"
+echo "# LLDPq Configuration" | sudo tee /etc/lldpq.conf > /dev/null
+echo "LLDPQ_DIR=$HOME/lldpq" | sudo tee -a /etc/lldpq.conf > /dev/null
+
+echo "   - Updating bin/* to /usr/local/bin/"
+sudo cp bin/* /usr/local/bin/
+sudo chmod +x /usr/local/bin/*
+echo "System files updated"
+
+echo ""
+echo "[03] Backup monitoring data?"
+backup_data_dir=""
+if [[ -d "$HOME/lldpq/monitor-results" ]] || [[ -d "$HOME/lldpq/lldp-results" ]] || [[ -d "$HOME/lldpq/alert-states" ]]; then
+    echo "   Found existing monitoring data directories:"
+    [[ -d "$HOME/lldpq/monitor-results" ]] && echo "     • monitor-results/ (contains all analysis results)"
+    [[ -d "$HOME/lldpq/lldp-results" ]] && echo "     • lldp-results/ (contains LLDP topology data)"
+    [[ -d "$HOME/lldpq/alert-states" ]] && echo "     • alert-states/ (contains alert history and state tracking)"
+    echo ""
+    read -p "Backup and preserve monitoring data? [Y/n]: " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        echo "   ⚠️  Monitoring data will be LOST during update!"
+    else
+        backup_data_dir=$(mktemp -d)
+        echo "   📦 Backing up monitoring data..."
+        [[ -d "$HOME/lldpq/monitor-results" ]] && cp -r "$HOME/lldpq/monitor-results" "$backup_data_dir/"
+        [[ -d "$HOME/lldpq/lldp-results" ]] && cp -r "$HOME/lldpq/lldp-results" "$backup_data_dir/"
+        [[ -d "$HOME/lldpq/alert-states" ]] && cp -r "$HOME/lldpq/alert-states" "$backup_data_dir/"
+        echo "   ✅ Monitoring data backed up to temporary location"
+    fi
+else
+    echo "   No existing monitoring data found"
+fi
+
+echo ""
+echo "[04] Updating lldpq directory (preserving configs)..."
+# Create temp directory for selective copy
+temp_dir=$(mktemp -d)
+cp -r lldpq/* "$temp_dir/"
+
+# If monitor exists, preserve config files
+if [[ -d "$HOME/lldpq" ]]; then
+    echo "   - Preserving configuration files:"
+    
+    if [[ -f "$HOME/lldpq/devices.yaml" ]]; then
+        echo "     • devices.yaml"
+        cp "$HOME/lldpq/devices.yaml" "$temp_dir/"
+    fi
+    
+    if [[ -f "$HOME/lldpq/hosts.ini" ]]; then
+        echo "     • hosts.ini"
+        cp "$HOME/lldpq/hosts.ini" "$temp_dir/"
+    fi
+    
+    # topology.dot is now stored in /var/www/html with symlink in ~/lldpq
+    # If it's a symlink, just note it; if it's a real file, migrate to /var/www/html
+    if [[ -L "$HOME/lldpq/topology.dot" ]]; then
+        echo "     • topology.dot (symlink to /var/www/html)"
+        # Symlink will be recreated later
+    elif [[ -f "$HOME/lldpq/topology.dot" ]]; then
+        echo "     • topology.dot (migrating to /var/www/html)"
+        sudo cp "$HOME/lldpq/topology.dot" /var/www/html/topology.dot
+        sudo chown www-data:$USER /var/www/html/topology.dot
+        sudo chmod 664 /var/www/html/topology.dot
+    fi
+    
+    if [[ -f "$HOME/lldpq/topology_config.yaml" ]]; then
+        echo "     • topology_config.yaml"
+        cp "$HOME/lldpq/topology_config.yaml" "$temp_dir/"
+    fi
+    
+    if [[ -f "$HOME/lldpq/notifications.yaml" ]]; then
+        echo "     • notifications.yaml"
+        cp "$HOME/lldpq/notifications.yaml" "$temp_dir/"
+    fi
+    
+    # Check if lldpq processes are running before removing directory
+    if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldp-trigger-monitor" >/dev/null 2>&1; then
+        echo ""
+        echo "   WARNING: LLDPq processes are currently running!"
+        echo "   Waiting for processes to finish..."
+        # Wait up to 30 seconds for processes to finish
+        for i in {1..30}; do
+            if ! pgrep -f "monitor\.sh" >/dev/null 2>&1 && ! pgrep -f "lldp-trigger-monitor" >/dev/null 2>&1; then
+                break
+            fi
+            sleep 1
+            echo -n "."
+        done
+        echo ""
+        # Final check
+        if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldp-trigger-monitor" >/dev/null 2>&1; then
+            echo "   Processes still running. Proceeding anyway, but this may cause issues."
+            echo "   Consider stopping processes manually: pkill -f monitor.sh"
+        else
+            echo "   Processes finished, safe to proceed"
+        fi
+    fi
+    
+    # Remove old lldpq directory (now safer)
+    echo "   - Removing old lldpq directory..."
+    rm -rf "$HOME/lldpq"
+fi
+
+# Copy updated files with preserved configs
+mv "$temp_dir" "$HOME/lldpq"
+
+# Ensure topology.dot symlink exists (after lldpq directory is created)
+if [[ -f "/var/www/html/topology.dot" ]] && [[ ! -L "$HOME/lldpq/topology.dot" ]]; then
+    mkdir -p "$HOME/lldpq"  # Ensure directory exists
+    rm -f "$HOME/lldpq/topology.dot" 2>/dev/null
+    ln -sf /var/www/html/topology.dot "$HOME/lldpq/topology.dot"
+fi
+echo "lldpq directory updated with preserved configs"
+
+# Restore monitoring data if backed up
+if [[ -n "$backup_data_dir" ]] && [[ -d "$backup_data_dir" ]]; then
+    echo ""
+    echo "   📁 Restoring monitoring data..."
+    [[ -d "$backup_data_dir/monitor-results" ]] && cp -r "$backup_data_dir/monitor-results" "$HOME/lldpq/"
+    [[ -d "$backup_data_dir/lldp-results" ]] && cp -r "$backup_data_dir/lldp-results" "$HOME/lldpq/"
+    [[ -d "$backup_data_dir/alert-states" ]] && cp -r "$backup_data_dir/alert-states" "$HOME/lldpq/"
+    echo "   ✅ Monitoring data restored successfully"
+    # Clean up temporary backup
+    rm -rf "$backup_data_dir"
+fi
+
+echo ""
+echo "[05] Restarting nginx service..."
+sudo systemctl restart nginx
+echo "nginx restarted"
+
+echo ""
+echo "[06] Data preservation summary:"
+echo "   The following files/directories were preserved:"
+echo "   Configuration files:"
+echo "     • /etc/ip_list"
+echo "     • /etc/nccm.yml"
+echo "     • ~/lldpq/devices.yaml"
+echo "     • ~/lldpq/hosts.ini"
+echo "     • /var/www/html/topology.dot (web-editable, symlinked from ~/lldpq)"
+echo "     • ~/lldpq/topology_config.yaml"
+echo "     • ~/lldpq/notifications.yaml"
+if [[ -n "$backup_data_dir" ]] || [[ -d "$HOME/lldpq/monitor-results" ]] || [[ -d "$HOME/lldpq/lldp-results" ]] || [[ -d "$HOME/lldpq/alert-states" ]]; then
+    echo "   Monitoring data directories:"
+    [[ -d "$HOME/lldpq/monitor-results" ]] && echo "     • monitor-results/ (all analysis results preserved)"
+    [[ -d "$HOME/lldpq/lldp-results" ]] && echo "     • lldp-results/ (LLDP topology data preserved)"
+    [[ -d "$HOME/lldpq/alert-states" ]] && echo "     • alert-states/ (alert history and state tracking preserved)"
+fi
+
+echo ""
+echo "[07] Testing updated tools..."
+echo "   You can test the updated tools:"
+echo "   - lldpq"
+echo "   - get-conf"
+echo "   - zzh"
+echo "   - pping"
+
+echo ""
+echo "Update Complete!"
+echo "   Features available:"
+echo "   - BGP Neighbor Analysis"
+echo "   - Link Flap Detection"
+echo "   - Hardware Health Analysis"
+echo "   - Log Analysis with Severity Filtering"
+echo "   - Slack Alert Integration with Smart Notifications"
+echo "   - Enhanced monitoring capabilities"
+echo "   - Data preservation during updates"
+echo ""
+echo "   Web interface: http://$(hostname -I | awk '{print $1}')"
+echo ""
+if [[ -n "$backup_dir" ]]; then
+    echo "If you encounter issues, your backup is available at:"
+    echo "      $backup_dir"
+fi
+echo "✅ LLDPq update completed successfully!"
+echo ""

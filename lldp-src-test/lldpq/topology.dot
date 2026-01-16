@@ -1,0 +1,159 @@
+/*
+ * Copyright (c) 2024 LLDPq Project
+ * Licensed under MIT License - see LICENSE file for details
+ *
+ * =============================================================================
+ * TOPOLOGY.DOT - LLDPq Expected Network Topology Definition
+ * =============================================================================
+ *
+ * PURPOSE:
+ *   This file defines the expected/designed network topology connections.
+ *   Used by generate_topology.py and generate_topology_full.py to validate
+ *   actual LLDP-discovered connections against the intended network design.
+ *
+ * FORMAT:
+ *   GraphViz DOT format - defines network connections as graph edges
+ *   "DeviceA":"InterfaceX" -- "DeviceB":"InterfaceY"
+ *
+ * USAGE:
+ *   - Topology validation: Compare LLDP discoveries vs expected design
+ *   - Missing link detection: Identify cables not connected as designed
+ *   - Network documentation: Visual representation of intended topology
+ *   - Change management: Track topology modifications over time
+ *
+ * VALIDATION LOGIC:
+ *   - ✅ LLDP matches DOT: Connection is correct
+ *   - ❌ LLDP missing from DOT: Unexpected connection found
+ *   - ⚠️  DOT missing from LLDP: Expected connection not found (missing cable)
+ *
+ * SYNTAX:
+ *   graph "NETWORK_NAME" {
+ *     "Hostname1":"Interface1" -- "Hostname2":"Interface2"
+ *     "Leaf01":"swp49" -- "Spine01":"swp1"
+ *   }
+ *
+ * MAINTENANCE:
+ *   - Add new connections when cables are installed
+ *   - Remove connections when cables are removed  
+ *   - Update when devices/interfaces are renamed
+ *   - Keep synchronized with physical network changes
+ *
+ * NOTE:
+ *   Hostnames must match those in devices.yaml and assets.ini for proper
+ *   correlation. Interface names must match actual device interface naming.
+ *
+ * =============================================================================
+ */
+
+graph "ACME" {
+
+# OOB-Leaf to OOB-Spine
+
+"Switch1":"swp49" -- "Core1":"swp1"
+"Switch1":"swp50" -- "Core2":"swp1"
+"Switch2":"swp49" -- "Core1":"swp2"
+"Switch2":"swp50" -- "Core2":"swp2"
+"Switch3":"swp49" -- "Core1":"swp3"
+"Switch3":"swp50" -- "Core2":"swp3"
+"Switch4":"swp49" -- "Core1":"swp4"
+"Switch4":"swp50" -- "Core2":"swp4"
+
+# OOB-Spine to OOB-FW
+
+"Core1":"swp29" -- "oob-fw":"swp1"
+"Core2":"swp29" -- "oob-fw":"swp2"
+
+# OOB-Spine to OOB-Spine
+
+"Core1":"swp31" -- "Core2":"swp31"
+"Core1":"swp32" -- "Core2":"swp32"
+
+# TAN-Spine to Border-Leaf
+
+"Spine1":"swp64s0" -- "Border1":"swp1"
+"Spine1":"swp64s1" -- "Border2":"swp1"
+"Spine2":"swp64s0" -- "Border1":"swp2"
+"Spine2":"swp64s1" -- "Border2":"swp2"
+
+# Border-Leaf to inband-fw
+
+"Border1":"swp31" -- "inband-fw":"swp1"
+"Border2":"swp31" -- "inband-fw":"swp2"
+
+# TAN-Leaf to TAN-Leaf
+
+# TAN-Leaf to TAN-Spine
+
+"Leaf1":"swp55s0" -- "Spine1":"swp1s0"
+"Leaf1":"swp55s1" -- "Spine1":"swp1s1"
+"Leaf1":"swp56s0" -- "Spine1":"swp2s0"
+"Leaf1":"swp56s1" -- "Spine1":"swp2s1"
+"Leaf1":"swp57s0" -- "Spine1":"swp3s0"
+"Leaf1":"swp57s1" -- "Spine1":"swp3s1"
+"Leaf1":"swp58s0" -- "Spine1":"swp4s0"
+"Leaf1":"swp58s1" -- "Spine1":"swp4s1"
+
+"Leaf1":"swp59s0" -- "Spine2":"swp1s0"
+"Leaf1":"swp59s1" -- "Spine2":"swp1s1"
+"Leaf1":"swp60s0" -- "Spine2":"swp2s0"
+"Leaf1":"swp60s1" -- "Spine2":"swp2s1"
+"Leaf1":"swp61s0" -- "Spine2":"swp3s0"
+"Leaf1":"swp61s1" -- "Spine2":"swp3s1"
+"Leaf1":"swp62s0" -- "Spine2":"swp4s0"
+"Leaf1":"swp62s1" -- "Spine2":"swp4s1"
+
+"Leaf2":"swp55s0" -- "Spine1":"swp5s0"
+"Leaf2":"swp55s1" -- "Spine1":"swp5s1"
+"Leaf2":"swp56s0" -- "Spine1":"swp6s0"
+"Leaf2":"swp56s1" -- "Spine1":"swp6s1"
+"Leaf2":"swp57s0" -- "Spine1":"swp7s0"
+"Leaf2":"swp57s1" -- "Spine1":"swp7s1"
+"Leaf2":"swp58s0" -- "Spine1":"swp8s0"
+"Leaf2":"swp58s1" -- "Spine1":"swp8s1"
+
+"Leaf2":"swp59s0" -- "Spine2":"swp5s0"
+"Leaf2":"swp59s1" -- "Spine2":"swp5s1"
+"Leaf2":"swp60s0" -- "Spine2":"swp6s0"
+"Leaf2":"swp60s1" -- "Spine2":"swp6s1"
+"Leaf2":"swp61s0" -- "Spine2":"swp7s0"
+"Leaf2":"swp61s1" -- "Spine2":"swp7s1"
+"Leaf2":"swp62s0" -- "Spine2":"swp8s0"
+"Leaf2":"swp62s1" -- "Spine2":"swp8s1"
+
+"Leaf3":"swp55s0" -- "Spine1":"swp9s0"
+"Leaf3":"swp55s1" -- "Spine1":"swp9s1"
+"Leaf3":"swp56s0" -- "Spine1":"swp10s0"
+"Leaf3":"swp56s1" -- "Spine1":"swp10s1"
+"Leaf3":"swp57s0" -- "Spine1":"swp11s0"
+"Leaf3":"swp57s1" -- "Spine1":"swp11s1"
+"Leaf3":"swp58s0" -- "Spine1":"swp12s0"
+"Leaf3":"swp58s1" -- "Spine1":"swp12s1"
+
+"Leaf3":"swp59s0" -- "Spine2":"swp9s0"
+"Leaf3":"swp59s1" -- "Spine2":"swp9s1"
+"Leaf3":"swp60s0" -- "Spine2":"swp10s0"
+"Leaf3":"swp60s1" -- "Spine2":"swp10s1"
+"Leaf3":"swp61s0" -- "Spine2":"swp11s0"
+"Leaf3":"swp61s1" -- "Spine2":"swp11s1"
+"Leaf3":"swp62s0" -- "Spine2":"swp12s0"
+"Leaf3":"swp62s1" -- "Spine2":"swp12s1"
+
+"Leaf4":"swp55s0" -- "Spine1":"swp13s0"
+"Leaf4":"swp55s1" -- "Spine1":"swp13s1"
+"Leaf4":"swp56s0" -- "Spine1":"swp14s0"
+"Leaf4":"swp56s1" -- "Spine1":"swp14s1"
+"Leaf4":"swp57s0" -- "Spine1":"swp15s0"
+"Leaf4":"swp57s1" -- "Spine1":"swp15s1"
+"Leaf4":"swp58s0" -- "Spine1":"swp16s0"
+"Leaf4":"swp58s1" -- "Spine1":"swp16s1"
+
+"Leaf4":"swp59s0" -- "Spine2":"swp13s0"
+"Leaf4":"swp59s1" -- "Spine2":"swp13s1"
+"Leaf4":"swp60s0" -- "Spine2":"swp14s0"
+"Leaf4":"swp60s1" -- "Spine2":"swp14s1"
+"Leaf4":"swp61s0" -- "Spine2":"swp15s0"
+"Leaf4":"swp61s1" -- "Spine2":"swp15s1"
+"Leaf4":"swp62s0" -- "Spine2":"swp16s0"
+"Leaf4":"swp62s1" -- "Spine2":"swp16s1"
+
+}

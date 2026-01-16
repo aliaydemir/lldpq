@@ -1,0 +1,166 @@
+    body::-webkit-scrollbar {
+        width: 12px;                  /* width of the entire scrollbar */
+        height: 12px;
+    }
+
+    body::-webkit-scrollbar-track {
+        background: #212121;          /* color of the tracking area */
+    }
+
+    body::-webkit-scrollbar-thumb {
+        background-color: #43453B;    /* color of the scroll thumb */
+        border-radius: 30px;          /* roundness of the scroll thumb */
+        border: 1px solid #212121;    /* creates padding around scroll thumb */
+    }
+
+    body::-webkit-scrollbar-corner {
+        background-color: #212121;
+    }
+    ::-moz-selection { /* Code for Firefox */
+        color: #212121;
+        background: #43453B;
+    }
+    ::selection {
+        color: #212121;
+        background: #43453B;
+    }
+    #sidebar::-webkit-scrollbar {
+        width: 12px;                  /* width of the entire scrollbar */
+        height: 12px;
+    }
+
+    #sidebar::-webkit-scrollbar-track {
+        background: #212121;          /* color of the tracking area */
+    }
+
+    #sidebar::-webkit-scrollbar-thumb {
+        background-color: #43453B;    /* color of the scroll thumb */
+        border-radius: 30px;          /* roundness of the scroll thumb */
+        border: 1px solid #212121;    /* creates padding around scroll thumb */
+    }
+
+    #sidebar::-webkit-scrollbar-corner {
+        background-color: #212121;
+    }
+    ::-moz-selection { /* Code for Firefox */
+        color: #212121;
+        background: #43453B;
+    }
+    ::selection {
+        color: #212121;
+        background: #43453B;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background-color: #212121;
+      color: #fff;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    #sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 250px;
+      height: 100vh;
+      background-color: #333;
+      padding: 20px;
+      box-sizing: border-box;
+      transition: background-color 0.3s ease;
+      overflow-y: auto;
+    }
+
+    #sidebar ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    #sidebar li {
+      margin-bottom: 10px;
+      max-width: 200px;
+    }
+
+    #sidebar a {
+      display: block;
+      padding: 10px;
+      text-decoration: none;
+      color: #fff;
+      background-color: #444;
+      border-radius: 5px;
+      transition: background-color 0.3s ease;
+    }
+
+    #sidebar a:hover {
+      background-color: #555;
+    }
+
+    #content {
+      margin-left: 250px; /* Sol menü genişliği */
+      padding: 20px;
+    }
+
+    /* Dark Mode Stilleri */
+    #sidebar.dark-mode {
+      background-color: #555;
+    }
+
+    #sidebar.dark-mode a {
+      color: #fff;
+      background-color: #666;
+    }
+
+    #sidebar.dark-mode a:hover {
+      background-color: #777;
+    }
+
+    #iframeContainer {
+      position: absolute;
+      top: 0;
+      left: 250px; /* Sol menü genişliği */
+      right: 0;
+      bottom: 0;
+      border: none;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    a.ssh-link {
+        color: slateblue;
+    }
+    a.ssh-link:hover {
+        color: #d79921;
+    }
+    .copyleft {
+        position: relative;
+        top: -5px;
+        display:inline-block;
+        transform: rotate(180deg);
+    }
+
+    #sidebar {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    #sidebar::-webkit-scrollbar {
+        width: 0;  /* Remove scrollbar space */
+        background: transparent;
+    }
+
+    #sidebar:hover {
+        scrollbar-width: thin;
+        -ms-overflow-style: auto;
+    }
+
+    #sidebar:hover::-webkit-scrollbar {
+        width: 10px; /* width of the entire scrollbar */
+    }
+
+    h3 {
+      margin-bottom: 10px;
+      max-width: 200px;
+    }

@@ -1,0 +1,218 @@
+#!/bin/bash
+
+# Ali Aydemir
+# v10.0 Added parallel execution support for faster ping operations
+# v9.9 Updated to support hostname and IP pair input format
+
+count=1       # quantity of send
+timeout=0.3   # timeout in seconds (300 milliseconds)
+#timeout=1     # timeout in seconds (1 second for parallel efficiency)
+max_tries=3   # if not reachable, quantity of tries (reduced for speed)
+
+starting_time=0
+hosts_up=0
+hosts_down=0
+unreachable_hosts=()
+reachable_hosts=()
+
+show_usage() {
+    echo -e "\e[95m┌─────────────────────────────────────────────┐\e[0m"
+    echo -e "\e[95m│\e[0m            \e[93mPPING v10.0\e[0m                      \e[95m│\e[0m"
+    echo -e "\e[95m│\e[0m      \e[92mParallel Ping Utility\e[0m                  \e[95m│\e[0m"
+    echo -e "\e[95m└─────────────────────────────────────────────┘\e[0m"
+    echo ""
+    echo -e "\e[96mUSAGE:\e[0m"
+    echo -e "  \e[32mpping\e[0m [\e[33mOPTIONS\e[0m]"
+    echo ""
+    echo -e "\e[96mOPTIONS:\e[0m"
+    echo -e "  \e[33m-f <file>\e[0m     Use custom IP list file (default: /etc/ip_list)"
+    echo -e "  \e[33m-v <vrf>\e[0m      Use VRF for ping commands"
+    echo -e "  \e[33m-h, --help\e[0m    Show this help message"
+    echo ""
+    echo -e "\e[96mFILE FORMAT:\e[0m"
+    echo -e "  hostname ip_address"
+    echo -e "  or"
+    echo -e "  ip_address          (hostname will be same as IP)"
+    echo ""
+    echo -e "\e[96mEXAMPLES:\e[0m"
+    echo -e "  \e[32mpping\e[0m                    # Use default /etc/ip_list"
+    echo -e "  \e[32mpping -f custom.txt\e[0m      # Use custom file"
+    echo -e "  \e[32mpping -v mgmt\e[0m            # Use mgmt VRF"
+    echo ""
+    echo -e "\e[96mFEATURES:\e[0m"
+    echo -e "  • \e[92mParallel execution\e[0m for faster results"
+    echo -e "  • \e[92m300ms timeout\e[0m per ping (3 retries)"
+    echo -e "  • \e[92mColor-coded output\e[0m for easy reading"
+    echo -e "  • \e[92mInteractive mode\e[0m with repeat option"
+    echo ""
+}
+
+load_ip_list() {
+    local file_path=$1
+    if [[ ! -f $file_path ]]; then
+        echo -e "\e[91mError: \e[32m${file_path}\e[91m does not exist.\e[0m"
+        echo -e "\e[91mUse: \e[32mpping -h\e[0m for help"
+        exit 1
+    fi
+    mapfile -t ip_list < <(awk '{if(NF==2) print $0; else print $1, $1}' "$file_path")
+}
+
+command_maker() {
+    local ip_list=("$@")
+    local vrf=$vrf_name
+    commands=()
+    for entry in "${ip_list[@]}"; do
+        hostname=$(echo $entry | cut -d' ' -f1)
+        ip=$(echo $entry | cut -d' ' -f2)
+        if [[ -n $vrf ]]; then
+            command="timeout $timeout vrf task exec $vrf ping -c$count $ip"
+        else
+            command="timeout $timeout ping -c$count $ip"
+        fi
+        commands+=("$command")
+    done
+}
+
+process_ping() {
+    local hostname=$1
+    local cmd=$2
+    local ip=$3
+    local temp_file=$4
+    tries=0
+    
+    while [[ $tries -lt $max_tries ]]; do
+        tries=$((tries+1))
+        if eval $cmd > /dev/null 2>&1; then
+            echo -e "\e[93m${hostname} [${ip}] is UP\e[0m"
+            echo "UP:$hostname $ip" >> "$temp_file"
+            return 0
+        else
+            echo -e "\e[96m${hostname} [${ip}] is DOWN !!!\e[0m"
+        fi
+    done
+    echo "DOWN:$hostname $ip" >> "$temp_file"
+    return 1
+}
+
+full_ping() {
+    echo
+    echo -e "\e[101;93m...::Parallel Ping Starting::...\e[0m"
+    starting_time=$(date +%s)
+    hosts_up=0
+    hosts_down=0
+    unreachable_hosts=()
+    reachable_hosts=()
+    
+    # Create temporary file for collecting results
+    local temp_results=$(mktemp)
+    local pids=()
+    
+    command_maker "${ip_list[@]}"
+    
+    echo -e "\e[32mStarting parallel ping to ${#ip_list[@]} hosts...\e[0m"
+    
+    # Start all pings in parallel
+    for i in "${!commands[@]}"; do
+        cmd=${commands[i]}
+        hostname=$(echo "${ip_list[i]}" | cut -d' ' -f1)
+        ip=$(echo "${ip_list[i]}" | cut -d' ' -f2)
+        
+        if [[ -n $vrf_name ]]; then
+            echo -e "\e[32mPinging:\e[0m \e[1m${hostname} [${ip}] [VRF: ${vrf_name}]\e[0m"
+        else
+            echo -e "\e[32mPinging:\e[0m \e[1m${hostname} [${ip}]\e[0m"
+        fi
+        
+        # Start ping in background
+        process_ping "$hostname" "$cmd" "$ip" "$temp_results" &
+        pids+=($!)
+    done
+    
+    echo
+    echo -e "\e[33mWaiting for all pings to complete...\e[0m"
+    
+    # Wait for all background processes
+    for pid in "${pids[@]}"; do
+        wait $pid
+    done
+    
+    # Process results from temp file
+    while IFS=':' read -r status host_info; do
+        if [[ $status == "UP" ]]; then
+            hosts_up=$((hosts_up+1))
+            reachable_hosts+=("$host_info")
+        elif [[ $status == "DOWN" ]]; then
+            hosts_down=$((hosts_down+1))
+            unreachable_hosts+=("$host_info")
+        fi
+    done < "$temp_results"
+    
+    # Cleanup temp file
+    rm -f "$temp_results"
+}
+
+last_call() {
+    echo
+    echo -e "\e[101;93m...::Ping Completed::...\e[0m"
+    elapsed_time=$(($(date +%s) - starting_time))
+    echo -e "Time Elapsed: \e[95m${elapsed_time}\e[0m seconds"
+    echo -e "Hosts UP: \e[93m${hosts_up}\e[0m, Hosts DOWN: \e[96m${hosts_down}\e[0m"
+    if [[ ${#reachable_hosts[@]} -gt 0 ]]; then
+        echo -e "\n\e[92mReachable Hosts:\n\e[0m"
+        for host in "${reachable_hosts[@]}"; do
+            IFS=' ' read -r hostname ip <<< "$host"
+            echo -e "\e[32m[$ip] \e[0;32m[$hostname]\e[0m"
+        done
+        echo ""
+    fi
+    if [[ ${#unreachable_hosts[@]} -gt 0 ]]; then
+        echo -e "\n\e[96mUnreachable Hosts:\n\e[0m"
+        for host in "${unreachable_hosts[@]}"; do
+            IFS=' ' read -r hostname ip <<< "$host"
+            echo -e "\e[31m[$ip] \e[0;31m[$hostname]\e[0m"
+        done
+        echo ""
+    fi
+    echo -e "Press \e[32m[P] \e[0mto do it again.\nPress \e[91m[Q] \e[0mto exit."
+    read -rsn1 char
+    if [[ $char == 'p' || $char == 'P' ]]; then
+        main_loop
+    elif [[ $char == 'q' || $char == 'Q' ]]; then
+        exit 0
+    else
+        exit 0
+    fi
+}
+
+main_loop() {
+    while true; do
+        main "$@"
+        last_call
+    done
+}
+
+main() {
+    # Handle --help first
+    for arg in "$@"; do
+        if [[ "$arg" == "--help" ]]; then
+            show_usage
+            exit 0
+        fi
+    done
+    
+    while getopts ":v:f:h" opt; do
+        case $opt in
+            v) vrf_name=$OPTARG ;;
+            f) file_path=$OPTARG ;;
+            h) show_usage; exit 0 ;;
+            \?) echo -e "\e[91mInvalid option: -$OPTARG\e[0m" >&2
+                echo -e "\e[91mUse: \e[32mpping -h\e[0m for help" >&2
+                exit 1 ;;
+        esac
+    done
+    file_path=${file_path:-/etc/ip_list}
+    load_ip_list "$file_path"
+    full_ping
+}
+
+main_loop "$@"
