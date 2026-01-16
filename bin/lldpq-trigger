@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# LLDP & Monitor Trigger Monitor - Self-loop daemon for web interface triggers
-# Add to crontab: * * * * * /path/to/lldp_trigger_monitor.sh
+# LLDPq Trigger - Self-loop daemon for web interface triggers
+# Add to crontab: * * * * * /usr/local/bin/lldpq-trigger
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 
 # Ensure PATH includes GNU tools (coreutils, sed, grep, awk), bash 4+, python3, flock
@@ -11,7 +11,9 @@ if [ -z "$SSH_AUTH_SOCK" ]; then
     export SSH_AUTH_SOCK=$(ls /private/tmp/com.apple.launchd.*/Listeners 2>/dev/null | head -1)
 fi
 
-MONITOR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Load config
+source /etc/lldpq.conf 2>/dev/null || true
+LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
 LLDP_TRIGGER_FILE="/tmp/.lldp_web_trigger"
 MONITOR_TRIGGER_FILE="/tmp/.monitor_web_trigger"
 DAEMON_PID_FILE="/tmp/lldp_trigger_daemon.pid"
@@ -49,8 +51,8 @@ wait_until_not_running() {
 }
 
 # Main daemon loop - check every 5 seconds
-LLDP_LAST_CHECK_FILE="$MONITOR_DIR/.last_lldp_trigger_check"
-MONITOR_LAST_CHECK_FILE="$MONITOR_DIR/.last_monitor_trigger_check"
+LLDP_LAST_CHECK_FILE="$LLDPQ_DIR/.last_lldp_trigger_check"
+MONITOR_LAST_CHECK_FILE="$LLDPQ_DIR/.last_monitor_trigger_check"
 
 while true; do
     # Check LLDP trigger
@@ -69,7 +71,7 @@ while true; do
                 {                    
                     echo $$ > "$LLDP_LOCK_FILE"
                     echo "$LLDP_TRIGGER_TIME" > "$LLDP_LAST_CHECK_FILE"
-                    cd "$MONITOR_DIR"
+                    cd "$LLDPQ_DIR"
 
                     wait_until_not_running "./assets.sh"
                     ./assets.sh >/dev/null 2>&1
@@ -93,7 +95,7 @@ while true; do
         
         if [ "$MONITOR_TRIGGER_TIME" -gt "$MONITOR_LAST_CHECK" ]; then
             echo "$MONITOR_TRIGGER_TIME" > "$MONITOR_LAST_CHECK_FILE"
-            cd "$MONITOR_DIR"
+            cd "$LLDPQ_DIR"
             while pgrep -f "./monitor\.sh" >/dev/null; do
                 sleep 2
             done

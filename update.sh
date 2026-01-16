@@ -170,13 +170,13 @@ if [[ -d "$HOME/lldpq" ]]; then
     fi
     
     # Check if lldpq processes are running before removing directory
-    if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldp-trigger-monitor" >/dev/null 2>&1; then
+    if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldpq-trigger" >/dev/null 2>&1; then
         echo ""
         echo "   WARNING: LLDPq processes are currently running!"
         echo "   Waiting for processes to finish..."
         # Wait up to 30 seconds for processes to finish
         for i in {1..30}; do
-            if ! pgrep -f "monitor\.sh" >/dev/null 2>&1 && ! pgrep -f "lldp-trigger-monitor" >/dev/null 2>&1; then
+            if ! pgrep -f "monitor\.sh" >/dev/null 2>&1 && ! pgrep -f "lldpq-trigger" >/dev/null 2>&1; then
                 break
             fi
             sleep 1
@@ -184,7 +184,7 @@ if [[ -d "$HOME/lldpq" ]]; then
         done
         echo ""
         # Final check
-        if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldp-trigger-monitor" >/dev/null 2>&1; then
+        if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldpq-trigger" >/dev/null 2>&1; then
             echo "   Processes still running. Proceeding anyway, but this may cause issues."
             echo "   Consider stopping processes manually: pkill -f monitor.sh"
         else

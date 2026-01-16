@@ -53,12 +53,12 @@ fi
 
 # Check for running processes
 echo "   - Checking for running processes..."
-if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldp-trigger-monitor" >/dev/null 2>&1; then
+if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldpq-trigger" >/dev/null 2>&1; then
     echo ""
     echo "   ⚠️  LLDPq processes are currently running!"
     echo "   Please wait for them to finish or stop them manually:"
     echo "   pkill -f monitor.sh"
-    echo "   pkill -f lldp-trigger-monitor"
+    echo "   pkill -f lldpq-trigger"
     echo ""
     read -p "   Wait and retry? [Y/n]: " -n 1 -r
     echo ""
@@ -69,7 +69,7 @@ if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldp-trigger-monitor" >/d
     
     echo "   Waiting for processes to finish (max 30 seconds)..."
     for i in {1..30}; do
-        if ! pgrep -f "monitor\.sh" >/dev/null 2>&1 && ! pgrep -f "lldp-trigger-monitor" >/dev/null 2>&1; then
+        if ! pgrep -f "monitor\.sh" >/dev/null 2>&1 && ! pgrep -f "lldpq-trigger" >/dev/null 2>&1; then
             echo "   ✅ Processes finished"
             break
         fi
@@ -78,7 +78,7 @@ if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldp-trigger-monitor" >/d
     done
     echo ""
     
-    if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldp-trigger-monitor" >/dev/null 2>&1; then
+    if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldpq-trigger" >/dev/null 2>&1; then
         echo "   ❌ Processes still running. Please stop them manually and retry."
         exit 1
     fi
@@ -201,7 +201,7 @@ else
 fi
 
 # Check key files
-for file in monitor.sh devices.yaml check-lldp.sh lldp-trigger-monitor.sh; do
+for file in monitor.sh devices.yaml check-lldp.sh; do
     if [[ -f "$HOME/lldpq/$file" ]]; then
         echo "   ✅ $file exists"
     else

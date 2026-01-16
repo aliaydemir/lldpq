@@ -123,12 +123,14 @@ sudo sed -i '/lldpq\|monitor\|get-conf/d' /etc/crontab
 # Add new cron jobs
 echo "*/5 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab
 echo "0 */12 * * * $(whoami) /usr/local/bin/get-conf" | sudo tee -a /etc/crontab
-echo "* * * * * $(whoami) $HOME/lldpq/lldp-trigger-monitor.sh" | sudo tee -a /etc/crontab
+echo "* * * * * $(whoami) /usr/local/bin/lldpq-trigger" | sudo tee -a /etc/crontab
+echo "0 0 * * * $(whoami) cp /var/www/html/topology.dot $HOME/lldpq/topology.dot.bkp 2>/dev/null; cp /var/www/html/topology_config.yaml $HOME/lldpq/topology_config.yaml.bkp 2>/dev/null; cd $HOME/lldpq && git add -A && git diff --cached --quiet || git commit -m 'auto: \$(date +\%Y-\%m-\%d)'" | sudo tee -a /etc/crontab
 
 echo "Cron jobs added:"
 echo "   - lldpq:           every 5 minutes (system monitoring)"  
 echo "   - get-conf:        every 12 hours"
 echo "   - web triggers:    daemon (checks every 5 seconds, enables Run LLDP Check button)"
+echo "   - git auto-commit: daily at midnight (tracks config changes)"
 
 echo ""
 echo "[06] SSH Key Setup Required"
@@ -141,7 +143,36 @@ echo "   And ensure sudo works without password on each device:"
 echo "   sudo visudo  # Add: username ALL=(ALL) NOPASSWD:ALL"
 
 echo ""
-echo "[07] Installation Complete!"
+echo "[07] Initializing local git repository in ~/lldpq..."
+cd ~/lldpq
+
+# Create .gitignore
+cat > .gitignore << 'EOF'
+# Output directories (dynamic, changes frequently)
+lldp-results/
+monitor-results/
+
+# Temporary and backup files
+*.log
+*.tmp
+*.pid
+*.bak
+
+# Python cache
+__pycache__/
+*.pyc
+EOF
+
+# Initialize git repo
+git init -q
+git add -A
+git commit -q -m "Initial LLDPq configuration"
+echo "Git repository initialized with initial commit"
+echo "   - Use 'cd ~/lldpq && git diff' to see changes"
+echo "   - Use 'cd ~/lldpq && git log' to see history"
+
+echo ""
+echo "[08] Installation Complete!"
 echo "   Next steps:"
 echo "   1. Edit the 4 configuration files mentioned above"
 echo "   2. Setup SSH keys for all devices"

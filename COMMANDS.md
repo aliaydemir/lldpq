@@ -226,7 +226,7 @@ cat /sys/class/net/$interface/carrier_changes
 | `assets.sh` | Asset inventory | ~8 commands | Every 12 hours | **10x faster** |
 | `send-key.sh` | SSH setup | ~2 commands | Once | Standard |
 | `sudo-fix.sh` | Sudo setup | ~2 commands | Once | Standard |
-| `lldp-trigger-monitor.sh` | Web triggers | Background daemon | Every 5 seconds | Lightweight |
+| `lldpq-trigger` | Web triggers | Background daemon | Every 5 seconds | Lightweight |
 
 ## 🚀 Performance Optimized Scripts
 
@@ -245,7 +245,7 @@ bridge vlan show | grep -v '^port'
 ip addr show | awk '/inet/ && !/127.0.0.1/ && !/::1/ {print $2, $NF}'
 ```
 
-### `lldp-trigger-monitor.sh` - Web Interface Triggers
+### `lldpq-trigger` - Web Interface Triggers
 ```bash
 # Background daemon for web-triggered actions (LLDP + Monitor)
 LLDP_TRIGGER=/tmp/.lldp_web_trigger

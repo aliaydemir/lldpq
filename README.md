@@ -47,7 +47,7 @@ edit these 7 files:
 ```
 */5 * * * * lldpq                       # system monitoring every 5 minutes
 0 */12 * * * get-conf                   # configs every 12 hours
-* * * * * lldp-trigger-monitor.sh       # web triggers daemon (checks every 5 seconds)
+* * * * * lldpq-trigger                 # web triggers daemon (checks every 5 seconds)
 ```
 
 ## [05] update
