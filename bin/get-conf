@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Ensure PATH includes common locations for bash 4+, python3, etc.
-export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+# Ensure PATH includes GNU tools (coreutils, sed, grep, awk), bash 4+, python3, flock
+export PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:/opt/homebrew/opt/gnu-sed/libexec/gnubin:/opt/homebrew/opt/grep/libexec/gnubin:/opt/homebrew/opt/gawk/libexec/gnubin:/opt/homebrew/bin:/opt/homebrew/opt/util-linux/bin:/usr/local/bin:$PATH"
 
 # Load config with fallback
 source /etc/lldpq.conf 2>/dev/null || true

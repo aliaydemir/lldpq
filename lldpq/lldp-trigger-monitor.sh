@@ -3,8 +3,8 @@
 # Add to crontab: * * * * * /path/to/lldp_trigger_monitor.sh
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 
-# Ensure PATH includes common locations for bash 4+, python3, flock, etc.
-export PATH="/opt/homebrew/bin:/opt/homebrew/opt/util-linux/bin:/usr/local/bin:$PATH"
+# Ensure PATH includes GNU tools (coreutils, sed, grep, awk), bash 4+, python3, flock
+export PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:/opt/homebrew/opt/gnu-sed/libexec/gnubin:/opt/homebrew/opt/grep/libexec/gnubin:/opt/homebrew/opt/gawk/libexec/gnubin:/opt/homebrew/bin:/opt/homebrew/opt/util-linux/bin:/usr/local/bin:$PATH"
 
 MONITOR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LLDP_TRIGGER_FILE="/tmp/.lldp_web_trigger"
