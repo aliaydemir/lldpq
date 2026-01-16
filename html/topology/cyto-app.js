@@ -1085,6 +1085,109 @@ function saveTopology() {
 }
 
 /**
+ * Open config editor modal (topology_config.yaml)
+ */
+function openConfigEditor() {
+    const modal = document.getElementById('configEditorModal');
+    const editor = document.getElementById('configEditor');
+    const status = document.getElementById('configEditorStatus');
+    
+    modal.classList.add('show');
+    editor.value = 'Loading...';
+    editor.disabled = true;
+    status.textContent = 'Loading topology_config.yaml...';
+    
+    fetch('/edit-config', {
+        method: 'GET'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            editor.value = data.content;
+            editor.disabled = false;
+            status.textContent = 'Loaded successfully. Edit and save.';
+        } else {
+            editor.value = '# Error loading file: ' + (data.error || 'Unknown error');
+            status.textContent = 'Error: ' + (data.error || 'Unknown');
+        }
+    })
+    .catch(error => {
+        editor.value = '# Network error loading topology_config.yaml';
+        status.textContent = 'Network error';
+    });
+}
+
+/**
+ * Close config editor modal
+ */
+function closeConfigEditor(event) {
+    if (event && event.target !== event.currentTarget) return;
+    document.getElementById('configEditorModal').classList.remove('show');
+}
+
+function closeConfigEditorModal() {
+    document.getElementById('configEditorModal').classList.remove('show');
+}
+
+/**
+ * Save config only (no LLDPq run)
+ */
+function saveConfigOnly() {
+    const editor = document.getElementById('configEditor');
+    const status = document.getElementById('configEditorStatus');
+    const content = editor.value;
+    
+    status.textContent = 'Saving...';
+    
+    fetch('/edit-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: content })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            status.textContent = 'Saved successfully!';
+        } else {
+            status.textContent = 'Error: ' + (data.error || 'Save failed');
+        }
+    })
+    .catch(error => {
+        status.textContent = 'Network error saving';
+    });
+}
+
+/**
+ * Save config and run LLDPq
+ */
+function saveConfig() {
+    const editor = document.getElementById('configEditor');
+    const status = document.getElementById('configEditorStatus');
+    const content = editor.value;
+    
+    status.textContent = 'Saving...';
+    
+    fetch('/edit-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: content })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            status.textContent = 'Saved! Running LLDPq...';
+            closeConfigEditorModal();
+            runLLDPCheck();
+        } else {
+            status.textContent = 'Error: ' + (data.error || 'Save failed');
+        }
+    })
+    .catch(error => {
+        status.textContent = 'Network error saving';
+    });
+}
+
+/**
  * Initialize Cytoscape
  */
 function initCytoscape() {

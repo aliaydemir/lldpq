@@ -48,6 +48,7 @@ sudo cp -r html/* "$WEB_ROOT/"
 sudo chmod +x "$WEB_ROOT/trigger-lldp.sh"
 sudo chmod +x "$WEB_ROOT/trigger-monitor.sh"
 sudo chmod +x "$WEB_ROOT/edit-topology.sh"
+sudo chmod +x "$WEB_ROOT/edit-config.sh"
 
 echo "   - Copying bin/* to /usr/local/bin/"
 sudo cp bin/* /usr/local/bin/
@@ -72,6 +73,15 @@ else
     sudo chown www-data:$USER "$WEB_ROOT/topology.dot"
     sudo chmod 664 "$WEB_ROOT/topology.dot"
     ln -sf "$WEB_ROOT/topology.dot" ~/lldpq/topology.dot
+fi
+
+echo "   - Setting up topology_config.yaml for web editing"
+# Move topology_config.yaml to web root for www-data access
+if [[ -f ~/lldpq/topology_config.yaml ]]; then
+    sudo mv ~/lldpq/topology_config.yaml "$WEB_ROOT/topology_config.yaml"
+    sudo chown www-data:$USER "$WEB_ROOT/topology_config.yaml"
+    sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
+    ln -sf "$WEB_ROOT/topology_config.yaml" ~/lldpq/topology_config.yaml
 fi
 
 echo "   - Creating /etc/lldpq.conf"

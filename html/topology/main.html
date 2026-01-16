@@ -401,6 +401,7 @@
     <div class="toolbar">
         <button onclick="runLLDPCheck()" id="runLLDPCheck">▶ Run LLDPq</button>
         <button onclick="openTopologyEditor()">✎ Edit Topology</button>
+        <button onclick="openConfigEditor()">⚙ Edit Order</button>
         <button onclick="location.reload()">↻ Refresh</button>
         <button onclick="setLayout('dagre-lr')" id="btn-hlr">→ Horizontal</button>
         <button onclick="setLayout('dagre-tb')" id="btn-hud" class="active">↓ Vertical</button>
@@ -508,6 +509,42 @@
                     <button onclick="closeTopologyEditorModal()" style="margin-right: 10px;">Cancel</button>
                     <button onclick="saveTopologyOnly()" style="margin-right: 10px;">Save</button>
                     <button onclick="saveTopology()" style="background: #76b900; color: #000;">Save & Run LLDPq</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Config Editor Modal -->
+    <div class="modal-overlay" id="configEditorModal" onclick="closeConfigEditor(event)">
+        <div class="modal" style="width: 80%; max-width: 900px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>Edit Device Order (topology_config.yaml)</h3>
+                <button class="modal-close" onclick="closeConfigEditorModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 0;">
+                <div style="padding: 15px; background: #333; border-bottom: 1px solid #4a4a4a; font-size: 12px; color: #888;">
+                    <b>layer:</b> vertical order (1=top) &nbsp;|&nbsp; 
+                    <b>icon:</b> switch, router, firewall, server, host &nbsp;|&nbsp;
+                    <b>pattern:</b> device name match
+                </div>
+                <textarea id="configEditor" style="
+                    width: 100%;
+                    height: 400px;
+                    background: #1e1e1e;
+                    color: #d4d4d4;
+                    border: none;
+                    padding: 15px;
+                    font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+                    font-size: 13px;
+                    line-height: 1.5;
+                    resize: vertical;
+                    box-sizing: border-box;
+                " placeholder="Loading..."></textarea>
+                <div style="padding: 15px; background: #333; border-top: 1px solid #4a4a4a; text-align: right;">
+                    <span id="configEditorStatus" style="float: left; color: #888; font-size: 12px;"></span>
+                    <button onclick="closeConfigEditorModal()" style="margin-right: 10px;">Cancel</button>
+                    <button onclick="saveConfigOnly()" style="margin-right: 10px;">Save</button>
+                    <button onclick="saveConfig()" style="background: #76b900; color: #000;">Save & Run LLDPq</button>
                 </div>
             </div>
         </div>

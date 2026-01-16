@@ -66,4 +66,15 @@ server {
             fastcgi_param CONTENT_TYPE $content_type;
             fastcgi_param CONTENT_LENGTH $content_length;
         }
+        
+        # Edit topology_config.yaml endpoint with fcgiwrap
+        location = /edit-config {
+            # Execute edit script via fcgiwrap
+            fastcgi_pass unix:/var/run/fcgiwrap.socket;
+            fastcgi_param SCRIPT_FILENAME /var/www/html/edit-config.sh;
+            fastcgi_param QUERY_STRING $query_string;
+            fastcgi_param REQUEST_METHOD $request_method;
+            fastcgi_param CONTENT_TYPE $content_type;
+            fastcgi_param CONTENT_LENGTH $content_length;
+        }
 }
