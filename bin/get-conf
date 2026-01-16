@@ -1,5 +1,5 @@
 #!/bin/bash
-cd ~/monitor/
+cd ~/lldpq/
 wait_until_not_running() {
     script_name="$1"
     while pgrep -f "$script_name" >/dev/null; do

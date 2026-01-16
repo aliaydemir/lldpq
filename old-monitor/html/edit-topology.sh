@@ -3,7 +3,7 @@
 # Called by nginx fcgiwrap
 
 # topology.dot is stored in /var/www/html for www-data access
-# A symlink in ~/lldpq/topology.dot points to this file
+# A symlink in ~/monitor/topology.dot points to this file
 TOPOLOGY_FILE="/var/www/html/topology.dot"
 
 # Read request method

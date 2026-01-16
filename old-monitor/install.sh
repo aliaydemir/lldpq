@@ -16,10 +16,10 @@ if [[ $EUID -eq 0 ]]; then
    #exit 1
 fi
 
-# Check if we're in the lldpq-src directory
-if [[ ! -f "README.md" ]] || [[ ! -d "lldpq" ]]; then
-    echo "❌ Please run this script from the lldpq-src directory"
-    echo "   Make sure you're in the directory containing README.md and lldpq/"
+# Check if we're in the lldpq directory
+if [[ ! -f "README.md" ]] || [[ ! -d "monitor" ]]; then
+    echo "❌ Please run this script from the lldpq directory"
+    echo "   Make sure you're in the directory containing README.md and monitor/"
     exit 1
 fi
 
@@ -50,30 +50,30 @@ echo "   - Copying bin/* to /usr/local/bin/"
 sudo cp bin/* /usr/local/bin/
 sudo chmod +x /usr/local/bin/*
 
-echo "   - Copying lldpq to ~/lldpq"
-cp -r lldpq ~/lldpq
+echo "   - Copying monitor to ~/monitor"
+cp -r monitor ~/monitor
 
 echo "   - Setting up topology.dot for web editing"
 # Move topology.dot to /var/www/html for www-data access (if it exists)
-if [[ -f ~/lldpq/topology.dot ]]; then
-    sudo mv ~/lldpq/topology.dot /var/www/html/topology.dot
+if [[ -f ~/monitor/topology.dot ]]; then
+    sudo mv ~/monitor/topology.dot /var/www/html/topology.dot
     # www-data owns it (for web editing), user's group has access too
     sudo chown www-data:$USER /var/www/html/topology.dot
     sudo chmod 664 /var/www/html/topology.dot
-    # Create symlink so lldpq scripts can access it
-    ln -sf /var/www/html/topology.dot ~/lldpq/topology.dot
+    # Create symlink so monitor scripts can access it
+    ln -sf /var/www/html/topology.dot ~/monitor/topology.dot
 else
-    echo "  topology.dot not found in lldpq/, will be created on first use"
+    echo "  topology.dot not found in monitor/, will be created on first use"
     # Create empty topology.dot in /var/www/html for web editing
     echo "# LLDPq Topology Definition" | sudo tee /var/www/html/topology.dot > /dev/null
     sudo chown www-data:$USER /var/www/html/topology.dot
     sudo chmod 664 /var/www/html/topology.dot
-    ln -sf /var/www/html/topology.dot ~/lldpq/topology.dot
+    ln -sf /var/www/html/topology.dot ~/monitor/topology.dot
 fi
 
 echo "   - Creating /etc/lldpq.conf"
 echo "# LLDPq Configuration" | sudo tee /etc/lldpq.conf > /dev/null
-echo "LLDPQ_DIR=$HOME/lldpq" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "MONITOR_DIR=$HOME/monitor" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "Files copied successfully"
 
 echo ""
@@ -82,8 +82,8 @@ echo "   You need to manually edit these files with your network details:"
 echo ""
 echo "   1. sudo nano /etc/ip_list              # Add your device IP addresses"
 echo "   2. sudo nano /etc/nccm.yml             # Configure SSH connection details"
-echo "   3. nano ~/lldpq/devices.yaml           # Define your network devices"
-echo "   4. nano ~/lldpq/topology.dot           # Define your network topology"
+echo "   3. nano ~/monitor/devices.yaml         # Define your network devices"
+echo "   4. nano ~/monitor/topology.dot         # Define your network topology"
 echo ""
 echo "   See README.md for examples of each file format"
 
@@ -109,7 +109,7 @@ sudo sed -i '/lldpq\|monitor\|get-conf/d' /etc/crontab
 # Add new cron jobs
 echo "*/5 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab
 echo "0 */12 * * * $(whoami) /usr/local/bin/get-conf" | sudo tee -a /etc/crontab
-echo "* * * * * $(whoami) $HOME/lldpq/lldp-trigger-monitor.sh" | sudo tee -a /etc/crontab
+echo "* * * * * $(whoami) $HOME/monitor/lldp-trigger-monitor.sh" | sudo tee -a /etc/crontab
 
 echo "Cron jobs added:"
 echo "   - lldpq:           every 5 minutes (system monitoring)"  

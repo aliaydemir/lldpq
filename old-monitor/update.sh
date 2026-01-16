@@ -17,28 +17,28 @@ if [[ $EUID -eq 0 ]]; then
    #exit 1
 fi
 
-# Check if we're in the lldpq-src directory
-if [[ ! -f "README.md" ]] || [[ ! -d "lldpq" ]]; then
-    echo "❌ Please run this script from the lldpq-src directory"
-    echo "   Make sure you're in the directory containing README.md and lldpq/"
+# Check if we're in the lldpq directory
+if [[ ! -f "README.md" ]] || [[ ! -d "monitor" ]]; then
+    echo "❌ Please run this script from the lldpq directory"
+    echo "   Make sure you're in the directory containing README.md and monitor/"
     exit 1
 fi
 
 echo ""
-echo "[01] Backup existing lldpq directory?"
-if [[ -d "$HOME/lldpq" ]]; then
-    read -p "Create backup of existing lldpq? [y/N]: " -n 1 -r
+echo "[01] Backup existing monitor directory?"
+if [[ -d "$HOME/monitor" ]]; then
+    read -p "Create backup of existing monitor? [y/N]: " -n 1 -r
     echo ""
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        backup_dir="$HOME/lldpq.backup.$(date +%Y%m%d_%H%M%S)"
-        echo "   Backing up $HOME/lldpq to $backup_dir"
-        cp -r "$HOME/lldpq" "$backup_dir"
+        backup_dir="$HOME/monitor.backup.$(date +%Y%m%d_%H%M%S)"
+        echo "   Backing up $HOME/monitor to $backup_dir"
+        cp -r "$HOME/monitor" "$backup_dir"
         echo "Backup created: $backup_dir"
     else
         echo "   Skipping backup as requested"
     fi
 else
-    echo "   No existing lldpq directory found, skipping backup"
+    echo "   No existing monitor directory found, skipping backup"
 fi
 
 echo ""
@@ -70,27 +70,27 @@ sudo chmod +x /var/www/html/edit-topology.sh
 echo "   - Setting up topology.dot for web editing"
 # If topology.dot exists in /var/www/html, it's already set up - just ensure symlink
 if [[ -f "/var/www/html/topology.dot" ]]; then
-    # Ensure lldpq directory exists before creating symlink
-    mkdir -p "$HOME/lldpq"
+    # Ensure monitor directory exists before creating symlink
+    mkdir -p "$HOME/monitor"
     # Ensure symlink exists
-    if [[ ! -L "$HOME/lldpq/topology.dot" ]]; then
-        rm -f "$HOME/lldpq/topology.dot" 2>/dev/null
-        ln -sf /var/www/html/topology.dot "$HOME/lldpq/topology.dot"
+    if [[ ! -L "$HOME/monitor/topology.dot" ]]; then
+        rm -f "$HOME/monitor/topology.dot" 2>/dev/null
+        ln -sf /var/www/html/topology.dot "$HOME/monitor/topology.dot"
     fi
 else
     # First time setup: move topology.dot to /var/www/html
-    if [[ -f "$HOME/lldpq/topology.dot" ]] && [[ ! -L "$HOME/lldpq/topology.dot" ]]; then
-        sudo mv "$HOME/lldpq/topology.dot" /var/www/html/topology.dot
+    if [[ -f "$HOME/monitor/topology.dot" ]] && [[ ! -L "$HOME/monitor/topology.dot" ]]; then
+        sudo mv "$HOME/monitor/topology.dot" /var/www/html/topology.dot
         # www-data owns it (for web editing), user's group has access too
         sudo chown www-data:$USER /var/www/html/topology.dot
         sudo chmod 664 /var/www/html/topology.dot
-        ln -sf /var/www/html/topology.dot "$HOME/lldpq/topology.dot"
+        ln -sf /var/www/html/topology.dot "$HOME/monitor/topology.dot"
     fi
 fi
 
 echo "   - Updating /etc/lldpq.conf"
 echo "# LLDPq Configuration" | sudo tee /etc/lldpq.conf > /dev/null
-echo "LLDPQ_DIR=$HOME/lldpq" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "MONITOR_DIR=$HOME/monitor" | sudo tee -a /etc/lldpq.conf > /dev/null
 
 echo "   - Updating bin/* to /usr/local/bin/"
 sudo cp bin/* /usr/local/bin/
@@ -100,11 +100,11 @@ echo "System files updated"
 echo ""
 echo "[03] Backup monitoring data?"
 backup_data_dir=""
-if [[ -d "$HOME/lldpq/monitor-results" ]] || [[ -d "$HOME/lldpq/lldp-results" ]] || [[ -d "$HOME/lldpq/alert-states" ]]; then
+if [[ -d "$HOME/monitor/monitor-results" ]] || [[ -d "$HOME/monitor/lldp-results" ]] || [[ -d "$HOME/monitor/alert-states" ]]; then
     echo "   Found existing monitoring data directories:"
-    [[ -d "$HOME/lldpq/monitor-results" ]] && echo "     • monitor-results/ (contains all analysis results)"
-    [[ -d "$HOME/lldpq/lldp-results" ]] && echo "     • lldp-results/ (contains LLDP topology data)"
-    [[ -d "$HOME/lldpq/alert-states" ]] && echo "     • alert-states/ (contains alert history and state tracking)"
+    [[ -d "$HOME/monitor/monitor-results" ]] && echo "     • monitor-results/ (contains all analysis results)"
+    [[ -d "$HOME/monitor/lldp-results" ]] && echo "     • lldp-results/ (contains LLDP topology data)"
+    [[ -d "$HOME/monitor/alert-states" ]] && echo "     • alert-states/ (contains alert history and state tracking)"
     echo ""
     read -p "Backup and preserve monitoring data? [Y/n]: " -n 1 -r
     echo ""
@@ -113,9 +113,9 @@ if [[ -d "$HOME/lldpq/monitor-results" ]] || [[ -d "$HOME/lldpq/lldp-results" ]]
     else
         backup_data_dir=$(mktemp -d)
         echo "   📦 Backing up monitoring data..."
-        [[ -d "$HOME/lldpq/monitor-results" ]] && cp -r "$HOME/lldpq/monitor-results" "$backup_data_dir/"
-        [[ -d "$HOME/lldpq/lldp-results" ]] && cp -r "$HOME/lldpq/lldp-results" "$backup_data_dir/"
-        [[ -d "$HOME/lldpq/alert-states" ]] && cp -r "$HOME/lldpq/alert-states" "$backup_data_dir/"
+        [[ -d "$HOME/monitor/monitor-results" ]] && cp -r "$HOME/monitor/monitor-results" "$backup_data_dir/"
+        [[ -d "$HOME/monitor/lldp-results" ]] && cp -r "$HOME/monitor/lldp-results" "$backup_data_dir/"
+        [[ -d "$HOME/monitor/alert-states" ]] && cp -r "$HOME/monitor/alert-states" "$backup_data_dir/"
         echo "   ✅ Monitoring data backed up to temporary location"
     fi
 else
@@ -123,51 +123,51 @@ else
 fi
 
 echo ""
-echo "[04] Updating lldpq directory (preserving configs)..."
+echo "[04] Updating monitor directory (preserving configs)..."
 # Create temp directory for selective copy
 temp_dir=$(mktemp -d)
-cp -r lldpq/* "$temp_dir/"
+cp -r monitor/* "$temp_dir/"
 
 # If monitor exists, preserve config files
-if [[ -d "$HOME/lldpq" ]]; then
+if [[ -d "$HOME/monitor" ]]; then
     echo "   - Preserving configuration files:"
     
-    if [[ -f "$HOME/lldpq/devices.yaml" ]]; then
+    if [[ -f "$HOME/monitor/devices.yaml" ]]; then
         echo "     • devices.yaml"
-        cp "$HOME/lldpq/devices.yaml" "$temp_dir/"
+        cp "$HOME/monitor/devices.yaml" "$temp_dir/"
     fi
     
-    if [[ -f "$HOME/lldpq/hosts.ini" ]]; then
+    if [[ -f "$HOME/monitor/hosts.ini" ]]; then
         echo "     • hosts.ini"
-        cp "$HOME/lldpq/hosts.ini" "$temp_dir/"
+        cp "$HOME/monitor/hosts.ini" "$temp_dir/"
     fi
     
-    # topology.dot is now stored in /var/www/html with symlink in ~/lldpq
+    # topology.dot is now stored in /var/www/html with symlink in ~/monitor
     # If it's a symlink, just note it; if it's a real file, migrate to /var/www/html
-    if [[ -L "$HOME/lldpq/topology.dot" ]]; then
+    if [[ -L "$HOME/monitor/topology.dot" ]]; then
         echo "     • topology.dot (symlink to /var/www/html)"
         # Symlink will be recreated later
-    elif [[ -f "$HOME/lldpq/topology.dot" ]]; then
+    elif [[ -f "$HOME/monitor/topology.dot" ]]; then
         echo "     • topology.dot (migrating to /var/www/html)"
-        sudo cp "$HOME/lldpq/topology.dot" /var/www/html/topology.dot
+        sudo cp "$HOME/monitor/topology.dot" /var/www/html/topology.dot
         sudo chown www-data:$USER /var/www/html/topology.dot
         sudo chmod 664 /var/www/html/topology.dot
     fi
     
-    if [[ -f "$HOME/lldpq/topology_config.yaml" ]]; then
+    if [[ -f "$HOME/monitor/topology_config.yaml" ]]; then
         echo "     • topology_config.yaml"
-        cp "$HOME/lldpq/topology_config.yaml" "$temp_dir/"
+        cp "$HOME/monitor/topology_config.yaml" "$temp_dir/"
     fi
     
-    if [[ -f "$HOME/lldpq/notifications.yaml" ]]; then
+    if [[ -f "$HOME/monitor/notifications.yaml" ]]; then
         echo "     • notifications.yaml"
-        cp "$HOME/lldpq/notifications.yaml" "$temp_dir/"
+        cp "$HOME/monitor/notifications.yaml" "$temp_dir/"
     fi
     
-    # Check if lldpq processes are running before removing directory
+    # Check if monitor processes are running before removing directory
     if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldp-trigger-monitor" >/dev/null 2>&1; then
         echo ""
-        echo "   WARNING: LLDPq processes are currently running!"
+        echo "   WARNING: Monitor processes are currently running!"
         echo "   Waiting for processes to finish..."
         # Wait up to 30 seconds for processes to finish
         for i in {1..30}; do
@@ -181,35 +181,35 @@ if [[ -d "$HOME/lldpq" ]]; then
         # Final check
         if pgrep -f "monitor\.sh" >/dev/null 2>&1 || pgrep -f "lldp-trigger-monitor" >/dev/null 2>&1; then
             echo "   Processes still running. Proceeding anyway, but this may cause issues."
-            echo "   Consider stopping processes manually: pkill -f monitor.sh"
+            echo "   Consider stopping monitor processes manually: pkill -f monitor.sh"
         else
             echo "   Processes finished, safe to proceed"
         fi
     fi
     
-    # Remove old lldpq directory (now safer)
-    echo "   - Removing old lldpq directory..."
-    rm -rf "$HOME/lldpq"
+    # Remove old monitor directory (now safer)
+    echo "   - Removing old monitor directory..."
+    rm -rf "$HOME/monitor"
 fi
 
 # Copy updated files with preserved configs
-mv "$temp_dir" "$HOME/lldpq"
+mv "$temp_dir" "$HOME/monitor"
 
-# Ensure topology.dot symlink exists (after lldpq directory is created)
-if [[ -f "/var/www/html/topology.dot" ]] && [[ ! -L "$HOME/lldpq/topology.dot" ]]; then
-    mkdir -p "$HOME/lldpq"  # Ensure directory exists
-    rm -f "$HOME/lldpq/topology.dot" 2>/dev/null
-    ln -sf /var/www/html/topology.dot "$HOME/lldpq/topology.dot"
+# Ensure topology.dot symlink exists (after monitor directory is created)
+if [[ -f "/var/www/html/topology.dot" ]] && [[ ! -L "$HOME/monitor/topology.dot" ]]; then
+    mkdir -p "$HOME/monitor"  # Ensure directory exists
+    rm -f "$HOME/monitor/topology.dot" 2>/dev/null
+    ln -sf /var/www/html/topology.dot "$HOME/monitor/topology.dot"
 fi
-echo "lldpq directory updated with preserved configs"
+echo "monitor directory updated with preserved configs"
 
 # Restore monitoring data if backed up
 if [[ -n "$backup_data_dir" ]] && [[ -d "$backup_data_dir" ]]; then
     echo ""
     echo "   📁 Restoring monitoring data..."
-    [[ -d "$backup_data_dir/monitor-results" ]] && cp -r "$backup_data_dir/monitor-results" "$HOME/lldpq/"
-    [[ -d "$backup_data_dir/lldp-results" ]] && cp -r "$backup_data_dir/lldp-results" "$HOME/lldpq/"
-    [[ -d "$backup_data_dir/alert-states" ]] && cp -r "$backup_data_dir/alert-states" "$HOME/lldpq/"
+    [[ -d "$backup_data_dir/monitor-results" ]] && cp -r "$backup_data_dir/monitor-results" "$HOME/monitor/"
+    [[ -d "$backup_data_dir/lldp-results" ]] && cp -r "$backup_data_dir/lldp-results" "$HOME/monitor/"
+    [[ -d "$backup_data_dir/alert-states" ]] && cp -r "$backup_data_dir/alert-states" "$HOME/monitor/"
     echo "   ✅ Monitoring data restored successfully"
     # Clean up temporary backup
     rm -rf "$backup_data_dir"
@@ -226,16 +226,16 @@ echo "   The following files/directories were preserved:"
 echo "   Configuration files:"
 echo "     • /etc/ip_list"
 echo "     • /etc/nccm.yml"
-echo "     • ~/lldpq/devices.yaml"
-echo "     • ~/lldpq/hosts.ini"
-echo "     • /var/www/html/topology.dot (web-editable, symlinked from ~/lldpq)"
-echo "     • ~/lldpq/topology_config.yaml"
-echo "     • ~/lldpq/notifications.yaml"
-if [[ -n "$backup_data_dir" ]] || [[ -d "$HOME/lldpq/monitor-results" ]] || [[ -d "$HOME/lldpq/lldp-results" ]] || [[ -d "$HOME/lldpq/alert-states" ]]; then
+echo "     • ~/monitor/devices.yaml"
+echo "     • ~/monitor/hosts.ini"
+echo "     • /var/www/html/topology.dot (web-editable, symlinked from ~/monitor)"
+echo "     • ~/monitor/topology_config.yaml"
+echo "     • ~/monitor/notifications.yaml"
+if [[ -n "$backup_data_dir" ]] || [[ -d "$HOME/monitor/monitor-results" ]] || [[ -d "$HOME/monitor/lldp-results" ]] || [[ -d "$HOME/monitor/alert-states" ]]; then
     echo "   Monitoring data directories:"
-    [[ -d "$HOME/lldpq/monitor-results" ]] && echo "     • monitor-results/ (all analysis results preserved)"
-    [[ -d "$HOME/lldpq/lldp-results" ]] && echo "     • lldp-results/ (LLDP topology data preserved)"
-    [[ -d "$HOME/lldpq/alert-states" ]] && echo "     • alert-states/ (alert history and state tracking preserved)"
+    [[ -d "$HOME/monitor/monitor-results" ]] && echo "     • monitor-results/ (all analysis results preserved)"
+    [[ -d "$HOME/monitor/lldp-results" ]] && echo "     • lldp-results/ (LLDP topology data preserved)"
+    [[ -d "$HOME/monitor/alert-states" ]] && echo "     • alert-states/ (alert history and state tracking preserved)"
 fi
 
 echo ""
