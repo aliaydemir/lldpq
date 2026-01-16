@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-cd ~/lldpq/
+# Load config with fallback
+source /etc/lldpq.conf 2>/dev/null || true
+LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
+
+cd "$LLDPQ_DIR"
 wait_until_not_running() {
     script_name="$1"
     while pgrep -f "$script_name" >/dev/null; do
