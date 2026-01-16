@@ -12,7 +12,7 @@ for iface in $(ip link show | grep -E ': swp[0-9]' | cut -d: -f2 | tr -d ' '); d
     echo "$iface: $(cat /sys/class/net/$iface/operstate 2>/dev/null || echo unknown)"
 done
 
-# Interface IP addresses
+# Interface IP addresses 
 ip addr show | grep -E '(inet |inet6 )' | grep -v '127.0.0.1\|::1\|fe80'
 
 # Bridge and VLAN information (native)
