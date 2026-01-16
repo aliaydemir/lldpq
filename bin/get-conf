@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# Ensure PATH includes common locations for bash 4+, python3, etc.
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 # Load config with fallback
 source /etc/lldpq.conf 2>/dev/null || true
 LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
@@ -11,5 +15,5 @@ wait_until_not_running() {
     done
 }
 wait_until_not_running "get-configs.sh"
-bash ./get-configs.sh >/dev/null 2>&1
+./get-configs.sh >/dev/null 2>&1
 exit 0

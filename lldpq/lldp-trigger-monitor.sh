@@ -3,6 +3,9 @@
 # Add to crontab: * * * * * /path/to/lldp_trigger_monitor.sh
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 
+# Ensure PATH includes common locations for bash 4+, python3, etc.
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 MONITOR_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LLDP_TRIGGER_FILE="/tmp/.lldp_web_trigger"
 MONITOR_TRIGGER_FILE="/tmp/.monitor_web_trigger"
@@ -64,9 +67,9 @@ while true; do
                     cd "$MONITOR_DIR"
 
                     wait_until_not_running "./assets.sh"
-                    bash ./assets.sh >/dev/null 2>&1
+                    ./assets.sh >/dev/null 2>&1
                     wait_until_not_running "./check-lldp.sh"
-                    bash ./check-lldp.sh >/dev/null 2>&1
+                    ./check-lldp.sh >/dev/null 2>&1
                     
                     rm -f "$LLDP_LOCK_FILE"
                 }
@@ -89,7 +92,7 @@ while true; do
             while pgrep -f "./monitor\.sh" >/dev/null; do
                 sleep 2
             done
-            bash ./monitor.sh >/dev/null 2>&1
+            ./monitor.sh >/dev/null 2>&1
         fi
     fi
     

@@ -2,6 +2,9 @@
 # LLDPq Network Monitoring - Main execution script
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 
+# Ensure PATH includes common locations for bash 4+, python3, etc.
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 # Load config with fallback
 source /etc/lldpq.conf 2>/dev/null || true
 LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
@@ -15,10 +18,10 @@ wait_until_not_running() {
 }
 # Run asset discovery and LLDP checks
 wait_until_not_running "assets.sh"
-bash ./assets.sh >/dev/null 2>&1
+./assets.sh >/dev/null 2>&1
 wait_until_not_running "check-lldp.sh"
-bash ./check-lldp.sh >/dev/null 2>&1
-bash ./monitor.sh >/dev/null 2>&1
+./check-lldp.sh >/dev/null 2>&1
+./monitor.sh >/dev/null 2>&1
 # Check for network alerts (only if monitoring data exists)
 if [[ -d "monitor-results" ]] && [[ -f "notifications.yaml" ]]; then
     python3 ./check_alerts.py >/dev/null 2>&1 || echo "⚠️  Alert check failed (non-critical)"
