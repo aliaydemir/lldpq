@@ -64,9 +64,9 @@ while true; do
                     cd "$MONITOR_DIR"
 
                     wait_until_not_running "./assets.sh"
-                    /bin/bash ./assets.sh >/dev/null 2>&1
+                    bash ./assets.sh >/dev/null 2>&1
                     wait_until_not_running "./check-lldp.sh"
-                    /bin/bash ./check-lldp.sh >/dev/null 2>&1
+                    bash ./check-lldp.sh >/dev/null 2>&1
                     
                     rm -f "$LLDP_LOCK_FILE"
                 }
@@ -89,7 +89,7 @@ while true; do
             while pgrep -f "./monitor\.sh" >/dev/null; do
                 sleep 2
             done
-            /bin/bash ./monitor.sh >/dev/null 2>&1
+            bash ./monitor.sh >/dev/null 2>&1
         fi
     fi
     

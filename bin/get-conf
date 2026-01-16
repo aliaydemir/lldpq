@@ -11,5 +11,5 @@ wait_until_not_running() {
     done
 }
 wait_until_not_running "get-configs.sh"
-/bin/bash ./get-configs.sh >/dev/null 2>&1
+bash ./get-configs.sh >/dev/null 2>&1
 exit 0
