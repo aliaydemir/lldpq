@@ -135,10 +135,10 @@ python3 test_alerts.py                               # test configuration
 2. activate → add to workspace → choose channel → copy webhook url
 
 ### alert types:
-- 🔥 **hardware**: cpu/asic temp, fan failures, memory usage, psu issues
-- 🔴 **network**: bgp neighbors down, excessive link flaps, optical power
-- 📋 **system**: critical logs, disk usage, high load average
-- ✅ **recovery**: automatic notifications when issues resolve
+- **hardware**: cpu/asic temp, fan failures, memory usage, psu issues
+- **network**: bgp neighbors down, excessive link flaps, optical power
+- **system**: critical logs, disk usage, high load average
+- **recovery**: automatic notifications when issues resolve
 
 ### how it works:
 - **smart detection**: only alerts on state changes (no spam)
