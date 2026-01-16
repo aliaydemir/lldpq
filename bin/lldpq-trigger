@@ -95,6 +95,6 @@ while true; do
         fi
     fi
     
-    # Sleep for 5 seconds before next check
-    sleep 5
+    # Sleep for 3 seconds before next check
+    sleep 3
 done

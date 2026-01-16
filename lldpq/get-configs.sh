@@ -77,16 +77,16 @@ sudo cp ~/configs/configs-${date}/nv-yaml/* "$WEB_ROOT/configs/"
 
 # Use PROJECT_DIR from lldpq.conf or search for it
 if [[ -z "$PROJECT_DIR" ]]; then
-    for dir in ~/[^.]*; do
-        if [[ -d "$dir" && \
-              -d "$dir/inventory" && \
-              -d "$dir/playbooks" && \
-              -d "$dir/roles" && \
-              -d "$dir/assets" ]]; then
-            PROJECT_DIR="$dir"
-            break
-        fi
-    done
+for dir in ~/[^.]*; do
+    if [[ -d "$dir" && \
+          -d "$dir/inventory" && \
+          -d "$dir/playbooks" && \
+          -d "$dir/roles" && \
+          -d "$dir/assets" ]]; then
+        PROJECT_DIR="$dir"
+        break
+    fi
+done
 fi
 
 if [[ -n "$PROJECT_DIR" ]]; then
