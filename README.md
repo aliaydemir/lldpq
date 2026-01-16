@@ -7,15 +7,14 @@ simple network monitoring tool for nvidia cumulus switches
 ## [00] quick start  
 
 ``` 
-git clone https://github.com/aliaydemir/lldpq.git 
+git clone https://github.com/aliaydemir/lldpq-src.git
 cd lldpq
 ./install.sh 
 ```
 
 ## [01] what it does
 
-- validation lldp every minutes
-- monitors switches every 5 minutes (optimized performance)  
+- validation lldp and monitors switches every 5 minutes
 - collects bgp, optical, ber, link flap, hardware health data
 - shows network topology with lldp
 - web dashboard with real-time stats
