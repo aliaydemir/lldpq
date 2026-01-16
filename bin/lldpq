@@ -9,6 +9,13 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 source /etc/lldpq.conf 2>/dev/null || true
 LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
 
+# Verbose mode: lldpq - (shows output)
+if [[ "$1" == "-" ]]; then
+    QUIET=""
+else
+    QUIET=">/dev/null 2>&1"
+fi
+
 cd "$LLDPQ_DIR"
 wait_until_not_running() {
     script_name="$1"
@@ -16,15 +23,17 @@ wait_until_not_running() {
         sleep 10
     done
 }
+
 # Run asset discovery and LLDP checks
 wait_until_not_running "assets.sh"
-./assets.sh >/dev/null 2>&1
+eval "./assets.sh $QUIET"
 wait_until_not_running "check-lldp.sh"
-./check-lldp.sh >/dev/null 2>&1
-./monitor.sh >/dev/null 2>&1
+eval "./check-lldp.sh $QUIET"
+eval "./monitor.sh $QUIET"
+
 # Check for network alerts (only if monitoring data exists)
 if [[ -d "monitor-results" ]] && [[ -f "notifications.yaml" ]]; then
-    python3 ./check_alerts.py >/dev/null 2>&1 || echo "⚠️  Alert check failed (non-critical)"
+    eval "python3 ./check_alerts.py $QUIET" || echo "⚠️  Alert check failed (non-critical)"
 fi
 
 exit 0
