@@ -9,11 +9,16 @@ set -e
 echo "🚀 LLDPq Installation Script"
 echo "=================================="
 
-# Check if running as root
+# Check if running via sudo from non-root user (causes $HOME issues)
+if [[ $EUID -eq 0 ]] && [[ -n "$SUDO_USER" ]] && [[ "$SUDO_USER" != "root" ]]; then
+    echo "❌ Please run without sudo: ./install.sh"
+    echo "   The script will ask for sudo when needed"
+    exit 1
+fi
+
+# Running as root is OK (for dedicated servers)
 if [[ $EUID -eq 0 ]]; then
-   echo "❌ Please do not run this script as root (use your regular user account)"
-   echo "   The script will ask for sudo when needed"
-   #exit 1
+    echo "Running as root - files will be installed in /root/lldpq"
 fi
 
 # Check if we're in the lldpq-src directory
@@ -27,7 +32,31 @@ fi
 WEB_ROOT="/var/www/html"
 
 echo ""
-echo "[01] Installing required packages..."
+echo "[01] Checking for conflicting services..."
+
+# Check if Apache2 is running (would conflict with nginx on port 80)
+if systemctl is-active --quiet apache2 2>/dev/null; then
+    echo "⚠️  Apache2 is running on port 80!"
+    echo "   LLDPq uses nginx as web server."
+    echo ""
+    echo "   Options:"
+    echo "   1. Stop Apache2 (recommended for LLDPq)"
+    echo "   2. Exit and resolve manually"
+    echo ""
+    read -p "   Stop and disable Apache2? [Y/n]: " response
+    if [[ ! "$response" =~ ^[Nn]$ ]]; then
+        sudo systemctl stop apache2
+        sudo systemctl disable apache2
+        echo "   ✅ Apache2 stopped and disabled"
+    else
+        echo "   ❌ Please stop Apache2 or configure nginx to use a different port"
+        echo "   Edit /etc/nginx/sites-available/lldpq to change the port"
+        exit 1
+    fi
+fi
+
+echo ""
+echo "[02] Installing required packages..."
 sudo apt update
 sudo apt install -y nginx fcgiwrap python3 python3-pip python3-yaml util-linux bsdextrautils sshpass
 sudo systemctl enable --now nginx
@@ -39,7 +68,7 @@ pip3 install --user requests >/dev/null 2>&1 || echo "   ⚠️  requests alread
 echo "Required packages installed"
 
 echo ""
-echo "[02] Copying files to system directories..."
+echo "[03] Copying files to system directories..."
 echo "   - Copying etc/* to /etc/"
 sudo cp -r etc/* /etc/
 
@@ -91,7 +120,7 @@ echo "WEB_ROOT=$WEB_ROOT" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "Files copied successfully"
 
 echo ""
-echo "[03] Configuration files to edit:"
+echo "[04] Configuration files to edit:"
 echo "   You need to manually edit these files with your network details:"
 echo ""
 echo "   1. sudo nano /etc/ip_list              # Add your device IP addresses"
@@ -102,7 +131,7 @@ echo ""
 echo "   See README.md for examples of each file format"
 
 echo ""
-echo "[04] Configuring nginx..."
+echo "[05] Configuring nginx..."
 
 # Enable LLDPq site
 sudo ln -sf /etc/nginx/sites-available/lldpq /etc/nginx/sites-enabled/lldpq
@@ -116,7 +145,7 @@ sudo systemctl restart nginx
 echo "nginx configured and restarted"
 
 echo ""
-echo "[05] Adding cron jobs..."
+echo "[06] Adding cron jobs..."
 # Remove existing LLDPq cron jobs if they exist
 sudo sed -i '/lldpq\|monitor\|get-conf/d' /etc/crontab
 
@@ -133,7 +162,7 @@ echo "   - web triggers:    daemon (checks every 5 seconds, enables Run LLDP Che
 echo "   - git auto-commit: daily at midnight (tracks config changes)"
 
 echo ""
-echo "[06] SSH Key Setup Required"
+echo "[07] SSH Key Setup Required"
 echo "   Before using LLDPq, you must setup SSH key authentication:"
 echo ""
 echo "   For each device in your network:"
@@ -143,7 +172,7 @@ echo "   And ensure sudo works without password on each device:"
 echo "   sudo visudo  # Add: username ALL=(ALL) NOPASSWD:ALL"
 
 echo ""
-echo "[07] Initializing local git repository in ~/lldpq..."
+echo "[08] Initializing local git repository in ~/lldpq..."
 cd ~/lldpq
 
 # Create .gitignore
@@ -172,7 +201,7 @@ echo "   - Use 'cd ~/lldpq && git diff' to see changes"
 echo "   - Use 'cd ~/lldpq && git log' to see history"
 
 echo ""
-echo "[08] Installation Complete!"
+echo "[09] Installation Complete!"
 echo "   Next steps:"
 echo "   1. Edit the 4 configuration files mentioned above"
 echo "   2. Setup SSH keys for all devices"
