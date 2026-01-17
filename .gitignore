@@ -3,3 +3,4 @@
 .ansible-test/
 __pycache__
 .cache
+.vscode
