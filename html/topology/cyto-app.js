@@ -819,6 +819,7 @@ document.addEventListener('fullscreenchange', function() {
 // Visibility states
 let showPorts = false;  // Ports hidden by default
 let showHostnames = true;
+let showEndpoints = true;  // Endpoints (icon: host) visible by default
 let showProblemsOnly = false;
 
 /**
@@ -849,6 +850,42 @@ function toggleHostnames(show) {
     });
     
     console.log('Hostname visibility:', show);
+}
+
+/**
+ * Toggle endpoint (host) nodes visibility
+ * Hides/shows nodes with icon type 'host' or 'server' (from hosts.ini)
+ */
+function toggleEndpoints(show) {
+    if (!cy) return;
+    showEndpoints = show;
+    
+    // Debug: list all icon types
+    const iconTypes = {};
+    cy.nodes().forEach(node => {
+        const t = node.data('icon') || 'undefined';
+        iconTypes[t] = (iconTypes[t] || 0) + 1;
+    });
+    console.log('Icon types in topology:', iconTypes);
+    
+    let hiddenCount = 0;
+    cy.batch(function() {
+        cy.nodes().forEach(node => {
+            const iconType = node.data('icon');
+            // Hide 'host', 'server', 'firewall' types (endpoints)
+            if (iconType === 'host' || iconType === 'server' || iconType === 'firewall') {
+                hiddenCount++;
+                node.style('display', show ? 'element' : 'none');
+                // Hide connected edges when hiding node
+                node.connectedEdges().style('display', show ? 'element' : 'none');
+            }
+        });
+    });
+    
+    // Update icon overlays
+    updateIconOverlays();
+    
+    console.log('Endpoint visibility:', show, '- affected nodes:', hiddenCount);
 }
 
 /**
