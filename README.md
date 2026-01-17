@@ -1,4 +1,4 @@
-![](assets/nvidia.png)
+![](ahtml/png/nvidia-assets.png)
 
 # 🚀️ LLDPq
 
