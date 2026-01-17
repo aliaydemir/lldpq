@@ -10,11 +10,16 @@ set -e
 echo "🔄 LLDPq Update Script"
 echo "======================"
 
-# Check if running as root
+# Check if running via sudo from non-root user (causes $HOME issues)
+if [[ $EUID -eq 0 ]] && [[ -n "$SUDO_USER" ]] && [[ "$SUDO_USER" != "root" ]]; then
+    echo "❌ Please run without sudo: ./update.sh"
+    echo "   The script will ask for sudo when needed"
+    exit 1
+fi
+
+# Running as root is OK (for dedicated servers)
 if [[ $EUID -eq 0 ]]; then
-   echo "❌ Please do not run this script as root (use your regular user account)"
-   echo "   The script will ask for sudo when needed"
-   #exit 1
+    echo "Running as root - files will be in /root/lldpq"
 fi
 
 # Check if we're in the lldpq-src directory
@@ -70,6 +75,7 @@ sudo cp -r html/* "$WEB_ROOT/"
 sudo chmod +x "$WEB_ROOT/trigger-lldp.sh"
 sudo chmod +x "$WEB_ROOT/trigger-monitor.sh"
 sudo chmod +x "$WEB_ROOT/edit-topology.sh"
+sudo chmod +x "$WEB_ROOT/edit-config.sh"
 
 echo "   - Setting up topology.dot for web editing"
 # If topology.dot exists in web root, it's already set up - just ensure symlink
@@ -89,6 +95,24 @@ else
         sudo chown www-data:$USER "$WEB_ROOT/topology.dot"
         sudo chmod 664 "$WEB_ROOT/topology.dot"
         ln -sf "$WEB_ROOT/topology.dot" "$HOME/lldpq/topology.dot"
+    fi
+fi
+
+echo "   - Setting up topology_config.yaml for web editing"
+# If topology_config.yaml exists in web root, ensure symlink
+if [[ -f "$WEB_ROOT/topology_config.yaml" ]]; then
+    mkdir -p "$HOME/lldpq"
+    if [[ ! -L "$HOME/lldpq/topology_config.yaml" ]]; then
+        rm -f "$HOME/lldpq/topology_config.yaml" 2>/dev/null
+        ln -sf "$WEB_ROOT/topology_config.yaml" "$HOME/lldpq/topology_config.yaml"
+    fi
+else
+    # First time setup: move topology_config.yaml to web root
+    if [[ -f "$HOME/lldpq/topology_config.yaml" ]] && [[ ! -L "$HOME/lldpq/topology_config.yaml" ]]; then
+        sudo mv "$HOME/lldpq/topology_config.yaml" "$WEB_ROOT/topology_config.yaml"
+        sudo chown www-data:$USER "$WEB_ROOT/topology_config.yaml"
+        sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
+        ln -sf "$WEB_ROOT/topology_config.yaml" "$HOME/lldpq/topology_config.yaml"
     fi
 fi
 
