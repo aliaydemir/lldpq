@@ -185,8 +185,10 @@ fi
 # Copy results to web server
 echo "📤 Copying results to web server..."
 sudo cp lldp-results/lldp_results.ini "$WEB_ROOT/"
+sudo chmod o+r "$WEB_ROOT/lldp_results.ini"
 sudo mv "$WEB_ROOT/problems-lldp_results.ini" "$WEB_ROOT/hstr/Problems-${DATE}.ini" 2>/dev/null
 sudo cp lldp-results/problems-lldp_results.ini "$WEB_ROOT/"
+sudo chmod o+r "$WEB_ROOT/problems-lldp_results.ini"
 
 # Cleanup old history files (keep 1 per day for last 30 days)
 folder_path="$WEB_ROOT/hstr"

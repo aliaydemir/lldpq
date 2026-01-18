@@ -653,7 +653,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 # COPY RESULTS
 # ============================================================================
 sudo cp -r monitor-results "$WEB_ROOT/"
-sudo chmod 644 "$WEB_ROOT/monitor-results/"* 2>/dev/null
+sudo chmod -R o+rX "$WEB_ROOT/monitor-results/" 2>/dev/null
 
 rm -f "$unreachable_hosts_file"
 rm -f "$active_jobs_file"

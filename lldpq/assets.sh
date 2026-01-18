@@ -112,6 +112,7 @@ printf '%-20s %-15s %-17s %-12s %-12s %-8s %s\n' \
 tail -n +2 "$SCRIPT_DIR/assets.sorted2" >> "$FINAL.tmp"
 mv "$FINAL.tmp" "$FINAL"
 sudo cp "$FINAL" "$WEB_ROOT/"
+sudo chmod o+r "$WEB_ROOT/$(basename $FINAL)"
 rm -f "$TMPFILE" "$UNREACH"
 rm -rf "$SCRIPT_DIR/assets.sorted2"
 
