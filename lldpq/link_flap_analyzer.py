@@ -286,6 +286,7 @@ class LinkFlapAnalyzer:
     <h1></h1>
     <title>Link Flap Detection Results</title>
     <link rel="stylesheet" type="text/css" href="/css/styles2.css">
+    <link rel="stylesheet" type="text/css" href="/css/select2.min.css">
     <style>
         .flap-excellent {{ color: #4caf50; font-weight: bold; }}
         .flap-good {{ color: #8bc34a; font-weight: bold; }}
@@ -349,6 +350,49 @@ class LinkFlapAnalyzer:
             from {{ transform: rotate(0deg); }}
             to {{ transform: rotate(360deg); }}
         }}
+        
+        /* Device Search Box */
+        .device-search-container {{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }}
+        .device-search-container .select2-container {{
+            min-width: 250px;
+        }}
+        .device-search-container .select2-container--default .select2-selection--single {{
+            height: 38px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+        }}
+        .device-search-container .select2-container--default .select2-selection--single .select2-selection__rendered {{
+            line-height: 38px;
+            color: #333;
+            padding-left: 8px;
+            font-size: 14px;
+        }}
+        .device-search-container .select2-container--default .select2-selection--single .select2-selection__arrow {{
+            height: 38px;
+        }}
+        .device-search-container .select2-container--default .select2-selection--single .select2-selection__placeholder {{
+            color: #999;
+        }}
+        .clear-search-btn {{
+            background: #ff5722;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            display: none;
+            transition: all 0.3s ease;
+        }}
+        .clear-search-btn:hover {{
+            background: #e64a19;
+        }}
     </style>
 </head>
 <body>
@@ -357,7 +401,14 @@ class LinkFlapAnalyzer:
     
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2 style="margin: 0;">Link Flap Summary</h2>
-        <div style="display: flex; gap: 10px;">
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <!-- Device Search Box -->
+            <div class="device-search-container">
+                <select id="deviceSearch" style="width: 250px;">
+                    <option value="">Search Device...</option>
+                </select>
+                <button id="clearSearchBtn" class="clear-search-btn" onclick="clearDeviceSearch()">✕</button>
+            </div>
             <button id="run-analysis" onclick="runAnalysis()" 
                     style="background: #b57614; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; transition: all 0.3s ease;"
                     onmouseover="this.style.background='#a06612'" 
@@ -505,10 +556,16 @@ class LinkFlapAnalyzer:
         <tr><td>Data Retention</td><td>24 hours</td><td>Historical carrier transition data retention</td></tr>
     </table>
 
+    <!-- jQuery and Select2 for device search -->
+    <script src="/css/jquery-3.5.1.min.js"></script>
+    <script src="/css/select2.min.js"></script>
+    
     <script>
         // Filter functionality
         let currentFilter = 'ALL';
         let allRows = [];
+        let deviceSearchActive = false;
+        let selectedDevice = '';
         
         document.addEventListener('DOMContentLoaded', function() {
             // Store all table rows for filtering
@@ -519,6 +576,10 @@ class LinkFlapAnalyzer:
             
             // Initialize table sorting
             initTableSorting();
+            
+            // Initialize device search
+            populateDeviceList();
+            initDeviceSearch();
         });
         
         function setupCardEvents() {
@@ -560,6 +621,14 @@ class LinkFlapAnalyzer:
         
         function filterPorts(filterType) {
             currentFilter = filterType;
+            
+            // Clear device search when using card filters
+            if (deviceSearchActive) {
+                selectedDevice = '';
+                deviceSearchActive = false;
+                $('#deviceSearch').val('').trigger('change');
+                document.getElementById('clearSearchBtn').style.display = 'none';
+            }
             
             // Clear active state from all cards
             document.querySelectorAll('.summary-card').forEach(card => {
@@ -607,7 +676,99 @@ class LinkFlapAnalyzer:
             });
             document.getElementById('filter-info').style.display = 'none';
             
+            // Also clear device search
+            if (deviceSearchActive) {
+                selectedDevice = '';
+                deviceSearchActive = false;
+                $('#deviceSearch').val('').trigger('change');
+                document.getElementById('clearSearchBtn').style.display = 'none';
+            }
+            
             // Show all rows
+            allRows.forEach(row => row.style.display = '');
+        }
+        
+        // ===== Device Search Functions =====
+        function initDeviceSearch() {
+            $('#deviceSearch').select2({
+                placeholder: 'Search Device...',
+                allowClear: true,
+                width: '250px',
+                dropdownAutoWidth: true,
+                matcher: function(params, data) {
+                    if ($.trim(params.term) === '') return data;
+                    if (typeof data.text === 'undefined') return null;
+                    if (data.text.toLowerCase().indexOf(params.term.toLowerCase()) > -1) return data;
+                    return null;
+                }
+            });
+            
+            $('#deviceSearch').on('select2:select', function(e) {
+                const device = e.params.data.id;
+                if (device) filterByDevice(device);
+            });
+            
+            $('#deviceSearch').on('select2:clear', function(e) {
+                clearDeviceSearch();
+            });
+        }
+        
+        function populateDeviceList() {
+            const deviceSet = new Set();
+            allRows.forEach(row => {
+                // First column is the device name
+                const deviceName = row.cells[0]?.textContent?.trim();
+                if (deviceName) deviceSet.add(deviceName);
+            });
+            
+            const sortedDevices = Array.from(deviceSet).sort((a, b) => 
+                a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+            );
+            
+            const select = document.getElementById('deviceSearch');
+            select.innerHTML = '<option value="">Search Device...</option>';
+            sortedDevices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device;
+                option.textContent = device;
+                select.appendChild(option);
+            });
+        }
+        
+        function filterByDevice(deviceName) {
+            if (!deviceName) return;
+            
+            selectedDevice = deviceName;
+            deviceSearchActive = true;
+            
+            // Clear card-based filter
+            currentFilter = 'ALL';
+            document.querySelectorAll('.summary-card').forEach(card => card.classList.remove('active'));
+            
+            // Filter table rows
+            let matchCount = 0;
+            allRows.forEach(row => {
+                const rowDeviceName = row.cells[0]?.textContent?.trim();
+                if (rowDeviceName === deviceName) {
+                    row.style.display = '';
+                    matchCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            // Show filter info
+            document.getElementById('filter-info').style.display = 'block';
+            document.getElementById('filter-text').textContent = 'Showing interfaces for device: ' + deviceName + ' (' + matchCount + ' interfaces)';
+            document.getElementById('clearSearchBtn').style.display = 'inline-block';
+        }
+        
+        function clearDeviceSearch() {
+            selectedDevice = '';
+            deviceSearchActive = false;
+            $('#deviceSearch').val('').trigger('change');
+            document.getElementById('clearSearchBtn').style.display = 'none';
+            document.getElementById('filter-info').style.display = 'none';
             allRows.forEach(row => row.style.display = '');
         }
         
