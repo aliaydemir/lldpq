@@ -15,7 +15,7 @@ const LINK_COLORS = {
     missing: '#FF0000',  // Red for missing (LLDP down)
     fail: '#FFED29',     // Yellow for unexpected
     dead: '#E40039',     // Dark red for dead
-    new: '#148D09'       // Green for new (NeXt UI color)
+    new: '#148D09'       // Green for new
 };
 
 // Node colors by icon type
@@ -23,8 +23,8 @@ const NODE_COLORS = {
     switch: '#5b9bd5',
     router: '#70ad47', 
     firewall: '#FF9800',    // Turuncu - daha görünür
-    server: '#00BCD4',
-    host: '#7030a0',        // Cyan/Turkuaz
+    server: '#4A148C',
+    host: '#00BCD4',        // Cyan/Turkuaz
     unknown: '#666666'
 };
 
