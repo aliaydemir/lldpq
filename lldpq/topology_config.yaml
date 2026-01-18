@@ -19,10 +19,10 @@ topology: minimal  # [full] or [minimal]
 # Possible icons:
 # - switch    🔀
 # - router    🌐
-# - firewall  🔥
-# - server    🖥️
-# - host      💻
-# - unknown   ❓
+# - firewall  🔥 [EndPoint]
+# - server    🖥️ [EndPoint]
+# - host      💻 [EndPoint]
+# - unknown   ❓ [EndPoint]
 
 device_categories:
   - pattern: "inband-fw"
@@ -55,7 +55,7 @@ device_categories:
 
 # Default category for unmatched devices
 default:
-  layer: 9
+  layer: 19
   icon: "server"
 
 # Special conditional rules for devices with complex logic

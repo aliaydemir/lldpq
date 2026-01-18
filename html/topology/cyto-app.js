@@ -872,8 +872,8 @@ function toggleEndpoints(show) {
     cy.batch(function() {
         cy.nodes().forEach(node => {
             const iconType = node.data('icon');
-            // Hide 'host', 'server', 'firewall' types (endpoints)
-            if (iconType === 'host' || iconType === 'server' || iconType === 'firewall') {
+            // Hide 'host', 'server', 'firewall', 'unknown' types (endpoints)
+            if (iconType === 'host' || iconType === 'server' || iconType === 'firewall' || iconType === 'unknown') {
                 hiddenCount++;
                 node.style('display', show ? 'element' : 'none');
                 // Hide connected edges when hiding node
