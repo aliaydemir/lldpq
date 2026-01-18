@@ -33,10 +33,10 @@ const NODE_COLORS = {
 const ICON_CHARS = {
     switch: '\ue618',
     router: '\ue61c',
-    firewall: '\ue61c',
+    firewall: '\ue647',
     server: '\ue642',
-    host: '\ue642',
-    unknown: '?'
+    host: '\ue624',
+    unknown: '\ue612'
 };
 
 
