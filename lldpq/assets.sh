@@ -87,7 +87,8 @@ done
 wait
 
 #### FORMAT & SORT
-column -t "$TMPFILE" > "$SCRIPT_DIR/assets.sorted"
+# COLUMNS=200 prevents column from truncating long lines when not on a terminal
+COLUMNS=200 column -t "$TMPFILE" > "$SCRIPT_DIR/assets.sorted"
 rm -f "$TMPFILE"
 
 sort -t'.' -k1,1n -k2,2n -k3,3n -k4,4n "$SCRIPT_DIR/assets.sorted" > "$SCRIPT_DIR/assets.sorted2"
