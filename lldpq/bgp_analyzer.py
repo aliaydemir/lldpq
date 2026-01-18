@@ -483,6 +483,7 @@ class BGPAnalyzer:
     <h1></h1>
     <title>BGP Neighbor Analysis</title>
     <link rel="stylesheet" type="text/css" href="/css/styles2.css">
+    <link rel="stylesheet" type="text/css" href="/css/select2.min.css">
     <style>
         .bgp-excellent {{ color: #4caf50; font-weight: bold; }}
         .bgp-good {{ color: #8bc34a; font-weight: bold; }}
