@@ -10,7 +10,6 @@ cytoscape.use(cytoscapeDagre);
 let cy = null;
 let currentLayout = 'dagre-tb'; // Default to Vertical layout
 
-// Color mapping for link states - NeXt UI style
 const LINK_COLORS = {
     normal: '#aaaaaa',   // Light gray for normal links
     missing: '#FF0000',  // Red for missing (LLDP down)
@@ -29,7 +28,6 @@ const NODE_COLORS = {
     unknown: '#666666'
 };
 
-// NeXt UI font icon unicode characters
 const ICON_CHARS = {
     switch: '\ue618',
     router: '\ue61c',
@@ -59,9 +57,6 @@ function getLinkStyle(link) {
     return 'solid';
 }
 
-/**
- * Convert NeXt UI topology data to Cytoscape.js format
- */
 function convertToCytoscapeFormat(topologyData) {
     const elements = [];
     
