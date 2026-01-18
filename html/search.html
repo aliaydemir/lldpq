@@ -259,46 +259,69 @@
                 return;
             }
             
-            let searchResults = '';
             let matchCount = 0;
             let filesSearched = 0;
             
-            // Search through each device file
-            for (const file of fileList) {
-                try {
-                    const response = await fetch(`monitor-results/${file}`);
-                    const text = await response.text();
-                    const lines = text.split('\n');
-                    const matchingLines = lines.filter(line => {
-                        const lowerLine = line.toLowerCase();
-                        return (
-                            lowerLine.includes(searchQuery) &&
-                            !lowerLine.includes('vxlan') &&
-                            !lowerLine.includes('extern_learn')
-                        );
-                    });
-                    
-                    if (matchingLines.length > 0) {
-                        const fileName = file.replace('.html', '');
-                        searchResults += `<div class="device-result">`;
-                        searchResults += `<h3><span class="green">${fileName}</span></h3>`;
-                        matchingLines.forEach(line => {
-                            searchResults += `<pre class="match-line">${highlightMatch(line, searchQuery)}</pre>`;
-                        });
-                        searchResults += `</div>`;
-                        matchCount += matchingLines.length;
-                    }
-                } catch (error) {
-                    console.error(`Error fetching ${file}:`, error);
-                }
+            // Show initial loading message
+            results.innerHTML = `<div class="loading-message">Searching ${fileList.length} devices in parallel...</div>`;
+            
+            // PARALLEL SEARCH - much faster than sequential!
+            const BATCH_SIZE = 20; // Process 20 files at a time
+            const allResults = [];
+            
+            for (let i = 0; i < fileList.length; i += BATCH_SIZE) {
+                const batch = fileList.slice(i, i + BATCH_SIZE);
                 
-                filesSearched++;
+                const batchPromises = batch.map(async (file) => {
+                    try {
+                        const response = await fetch(`monitor-results/${file}`);
+                        const text = await response.text();
+                        const lines = text.split('\n');
+                        const matchingLines = lines.filter(line => {
+                            const lowerLine = line.toLowerCase();
+                            return (
+                                lowerLine.includes(searchQuery) &&
+                                !lowerLine.includes('vxlan') &&
+                                !lowerLine.includes('extern_learn')
+                            );
+                        });
+                        
+                        if (matchingLines.length > 0) {
+                            return {
+                                file: file.replace('.html', ''),
+                                lines: matchingLines,
+                                count: matchingLines.length
+                            };
+                        }
+                    } catch (error) {
+                        console.error(`Error fetching ${file}:`, error);
+                    }
+                    return null;
+                });
+                
+                // Wait for batch to complete
+                const batchResults = await Promise.all(batchPromises);
+                allResults.push(...batchResults.filter(r => r !== null));
+                
+                filesSearched += batch.length;
                 results.innerHTML = `<div class="loading-message">Searched ${filesSearched} of ${fileList.length} devices...</div>`;
             }
             
+            // Build results HTML
+            let searchResults = '';
+            allResults.forEach(result => {
+                searchResults += `<div class="device-result">`;
+                searchResults += `<h3><span class="green">${result.file}</span></h3>`;
+                result.lines.forEach(line => {
+                    searchResults += `<pre class="match-line">${highlightMatch(line, searchQuery)}</pre>`;
+                });
+                searchResults += `</div>`;
+                matchCount += result.count;
+            });
+            
             const endTime = Date.now();
             const duration = ((endTime - startTime) / 1000).toFixed(2);
-            searchTime.textContent = `Search completed in ${duration}s`;
+            searchTime.textContent = `Search completed in ${duration}s (parallel)`;
             
             if (searchResults) {
                 results.innerHTML = searchResults;
