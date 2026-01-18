@@ -32,7 +32,7 @@ const ICON_CHARS = {
     switch: '\ue618',
     router: '\ue61c',
     firewall: '\ue647',
-    server: '\ue642',
+    server: '\ue61b',
     host: '\ue624',
     unknown: '\ue612'
 };
