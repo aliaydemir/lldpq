@@ -123,7 +123,7 @@
             opacity: 1;
         }
         
-        /* Device Search Box */
+        /* Device Search Box - Match Run button height (padding 8px + font 14px + border) */
         .device-search-container {
             display: flex;
             align-items: center;
@@ -133,21 +133,23 @@
             min-width: 250px;
         }
         .device-search-container .select2-container--default .select2-selection--single {
-            height: 36px;
+            height: 38px;
             border: 1px solid #ccc;
             border-radius: 6px;
-            padding: 0 8px;
             display: flex;
             align-items: center;
         }
         .device-search-container .select2-container--default .select2-selection--single .select2-selection__rendered {
-            line-height: 34px;
+            line-height: 38px;
             color: #333;
-            padding-left: 0;
+            padding-left: 8px;
+            font-size: 14px;
         }
         .device-search-container .select2-container--default .select2-selection--single .select2-selection__arrow {
-            height: 34px;
-            top: 1px;
+            height: 38px;
+        }
+        .device-search-container .select2-container--default .select2-selection--single .select2-selection__placeholder {
+            color: #999;
         }
         .clear-search-btn {
             background: #ff5722;
