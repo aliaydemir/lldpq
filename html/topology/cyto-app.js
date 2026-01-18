@@ -22,9 +22,9 @@ const LINK_COLORS = {
 const NODE_COLORS = {
     switch: '#5b9bd5',
     router: '#70ad47', 
-    firewall: '#FF9800',    // Turuncu - daha görünür
-    server: '#5B21B6',
-    host: '#00BCD4',        // Cyan/Turkuaz
+    firewall: '#FF9800',
+    server: '#7030a0',
+    host: '#00BCD4',
     unknown: '#666666'
 };
 
