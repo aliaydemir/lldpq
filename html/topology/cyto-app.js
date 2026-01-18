@@ -1,6 +1,6 @@
 /**
  * Cytoscape.js Network Topology Viewer
- * Converts NeXt UI topology data to Cytoscape.js format
+ * Converts topology data to Cytoscape.js format
  */
 
 // Register dagre layout
@@ -23,7 +23,7 @@ const NODE_COLORS = {
     switch: '#5b9bd5',
     router: '#70ad47', 
     firewall: '#FF9800',    // Turuncu - daha görünür
-    server: '#4A148C',
+    server: '#5B21B6',
     host: '#00BCD4',        // Cyan/Turkuaz
     unknown: '#666666'
 };
@@ -1266,7 +1266,7 @@ function initCytoscape() {
                     'border-color': '#fff'
                 }
             },
-            // Edge style - NeXt UI style
+            // Edge style
             {
                 selector: 'edge',
                 style: {
