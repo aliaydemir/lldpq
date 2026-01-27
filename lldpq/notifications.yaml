@@ -1,0 +1,180 @@
+# LLDPq Notification Configuration
+# Copyright (c) 2024 LLDPq Project - Licensed under MIT License
+#
+# =============================================================================
+# WEBHOOK SETUP GUIDE:
+# =============================================================================
+#
+# 🔹 SLACK (Detailed Steps):
+# 1. Go to https://api.slack.com/apps
+# 2. "Create New App" → "From scratch"
+# 3. App Name: "LLDPq" → Select your workspace → "Create App"
+# 4. Left sidebar → "Incoming Webhooks" → Toggle "Activate Incoming Webhooks" to ON
+# 5. Click "Add New Webhook to Workspace" 
+# 6. Slack will ask for permissions → Click "Allow"
+# 7. Bot will send you a message at slack channel → Click the message
+# 8. Click "Add to Slack" → "Install to [Your Workspace]"
+# 9. Choose channel:
+#    • RECOMMENDED: Create new channel first (e.g., #lldpq-alerts, #network-monitoring)
+#    • OR use existing channel (e.g., #network-alerts)
+#    • Click "Allow" after selecting channel
+# 10. Copy the webhook URL that appears (starts with https://hooks.slack.com/services/)
+#
+# 💡 TIP: Creating a dedicated channel prevents spam in existing channels and keeps
+#         network alerts organized for the right team members.
+#
+# =============================================================================
+
+notifications:
+  # Global enable/disable switch
+  enabled: false
+  # 🔗 SERVER URL - Fix for broken device links in alerts
+  # which don't work from other machines. Now uses your actual server IP.
+  server_url: "http://100.64.1.1"  # ⚠️ CHANGE TO YOUR LLDPQ SERVER IP
+  # Examples:
+  # • Internal network: "http://192.168.1.100"  
+  # • VPN/corporate: "http://10.0.1.50"
+  # • Public (if exposed): "http://your-domain.com"
+  # Links in alerts will be: {server_url}/monitor-results/DEVICE.html
+  
+  # Slack integration  
+  slack:
+    enabled: false
+    webhook: ""
+    # Example, webhook: "https://hooks.slack.[c]om/[s]ervices/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+    channel: "#lldpq"
+    username: "LLDPq Bot"
+    icon_emoji: ":warning:"
+
+# =============================================================================
+# ALERT THRESHOLDS - Adjust these based on your environment
+# =============================================================================
+
+thresholds:
+  # Hardware monitoring
+  hardware:
+    cpu_temp_critical: 85      # °C - Critical CPU temperature
+    cpu_temp_warning: 75       # °C - Warning CPU temperature
+    asic_temp_critical: 90     # °C - Critical ASIC temperature  
+    asic_temp_warning: 80      # °C - Warning ASIC temperature
+    fan_rpm_critical: 3000     # RPM - Minimum fan speed (critical)
+    fan_rpm_warning: 4000      # RPM - Minimum fan speed (warning)
+    memory_usage_critical: 90  # % - Critical memory usage
+    memory_usage_warning: 80   # % - Warning memory usage
+    psu_efficiency_warning: 80 # % - Minimum PSU efficiency
+    
+  # Network monitoring
+  network:
+    bgp_down_minutes: 5       # Minutes - BGP neighbor down threshold
+    link_flaps_per_hour: 10   # Count - Link flaps in 1 hour (warning)
+    link_flaps_critical: 20   # Count - Link flaps in 1 hour (critical)
+    optical_power_margin: 3   # dBm - Minimum optical power margin
+    ber_error_rate: 1e-12     # BER threshold for errors
+    
+  # System monitoring  
+  system:
+    disk_usage_warning: 80    # % - Disk usage warning
+    disk_usage_critical: 90   # % - Disk usage critical
+    load_average_warning: 8   # Load average warning (adjust for your CPUs)
+    load_average_critical: 12 # Load average critical
+    uptime_minimum_hours: 1   # Hours - Alert if device rebooted recently
+
+# =============================================================================
+# ALERT STRATEGY - Controls when and how alerts are sent (ANTI-SPAM)
+# =============================================================================
+
+alert_strategy:
+  # 📊 ALERT MODES:
+  # • "immediate"   = Every device sends individual alerts
+  # • "summary"     = Dashboard-style single message. Sends when: 1) Network state changes, 2) Scheduled times (09:00, 17:00)
+  # • "change_only" = Only alert when significant changes occur. If no changes, no alert is sent.
+  mode: "summary"                    # summary mode RECOMMENDED Prevents spam, clean summaries
+  # ⏰ SUMMARY SCHEDULE (for summary mode):
+  # When to send dashboard-style health summaries
+  summary_times: ["09:00", "17:00"] # Morning briefing + evening status
+  # Example: "Network Health Summary: 70 devices, 14 excellent, 1 warning..."
+  
+  # 🚨 CRITICAL BYPASS (always immediate regardless of mode):
+  # These alerts are too important to wait for summary - sent immediately
+  always_immediate:
+    - "cpu_temp_critical"            # CPU over 85°C (hardware failure risk)
+    - "asic_temp_critical"           # ASIC over 90°C (switch could fail)  
+    - "bgp_neighbors_down"           # BGP down (network connectivity lost)
+    - "fan_critical_failure"         # Fan stopped (cooling failure)
+  # Note: These bypass summary mode and send individual device alerts
+  
+  # 📈 CHANGE DETECTION (for change_only mode):
+  # Only alert when metrics change significantly from last check
+  change_threshold:
+    temperature_change: 10          # Alert if temp jumps/drops by 10°C
+    fan_change: 1000                # Alert if fan speed changes by 1000+ RPM
+    device_count_change: 1          # Alert if devices go online/offline
+  # Example: Only alert if CPU temp goes from 65°C to 80°C (15°C jump)
+
+# =============================================================================
+# ALERT FREQUENCY CONTROL - Additional spam prevention
+# =============================================================================
+
+frequency:
+  # ⏰ RATE LIMITING: Minimum time between same alert (prevents spam)
+  min_interval_minutes: 30
+  # Example: If CPU temp is critical at 10:00 and still critical at 10:10,
+  # no new alert is sent (must wait 30 minutes)
+  
+  # ✅ RECOVERY NOTIFICATIONS: Alert when problems are resolved
+  send_recovery: true
+  # Example: "✅ CPU Temperature Recovered: 72°C (back to normal)"
+  
+  # 📅 DAILY SUMMARY: Send health summary once per day
+  daily_summary: true
+  # Sends comprehensive network health summary at 09:00 local time
+  
+  # 📊 WEEKLY REPORT: Send weekly health trends (optional)
+  weekly_report: false
+  # Would send weekly statistics and trends every Monday at 09:00
+
+# =============================================================================
+# ALERT TYPES - Enable/disable specific alert categories
+# =============================================================================
+
+alert_types:
+  hardware_alerts: true      # CPU/ASIC temp, fans, PSU, memory
+  network_alerts: true       # BGP, link flaps, optical power
+  system_alerts: true        # Disk, load, uptime
+  topology_alerts: true      # LLDP mismatches
+  log_alerts: true           # Critical system logs
+  
+# =============================================================================
+# MESSAGE TEMPLATES - Customize alert messages
+# =============================================================================
+
+templates:
+  critical: "🔥 CRITICAL"
+  warning: "⚠️ WARNING" 
+  info: "ℹ️ INFO"
+  recovery: "✅ RECOVERED"
+  
+# =============================================================================
+# EXAMPLE USAGE & QUICK START:
+# =============================================================================
+# 
+# 🚀 QUICK SETUP:
+# 1. Set enabled: true (line 37)
+# 2. Update server_url: "http://YOUR_SERVER_IP" (line 42)
+# 3. Add your Slack webhook URLs (line 43)
+# 4. Test with: python3 test_alerts.py
+# 5. Alerts start automatically every 10 minutes via lldpq cron job
+#
+# 📊 WHAT YOU'LL GET:
+# • Summary mode: 1 clean dashboard-style message instead of 70+ spam alerts
+# • Smart scheduling: Morning (9 AM) and evening (5 PM) health summaries  
+# • Critical bypass: Immediate alerts for CPU/ASIC overheating, BGP down, fan failures
+# • Working links: Device links in alerts work from any machine (not just localhost)
+# • Rate limiting: Same alert won't spam - waits 30 minutes between repeats
+# • Recovery alerts: Get notified when problems are resolved
+#
+# 🎛️ CUSTOMIZATION:
+# • Change alert_strategy.mode to "immediate" for old behavior (lots of alerts)
+# • Change alert_strategy.mode to "change_only" for minimal alerts (only on changes)
+# • Adjust thresholds in lines 63-88 for your environment
+# • Modify summary_times for different scheduling (line 108)

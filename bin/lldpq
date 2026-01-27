@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# LLDPq Network Monitoring - Main execution script
+# Copyright (c) 2024 LLDPq Project - Licensed under MIT License
+
+# Load config with fallback
+source /etc/lldpq.conf 2>/dev/null || true
+LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
+
+# Verbose mode: lldpq - (shows output)
+if [[ "$1" == "-" ]]; then
+    QUIET=""
+else
+    QUIET=">/dev/null 2>&1"
+fi
+
+cd "$LLDPQ_DIR"
+wait_until_not_running() {
+    script_name="$1"
+    while pgrep -f "$script_name" >/dev/null; do
+        sleep 10
+    done
+}
+
+# Run asset discovery and LLDP checks
+wait_until_not_running "assets.sh"
+eval "./assets.sh $QUIET"
+wait_until_not_running "check-lldp.sh"
+eval "./check-lldp.sh $QUIET"
+eval "./monitor.sh $QUIET"
+
+# Check for network alerts (only if monitoring data exists)
+if [[ -d "monitor-results" ]] && [[ -f "notifications.yaml" ]]; then
+    eval "python3 ./check_alerts.py $QUIET" || echo "⚠️  Alert check failed (non-critical)"
+fi
+
+exit 0

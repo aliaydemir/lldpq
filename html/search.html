@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>..::LLDPQ::..</title>
+    <link rel="shortcut icon" href="/png/favicon.ico">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        /* Page Header */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #76b900;
+        }
+        
+        .last-updated {
+            font-size: 13px;
+            color: #888;
+        }
+        
+        /* Dashboard Section */
+        .dashboard-section {
+            background: #2d2d2d;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .section-header {
+            padding: 12px 16px;
+            background: #333;
+            font-weight: 600;
+            font-size: 14px;
+            color: #76b900;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .section-content {
+            padding: 20px;
+        }
+        
+        /* Search Form */
+        .search-container {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .search-input {
+            padding: 10px 14px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #3c3c3c;
+            color: #d4d4d4;
+            font-size: 13px;
+            min-width: 300px;
+            transition: all 0.2s;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #76b900;
+        }
+        
+        .search-input::placeholder {
+            color: #888;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(0deg, #76b900 0%, #5a8c00 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(0deg, #8bd400 0%, #6ba000 100%);
+            transform: translateY(-1px);
+        }
+        
+        /* Search Info */
+        .search-info {
+            margin-top: 15px;
+            padding: 12px 16px;
+            background: rgba(118, 185, 0, 0.1);
+            border: 1px solid rgba(118, 185, 0, 0.3);
+            border-radius: 6px;
+            color: #76b900;
+            text-align: center;
+            font-size: 13px;
+            display: none;
+        }
+        
+        .search-query {
+            font-weight: bold;
+            color: #8bd400;
+        }
+        
+        /* Results Container */
+        .results-container {
+            background: #2d2d2d;
+            border-radius: 8px;
+            margin-top: 20px;
+            overflow: hidden;
+            display: none;
+        }
+        
+        .results-container.show {
+            display: block;
+        }
+        
+        .results-header {
+            padding: 12px 16px;
+            background: #333;
+            border-bottom: 1px solid #404040;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .results-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: #76b900;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .search-stats {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .results-content {
+            padding: 16px;
+            font-family: 'Fira Code', 'Courier New', Courier, monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            min-height: 150px;
+        }
+        
+        /* Messages */
+        .status-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #888;
+        }
+        
+        .loading-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #76b900;
+        }
+        
+        .error-message {
+            text-align: center;
+            padding: 20px;
+            color: #ff6b6b;
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid rgba(244, 67, 54, 0.3);
+            border-radius: 6px;
+            margin: 10px;
+        }
+        
+        /* Result Items */
+        .device-result {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #252526;
+            border-left: 3px solid #76b900;
+            border-radius: 6px;
+        }
+        
+        .device-result h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #76b900;
+        }
+        
+        .match-line {
+            background: #1e1e1e;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border-left: 2px solid #404040;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        
+        .green { color: #76b900; font-weight: bold; }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e1e1e; }
+        ::-webkit-scrollbar-thumb { background: #404040; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+    </style>
+</head>
+<body>
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <div class="page-title">Network Search</div>
+            <div class="last-updated">Last Updated: <span id="last-updated"></span></div>
+        </div>
+    </div>
+    
+    <!-- Search Section -->
+    <div class="dashboard-section">
+        <div class="section-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/>
+            </svg>
+            Network Device Search
+        </div>
+        <div class="section-content">
+            <div class="search-container">
+                <input type="text" id="searchInput" class="search-input" placeholder="Enter IP address or MAC address" />
+                <button onclick="performSearch()" class="btn btn-primary">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/>
+                    </svg>
+                    Search
+                </button>
+            </div>
+            
+            <div id="searchInfo" class="search-info">
+                Searching for: <span class="search-query" id="searchQuery"></span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Results Section -->
+    <div id="resultsContainer" class="results-container">
+        <div class="results-header">
+            <div class="results-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                </svg>
+                Search Results
+            </div>
+            <div class="search-stats">
+                <span id="searchTime"></span>
+                <span id="resultCount"></span>
+            </div>
+        </div>
+        <div id="results" class="results-content"></div>
+    </div>
+
+    <script>
+        function setLastUpdated() {
+            const now = new Date();
+            const options = { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            };
+            const formattedDate = now.toLocaleString('en-US', options);
+            document.getElementById('last-updated').textContent = formattedDate;
+        }
+
+        async function performSearch() {
+            const searchInput = document.getElementById('searchInput');
+            let searchQuery = searchInput.value.trim().toLowerCase();
+            const resultsContainer = document.getElementById('resultsContainer');
+            const results = document.getElementById('results');
+            const searchInfo = document.getElementById('searchInfo');
+            const searchQuerySpan = document.getElementById('searchQuery');
+            const searchTime = document.getElementById('searchTime');
+            const resultCount = document.getElementById('resultCount');
+            
+            if (!searchQuery) {
+                showError('Please enter an IP address or MAC address to search');
+                return;
+            }
+            
+            // Normalize MAC address if needed
+            if (/^([0-9a-f]{2}[:-]?){5}[0-9a-f]{2}$/i.test(searchQuery)) {
+                searchQuery = normalizeMacAddress(searchQuery);
+            }
+            
+            // Show search info
+            searchQuerySpan.textContent = searchQuery;
+            searchInfo.style.display = 'block';
+            
+            // Show loading
+            results.innerHTML = '<div class="loading-message">Searching network devices...</div>';
+            resultsContainer.classList.add('show');
+            
+            const startTime = Date.now();
+            
+            // Get file list from monitor-results directory
+            const fileList = await getFileList();
+            if (fileList.length === 0) {
+                results.innerHTML = '<div class="error-message">No device files found in monitor-results directory</div>';
+                resultCount.textContent = 'No files found';
+                return;
+            }
+            
+            let matchCount = 0;
+            let filesSearched = 0;
+            
+            // Show initial loading message
+            results.innerHTML = `<div class="loading-message">Searching ${fileList.length} devices in parallel...</div>`;
+            
+            // PARALLEL SEARCH - much faster than sequential!
+            const BATCH_SIZE = 20; // Process 20 files at a time
+            const allResults = [];
+            
+            for (let i = 0; i < fileList.length; i += BATCH_SIZE) {
+                const batch = fileList.slice(i, i + BATCH_SIZE);
+                
+                const batchPromises = batch.map(async (file) => {
+                    try {
+                        const response = await fetch(`monitor-results/${file}`);
+                        const text = await response.text();
+                        const lines = text.split('\n');
+                        const matchingLines = lines.filter(line => {
+                            const lowerLine = line.toLowerCase();
+                            return (
+                                lowerLine.includes(searchQuery) &&
+                                !lowerLine.includes('vxlan') &&
+                                !lowerLine.includes('extern_learn')
+                            );
+                        });
+                        
+                        if (matchingLines.length > 0) {
+                            return {
+                                file: file.replace('.html', ''),
+                                lines: matchingLines,
+                                count: matchingLines.length
+                            };
+                        }
+                    } catch (error) {
+                        console.error(`Error fetching ${file}:`, error);
+                    }
+                    return null;
+                });
+                
+                // Wait for batch to complete
+                const batchResults = await Promise.all(batchPromises);
+                allResults.push(...batchResults.filter(r => r !== null));
+                
+                filesSearched += batch.length;
+                results.innerHTML = `<div class="loading-message">Searched ${filesSearched} of ${fileList.length} devices...</div>`;
+            }
+            
+            // Build results HTML
+            let searchResults = '';
+            allResults.forEach(result => {
+                searchResults += `<div class="device-result">`;
+                searchResults += `<h3><span class="green">${result.file}</span></h3>`;
+                result.lines.forEach(line => {
+                    searchResults += `<pre class="match-line">${highlightMatch(line, searchQuery)}</pre>`;
+                });
+                searchResults += `</div>`;
+                matchCount += result.count;
+            });
+            
+            const endTime = Date.now();
+            const duration = ((endTime - startTime) / 1000).toFixed(2);
+            searchTime.textContent = `Search completed in ${duration}s (parallel)`;
+            
+            if (searchResults) {
+                results.innerHTML = searchResults;
+                resultCount.textContent = `${matchCount} matches found`;
+            } else {
+                results.innerHTML = '<div class="status-message">No results found for the specified query</div>';
+                resultCount.textContent = '0 results found';
+            }
+        }
+        
+        async function getFileList() {
+            try {
+                const response = await fetch('monitor-results/');
+                const html = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                const links = Array.from(doc.querySelectorAll('a'));
+                const files = links
+                    .map(link => link.getAttribute('href'))
+                    .filter(href => href && href.endsWith('.html') && !href.endsWith('-analysis.html'));
+                return files;
+            } catch (error) {
+                console.error('Error fetching directory listing:', error);
+                return [];
+            }
+        }
+        
+        function normalizeMacAddress(mac) {
+            return mac.replace(/[^a-f0-9]/ig, '').match(/.{1,2}/g).join(':');
+        }
+        
+        function highlightMatch(text, query) {
+            const regex = new RegExp(`(${escapeRegExp(query)})`, 'gi');
+            return text.replace(regex, '<mark style="background-color: #76b900; color: white; padding: 2px 4px; border-radius: 3px;">$1</mark>');
+        }
+        
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+        
+
+        
+        function showError(message) {
+            const results = document.getElementById('results');
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            results.innerHTML = `<div class="error-message">${message}</div>`;
+            resultsContainer.classList.add('show');
+            
+            setTimeout(() => {
+                resultsContainer.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Enter key support
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+        
+        window.onload = function() {
+            setLastUpdated();
+        };
+    </script>
+</body>
+</html>

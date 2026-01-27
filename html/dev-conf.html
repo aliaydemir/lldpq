@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>..::LLDPQ::..</title>
+    <link rel="shortcut icon" href="/png/favicon.ico">
+    <script src="/css/jszip.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        /* Page Header */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #76b900;
+        }
+        
+        .last-updated {
+            font-size: 13px;
+            color: #888;
+        }
+        
+        /* Dashboard Section */
+        .dashboard-section {
+            background: #2d2d2d;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .section-header {
+            padding: 12px 16px;
+            background: #333;
+            font-weight: 600;
+            font-size: 14px;
+            color: #76b900;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .section-content {
+            padding: 20px;
+        }
+        
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(0deg, #76b900 0%, #5a8c00 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(0deg, #8bd400 0%, #6ba000 100%);
+            transform: translateY(-1px);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(0deg, #4fc3f7 0%, #0288d1 100%);
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: linear-gradient(0deg, #81d4fa 0%, #039be5 100%);
+            transform: translateY(-1px);
+        }
+        
+        /* Selectors */
+        .selector-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        
+        .selector-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .selector-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #76b900;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .dropdown {
+            padding: 10px 14px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #3c3c3c;
+            color: #d4d4d4;
+            font-size: 13px;
+            min-width: 200px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .dropdown:focus {
+            outline: none;
+            border-color: #76b900;
+        }
+        
+        .dropdown:hover {
+            border-color: #76b900;
+        }
+        
+        .dropdown:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Config Content */
+        .config-content {
+            background: #252526;
+            border: 1px solid #404040;
+            border-radius: 8px;
+            margin-top: 20px;
+            min-height: 400px;
+            font-family: 'Fira Code', 'Courier New', Courier, monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            display: none;
+            overflow: hidden;
+        }
+        
+        .config-content.show {
+            display: block;
+        }
+        
+        .config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: #333;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .config-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #76b900;
+            margin: 0;
+        }
+        
+        .config-info {
+            font-size: 11px;
+            color: #888;
+            text-align: right;
+        }
+        
+        .config-text-container {
+            padding: 16px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-x: auto;
+        }
+        
+        /* Messages */
+        .loading-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #888;
+        }
+        
+        .error-message {
+            text-align: center;
+            padding: 20px;
+            color: #ff6b6b;
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid rgba(244, 67, 54, 0.3);
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        
+        /* Syntax highlighting */
+        .config-line { display: block; margin: 1px 0; }
+        .comment { color: #6a9955; font-style: italic; }
+        .keyword { color: #569cd6; font-weight: bold; }
+        .string { color: #ce9178; }
+        .number { color: #d7ba7d; }
+        .ip-number { color: #ffffff; }
+        .variable { color: #9cdcfe; }
+        .section { color: #dcdcaa; font-weight: bold; }
+        .interface { color: #4ec9b0; }
+        .default { color: #569cd6; }
+        .yaml-key { color: #92c5f7; font-weight: bold; }
+        .yaml-value { color: #ce9178; }
+        
+        /* Status indicator */
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-success { background-color: #76b900; }
+        .status-warning { background-color: #ff9800; }
+        .status-error { background-color: #f44336; }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e1e1e; }
+        ::-webkit-scrollbar-thumb { background: #404040; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <div class="page-title">Device Configurations</div>
+            <div class="last-updated">Last Updated: <span id="last-updated"></span></div>
+        </div>
+    </div>
+    
+    <!-- Configuration Management Section -->
+    <div class="dashboard-section">
+        <div class="section-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+            </svg>
+            Configuration Management
+        </div>
+        <div class="section-content">
+            <!-- Download Buttons -->
+            <div class="action-buttons">
+                <button id="download-nvset" onclick="downloadAllConfigs('txt')" class="btn btn-primary">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                    </svg>
+                    Download All NV-SET
+                </button>
+                <button id="download-yaml" onclick="downloadAllConfigs('yaml')" class="btn btn-secondary">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                    </svg>
+                    Download All YAML
+                </button>
+            </div>
+            
+            <!-- Selectors -->
+            <div class="selector-container">
+                <div class="selector-group">
+                    <label class="selector-label">Device</label>
+                    <select id="deviceDropdown" class="dropdown" onchange="handleDeviceSelection()">
+                        <option value="">-- Select a Device --</option>
+                    </select>
+                </div>
+                <div class="selector-group">
+                    <label class="selector-label">Format</label>
+                    <select id="fileTypeDropdown" class="dropdown" onchange="handleFileTypeSelection()" disabled>
+                        <option value="">-- Select Format --</option>
+                        <option value="txt">NV-SET Commands</option>
+                        <option value="yaml">YAML Configuration</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Config Display -->
+    <div id="configContent" class="config-content">
+        <div class="config-header">
+            <h3 class="config-title" id="configTitle">Configuration File</h3>
+            <div class="config-info">
+                <div id="configDevice"></div>
+                <div id="configType"></div>
+                <div id="configSize"></div>
+            </div>
+        </div>
+        <div id="configText" class="config-text-container"></div>
+    </div>
+    
+    <div id="loadingMessage" class="loading-message" style="display: none;">
+        <span class="status-indicator status-warning"></span>
+        Loading configuration...
+    </div>
+
+    <script>
+        let files = [];
+        let devices = [];
+        
+        function setLastUpdated() {
+            const now = new Date();
+            const options = { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            };
+            const formattedDate = now.toLocaleString('en-US', options);
+            document.getElementById('last-updated').textContent = formattedDate;
+        }
+
+        function listFiles() {
+            fetch('/configs/')
+                .then(response => response.text())
+                .then(data => {
+                    const parser = new DOMParser();
+                    const htmlDoc = parser.parseFromString(data, 'text/html');
+                    files = Array.from(htmlDoc.querySelectorAll('a'))
+                        .map(a => a.getAttribute('href'))
+                        .filter(file => file !== '../');
+                    extractDevices();
+                })
+                .catch(error => {
+                    console.error('Error fetching file list:', error);
+                    showError('Error loading device list: ' + error.message);
+                });
+        }
+
+        function extractDevices() {
+            const deviceSet = new Set();
+            files.forEach(file => {
+                const fileName = file.split('/').pop();
+                const deviceName = fileName.split('.')[0];
+                deviceSet.add(deviceName);
+            });
+            devices = Array.from(deviceSet).sort();
+            populateDeviceDropdown();
+        }
+
+        function populateDeviceDropdown() {
+            const deviceDropdown = document.getElementById('deviceDropdown');
+            devices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device;
+                option.textContent = device;
+                deviceDropdown.appendChild(option);
+            });
+        }
+
+        function handleDeviceSelection() {
+            const deviceDropdown = document.getElementById('deviceDropdown');
+            const selectedDevice = deviceDropdown.value;
+            const fileTypeDropdown = document.getElementById('fileTypeDropdown');
+            
+            fileTypeDropdown.value = '';
+            fileTypeDropdown.disabled = !selectedDevice;
+            hideConfig();
+        }
+
+        function handleFileTypeSelection() {
+            const deviceDropdown = document.getElementById('deviceDropdown');
+            const selectedDevice = deviceDropdown.value;
+            const fileTypeDropdown = document.getElementById('fileTypeDropdown');
+            const selectedType = fileTypeDropdown.value;
+
+            if (selectedType) {
+                const fileName = `${selectedDevice}.${selectedType}`;
+                if (files.includes(fileName)) {
+                    fetchFileContent(fileName, selectedDevice, selectedType);
+                } else {
+                    showError(`Configuration file ${fileName} not found.`);
+                }
+            } else {
+                hideConfig();
+            }
+        }
+
+        function fetchFileContent(fileName, device, type) {
+            showLoading();
+            
+            fetch(`/configs/${fileName}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    hideLoading();
+                    displayConfig(data, device, type, fileName);
+                })
+                .catch(error => {
+                    hideLoading();
+                    showError('Error fetching configuration: ' + error.message);
+                });
+        }
+
+        function displayConfig(content, device, type, fileName) {
+            const configContent = document.getElementById('configContent');
+            const configTitle = document.getElementById('configTitle');
+            const configDevice = document.getElementById('configDevice');
+            const configType = document.getElementById('configType');
+            const configSize = document.getElementById('configSize');
+            const configText = document.getElementById('configText');
+            
+            // Update header info
+            configTitle.textContent = fileName;
+            configDevice.innerHTML = `<span class="status-indicator status-success"></span>Device: ${device}`;
+            configType.textContent = `Format: ${type === 'txt' ? 'NV-SET Commands' : 'YAML Configuration'}`;
+            configSize.textContent = `Size: ${formatFileSize(content.length)}`;
+            
+            // Process and display content
+            configText.innerHTML = '';
+            
+            if (type === 'yaml') {
+                displayYamlConfig(content, configText);
+            } else {
+                displayNvSetConfig(content, configText);
+            }
+            
+            configContent.classList.add('show');
+        }
+
+        function displayNvSetConfig(content, container) {
+            const lines = content.split('\n');
+            lines.forEach(line => {
+                const span = document.createElement('span');
+                span.className = 'config-line';
+                
+                if (line.trim().startsWith('#')) {
+                    span.className += ' comment';
+                    span.textContent = line || ' ';
+                } else if (line.trim() === '') {
+                    span.textContent = ' ';
+                } else {
+                    // Simple and clean syntax highlighting
+                    span.innerHTML = highlightNvSetLine(line);
+                }
+                
+                container.appendChild(span);
+            });
+        }
+
+        function highlightNvSetLine(line) {
+            let result = line;
+            
+            // Highlight only key elements, keep it simple
+            
+            // 1. Comments first
+            if (line.trim().startsWith('#')) {
+                return `<span class="comment">${line}</span>`;
+            }
+            
+            // 2. Handle description lines specially
+            if (line.includes('description')) {
+                // Split line at 'description' keyword
+                let match = line.match(/^(.*?)(\bdescription\s+)(.*)$/);
+                if (match) {
+                    let beforeDesc = match[1];
+                    let descKeyword = match[2];
+                    let descContent = match[3];
+                    
+                    // Apply interface highlighting only to the part before description
+                    beforeDesc = beforeDesc.replace(/\b(bond_[a-zA-Z_]+|bond\d+|swp\d+(?:s\d+)?(?:-\d+)?|vlan\d+(?:-\d+)?(?:,\d+)*|eth\d+|lo\d*|br\d+|peerlink\.?\d*)\b/g, '<span class="interface">$1</span>');
+                    
+                    // Combine: highlighted before + description keyword + comment content
+                    result = beforeDesc + descKeyword + '<span class="comment">' + descContent + '</span>';
+                }
+            } else {
+                // Normal interface highlighting for non-description lines
+                result = result.replace(/\b(bond_[a-zA-Z_]+|bond\d+|swp\d+(?:s\d+)?(?:-\d+)?|vlan\d+(?:-\d+)?(?:,\d+)*|eth\d+|lo\d*|br\d+|peerlink\.?\d*)\b/g, '<span class="interface">$1</span>');
+            }
+            
+            // 4. IP addresses with separate number coloring
+            result = result.replace(/\b(\d+)\.(\d+)\.(\d+)\.(\d+)(?:\/(\d+))?\b/g, function(match, p1, p2, p3, p4, p5) {
+                let ipResult = `<span class="ip-number">${p1}</span>.<span class="ip-number">${p2}</span>.<span class="ip-number">${p3}</span>.<span class="ip-number">${p4}</span>`;
+                if (p5) ipResult += `/<span class="ip-number">${p5}</span>`;
+                return ipResult;
+            });
+            
+            // 4. MAC addresses with separate coloring
+            result = result.replace(/\b([0-9a-f]{2}):([0-9a-f]{2}):([0-9a-f]{2}):([0-9a-f]{2}):([0-9a-f]{2}):([0-9a-f]{2})\b/gi, 
+                '<span class="ip-number">$1</span>:<span class="ip-number">$2</span>:<span class="ip-number">$3</span>:<span class="ip-number">$4</span>:<span class="ip-number">$5</span>:<span class="ip-number">$6</span>');
+            
+            // 5. Main commands (only nv set)
+            result = result.replace(/^(\s*)(nv\s+set)\b/g, '$1<span class="keyword">$2</span>');
+            
+            // 6. Special network terms
+            result = result.replace(/\b(autonomous-system|route-map|prefix-list|ip-prefix-list|access-list)\b/g, '<span class="variable">$1</span>');
+
+            // 7. Numbers (but ONLY on non-interface lines and avoid MAC addresses)
+            if (!line.includes('description') && !line.includes('interface') && !line.includes('mac')) {
+                result = result.replace(/(?<!\.)(\b\d+\b)(?!\.\d)/g, '<span class="number">$1</span>');
+            }
+
+            // 8. Wrap everything in default blue color
+            return `<span class="default">${result}</span>`;
+        }
+
+        function displayYamlConfig(content, container) {
+            const lines = content.split('\n');
+            lines.forEach(line => {
+                const span = document.createElement('span');
+                span.className = 'config-line';
+                
+                if (line.trim().startsWith('#')) {
+                    span.className += ' comment';
+                } else if (line.includes(':') && !line.trim().startsWith('-')) {
+                    const parts = line.split(':');
+                    const key = parts[0];
+                    const value = parts.slice(1).join(':');
+                    
+                    span.innerHTML = `<span class="yaml-key">${key}:</span><span class="yaml-value">${value}</span>`;
+                } else {
+                    span.className += ' default';
+                    span.textContent = line || ' ';
+                }
+                
+                if (span.innerHTML === '') {
+                    span.textContent = line || ' ';
+                }
+                
+                container.appendChild(span);
+            });
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function showLoading() {
+            document.getElementById('loadingMessage').style.display = 'block';
+            document.getElementById('configContent').classList.remove('show');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingMessage').style.display = 'none';
+        }
+
+        function hideConfig() {
+            document.getElementById('configContent').classList.remove('show');
+        }
+
+        function showError(message) {
+            // Remove any existing error messages
+            const existingError = document.querySelector('.error-message');
+            if (existingError) {
+                existingError.remove();
+            }
+            
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.innerHTML = `<span class="status-indicator status-error"></span>${message}`;
+            
+            // Insert error message after selector container
+            const selectorContainer = document.querySelector('.selector-container');
+            selectorContainer.parentNode.insertBefore(errorDiv, selectorContainer.nextSibling);
+            
+            // Auto-remove error after 5 seconds
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.remove();
+                }
+            }, 5000);
+        }
+
+        function downloadAllConfigs(format) {
+            const button = format === 'txt' ? document.getElementById('download-nvset') : document.getElementById('download-yaml');
+            const originalText = button.innerHTML;
+            
+            // Filter files by format
+            const formatFiles = files.filter(file => file.endsWith(`.${format}`));
+            
+            if (formatFiles.length === 0) {
+                showError(`No ${format.toUpperCase()} configuration files found.`);
+                return;
+            }
+            
+            // Show loading state
+            button.disabled = true;
+            button.style.opacity = '0.7';
+            button.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="animation: spin 1s linear infinite;">
+                    <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
+                </svg>
+                Creating ZIP archive...
+            `;
+            
+            // Create new ZIP instance
+            const zip = new JSZip();
+            let completedFiles = 0;
+            
+            // Function to update progress
+            function updateProgress() {
+                completedFiles++;
+                button.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="animation: spin 1s linear infinite;">
+                        <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
+                    </svg>
+                    Processing ${completedFiles}/${formatFiles.length}...
+                `;
+                
+                // If all files are processed, generate the ZIP
+                if (completedFiles === formatFiles.length) {
+                    generateZipFile();
+                }
+            }
+            
+            // Function to generate and download ZIP file
+            function generateZipFile() {
+                button.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="animation: spin 1s linear infinite;">
+                        <path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"/>
+                    </svg>
+                    Generating ZIP file...
+                `;
+                
+                zip.generateAsync({type:"blob"})
+                    .then(function(blob) {
+                        // Create download
+                        const now = new Date();
+                        const dateStr = now.toISOString().slice(0, 10);
+                        const timeStr = now.toTimeString().slice(0, 5).replace(':', '-');
+                        const filename = `All_Device_Configs_${format.toUpperCase()}_${dateStr}_${timeStr}.zip`;
+                        
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(blob);
+                        link.download = filename;
+                        link.style.display = 'none';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        
+                        // Show success state
+                        button.innerHTML = `
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z"/>
+                            </svg>
+                            ✓ ZIP downloaded (${formatFiles.length} files)
+                        `;
+                        button.style.background = 'linear-gradient(0deg, #76b900 0%, #5a8c00 100%)';
+                        
+                        setTimeout(() => resetDownloadButton(button, originalText), 3000);
+                    })
+                    .catch(function(error) {
+                        console.error('Error generating ZIP:', error);
+                        showError('Error generating ZIP file: ' + error.message);
+                        resetDownloadButton(button, originalText);
+                    });
+            }
+            
+            // Download all files and add to ZIP
+            formatFiles.forEach((filename) => {
+                fetch(`/configs/${filename}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Failed to fetch ${filename}`);
+                        }
+                        return response.text();
+                    })
+                    .then(content => {
+                        // Add file to ZIP
+                        zip.file(filename, content);
+                        updateProgress();
+                    })
+                    .catch(error => {
+                        console.error(`Error fetching ${filename}:`, error);
+                        // Add error file to ZIP for debugging
+                        zip.file(`ERROR_${filename}.txt`, `Error fetching ${filename}: ${error.message}`);
+                        updateProgress();
+                    });
+            });
+        }
+        
+        function resetDownloadButton(button, originalText) {
+            button.disabled = false;
+            button.style.opacity = '1';
+            button.innerHTML = originalText;
+            
+            // Reset original background colors
+            if (button.id === 'download-nvset') {
+                button.style.background = 'linear-gradient(0deg, #76b900 0%, #5a8c00 100%)';
+            } else {
+                button.style.background = 'linear-gradient(0deg, #4fc3f7 0%, #0288d1 100%)';
+            }
+        }
+
+        window.onload = function() {
+            setLastUpdated();
+            listFiles();
+        };
+    </script>
+</body>
+</html>

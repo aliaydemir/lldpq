@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>..::LLDPQ::..</title>
+    <link rel="shortcut icon" href="/png/favicon.ico">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+        }
+        
+        .login-box {
+            background: linear-gradient(135deg, #2d2d2d 0%, #3a3a3a 100%);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .logo-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo-section img {
+            max-width: 120px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .logo-section h1 {
+            color: #ffffff;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .logo-section p {
+            color: #888;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            color: #ccc;
+            font-size: 14px;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .form-group input[type="text"],
+        .form-group input[type="password"] {
+            width: 100%;
+            padding: 14px 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 15px;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #76b900;
+            box-shadow: 0 0 0 3px rgba(118, 185, 0, 0.2);
+        }
+        
+        .form-group input::placeholder {
+            color: #666;
+        }
+        
+        .remember-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 25px;
+        }
+        
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+        
+        .remember-me input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #76b900;
+            cursor: pointer;
+        }
+        
+        .remember-me span {
+            color: #aaa;
+            font-size: 14px;
+        }
+        
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #76b900 0%, #5a8c00 100%);
+            border: none;
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .login-btn:hover {
+            background: linear-gradient(135deg, #8ad400 0%, #6ba300 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(118, 185, 0, 0.3);
+        }
+        
+        .login-btn:active {
+            transform: translateY(0);
+        }
+        
+        .login-btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .error-message {
+            background: rgba(220, 53, 69, 0.2);
+            border: 1px solid rgba(220, 53, 69, 0.5);
+            color: #ff6b6b;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .error-message.show {
+            display: block;
+        }
+        
+        .footer-text {
+            text-align: center;
+            margin-top: 25px;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <div class="logo-section">
+                <img src="/png/nvidia-logo.jpg" alt="NVIDIA Logo">
+                <h1>LLDPq</h1>
+                <p>Network Management Dashboard</p>
+            </div>
+            
+            <div id="error-message" class="error-message"></div>
+            
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" placeholder="Enter username" required autofocus>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter password" required>
+                </div>
+                
+                <div class="remember-row">
+                    <label class="remember-me">
+                        <input type="checkbox" id="remember" name="remember">
+                        <span>Remember me (7 days)</span>
+                    </label>
+                </div>
+                
+                <button type="submit" class="login-btn" id="login-btn">Sign In</button>
+            </form>
+            
+            <div class="footer-text">
+                LLDPq Network Automation Suite
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Check if already logged in
+        async function checkSession() {
+            try {
+                const response = await fetch('/auth-api?action=check');
+                const data = await response.json();
+                if (data.authenticated) {
+                    window.location.href = '/';
+                }
+            } catch (e) {
+                // Not logged in, stay on login page
+            }
+        }
+        
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const remember = document.getElementById('remember').checked;
+            const btn = document.getElementById('login-btn');
+            const errorDiv = document.getElementById('error-message');
+            
+            btn.disabled = true;
+            btn.textContent = 'Signing in...';
+            errorDiv.classList.remove('show');
+            
+            try {
+                const response = await fetch('/auth-api?action=login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&remember=${remember}`
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.location.href = '/';
+                } else {
+                    errorDiv.textContent = data.error || 'Invalid username or password';
+                    errorDiv.classList.add('show');
+                    btn.disabled = false;
+                    btn.textContent = 'Sign In';
+                }
+            } catch (e) {
+                errorDiv.textContent = 'Connection error. Please try again.';
+                errorDiv.classList.add('show');
+                btn.disabled = false;
+                btn.textContent = 'Sign In';
+            }
+        }
+        
+        // Check session on page load
+        checkSession();
+    </script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+#nv show system
+#nv show system | grep product-release
+#sudo clagctl
+#sudo vtysh -c "sh bgp sum"
+#nv show interface | grep -v 9216
+#sudo vtysh -c "sh ip route vrf tenant1"
+#sudo vtysh -c "sh ip route vrf oob"
+#sudo vtysh -c "sh bgp vrf oob summ"
+#sudo vtysh -c "sh bgp sum" | grep -E "Active|Idle"
+#
+#nv con sh -o commands | grep "ip vrf infra"
+#sudo vtysh -c "clear bgp *"
+#nv sh platform environment | grep -E "PSU1|PSU2"
+#nv co diff
+#nv co det
+#nv sh interface status | grep -v "up            up"
+#nv sh interface lldp | grep prod-cfw
+#sudo netq config restart agent ; sudo netq config restart cli
+#sudo netq config stop agent ; sudo netq config stop cli
+#
+#ifconfig eth0 | grep ether
+#nv config show -o commands | grep cumulus
+#sudo cat /etc/shadow | grep cumulus
+#sudo cat /etc/nvue.d/startup.yaml | grep hash
+#cat /home/cumulus/.ssh/authorized_keys
+#
+#nv co replace /tmp/${HOSTNAME}.yaml ; nv co diff
+#
+#ls -lah | grep cumulus-linux-5.14 | grep -v 787M
+#sudo netq config add cli server 10.15.22.244 access-key a19c5b66edcd3f71e0cff056c8e2b07fda6b7310e83d21bea04934c519c26bed secret-key hYjBn0YhOH6JADtNqniBTOuNpUknoK4/fT4GDysaFKY= premises OPID0 $(if [[ $(ip vrf identify 2>&1) == "mgmt" ]]; then echo "vrf mgmt"; fi) && sudo netq config restart cli
+#sudo netq config add agent server 10.158.232.244 vrf mgmt ; sudo netq config restart agent
+#netq config status agent
+#sensors | egrep -i 'pwr|power|psu|pmic|vr|rail'
+#sudo l1-show all -p | egrep '^Port|phy_symbol errors|effective_ber'
+#
+#/usr/sbin/bridge fdb | grep -v vxlan | grep -v permanent
+#/usr/sbin/bridge fdb show | grep -vE 'vxlan|permanent' | while read -r mac _ port _; do desc=$(ip -o link show "$port" | sed -n 's/.*alias \(.*\)$/\1/p'); printf "%-8s %-20s %s\n" "$port" "$mac" "$desc"; done
+#
+#/usr/sbin/bridge fdb | grep -v vxlan | grep -v permanent
+#/usr/sbin/bridge fdb show | grep -vE 'vxlan|permanent' | while read -r mac _ port _; do desc=$(ip -o link show "$port" | sed -n 's/.*alias \(.*\)$/\1/p'); printf "%-8s %-20s %s\n" "$port" "$mac" "$desc"; done
+#
+#cat /tmp/*-diff.log
+#
+#/usr/sbin/bridge fdb show | grep 'vlan 15' | grep -vE 'vxlan|permanent' | while read -r mac _ port _; do desc=$(ip -o link show "$port" | sed -n 's/.*alias \(.*\)$/\1/p'); printf "%-8s %-20s %s\n" "$port" "$mac" "$desc"; done
+#
+#/usr/sbin/bridge fdb | grep -v vxlan | grep -v permanent | grep 5C:FF:35:FC:13:81

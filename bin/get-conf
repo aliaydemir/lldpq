@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# LLDPq Network Monitoring - Main execution script
+# Copyright (c) 2024 LLDPq Project - Licensed under MIT License
+
+# Load config with fallback
+source /etc/lldpq.conf 2>/dev/null || true
+LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
+
+# Verbose mode: get-conf - (shows output)
+if [[ "$1" == "-" ]]; then
+    QUIET=""
+else
+    QUIET=">/dev/null 2>&1"
+fi
+
+cd "$LLDPQ_DIR"
+wait_until_not_running() {
+    script_name="$1"
+    while pgrep -f "$script_name" >/dev/null; do
+        sleep 10
+    done
+}
+
+wait_until_not_running "get-configs.sh"
+eval "./get-configs.sh $QUIET"
+exit 0
