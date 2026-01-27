@@ -202,6 +202,13 @@ HOOKEOF
     sudo touch /var/www/.gitconfig 2>/dev/null || true
     sudo chown www-data:www-data /var/www/.gitconfig 2>/dev/null || true
     sudo -u www-data git config --global --add safe.directory "$ANSIBLE_DIR" 2>/dev/null || true
+    
+    # Configure git sharedRepository for proper group permissions
+    git -C "$ANSIBLE_DIR" config core.sharedRepository group 2>/dev/null || true
+    
+    # Fix existing .git directory permissions
+    sudo chown -R $(whoami):www-data "$ANSIBLE_DIR/.git" 2>/dev/null || true
+    sudo chmod -R g+rwX "$ANSIBLE_DIR/.git" 2>/dev/null || true
 else
     if [[ -n "$ANSIBLE_DIR_EXISTING" ]]; then
         echo "     ⚠️  Previous ANSIBLE_DIR no longer exists: $ANSIBLE_DIR_EXISTING"
@@ -249,6 +256,13 @@ HOOKEOF
     
     # Add git safe.directory for www-data user
     sudo -u www-data git config --global --add safe.directory "$ANSIBLE_DIR" 2>/dev/null || true
+    
+    # Configure git sharedRepository for proper group permissions
+    git -C "$ANSIBLE_DIR" config core.sharedRepository group 2>/dev/null || true
+    
+    # Fix existing .git directory permissions
+    sudo chown -R $(whoami):www-data "$ANSIBLE_DIR/.git" 2>/dev/null || true
+    sudo chmod -R g+rwX "$ANSIBLE_DIR/.git" 2>/dev/null || true
         
         echo "     ✅ Ansible directory configured: $ANSIBLE_DIR"
     else

@@ -25,6 +25,17 @@ export ANSIBLE_CACHE_PLUGIN_CONNECTION="/tmp/ansible-cache"
 mkdir -p "$ANSIBLE_HOME" "$ANSIBLE_LOCAL_TEMP" "$ANSIBLE_CACHE_PLUGIN_CONNECTION" 2>/dev/null || true
 chmod 777 "$ANSIBLE_HOME" "$ANSIBLE_LOCAL_TEMP" "$ANSIBLE_CACHE_PLUGIN_CONNECTION" 2>/dev/null || true
 
+# Fix git directory permissions after git operations
+fix_git_permissions() {
+    if [ -d "$ANSIBLE_DIR/.git" ]; then
+        # Get the original owner of the ansible directory
+        local owner=$(stat -c '%U' "$ANSIBLE_DIR" 2>/dev/null || stat -f '%Su' "$ANSIBLE_DIR" 2>/dev/null)
+        # Fix ownership: owner:www-data with group write
+        chown -R "$owner:www-data" "$ANSIBLE_DIR/.git" 2>/dev/null || true
+        chmod -R g+rwX "$ANSIBLE_DIR/.git" 2>/dev/null || true
+    fi
+}
+
 # Parse query string
 parse_query() {
     local query="$QUERY_STRING"
@@ -344,11 +355,17 @@ git_commit_push() {
     local commit_code=$?
     
     if [ $commit_code -eq 0 ]; then
+        # Fix git permissions after commit
+        fix_git_permissions
+        
         # Try to push
         local push_output
         push_output=$(git push 2>&1)
         local push_code=$?
         output="$output\n$push_output"
+        
+        # Fix git permissions after push
+        fix_git_permissions
         
         if [ $push_code -eq 0 ]; then
             local output_json=$(echo -e "$output" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')
@@ -375,6 +392,9 @@ git_pull() {
     local output
     output=$(git pull 2>&1)
     local exit_code=$?
+    
+    # Fix git permissions after pull
+    fix_git_permissions
     
     local output_json=$(echo "$output" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')
     
@@ -488,8 +508,12 @@ case "$ACTION" in
         
         # Reset all changes (discard uncommitted changes)
         output=$(git checkout . 2>&1)
+        local reset_code=$?
         
-        if [ $? -eq 0 ]; then
+        # Fix git permissions after reset
+        fix_git_permissions
+        
+        if [ $reset_code -eq 0 ]; then
             json_response '{"success": true, "output": "All uncommitted changes have been discarded."}'
         else
             json_response "{\"success\": false, \"error\": \"Failed to reset: $output\"}"

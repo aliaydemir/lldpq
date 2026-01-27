@@ -336,7 +336,15 @@ HOOKEOF
     sudo touch /var/www/.gitconfig 2>/dev/null || true
     sudo chown www-data:www-data /var/www/.gitconfig 2>/dev/null || true
     sudo -u www-data git config --global --add safe.directory "$ANSIBLE_DIR" 2>/dev/null || true
-    echo "   ✅ Git safe.directory configured for web access"
+    
+    # Configure git sharedRepository for proper group permissions
+    git -C "$ANSIBLE_DIR" config core.sharedRepository group 2>/dev/null || true
+    
+    # Fix existing .git directory permissions
+    sudo chown -R $(whoami):www-data "$ANSIBLE_DIR/.git" 2>/dev/null || true
+    sudo chmod -R g+rwX "$ANSIBLE_DIR/.git" 2>/dev/null || true
+    
+    echo "   ✅ Git safe.directory and sharedRepository configured for web access"
 elif [[ -n "$ANSIBLE_DIR" ]]; then
     # User specified a path but it doesn't exist
     echo "   ⚠️  Warning: Ansible directory '$ANSIBLE_DIR' does not exist"
