@@ -41,6 +41,7 @@
 #
 #cat /tmp/*-diff.log
 #
+#nv show bridge domain br_default vlan -o json | grep -oE '"[0-9]+":' | tr -d '":' | awk '$1 <= 4094' | sort -n | uniq
 #/usr/sbin/bridge fdb show | grep 'vlan 15' | grep -vE 'vxlan|permanent' | while read -r mac _ port _; do desc=$(ip -o link show "$port" | sed -n 's/.*alias \(.*\)$/\1/p'); printf "%-8s %-20s %s\n" "$port" "$mac" "$desc"; done
 #
 #/usr/sbin/bridge fdb | grep -v vxlan | grep -v permanent | grep 5C:FF:35:FC:13:81
