@@ -1994,6 +1994,9 @@ class Connections:
         ''' Get link to connect to '''
 
         ServerXSNum = int(ServerXSNum)
+        # LLDPq fix: Display uses 1-based numbering (ServerXSNum + 1), 
+        # but internal ServerXSNum is 0-based, so subtract 1
+        ServerXSNum = ServerXSNum - 1
         PromptedUser = ''
 
         # Get the item line of the connection we want from the full connections list.
@@ -2685,11 +2688,12 @@ def MainCursesFunction(stdscr):
         'is at this point...')
     LogGlobalConfig()
 
-    if GlobalConfig.FilterTextArg and ConnectionsList.DisplayResultsCount == 1 and GlobalConfig.AutoConnect:
+    if GlobalConfig.FilterTextArg and GlobalConfig.HitCount == 1 and GlobalConfig.AutoConnect:
         # ^ User entered command line filter and there was only one match and we are on
         #       the first cycle - connect to it immediately.
+        # LLDPq fix: Use HitCount (total matches) instead of DisplayResultsCount (visible rows)
         LogWrite.debug('GlobalConfig.FilterTextArg supplied and '
-            'ConnectionsList.DisplayResultsCount == 1 and '
+            'GlobalConfig.HitCount == 1 and '
             'GlobalConfig.AutoConnect == True . '
             'Automatically connect to this server ...')
         LogWrite.debug('Clearing:  GlobalConfig.FilterTextArg')
