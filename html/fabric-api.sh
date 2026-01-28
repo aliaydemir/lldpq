@@ -2162,6 +2162,96 @@ except Exception as e:
     print(json.dumps({'success': False, 'error': str(e)}))
 PYTHON
         ;;
+    "save-evpn-mh")
+        # Save EVPN Multihoming configuration
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+import yaml
+import os
+import sys
+
+try:
+    params = json.loads('''$POST_DATA''')
+    device = params.get('device', '')
+    evpn_mh = params.get('evpn_mh', {})
+    
+    if not device:
+        print(json.dumps({'success': False, 'error': 'Device is required'}))
+        sys.exit(0)
+    
+    if not evpn_mh.get('sysmac'):
+        print(json.dumps({'success': False, 'error': 'System MAC is required'}))
+        sys.exit(0)
+    
+    ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+    host_file = f"{ansible_dir}/inventory/host_vars/{device}.yaml"
+    
+    if not os.path.exists(host_file):
+        print(json.dumps({'success': False, 'error': f'Host file not found: {device}.yaml'}))
+        sys.exit(0)
+    
+    with open(host_file, 'r') as f:
+        host_data = yaml.safe_load(f) or {}
+    
+    # Set evpn_mh
+    host_data['evpn_mh'] = {
+        'sysmac': evpn_mh.get('sysmac'),
+        'df_preference': evpn_mh.get('df_preference', 50000)
+    }
+    
+    # Write back
+    with open(host_file, 'w') as f:
+        yaml.dump(host_data, f, default_flow_style=False, sort_keys=False)
+    
+    print(json.dumps({'success': True, 'message': 'EVPN Multihoming saved'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    "delete-evpn-mh")
+        # Delete EVPN Multihoming configuration
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+import yaml
+import os
+import sys
+
+try:
+    params = json.loads('''$POST_DATA''')
+    device = params.get('device', '')
+    
+    if not device:
+        print(json.dumps({'success': False, 'error': 'Device is required'}))
+        sys.exit(0)
+    
+    ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+    host_file = f"{ansible_dir}/inventory/host_vars/{device}.yaml"
+    
+    if not os.path.exists(host_file):
+        print(json.dumps({'success': False, 'error': f'Host file not found: {device}.yaml'}))
+        sys.exit(0)
+    
+    with open(host_file, 'r') as f:
+        host_data = yaml.safe_load(f) or {}
+    
+    if 'evpn_mh' not in host_data:
+        print(json.dumps({'success': False, 'error': 'EVPN Multihoming not configured'}))
+        sys.exit(0)
+    
+    # Delete evpn_mh
+    del host_data['evpn_mh']
+    
+    # Write back
+    with open(host_file, 'w') as f:
+        yaml.dump(host_data, f, default_flow_style=False, sort_keys=False)
+    
+    print(json.dumps({'success': True, 'message': 'EVPN Multihoming deleted'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
     create-bond)
         # Create a new bond interface
         read -r POST_DATA

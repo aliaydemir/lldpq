@@ -1738,8 +1738,8 @@
                 html += '</div>';
             }
             
-            // EVPN Multihoming Section
-            if (config.evpn_mh) {
+            // EVPN Multihoming Section - show if device has VTEP (EVPN capable)
+            if (config.vtep) {
                 html += `
                     <div class="dashboard-section">
                         <div class="section-header">
@@ -1747,7 +1747,34 @@
                                 <path d="M17 16l-4-4V8.82C14.16 8.4 15 7.3 15 6c0-1.66-1.34-3-3-3S9 4.34 9 6c0 1.3.84 2.4 2 2.82V12l-4 4H3v5h5v-3.05l4-4.2 4 4.2V21h5v-5h-4z"/>
                             </svg>
                             EVPN Multihoming
+                            <div style="margin-left: auto; display: flex; gap: 8px;">
+                                ${config.evpn_mh ? `
+                                    <button class="btn-add-small" onclick="openEvpnMhModal(true)" style="background: #4a4a4a;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                                        </svg>
+                                        Edit
+                                    </button>
+                                    <button class="btn-add-small" onclick="deleteEvpnMh()" style="background: #dc3545;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                        </svg>
+                                        Delete
+                                    </button>
+                                ` : `
+                                    <button class="btn-add-small" onclick="openEvpnMhModal()">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                                        </svg>
+                                        Create
+                                    </button>
+                                `}
+                            </div>
                         </div>
+                `;
+                
+                if (config.evpn_mh) {
+                    html += `
                         <div class="section-content">
                             <div class="info-grid">
                                 <div class="info-item">
@@ -1760,8 +1787,16 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
-                `;
+                    `;
+                } else {
+                    html += `
+                        <div class="section-content">
+                            <div style="color: #888; padding: 10px 0;">No EVPN Multihoming configured. Click Create to add one.</div>
+                        </div>
+                    `;
+                }
+                
+                html += '</div>';
             }
             
             // Separate interfaces into breakouts and real interfaces
@@ -4504,6 +4539,120 @@
             }
         }
         
+        // ========== EVPN Multihoming Functions ==========
+        let editingEvpnMh = false;
+        
+        function openEvpnMhModal(isEdit = false) {
+            if (!selectedDevice) {
+                showAlert('Please select a device first');
+                return;
+            }
+            
+            editingEvpnMh = isEdit;
+            const modal = document.getElementById('evpn-mh-modal');
+            const form = document.getElementById('evpn-mh-form');
+            form.reset();
+            
+            document.getElementById('evpn-mh-modal-title').textContent = isEdit ? 'Edit EVPN Multihoming' : 'Configure EVPN Multihoming';
+            document.getElementById('btn-save-evpn-mh').textContent = isEdit ? 'Save Changes' : 'Create';
+            
+            // If editing, populate with existing values
+            if (isEdit && currentDeviceConfig && currentDeviceConfig.evpn_mh) {
+                document.getElementById('evpn-mh-sysmac').value = currentDeviceConfig.evpn_mh.sysmac || '';
+                document.getElementById('evpn-mh-df-preference').value = currentDeviceConfig.evpn_mh.df_preference || '50000';
+            } else {
+                // Default template
+                document.getElementById('evpn-mh-sysmac').value = '44:38:39:ff:XX:XX';
+            }
+            
+            modal.classList.add('visible');
+        }
+        
+        function closeEvpnMhModal() {
+            document.getElementById('evpn-mh-modal').classList.remove('visible');
+            editingEvpnMh = false;
+        }
+        
+        async function saveEvpnMh(event) {
+            event.preventDefault();
+            
+            const sysmac = document.getElementById('evpn-mh-sysmac').value.trim();
+            const dfPreference = parseInt(document.getElementById('evpn-mh-df-preference').value);
+            
+            if (!sysmac) {
+                showAlert('System MAC is required');
+                return;
+            }
+            
+            closeEvpnMhModal();
+            
+            try {
+                const response = await fetch('/fabric-api.sh?action=save-evpn-mh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device: selectedDevice,
+                        evpn_mh: {
+                            sysmac: sysmac,
+                            df_preference: dfPreference
+                        }
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    refreshDevice();
+                    showOutputModal('EVPN Multihoming Saved', 
+                        `<div style="color: #76b900; margin-bottom: 15px;">✓ EVPN Multihoming configured successfully</div>` +
+                        `<div style="color: #888;">System MAC: <strong>${sysmac}</strong></div>` +
+                        `<div style="color: #888;">DF Preference: <strong>${dfPreference}</strong></div>` +
+                        `<div style="color: #ffb74d; margin-top: 15px; padding: 12px 12px 12px 12px; background: rgba(255, 183, 77, 0.1); border-left: 3px solid #ffb74d; border-radius: 4px; text-align: left;">
+<strong>⚠️ Important:</strong> Please create bond interfaces with <code>evpn_mh_id</code> to complete the configuration.<br>
+Without bonds, the EVPN Multihoming configuration will be incomplete.
+                        </div>` +
+                        `<div style="color: #888; margin-top: 10px;">Run <strong>Deploy</strong> to apply changes.</div>`,
+                        'success', true);
+                } else {
+                    showAlert('Error: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                showAlert('Error: ' + e.message);
+            }
+        }
+        
+        function deleteEvpnMh() {
+            document.getElementById('delete-evpn-mh-modal').classList.add('visible');
+        }
+        
+        function closeDeleteEvpnMhModal() {
+            document.getElementById('delete-evpn-mh-modal').classList.remove('visible');
+        }
+        
+        async function executeDeleteEvpnMh() {
+            closeDeleteEvpnMhModal();
+            
+            try {
+                const response = await fetch('/fabric-api.sh?action=delete-evpn-mh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ device: selectedDevice })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    refreshDevice();
+                    showOutputModal('EVPN Multihoming Deleted', 
+                        `<div style="color: #76b900; margin-bottom: 15px;">✓ EVPN Multihoming deleted successfully</div>` +
+                        `<div style="color: #888;">Run <strong>Deploy</strong> to apply changes.</div>`,
+                        'success', true);
+                } else {
+                    showAlert('Error: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                showAlert('Error: ' + e.message);
+            }
+        }
+        
         // Initialize on load
         init();
     </script>
@@ -5287,6 +5436,58 @@
             <div class="vlan-modal-footer" style="justify-content: center; gap: 15px;">
                 <button class="btn-secondary" onclick="closeDeleteDhcpRelayModal()">Cancel</button>
                 <button class="btn-danger" onclick="executeDeleteDhcpRelay()">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EVPN Multihoming Modal -->
+    <div class="vlan-modal" id="evpn-mh-modal">
+        <div class="vlan-modal-content" style="max-width: 450px;">
+            <div class="vlan-modal-header">
+                <h3 id="evpn-mh-modal-title">Configure EVPN Multihoming</h3>
+                <button class="vlan-modal-close" onclick="closeEvpnMhModal()">×</button>
+            </div>
+            <form id="evpn-mh-form" onsubmit="saveEvpnMh(event)">
+                <div class="vlan-modal-body">
+                    <div class="form-group">
+                        <label>System MAC</label>
+                        <input type="text" id="evpn-mh-sysmac" placeholder="44:38:39:ff:XX:XX" pattern="^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$" required style="width: 100%; padding: 10px 12px; background: #1e1e1e; border: 1px solid #404040; border-radius: 4px; color: #fff; font-size: 14px;">
+                        <div class="form-hint">Format: 44:38:39:ff:XX:XX (unique per MLAG pair)</div>
+                    </div>
+                    <div class="form-group">
+                        <label>DF Preference</label>
+                        <select id="evpn-mh-df-preference" required style="width: 100%; padding: 10px 12px; background: #1e1e1e; border: 1px solid #404040; border-radius: 4px; color: #fff; font-size: 14px;">
+                            <option value="50000">50000 (Primary)</option>
+                            <option value="40000">40000 (Secondary)</option>
+                        </select>
+                        <div class="form-hint">Higher value = preferred DF (Designated Forwarder)</div>
+                    </div>
+                </div>
+                <div class="vlan-modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeEvpnMhModal()">Cancel</button>
+                    <button type="submit" class="btn-primary" id="btn-save-evpn-mh">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete EVPN MH Confirmation Modal -->
+    <div class="vlan-modal" id="delete-evpn-mh-modal">
+        <div class="vlan-modal-content" style="max-width: 400px;">
+            <div class="vlan-modal-header">
+                <h3>Delete EVPN Multihoming</h3>
+                <button class="vlan-modal-close" onclick="closeDeleteEvpnMhModal()">×</button>
+            </div>
+            <div class="vlan-modal-body" style="text-align: center; padding: 25px;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="#f44336" style="margin-bottom: 15px;">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                </svg>
+                <p style="color: #ccc; margin-bottom: 10px;">Delete EVPN Multihoming configuration?</p>
+                <p style="color: #888; font-size: 13px;">This will remove System MAC and DF Preference settings.</p>
+            </div>
+            <div class="vlan-modal-footer" style="justify-content: center; gap: 15px;">
+                <button class="btn-secondary" onclick="closeDeleteEvpnMhModal()">Cancel</button>
+                <button class="btn-danger" onclick="executeDeleteEvpnMh()">Delete</button>
             </div>
         </div>
     </div>

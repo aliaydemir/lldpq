@@ -27,6 +27,8 @@
             box-sizing: border-box;
             transition: width 0.3s ease, padding 0.3s ease;
             z-index: 100;
+            display: flex;
+            flex-direction: column;
             /* Hide scrollbar */
             scrollbar-width: none; /* Firefox */
             -ms-overflow-style: none; /* IE/Edge */
@@ -100,6 +102,39 @@
         
         #sidebar.collapsed .sidebar-toggle svg {
             transform: rotate(180deg);
+        }
+        
+        /* Footer wrapper - flex container for footer and toggle */
+        .footer-wrapper {
+            display: flex;
+            align-items: center;
+            margin-top: auto;
+            padding-top: 20px;
+            border-top: 1px solid #444;
+        }
+        
+        .footer-wrapper .footer {
+            flex: 1;
+            border-top: none;
+            margin-top: 0;
+            padding-top: 0;
+        }
+        
+        /* Bottom toggle button - next to footer when open */
+        .sidebar-toggle-bottom {
+            position: relative;
+            top: auto;
+            right: auto;
+            flex-shrink: 0;
+        }
+        
+        #sidebar.collapsed .footer-wrapper {
+            flex-direction: column;
+            padding-top: 10px;
+        }
+        
+        #sidebar.collapsed .sidebar-toggle-bottom {
+            margin: 10px auto;
         }
         
         /* Menu Item Icons */
@@ -496,7 +531,8 @@
             </a>
         </div>
 
-        <div class="footer">
+        <div class="footer-wrapper">
+            <div class="footer">
             <h3>
                 <span id="version-display">LLDPq</span>
                 <a href="#" id="update-badge" onclick="showUpdateInfo(); return false;" style="display: none; background: linear-gradient(0deg, #ff6b00 0%, #ff8c00 100%); color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; text-decoration: none; margin-left: 8px; vertical-align: middle;">
@@ -504,6 +540,13 @@
                 </a>
             </h3>
             <h3 style="margin-top: 5px;">aaydemir@nvidia.com</h3>
+            </div>
+            <!-- Bottom Toggle Button -->
+            <button class="sidebar-toggle sidebar-toggle-bottom" onclick="toggleSidebar()" title="Toggle Sidebar">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+                </svg>
+            </button>
         </div>
     </div>
     
