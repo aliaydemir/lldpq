@@ -445,6 +445,180 @@
         .device-item.modified:hover {
             background: rgba(255, 152, 0, 0.15);
         }
+        
+        /* Alert Modal */
+        .alert-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        .alert-modal.visible {
+            display: flex;
+        }
+
+        .alert-modal-content {
+            background: #2d2d2d;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+
+        .alert-modal-header {
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .alert-modal-header.warning {
+            background: linear-gradient(135deg, #f57c00 0%, #e65100 100%);
+            color: #fff;
+        }
+
+        .alert-modal-header.error {
+            background: linear-gradient(135deg, #c53030 0%, #9b2c2c 100%);
+            color: #fff;
+        }
+
+        .alert-modal-header.info {
+            background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+            color: #fff;
+        }
+
+        .alert-modal-header h3 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .alert-modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: inherit;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .alert-modal-body {
+            padding: 20px;
+            color: #ccc;
+            line-height: 1.6;
+        }
+
+        .alert-modal-footer {
+            padding: 15px 20px;
+            background: #252526;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            border-radius: 0 0 8px 8px;
+        }
+
+        /* Confirm Modal */
+        .confirm-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        .confirm-modal.visible {
+            display: flex;
+        }
+
+        .confirm-modal-content {
+            background: #2d2d2d;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+
+        .confirm-modal-header {
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 8px 8px 0 0;
+            background: linear-gradient(135deg, #f57c00 0%, #e65100 100%);
+            color: #fff;
+        }
+
+        .confirm-modal-header h3 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .confirm-modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: inherit;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .confirm-modal-body {
+            padding: 20px;
+            color: #ccc;
+            line-height: 1.6;
+            white-space: pre-line;
+        }
+
+        .confirm-modal-footer {
+            padding: 15px 20px;
+            background: #252526;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            border-radius: 0 0 8px 8px;
+        }
+        
+        .btn-cancel {
+            background: #404040;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        
+        .btn-cancel:hover {
+            background: #505050;
+        }
+        
+        .btn-confirm-danger {
+            background: linear-gradient(180deg, #e53e3e 0%, #c53030 100%);
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        
+        .btn-confirm-danger:hover {
+            background: linear-gradient(180deg, #f56565 0%, #e53e3e 100%);
+        }
     </style>
 </head>
 <body>
@@ -1103,7 +1277,7 @@
         async function runGenerate() {
             const selected = getSelectedDevices();
             if (selected.length === 0) {
-                alert('Please select at least one device');
+                showAlert('Please select at least one device', 'warning', 'No Selection');
                 return;
             }
             
@@ -1133,7 +1307,7 @@
         async function runDiff() {
             const selected = getSelectedDevices();
             if (selected.length === 0) {
-                alert('Please select at least one device');
+                showAlert('Please select at least one device', 'warning', 'No Selection');
                 return;
             }
             
@@ -1182,7 +1356,7 @@
             }
             
             if (allDevices.size === 0) {
-                alert('No devices loaded. Please refresh first.');
+                showAlert('No devices loaded. Please refresh first.', 'warning', 'No Devices');
                 return;
             }
             
@@ -1283,7 +1457,7 @@
         async function runDeploy() {
             const selected = getSelectedDevices();
             if (selected.length === 0) {
-                alert('Please select at least one device');
+                showAlert('Please select at least one device', 'warning', 'No Selection');
                 return;
             }
             
@@ -1293,7 +1467,8 @@
                 (selected.length > 10 ? `\n... and ${selected.length - 10} more` : '') +
                 `\n\nThis will apply changes to live network devices!`;
             
-            if (!confirm(confirmMsg)) {
+            const confirmed = await confirmAsync(confirmMsg, 'Confirm Deploy');
+            if (!confirmed) {
                 return;
             }
             
@@ -1323,6 +1498,81 @@
                 showLoading(false);
             }
         }
+        
+        // Custom Alert Modal
+        function showAlert(message, type = 'warning', title = 'Warning') {
+            const modal = document.getElementById('alert-modal');
+            const header = document.getElementById('alert-modal-header');
+            document.getElementById('alert-modal-title').textContent = title;
+            document.getElementById('alert-modal-message').textContent = message;
+            header.className = 'alert-modal-header ' + type;
+            modal.classList.add('visible');
+        }
+        
+        function hideAlertModal() {
+            document.getElementById('alert-modal').classList.remove('visible');
+        }
+        
+        // Custom Confirm Modal
+        let confirmResolve = null;
+        
+        function confirmAsync(message, title = 'Confirm Action') {
+            return new Promise((resolve) => {
+                confirmResolve = resolve;
+                document.getElementById('confirm-modal-title').textContent = title;
+                document.getElementById('confirm-modal-message').textContent = message;
+                document.getElementById('confirm-modal').classList.add('visible');
+            });
+        }
+        
+        function closeConfirmModal() {
+            document.getElementById('confirm-modal').classList.remove('visible');
+            if (confirmResolve) {
+                confirmResolve(false);
+                confirmResolve = null;
+            }
+        }
+        
+        function executeConfirm() {
+            document.getElementById('confirm-modal').classList.remove('visible');
+            if (confirmResolve) {
+                confirmResolve(true);
+                confirmResolve = null;
+            }
+        }
     </script>
+    
+    <!-- Alert Modal -->
+    <div id="alert-modal" class="alert-modal" onclick="if(event.target === this) hideAlertModal()">
+        <div class="alert-modal-content">
+            <div id="alert-modal-header" class="alert-modal-header warning">
+                <h3 id="alert-modal-title">Warning</h3>
+                <button class="alert-modal-close" onclick="hideAlertModal()">&times;</button>
+            </div>
+            <div class="alert-modal-body">
+                <p id="alert-modal-message"></p>
+            </div>
+            <div class="alert-modal-footer">
+                <button class="btn btn-primary" onclick="hideAlertModal()">OK</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Confirm Modal -->
+    <div id="confirm-modal" class="confirm-modal" onclick="if(event.target === this) closeConfirmModal()">
+        <div class="confirm-modal-content">
+            <div class="confirm-modal-header">
+                <h3 id="confirm-modal-title">Confirm Action</h3>
+                <button class="confirm-modal-close" onclick="closeConfirmModal()">&times;</button>
+            </div>
+            <div class="confirm-modal-body">
+                <p id="confirm-modal-message"></p>
+            </div>
+            <div class="confirm-modal-footer">
+                <button class="btn-cancel" onclick="closeConfirmModal()">Cancel</button>
+                <button class="btn-confirm-danger" onclick="executeConfirm()">Deploy</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
