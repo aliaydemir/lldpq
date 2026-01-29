@@ -807,7 +807,7 @@
                     const output = data.output;
                     const newPendingDevices = new Set();
                     
-                    // Parse git status output
+                    // Parse git status output for inventory/ changes only
                     for (const line of output.split('\n')) {
                         const hostVarsMatch = line.match(/inventory\/host_vars\/([^\/]+)\.ya?ml/);
                         if (hostVarsMatch) {
@@ -815,29 +815,29 @@
                         }
                     }
                     
-                    // Check if there are new changes
+                    // Check if changes detected (compare with current)
                     const previousCount = modifiedDevices.size;
-                    for (const device of newPendingDevices) {
-                        modifiedDevices.add(device);
-                    }
+                    const hasChanges = newPendingDevices.size !== previousCount || 
+                        ![...newPendingDevices].every(d => modifiedDevices.has(d));
+                    
+                    // Set directly (no merge - always fresh from git status)
+                    modifiedDevices = newPendingDevices;
                     
                     // Update UI if changes detected
-                    if (modifiedDevices.size !== previousCount || newPendingDevices.size > 0) {
-                        updatePendingCount('Pending Changes', modifiedDevices.size, false);
-                        updateDeviceListUI();
+                    if (hasChanges) {
+                        renderDeviceList();
+                        updateSummaryCards();
                         
-                        // Flash the pending count to draw attention
-                        const pendingEl = document.getElementById('pending-count');
-                        if (pendingEl && modifiedDevices.size > 0) {
-                            pendingEl.style.animation = 'none';
-                            pendingEl.offsetHeight; // Trigger reflow
-                            pendingEl.style.animation = 'pulse 0.5s ease-in-out 2';
+                        // Flash the pending count to draw attention if new changes
+                        if (newPendingDevices.size > previousCount) {
+                            const pendingEl = document.getElementById('pending-changes');
+                            if (pendingEl) {
+                                pendingEl.style.animation = 'none';
+                                pendingEl.offsetHeight; // Trigger reflow
+                                pendingEl.style.animation = 'pulse 0.5s ease-in-out 2';
+                            }
                         }
                     }
-                    
-                    // Just update UI - don't update "Last scan" (that's for Fabric Scan only)
-                    renderDeviceList();
-                    updateSummaryCards();
                 }
             } catch (e) {
                 console.error('[silentGitScan] Error:', e.message);
@@ -856,24 +856,8 @@
                 renderDeviceList();
                 updateLastUpdated();
                 
-                // Load cached Fabric Scan results - prefer server cache (from cron), fallback to localStorage
-                let cached = await loadServerCache();
-                const localCache = loadScanCache();
-                
-                // Use whichever cache is newer
-                if (localCache && (!cached || localCache.timestamp > cached.timestamp)) {
-                    cached = localCache;
-                }
-                
-                if (cached && cached.pendingDevices) {
-                    modifiedDevices = new Set(cached.pendingDevices);
-                    renderDeviceList();
-                    updateSummaryCards();
-                    showScanAge(cached.timestamp);
-                }
-                
-                // Then: Run quick git scan to detect NEW uncommitted changes
-                // This ADDS to Fabric Scan results, doesn't overwrite
+                // Run git status to detect uncommitted changes in Ansible source
+                // This is fast (seconds) so no caching needed - always fresh data
                 await quickGitScan();
             } catch (e) {
                 document.getElementById('device-list').innerHTML = 
@@ -974,12 +958,12 @@
                     const gitPendingDevices = new Set();
                     const modifiedGroups = new Set();
                     
-                    // Parse git status output for modified files
+                    // Parse git status output for modified files in inventory/
                     const lines = output.split('\n');
                     
                     for (const line of lines) {
-                        // Match host_vars file changes - these we can track precisely
-                        const hostMatch = line.match(/host_vars\/([^\/\s]+)\.ya?ml/);
+                        // Match host_vars file changes
+                        const hostMatch = line.match(/inventory\/host_vars\/([^\/\s]+)\.ya?ml/);
                         if (hostMatch) {
                             const hostname = hostMatch[1];
                             if (hostname && hostname !== 'all') {
@@ -987,8 +971,8 @@
                             }
                         }
                         
-                        // Match group_vars file changes - just note them, don't mark devices
-                        const groupMatch = line.match(/group_vars\/([^\/\s]+)/);
+                        // Match group_vars file changes
+                        const groupMatch = line.match(/inventory\/group_vars\/([^\/\s]+)/);
                         if (groupMatch) {
                             modifiedGroups.add(groupMatch[1]);
                         }
@@ -997,20 +981,17 @@
                     console.log('[quickGitScan] Detected host_vars devices:', Array.from(gitPendingDevices));
                     console.log('[quickGitScan] Detected group_vars:', Array.from(modifiedGroups));
                     
-                    // MERGE with existing Fabric Scan results (don't overwrite)
-                    // Git-detected changes ADD to Fabric Scan results
-                    for (const device of gitPendingDevices) {
-                        modifiedDevices.add(device);
-                    }
-                    console.log('[quickGitScan] Total modifiedDevices:', modifiedDevices.size);
+                    // Set modifiedDevices directly from git status (no caching, always fresh)
+                    modifiedDevices = gitPendingDevices;
+                    console.log('[quickGitScan] modifiedDevices:', modifiedDevices.size);
                     
-                    // Show banner if group_vars changed (requires Fabric Scan for accurate detection)
+                    // Show banner if group_vars changed
                     const banner = document.getElementById('group-vars-banner');
                     const bannerMsg = document.getElementById('group-vars-message');
                     
                     if (modifiedGroups.size > 0) {
                         const groupList = Array.from(modifiedGroups).join(', ');
-                        console.log('Group vars changed:', groupList, '- run Fabric Scan for accurate detection');
+                        console.log('Group vars changed:', groupList);
                         
                         // Show warning banner
                         if (banner) {
@@ -1025,13 +1006,10 @@
                     }
                     
                     // Update UI
-                    document.getElementById('pending-changes').style.opacity = '1';
-                    document.getElementById('synced-devices').style.opacity = '1';
                     renderDeviceList();
                     updateSummaryCards();
                     
-                    console.log('Quick git scan: found', gitPendingDevices.size, 'host_vars changes', 
-                                modifiedGroups.size > 0 ? `(+${modifiedGroups.size} group_vars - needs Fabric Scan)` : '');
+                    console.log('[quickGitScan] Complete:', gitPendingDevices.size, 'host_vars,', modifiedGroups.size, 'group_vars');
                 }
             } catch (e) {
                 console.error('[quickGitScan] FAILED:', e.message, e);
