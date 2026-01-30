@@ -710,10 +710,18 @@ class LinkFlapAnalyzer:
                 allowClear: true,
                 width: '250px',
                 dropdownAutoWidth: true,
+                minimumInputLength: 0,
                 matcher: function(params, data) {
+                    // If no search term, show all
                     if ($.trim(params.term) === '') return data;
-                    if (typeof data.text === 'undefined') return null;
-                    if (data.text.toLowerCase().indexOf(params.term.toLowerCase()) > -1) return data;
+                    // Skip items without text
+                    if (typeof data.text === 'undefined' || data.text === null) return null;
+                    // Case-insensitive partial match
+                    const term = params.term.toLowerCase();
+                    const text = data.text.toLowerCase();
+                    if (text.indexOf(term) > -1) {
+                        return data;
+                    }
                     return null;
                 }
             });

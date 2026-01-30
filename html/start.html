@@ -106,6 +106,67 @@
             letter-spacing: 0.5px;
         }
         
+        /* Critical Issues Tooltip */
+        .critical-tooltip {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e1e1e;
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 12px 15px;
+            min-width: 220px;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            margin-top: 8px;
+            font-size: 12px;
+            text-align: left;
+        }
+        
+        .critical-tooltip::before {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 6px solid #555;
+        }
+        
+        #critical-issues-container:hover .critical-tooltip {
+            display: block;
+        }
+        
+        .tooltip-title {
+            font-weight: 600;
+            color: #76b900;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            color: #d4d4d4;
+        }
+        
+        .tooltip-row.has-issues {
+            color: #f44336;
+        }
+        
+        .tooltip-row .source {
+            color: #888;
+        }
+        
+        .tooltip-row .count {
+            font-weight: 600;
+        }
+        
         /* Analysis Sections */
         .analysis-section {
             background: #2d2d2d;
@@ -239,9 +300,10 @@
                     <div class="stat-value" id="overall-health">--</div>
                     <div class="stat-label">Overall Health</div>
                 </div>
-                <div class="stat-item">
+                <div class="stat-item" id="critical-issues-container" style="position: relative; cursor: help;">
                     <div class="stat-value" id="critical-issues">--</div>
                     <div class="stat-label">Critical Issues</div>
+                    <div class="critical-tooltip" id="critical-tooltip"></div>
                 </div>
             </div>
         </div>
@@ -858,18 +920,30 @@
                 const totalDevices = assetsData.totalDevices || 0;
                 const totalInterfaces = Math.max(opticalData.totalPorts || 0, berData.totalPorts || 0);
                 
-            const criticalIssues = 
-                    (assetsData.failed || 0) +
-                    (lldpData.failed || 0) +
-                    (lldpData.noInfo || 0) +
-                    (bgpData.failed || 0) +
-                    (opticalData.critical || 0) +
-                    (berData.critical || 0) +
-                    (flapData.problematic || 0) +
-                    (hardwareData.critical || 0) +
-                    (hardwareData.warning || 0) +
-                    (logData.critical || 0) +
-                    (logData.warning || 0);
+            // Calculate critical issues with breakdown for tooltip
+            const criticalBreakdown = {
+                'Assets Failed': assetsData.failed || 0,
+                'LLDP Failed Links': lldpData.failed || 0,
+                'LLDP No Info': lldpData.noInfo || 0,
+                'BGP Failed': bgpData.failed || 0,
+                'Optical Critical': opticalData.critical || 0,
+                'BER Critical': berData.critical || 0,
+                'Link Flaps': flapData.problematic || 0,
+                'Hardware Critical': hardwareData.critical || 0,
+                'Hardware Warning': hardwareData.warning || 0,
+                'Log Critical': logData.critical || 0,
+                'Log Warning': logData.warning || 0
+            };
+            
+            const criticalIssues = Object.values(criticalBreakdown).reduce((a, b) => a + b, 0);
+            
+            // Build tooltip HTML
+            let tooltipHtml = '<div class="tooltip-title">Critical Issues Breakdown</div>';
+            for (const [source, count] of Object.entries(criticalBreakdown)) {
+                const hasIssues = count > 0 ? 'has-issues' : '';
+                tooltipHtml += `<div class="tooltip-row ${hasIssues}"><span class="source">${source}</span><span class="count">${count}</span></div>`;
+            }
+            document.getElementById('critical-tooltip').innerHTML = tooltipHtml;
                 
                 const healthyItems = 
                     (assetsData.successful || 0) +

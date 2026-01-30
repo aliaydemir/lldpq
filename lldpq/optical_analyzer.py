@@ -817,11 +817,10 @@ class OpticalAnalyzer:
         function populateDeviceList() {
             const deviceSet = new Set();
             allRows.forEach(row => {
-                // Port format is "hostname:interface" - extract hostname
-                const portName = row.cells[0]?.textContent?.trim();
-                if (portName && portName.includes(':')) {
-                    const hostname = portName.split(':')[0];
-                    deviceSet.add(hostname);
+                // Device column (cells[0]) contains just the hostname
+                const deviceName = row.cells[0]?.textContent?.trim();
+                if (deviceName) {
+                    deviceSet.add(deviceName);
                 }
             });
             
