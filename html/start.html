@@ -656,7 +656,7 @@
                     });
                     
                 } else if (dataType === 'lldp') {
-                    // Parse lldp_results.ini directly (structured text format)
+                    // Parse lldp_results.ini with same logic as lldp.html for calculating warnings
                     const response = await fetch('lldp_results.ini');
                     const text = await response.text();
                     const lines = text.split('\n');
@@ -668,21 +668,39 @@
                     summaryData.noInfo = 0;
                     
                     lines.forEach(line => {
-                        // Look for port status lines (swp + Pass/Fail/No-Info pattern)
+                        // Look for port status lines (swp + status pattern)
                         if (line.includes('swp') && (line.includes('Pass') || line.includes('Fail') || line.includes('No-Info'))) {
                             const parts = line.trim().split(/\s+/);
                             if (parts.length >= 2) {
-                                const status = parts[1]; // Status is second column
+                                const lldpStatus = parts[1]; // Status column (Pass/Fail/No-Info)
+                                const portStatus = parts[parts.length - 1]; // Last column is port status (UP/DOWN)
+                                const expectedDevice = parts[2] || 'None';
+                                const actualDevice = parts[4] || 'None';
+                                
                                 summaryData.totalConnections++;
                                 
-                                if (status === 'Pass') summaryData.successful++;
-                                else if (status === 'Fail') summaryData.failed++;
-                                else if (status === 'No-Info') summaryData.noInfo++;
+                                if (lldpStatus === 'Pass') {
+                                    summaryData.successful++;
+                                } else if (lldpStatus === 'No-Info') {
+                                    summaryData.noInfo++;
+                                } else if (lldpStatus === 'Fail') {
+                                    // Same logic as lldp.html determineLLDPStatus()
+                                    if (portStatus === 'DOWN') {
+                                        // Port is physically down - real failure
+                                        summaryData.failed++;
+                                    } else if (actualDevice !== 'None' && actualDevice !== 'N/A') {
+                                        // Port UP but device/port mismatch - warning
+                                        summaryData.warning++;
+                                    } else {
+                                        // Port UP but no actual device - treat as warning
+                                        summaryData.warning++;
+                                    }
+                                }
                             }
                         }
                     });
                     
-                    // LLDP data parsed
+                    // LLDP data parsed with warning calculation
                     
                 } else if (dataType === 'optical') {
                     // Special case for optical: use summary cards because they have correct total ports count
