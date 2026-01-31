@@ -4375,6 +4375,11 @@
                 
                 interfaceSelect.innerHTML = vlanInterfaces.map(v => `<option value="${v}">${v}</option>`).join('');
                 
+                // Reset giaddr toggle and field
+                const giaddrToggle = document.getElementById('dhcp-relay-giaddr-toggle');
+                const giaddrContainer = document.getElementById('dhcp-relay-giaddr-container');
+                const giaddrInput = document.getElementById('dhcp-relay-giaddr');
+                
                 // If editing, populate form with existing values
                 if (editIdx !== null && config.dhcp_relay && config.dhcp_relay[editIdx]) {
                     const relay = config.dhcp_relay[editIdx];
@@ -4383,8 +4388,25 @@
                         interfaceSelect.value = relay.interfaces[0];
                     }
                     document.getElementById('dhcp-relay-servers').value = relay.servers?.join(', ') || '';
+                    
+                    // Set giaddr if exists
+                    if (relay.giaddr) {
+                        giaddrToggle.checked = true;
+                        giaddrContainer.style.display = 'block';
+                        giaddrInput.value = relay.giaddr;
+                    } else {
+                        giaddrToggle.checked = false;
+                        giaddrContainer.style.display = 'none';
+                        giaddrInput.value = '';
+                    }
+                    
                     // Upstream is auto-calculated from VRF
                     updateDhcpUpstream();
+                } else {
+                    // Clear giaddr for new relay
+                    giaddrToggle.checked = false;
+                    giaddrContainer.style.display = 'none';
+                    giaddrInput.value = '';
                 }
                 
             } catch (e) {
@@ -4400,13 +4422,29 @@
             editingDhcpRelayIdx = null;
         }
         
+        function toggleGiaddrField() {
+            const checkbox = document.getElementById('dhcp-relay-giaddr-toggle');
+            const container = document.getElementById('dhcp-relay-giaddr-container');
+            const input = document.getElementById('dhcp-relay-giaddr');
+            
+            if (checkbox.checked) {
+                container.style.display = 'block';
+                input.focus();
+            } else {
+                container.style.display = 'none';
+                input.value = '';
+            }
+        }
+        
         function updateDhcpUpstream() {
             const vrfSelect = document.getElementById('dhcp-relay-vrf');
             const upstreamField = document.getElementById('dhcp-relay-upstream');
+            const interfaceSelect = document.getElementById('dhcp-relay-interface');
             const selectedVrf = vrfSelect.value;
             
             if (!selectedVrf || !currentDeviceConfig) {
                 upstreamField.value = '';
+                interfaceSelect.innerHTML = '<option value="">Select VRF first...</option>';
                 return;
             }
             
@@ -4422,6 +4460,44 @@
                     upstreamField.value = '';
                 }
             }
+            
+            // Filter interfaces by VRF - get SVIs (vlanXX) that belong to this VRF
+            const vrfInterfaces = [];
+            
+            // Get vlan_templates for this device
+            const config = currentDeviceConfig;
+            if (config.vlan_templates && vlanProfiles) {
+                for (const templateName of config.vlan_templates) {
+                    const vp = vlanProfiles[templateName];
+                    if (vp && vp.vlan_id) {
+                        // Check if this VLAN profile belongs to the selected VRF
+                        const vrfName = vp.vrf || 'default';
+                        if (vrfName === selectedVrf) {
+                            // For range profiles, add all VLANs
+                            if (vp.vlans && typeof vp.vlans === 'object') {
+                                for (const vid of Object.keys(vp.vlans)) {
+                                    vrfInterfaces.push(`vlan${vid}`);
+                                }
+                            } else {
+                                vrfInterfaces.push(`vlan${vp.vlan_id}`);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Sort numerically
+            vrfInterfaces.sort((a, b) => {
+                const numA = parseInt(a.replace('vlan', ''));
+                const numB = parseInt(b.replace('vlan', ''));
+                return numA - numB;
+            });
+            
+            if (vrfInterfaces.length > 0) {
+                interfaceSelect.innerHTML = vrfInterfaces.map(v => `<option value="${v}">${v}</option>`).join('');
+            } else {
+                interfaceSelect.innerHTML = '<option value="">No interfaces in this VRF</option>';
+            }
         }
         
         async function saveDhcpRelay() {
@@ -4429,6 +4505,7 @@
             const interfaceVal = document.getElementById('dhcp-relay-interface').value;
             const serversStr = document.getElementById('dhcp-relay-servers').value.trim();
             const upstream = document.getElementById('dhcp-relay-upstream').value.trim();
+            const giaddr = document.getElementById('dhcp-relay-giaddr').value.trim();
             
             if (!vrf) {
                 showAlert('Please select a VRF');
@@ -4451,17 +4528,25 @@
             saveBtn.textContent = 'Saving...';
             
             try {
+                // Build request body
+                const requestBody = {
+                    device: selectedDevice,
+                    index: editingDhcpRelayIdx,
+                    vrf: vrf,
+                    interfaces: [interfaceVal],
+                    servers: servers,
+                    upstream: upstream ? [upstream] : []
+                };
+                
+                // Only include giaddr if provided
+                if (giaddr) {
+                    requestBody.giaddr = giaddr;
+                }
+                
                 const response = await fetch('/fabric-api.sh?action=save-dhcp-relay', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        device: selectedDevice,
-                        index: editingDhcpRelayIdx,
-                        vrf: vrf,
-                        interfaces: [interfaceVal],
-                        servers: servers,
-                        upstream: upstream ? [upstream] : []
-                    })
+                    body: JSON.stringify(requestBody)
                 });
                 
                 const result = await response.json();
@@ -5408,6 +5493,17 @@ Without bonds, the EVPN Multihoming configuration will be incomplete.
                         <label>Upstream Interface</label>
                         <input type="text" id="dhcp-relay-upstream" readonly style="width: 100%; padding: 10px 12px; background: #333; border: 1px solid #404040; border-radius: 4px; color: #76b900; font-size: 14px; cursor: not-allowed;">
                         <div class="form-hint">Auto-filled from VRF's VXLAN interface</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="dhcp-relay-giaddr-toggle" onchange="toggleGiaddrField()" style="width: 16px; height: 16px; cursor: pointer;">
+                            <span>Set Gateway Interface (giaddr)</span>
+                        </label>
+                        <div id="dhcp-relay-giaddr-container" style="display: none; margin-top: 10px;">
+                            <input type="text" id="dhcp-relay-giaddr" placeholder="lo, vlan100, or VRF name" style="width: 100%; padding: 10px 12px; background: #1e1e1e; border: 1px solid #404040; border-radius: 4px; color: #fff; font-size: 14px;">
+                            <div class="form-hint">Source interface for DHCP relay (lo, vlan, or VRF)</div>
+                        </div>
                     </div>
                 </form>
             </div>

@@ -2053,6 +2053,7 @@ vrf = params.get('vrf', '')
 interfaces = params.get('interfaces', [])
 servers = params.get('servers', [])
 upstream = params.get('upstream', [])
+giaddr = params.get('giaddr', '')  # Optional gateway interface
 
 if not device or not vrf:
     print(json.dumps({'success': False, 'error': 'Device and VRF are required'}))
@@ -2087,6 +2088,8 @@ try:
     }
     if upstream:
         relay_entry['upstream'] = upstream
+    if giaddr:
+        relay_entry['giaddr'] = giaddr
     
     if index is not None and isinstance(index, int) and 0 <= index < len(host_data['dhcp_relay']):
         # Update existing
