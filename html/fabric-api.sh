@@ -631,6 +631,7 @@ vxlan_int = data.get('vxlan_int')
 bgp_profile = data.get('bgp_profile', 'OVERLAY_LEAF')
 leaking_enabled = data.get('leaking_enabled', False)
 leak_from_vrf = data.get('leak_from_vrf')
+loopback_ip = data.get('loopback_ip')  # Custom loopback IP with mask
 
 if not devices or not isinstance(devices, list):
     print(json.dumps({'success': False, 'error': 'No devices specified'}))
@@ -689,6 +690,7 @@ if leaking_enabled and leak_from_vrf:
 # Create VRF entry
 vrf_entry = {
     'l3vni': l3vni,
+    'lo': loopback_ip if loopback_ip else '{{ lo_ip }}',
     'bgp_profile': bgp_profile
 }
 

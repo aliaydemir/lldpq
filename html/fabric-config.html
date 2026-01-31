@@ -3372,6 +3372,16 @@
         async function openVrfModal() {
             document.getElementById('vrf-form').reset();
             
+            // Reset custom loopback checkbox and input
+            document.getElementById('vrf-custom-loopback').checked = false;
+            document.getElementById('vrf-loopback-container').style.display = 'none';
+            document.getElementById('vrf-loopback-ip').value = '';
+            
+            // Reset leaking options
+            document.getElementById('vrf-leaking-enabled').checked = false;
+            document.getElementById('vrf-leaking-options').style.display = 'none';
+            document.getElementById('vrf-profile-group').style.display = 'block';
+            
             // Hide BGP ASN field since we'll use each device's own ASN
             document.getElementById('vrf-bgp-asn').parentElement.style.display = 'none';
             
@@ -3435,6 +3445,20 @@
             }
         }
         
+        function toggleCustomLoopback() {
+            const checkbox = document.getElementById('vrf-custom-loopback');
+            const container = document.getElementById('vrf-loopback-container');
+            const input = document.getElementById('vrf-loopback-ip');
+            
+            if (checkbox.checked) {
+                container.style.display = 'block';
+                input.focus();
+            } else {
+                container.style.display = 'none';
+                input.value = '';
+            }
+        }
+        
         // Create VRF
         async function createVrf() {
             const createBtn = document.getElementById('btn-create-vrf');
@@ -3442,6 +3466,8 @@
             const l3vni = parseInt(document.getElementById('vrf-l3vni').value);
             const leakingEnabled = document.getElementById('vrf-leaking-enabled').checked;
             const leakFromVrf = document.getElementById('vrf-leak-from').value;
+            const customLoopback = document.getElementById('vrf-custom-loopback').checked;
+            const loopbackIp = document.getElementById('vrf-loopback-ip').value.trim();
             
             if (!selectedDevice) {
                 showAlert('Please select a device first');
@@ -3463,6 +3489,16 @@
                 return;
             }
             
+            if (customLoopback && !loopbackIp) {
+                showAlert('Please enter a loopback IP address with mask (e.g., 10.128.131.6/32)');
+                return;
+            }
+            
+            if (customLoopback && loopbackIp && !loopbackIp.includes('/')) {
+                showAlert('Please include mask in loopback IP (e.g., 10.128.131.6/32)');
+                return;
+            }
+            
             const data = {
                 devices: [selectedDevice],
                 vrf_name: vrfName,
@@ -3472,6 +3508,10 @@
                 leaking_enabled: leakingEnabled,
                 leak_from_vrf: leakingEnabled ? leakFromVrf : null
             };
+            
+            if (customLoopback && loopbackIp) {
+                data.loopback_ip = loopbackIp;
+            }
             
             createBtn.disabled = true;
             createBtn.textContent = `Creating on ${selectedDevice}...`;
@@ -5098,6 +5138,17 @@ Without bonds, the EVPN Multihoming configuration will be incomplete.
                         <label>VXLAN Interface VLAN</label>
                         <input type="number" id="vrf-vxlan-int" placeholder="e.g., 4063">
                         <div class="form-hint">VLAN ID for L3VNI interface (e.g., vlan4063_l3)</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="vrf-custom-loopback" onchange="toggleCustomLoopback()" style="width: 16px; height: 16px; cursor: pointer;">
+                            <span>Use different loopback IP</span>
+                        </label>
+                        <div id="vrf-loopback-container" style="display: none; margin-top: 10px;">
+                            <input type="text" id="vrf-loopback-ip" placeholder="e.g., 192.168.100.101/32" style="width: 100%; padding: 10px 12px; background: #1e1e1e; border: 1px solid #404040; border-radius: 4px; color: #fff; font-size: 14px;">
+                            <div class="form-hint">Loopback IP with mask for this VRF (default uses device's lo_ip)</div>
+                        </div>
                     </div>
                     
                     <div class="form-group">
