@@ -479,12 +479,6 @@
                 </svg>
                 Refresh
             </button>
-            <button class="btn btn-primary" onclick="openCreateVrfModal()" style="background: #76b900;">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                </svg>
-                Create VRF
-            </button>
         </div>
     </div>
     
@@ -517,11 +511,211 @@
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
             </svg>
             VRF Profiles
+            <button class="btn btn-primary" onclick="openCreateVrfModal()" style="margin-left: auto;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                Create
+            </button>
         </div>
         <div class="section-content" id="content-area">
             <div class="loading">
                 <div class="spinner"></div>
                 Loading VRF data...
+            </div>
+        </div>
+    </div>
+    
+    <!-- BGP Profiles Section -->
+    <div class="dashboard-section" style="margin-top: 30px;">
+        <div class="section-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+            </svg>
+            BGP Profiles
+            <button class="btn btn-primary" onclick="openCreateBgpProfileModal()" style="margin-left: auto;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                Create
+            </button>
+        </div>
+        <div class="section-content" id="bgp-profiles-content">
+            <div class="loading">
+                <div class="spinner"></div>
+                Loading BGP profiles...
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create BGP Profile Modal -->
+    <div class="modal" id="create-bgp-modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>Create BGP Profile</h3>
+                <button class="modal-close" onclick="closeCreateBgpProfileModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="create-bgp-form">
+                    <div class="form-group">
+                        <label>Profile Name *</label>
+                        <input type="text" id="bgp-profile-name" placeholder="e.g., OVERLAY_LEAF" required>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="bgp-redistribute-connected" checked style="width: 16px; height: 16px;">
+                                Redistribute Connected
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="bgp-redistribute-static" style="width: 16px; height: 16px;">
+                                Redistribute Static
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="bgp-export-evpn-type5" style="width: 16px; height: 16px;">
+                                Export to EVPN Type-5
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="bgp-enable-evpn" style="width: 16px; height: 16px;">
+                                Enable L2VPN EVPN
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label>Peer Groups</label>
+                        <div id="bgp-peer-groups-container">
+                            <div class="peer-group-entry" style="background: #1e1e1e; padding: 15px; border-radius: 4px; margin-bottom: 10px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 10px;">
+                                    <input type="text" class="pg-name" placeholder="Peer Group Name" style="padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff;">
+                                    <select class="pg-type" style="padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff;">
+                                        <option value="external">External</option>
+                                        <option value="internal">Internal</option>
+                                    </select>
+                                    <button type="button" onclick="this.closest('.peer-group-entry').remove()" style="background: #c53030; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer;">×</button>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                                    <label style="display: flex; align-items: center; gap: 8px; color: #ccc; font-size: 13px;">
+                                        <input type="checkbox" class="pg-bfd" checked style="width: 14px; height: 14px;">
+                                        Enable BFD
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 8px; color: #ccc; font-size: 13px;">
+                                        <input type="checkbox" class="pg-evpn" style="width: 14px; height: 14px;">
+                                        Enable EVPN
+                                    </label>
+                                </div>
+                                <input type="text" class="pg-description" placeholder="Description (optional)" style="width: 100%; padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff; margin-bottom: 10px;">
+                                <textarea class="pg-peers" placeholder="Peers (one per line: swp1, swp2 or 10.0.0.1, 10.0.0.2)" style="width: 100%; padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff; min-height: 60px; font-family: monospace;"></textarea>
+                            </div>
+                        </div>
+                        <button type="button" onclick="addPeerGroupEntry('bgp-peer-groups-container')" style="background: #404040; color: #ccc; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            + Add Peer Group
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeCreateBgpProfileModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="createBgpProfile()">Create</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit BGP Profile Modal -->
+    <div class="modal" id="edit-bgp-modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>Edit BGP Profile</h3>
+                <button class="modal-close" onclick="closeEditBgpProfileModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-bgp-form">
+                    <input type="hidden" id="edit-bgp-original-name">
+                    <div class="form-group">
+                        <label>Profile Name *</label>
+                        <input type="text" id="edit-bgp-profile-name" placeholder="e.g., OVERLAY_LEAF" required>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="edit-bgp-redistribute-connected" style="width: 16px; height: 16px;">
+                                Redistribute Connected
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="edit-bgp-redistribute-static" style="width: 16px; height: 16px;">
+                                Redistribute Static
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="edit-bgp-export-evpn-type5" style="width: 16px; height: 16px;">
+                                Export to EVPN Type-5
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="edit-bgp-enable-evpn" style="width: 16px; height: 16px;">
+                                Enable L2VPN EVPN
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label>Peer Groups</label>
+                        <div id="edit-bgp-peer-groups-container"></div>
+                        <button type="button" onclick="addPeerGroupEntry('edit-bgp-peer-groups-container')" style="background: #404040; color: #ccc; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                            + Add Peer Group
+                        </button>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeEditBgpProfileModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveBgpProfile()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Delete BGP Profile Modal -->
+    <div class="modal" id="delete-bgp-modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header" style="background: #c53030;">
+                <h3>Delete BGP Profile</h3>
+                <button class="modal-close" onclick="closeDeleteBgpProfileModal()">×</button>
+            </div>
+            <div class="modal-body" style="text-align: center;">
+                <p style="color: #ccc; margin-bottom: 10px;">Are you sure you want to delete BGP profile:</p>
+                <p style="color: #76b900; font-size: 18px; font-weight: bold;" id="delete-bgp-name"></p>
+                <p style="color: #888; font-size: 12px; margin-top: 10px;">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeDeleteBgpProfileModal()">Cancel</button>
+                <button class="btn" style="background: #c53030; color: white;" onclick="confirmDeleteBgpProfile()">Delete</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- View BGP Profile Modal -->
+    <div class="modal" id="view-bgp-modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3 id="view-bgp-title">BGP Profile Details</h3>
+                <button class="modal-close" onclick="closeViewBgpProfileModal()">×</button>
+            </div>
+            <div class="modal-body" id="view-bgp-content" style="max-height: 60vh; overflow: auto;">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeViewBgpProfileModal()">Close</button>
             </div>
         </div>
     </div>
@@ -572,8 +766,10 @@
     <script>
         // State
         let vrfData = {};
+        let bgpProfiles = {};
         let totalDeviceCount = 0;
         let infraVrfList = ['default'];  // Will be loaded from config
+        let deletingBgpProfile = null;
         
         // Dynamic VRF badge colors - uses hash for consistent colors
         function getVrfBadgeClass(vrfName) {
@@ -611,16 +807,23 @@
             document.getElementById('content-area').innerHTML = '<div class="loading"><div class="spinner"></div>Loading VRF data...</div>';
             
             try {
-                // Load infra_vrfs config from bgp_profiles
+                // Load infra_vrfs config and BGP profiles
                 try {
                     const configResp = await fetch('/fabric-api.sh?action=get-bgp-profiles');
                     const configData = await configResp.json();
-                    if (configData.success && configData.infra_vrfs) {
-                        infraVrfList = configData.infra_vrfs;
+                    if (configData.success) {
+                        if (configData.infra_vrfs) {
+                            infraVrfList = configData.infra_vrfs;
+                        }
+                        if (configData.bgp_profiles) {
+                            bgpProfiles = configData.bgp_profiles;
+                            renderBgpProfilesTable();
+                        }
                     }
                 } catch (e) {
                     // Use default if config fails
                     infraVrfList = ['default'];
+                    bgpProfiles = {};
                 }
                 
                 const response = await fetch('/fabric-api.sh?action=get-vrf-report');
@@ -678,8 +881,12 @@
                 return;
             }
             
-            // Sort by name
-            vrfNames.sort();
+            // Sort by name, but "default" always first
+            vrfNames.sort((a, b) => {
+                if (a === 'default') return -1;
+                if (b === 'default') return 1;
+                return a.localeCompare(b);
+            });
             
             let html = `
                 <table class="data-table">
@@ -690,7 +897,7 @@
                             <th>L3VNI</th>
                             <th>VXLAN Int</th>
                             <th>Devices</th>
-                            <th>Actions</th>
+                            <th style="text-align: right;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -715,7 +922,7 @@
                             </span>
                         </td>
                         <td>
-                            <div class="row-actions" style="display: flex; gap: 8px;">
+                            <div class="row-actions" style="display: flex; gap: 8px; justify-content: flex-end;">
                                 <button class="btn-icon" onclick="event.stopPropagation(); openAssignVrfToDevices('${vrfName}')" title="Assign to Devices" style="background: #2196f3; color: white;">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
@@ -1159,6 +1366,442 @@
             } catch (e) {
                 alert('Error: ' + e.message);
             }
+        }
+        
+        // ===== BGP Profiles Functions =====
+        
+        function renderBgpProfilesTable() {
+            const container = document.getElementById('bgp-profiles-content');
+            const profiles = Object.entries(bgpProfiles);
+            
+            // Filter out UNDERLAY profiles (show only OVERLAY/BORDER profiles)
+            const filteredProfiles = profiles.filter(([name, _]) => !name.includes('UNDERLAY'));
+            
+            if (filteredProfiles.length === 0) {
+                container.innerHTML = '<div style="color: #888; padding: 20px; text-align: center;">No BGP profiles defined (UNDERLAY profiles are hidden).</div>';
+                return;
+            }
+            
+            // Sort profiles alphabetically
+            filteredProfiles.sort((a, b) => a[0].localeCompare(b[0]));
+            const profiles_to_render = filteredProfiles;
+            
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Profile Name</th>
+                            <th>Redistribute</th>
+                            <th>EVPN Type-5</th>
+                            <th>L2VPN EVPN</th>
+                            <th>Peer Groups</th>
+                            <th style="width: 120px; text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            for (const [name, profile] of profiles_to_render) {
+                const ipv4 = profile.ipv4_unicast_af || {};
+                const l2vpn = profile.l2vpn_evpn_af || {};
+                const peerGroups = profile.peer_groups || {};
+                
+                const redistConnected = ipv4.redistribute_connected_routes ? '✓ Connected' : '';
+                const redistStatic = ipv4.redistribute_static_routes ? '✓ Static' : '';
+                const redistText = [redistConnected, redistStatic].filter(Boolean).join(', ') || '-';
+                
+                const evpnType5 = ipv4.export_to_evpn_type5 ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-gray">No</span>';
+                const l2vpnEvpn = l2vpn.enable_evpn ? '<span class="badge badge-cyan">Yes</span>' : '<span class="badge badge-gray">No</span>';
+                
+                const pgCount = Object.keys(peerGroups).length;
+                const pgNames = Object.keys(peerGroups).slice(0, 2).join(', ');
+                const pgDisplay = pgCount > 0 ? `<span class="badge badge-purple">${pgCount}</span> ${pgNames}${pgCount > 2 ? '...' : ''}` : '-';
+                
+                html += `
+                    <tr>
+                        <td><strong style="color: #76b900;">${name}</strong></td>
+                        <td style="font-size: 12px;">${redistText}</td>
+                        <td>${evpnType5}</td>
+                        <td>${l2vpnEvpn}</td>
+                        <td>${pgDisplay}</td>
+                        <td>
+                            <div style="display: flex; gap: 4px; justify-content: flex-end;">
+                                <button class="btn-icon" onclick="viewBgpProfile('${name}')" title="View Details" style="background: #404040; border: none; padding: 6px; border-radius: 4px; cursor: pointer;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#ccc">
+                                        <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                                    </svg>
+                                </button>
+                                <button class="btn-icon btn-icon-edit" onclick="openEditBgpProfileModal('${name}')" title="Edit">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                                    </svg>
+                                </button>
+                                <button class="btn-icon btn-icon-delete" onclick="openDeleteBgpProfileModal('${name}')" title="Delete">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        function addPeerGroupEntry(containerId) {
+            const container = document.getElementById(containerId);
+            const entry = document.createElement('div');
+            entry.className = 'peer-group-entry';
+            entry.style.cssText = 'background: #1e1e1e; padding: 15px; border-radius: 4px; margin-bottom: 10px;';
+            entry.innerHTML = `
+                <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 10px;">
+                    <input type="text" class="pg-name" placeholder="Peer Group Name" style="padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff;">
+                    <select class="pg-type" style="padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff;">
+                        <option value="external">External</option>
+                        <option value="internal">Internal</option>
+                    </select>
+                    <button type="button" onclick="this.closest('.peer-group-entry').remove()" style="background: #c53030; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer;">×</button>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                    <label style="display: flex; align-items: center; gap: 8px; color: #ccc; font-size: 13px;">
+                        <input type="checkbox" class="pg-bfd" checked style="width: 14px; height: 14px;">
+                        Enable BFD
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; color: #ccc; font-size: 13px;">
+                        <input type="checkbox" class="pg-evpn" style="width: 14px; height: 14px;">
+                        Enable EVPN
+                    </label>
+                </div>
+                <input type="text" class="pg-description" placeholder="Description (optional)" style="width: 100%; padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff; margin-bottom: 10px;">
+                <textarea class="pg-peers" placeholder="Peers (one per line: swp1, swp2 or 10.0.0.1, 10.0.0.2)" style="width: 100%; padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff; min-height: 60px; font-family: monospace;"></textarea>
+            `;
+            container.appendChild(entry);
+        }
+        
+        function getPeerGroupsFromContainer(containerId) {
+            const container = document.getElementById(containerId);
+            const entries = container.querySelectorAll('.peer-group-entry');
+            const peerGroups = {};
+            
+            entries.forEach(entry => {
+                const name = entry.querySelector('.pg-name').value.trim();
+                if (!name) return;
+                
+                const peerType = entry.querySelector('.pg-type').value;
+                const enableBfd = entry.querySelector('.pg-bfd').checked;
+                const enableEvpn = entry.querySelector('.pg-evpn').checked;
+                const description = entry.querySelector('.pg-description').value.trim();
+                const peersText = entry.querySelector('.pg-peers').value.trim();
+                
+                const pg = {
+                    peer_type: peerType,
+                    enable_bfd: enableBfd
+                };
+                
+                if (enableEvpn) pg.enable_evpn = true;
+                if (description) pg.description = description;
+                
+                // Parse peers - could be interfaces (swpX) or IPs
+                if (peersText) {
+                    const peers = peersText.split('\n').map(p => p.trim()).filter(Boolean);
+                    // Check if IPs (contains dots) or interfaces
+                    const isIPs = peers.some(p => p.includes('.'));
+                    if (isIPs) {
+                        pg.peers = {};
+                        peers.forEach(p => {
+                            const ip = p.split(':')[0].trim();
+                            pg.peers[ip] = {};
+                        });
+                    } else {
+                        pg.peers = peers;
+                    }
+                }
+                
+                peerGroups[name] = pg;
+            });
+            
+            return peerGroups;
+        }
+        
+        function openCreateBgpProfileModal() {
+            document.getElementById('create-bgp-form').reset();
+            document.getElementById('bgp-redistribute-connected').checked = true;
+            document.getElementById('bgp-peer-groups-container').innerHTML = `
+                <div class="peer-group-entry" style="background: #1e1e1e; padding: 15px; border-radius: 4px; margin-bottom: 10px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 10px;">
+                        <input type="text" class="pg-name" placeholder="Peer Group Name" style="padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff;">
+                        <select class="pg-type" style="padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff;">
+                            <option value="external">External</option>
+                            <option value="internal">Internal</option>
+                        </select>
+                        <button type="button" onclick="this.closest('.peer-group-entry').remove()" style="background: #c53030; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer;">×</button>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; color: #ccc; font-size: 13px;">
+                            <input type="checkbox" class="pg-bfd" checked style="width: 14px; height: 14px;">
+                            Enable BFD
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; color: #ccc; font-size: 13px;">
+                            <input type="checkbox" class="pg-evpn" style="width: 14px; height: 14px;">
+                            Enable EVPN
+                        </label>
+                    </div>
+                    <input type="text" class="pg-description" placeholder="Description (optional)" style="width: 100%; padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff; margin-bottom: 10px;">
+                    <textarea class="pg-peers" placeholder="Peers (one per line: swp1, swp2 or 10.0.0.1, 10.0.0.2)" style="width: 100%; padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff; min-height: 60px; font-family: monospace;"></textarea>
+                </div>
+            `;
+            document.getElementById('create-bgp-modal').classList.add('visible');
+        }
+        
+        function closeCreateBgpProfileModal() {
+            document.getElementById('create-bgp-modal').classList.remove('visible');
+        }
+        
+        async function createBgpProfile() {
+            const name = document.getElementById('bgp-profile-name').value.trim();
+            if (!name) {
+                alert('Profile name is required');
+                return;
+            }
+            
+            const data = {
+                profile_name: name,
+                redistribute_connected: document.getElementById('bgp-redistribute-connected').checked,
+                redistribute_static: document.getElementById('bgp-redistribute-static').checked,
+                export_to_evpn_type5: document.getElementById('bgp-export-evpn-type5').checked,
+                enable_evpn: document.getElementById('bgp-enable-evpn').checked,
+                peer_groups: getPeerGroupsFromContainer('bgp-peer-groups-container')
+            };
+            
+            try {
+                const response = await fetch('/fabric-api.sh?action=create-bgp-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeCreateBgpProfileModal();
+                    loadData();
+                    alert('BGP profile created successfully!');
+                } else {
+                    alert('Error: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+        
+        function openEditBgpProfileModal(name) {
+            const profile = bgpProfiles[name];
+            if (!profile) return;
+            
+            document.getElementById('edit-bgp-original-name').value = name;
+            document.getElementById('edit-bgp-profile-name').value = name;
+            
+            const ipv4 = profile.ipv4_unicast_af || {};
+            const l2vpn = profile.l2vpn_evpn_af || {};
+            
+            document.getElementById('edit-bgp-redistribute-connected').checked = ipv4.redistribute_connected_routes !== false;
+            document.getElementById('edit-bgp-redistribute-static').checked = ipv4.redistribute_static_routes === true;
+            document.getElementById('edit-bgp-export-evpn-type5').checked = ipv4.export_to_evpn_type5 === true;
+            document.getElementById('edit-bgp-enable-evpn').checked = l2vpn.enable_evpn === true;
+            
+            // Populate peer groups
+            const container = document.getElementById('edit-bgp-peer-groups-container');
+            container.innerHTML = '';
+            
+            const peerGroups = profile.peer_groups || {};
+            for (const [pgName, pg] of Object.entries(peerGroups)) {
+                const entry = document.createElement('div');
+                entry.className = 'peer-group-entry';
+                entry.style.cssText = 'background: #1e1e1e; padding: 15px; border-radius: 4px; margin-bottom: 10px;';
+                
+                // Format peers
+                let peersText = '';
+                if (pg.peers) {
+                    if (Array.isArray(pg.peers)) {
+                        peersText = pg.peers.join('\n');
+                    } else {
+                        peersText = Object.keys(pg.peers).join('\n');
+                    }
+                }
+                
+                entry.innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 10px;">
+                        <input type="text" class="pg-name" value="${pgName}" style="padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff;">
+                        <select class="pg-type" style="padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff;">
+                            <option value="external" ${pg.peer_type === 'external' ? 'selected' : ''}>External</option>
+                            <option value="internal" ${pg.peer_type === 'internal' ? 'selected' : ''}>Internal</option>
+                        </select>
+                        <button type="button" onclick="this.closest('.peer-group-entry').remove()" style="background: #c53030; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer;">×</button>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; color: #ccc; font-size: 13px;">
+                            <input type="checkbox" class="pg-bfd" ${pg.enable_bfd ? 'checked' : ''} style="width: 14px; height: 14px;">
+                            Enable BFD
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; color: #ccc; font-size: 13px;">
+                            <input type="checkbox" class="pg-evpn" ${pg.enable_evpn ? 'checked' : ''} style="width: 14px; height: 14px;">
+                            Enable EVPN
+                        </label>
+                    </div>
+                    <input type="text" class="pg-description" value="${pg.description || ''}" placeholder="Description (optional)" style="width: 100%; padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff; margin-bottom: 10px;">
+                    <textarea class="pg-peers" placeholder="Peers (one per line)" style="width: 100%; padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff; min-height: 60px; font-family: monospace;">${peersText}</textarea>
+                `;
+                container.appendChild(entry);
+            }
+            
+            document.getElementById('edit-bgp-modal').classList.add('visible');
+        }
+        
+        function closeEditBgpProfileModal() {
+            document.getElementById('edit-bgp-modal').classList.remove('visible');
+        }
+        
+        async function saveBgpProfile() {
+            const originalName = document.getElementById('edit-bgp-original-name').value;
+            const name = document.getElementById('edit-bgp-profile-name').value.trim();
+            
+            if (!name) {
+                alert('Profile name is required');
+                return;
+            }
+            
+            const data = {
+                original_name: originalName,
+                profile_name: name,
+                redistribute_connected: document.getElementById('edit-bgp-redistribute-connected').checked,
+                redistribute_static: document.getElementById('edit-bgp-redistribute-static').checked,
+                export_to_evpn_type5: document.getElementById('edit-bgp-export-evpn-type5').checked,
+                enable_evpn: document.getElementById('edit-bgp-enable-evpn').checked,
+                peer_groups: getPeerGroupsFromContainer('edit-bgp-peer-groups-container')
+            };
+            
+            try {
+                const response = await fetch('/fabric-api.sh?action=update-bgp-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeEditBgpProfileModal();
+                    loadData();
+                    alert('BGP profile updated successfully!');
+                } else {
+                    alert('Error: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+        
+        function openDeleteBgpProfileModal(name) {
+            deletingBgpProfile = name;
+            document.getElementById('delete-bgp-name').textContent = name;
+            document.getElementById('delete-bgp-modal').classList.add('visible');
+        }
+        
+        function closeDeleteBgpProfileModal() {
+            document.getElementById('delete-bgp-modal').classList.remove('visible');
+            deletingBgpProfile = null;
+        }
+        
+        async function confirmDeleteBgpProfile() {
+            if (!deletingBgpProfile) return;
+            
+            try {
+                const response = await fetch('/fabric-api.sh?action=delete-bgp-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ profile_name: deletingBgpProfile })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeDeleteBgpProfileModal();
+                    loadData();
+                    alert('BGP profile deleted successfully!');
+                } else {
+                    alert('Error: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+        
+        function viewBgpProfile(name) {
+            const profile = bgpProfiles[name];
+            if (!profile) return;
+            
+            document.getElementById('view-bgp-title').textContent = `BGP Profile: ${name}`;
+            
+            const ipv4 = profile.ipv4_unicast_af || {};
+            const l2vpn = profile.l2vpn_evpn_af || {};
+            const peerGroups = profile.peer_groups || {};
+            
+            let html = `
+                <div style="background: #1e1e1e; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
+                    <h4 style="margin: 0 0 10px 0; color: #76b900;">IPv4 Unicast Address Family</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div>Redistribute Connected: <strong>${ipv4.redistribute_connected_routes ? 'Yes' : 'No'}</strong></div>
+                        <div>Redistribute Static: <strong>${ipv4.redistribute_static_routes ? 'Yes' : 'No'}</strong></div>
+                        <div>Export to EVPN Type-5: <strong>${ipv4.export_to_evpn_type5 ? 'Yes' : 'No'}</strong></div>
+                    </div>
+                </div>
+            `;
+            
+            if (l2vpn.enable_evpn) {
+                html += `
+                    <div style="background: #1e1e1e; padding: 15px; border-radius: 4px; margin-bottom: 15px;">
+                        <h4 style="margin: 0 0 10px 0; color: #4fc3f7;">L2VPN EVPN Address Family</h4>
+                        <div>EVPN Enabled: <strong>Yes</strong></div>
+                    </div>
+                `;
+            }
+            
+            if (Object.keys(peerGroups).length > 0) {
+                html += `<h4 style="margin: 15px 0 10px 0; color: #ccc;">Peer Groups</h4>`;
+                
+                for (const [pgName, pg] of Object.entries(peerGroups)) {
+                    let peersHtml = '';
+                    if (pg.peers) {
+                        if (Array.isArray(pg.peers)) {
+                            peersHtml = pg.peers.map(p => `<span class="badge badge-gray" style="margin: 2px;">${p}</span>`).join('');
+                        } else {
+                            peersHtml = Object.keys(pg.peers).map(p => `<span class="badge badge-blue" style="margin: 2px;">${p}</span>`).join('');
+                        }
+                    }
+                    
+                    html += `
+                        <div style="background: #1e1e1e; padding: 15px; border-radius: 4px; margin-bottom: 10px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <strong style="color: #76b900;">${pgName}</strong>
+                                <span class="badge ${pg.peer_type === 'external' ? 'badge-orange' : 'badge-purple'}">${pg.peer_type || 'external'}</span>
+                            </div>
+                            ${pg.description ? `<div style="color: #888; font-size: 12px; margin-bottom: 10px;">${pg.description}</div>` : ''}
+                            <div style="font-size: 12px; margin-bottom: 8px;">
+                                BFD: <strong>${pg.enable_bfd ? 'Yes' : 'No'}</strong> | 
+                                EVPN: <strong>${pg.enable_evpn ? 'Yes' : 'No'}</strong>
+                            </div>
+                            ${peersHtml ? `<div style="margin-top: 10px;"><strong style="color: #888; font-size: 12px;">Peers:</strong><div style="margin-top: 5px;">${peersHtml}</div></div>` : ''}
+                        </div>
+                    `;
+                }
+            }
+            
+            document.getElementById('view-bgp-content').innerHTML = html;
+            document.getElementById('view-bgp-modal').classList.add('visible');
+        }
+        
+        function closeViewBgpProfileModal() {
+            document.getElementById('view-bgp-modal').classList.remove('visible');
         }
         
         // Init on load

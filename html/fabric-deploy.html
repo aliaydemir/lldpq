@@ -1307,7 +1307,7 @@
                     </div>
                     <div style="padding: 15px 20px; background: #252526; text-align: center; border-top: 1px solid #404040;">
                         <button onclick="this.closest('#diff-popup-modal').remove()" style="background: #404040; color: white; border: none; padding: 10px 30px; border-radius: 4px; cursor: pointer; font-size: 14px; margin-right: 10px;">Close</button>
-                        <button onclick="copyDiffContent()" style="background: #76b900; color: #000; border: none; padding: 10px 30px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold;">Copy</button>
+                        <button onclick="copyDiffContent(this)" style="background: #76b900; color: #000; border: none; padding: 10px 30px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold;">Copy</button>
                     </div>
                 </div>
             `;
@@ -1315,22 +1315,36 @@
             document.body.appendChild(modal);
         }
         
-        function copyDiffContent() {
+        function copyDiffContent(btn) {
             const pre = document.getElementById('diff-popup-content');
             if (pre) {
                 const text = pre.textContent;
-                navigator.clipboard.writeText(text).then(() => {
-                    showAlert('Diff content copied to clipboard!', 'success', 'Copied');
-                }).catch(() => {
-                    // Fallback
-                    const ta = document.createElement('textarea');
-                    ta.value = text;
-                    document.body.appendChild(ta);
-                    ta.select();
+                
+                // Create a temporary textarea for copying (works on HTTP too)
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                textarea.style.top = '0';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                
+                try {
                     document.execCommand('copy');
-                    document.body.removeChild(ta);
-                    showAlert('Diff content copied to clipboard!', 'success', 'Copied');
-                });
+                    // Show feedback
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    btn.style.background = '#4ec9b0';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.style.background = '#76b900';
+                    }, 2000);
+                } catch (err) {
+                    console.error('Copy failed:', err);
+                }
+                
+                document.body.removeChild(textarea);
             }
         }
         
@@ -1341,10 +1355,16 @@
             let inSummary = false;
             let foundDevices = false;
             
-            for (const line of lines) {
-                // Start capturing at CONFIG DIFF SUMMARY
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                
+                // Start capturing at CONFIG DIFF SUMMARY (also get the box border line before it)
                 if (line.includes('CONFIG DIFF SUMMARY')) {
                     inSummary = true;
+                    // Include the box border line before CONFIG DIFF SUMMARY if it exists
+                    if (i > 0 && lines[i-1].includes('╔')) {
+                        summaryLines.push(lines[i-1]);
+                    }
                     summaryLines.push(line);
                     continue;
                 }

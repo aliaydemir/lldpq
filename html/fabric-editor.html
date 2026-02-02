@@ -2082,7 +2082,14 @@
                         else if (['cfg', 'conf', 'ini'].includes(ext)) iconClass = 'codicon-settings-gear';
                         
                         fileEl.innerHTML = `<span class="codicon ${iconClass} file-icon"></span>${file.name}`;
-                        fileEl.onclick = () => openFile(file.path);
+                        fileEl.onclick = () => {
+                            // If file is already open, reload it; otherwise open it
+                            if (state.files[file.path]) {
+                                reloadFile(file.path);
+                            } else {
+                                openFile(file.path);
+                            }
+                        };
                         parentEl.appendChild(fileEl);
                     });
                 }
@@ -2360,6 +2367,7 @@
                 const file = state.files[path];
                 const tab = document.createElement('div');
                 tab.className = 'editor-tab' + (path === state.currentFile ? ' active' : '') + (file.modified ? ' modified' : '');
+                tab.title = 'Double-click to reload from server';
                 
                 const filename = path.split('/').pop();
                 tab.innerHTML = `
@@ -2369,6 +2377,12 @@
                 tab.onclick = (e) => {
                     if (!e.target.classList.contains('tab-close')) {
                         switchToFile(path);
+                    }
+                };
+                // Double-click to reload file from server
+                tab.ondblclick = (e) => {
+                    if (!e.target.classList.contains('tab-close')) {
+                        reloadFile(path);
                     }
                 };
                 tabsContainer.appendChild(tab);
@@ -2439,6 +2453,54 @@
                 } else {
                     hideMarkdownPreview();
                 }
+            }
+        }
+        
+        // Reload file from server (refresh content)
+        async function reloadFile(path) {
+            if (!state.files[path]) return;
+            
+            const file = state.files[path];
+            
+            // If file is modified, ask for confirmation
+            if (file.modified) {
+                if (!confirm('File has unsaved changes. Reload and discard changes?')) {
+                    return;
+                }
+            }
+            
+            try {
+                const result = await apiCall('read', { file: path });
+                if (result.success) {
+                    // Check if content actually changed
+                    const oldContent = file.originalContent;
+                    const newContent = result.content;
+                    
+                    if (oldContent !== newContent) {
+                        // Update file state
+                        state.files[path] = {
+                            content: newContent,
+                            originalContent: newContent,
+                            modified: false,
+                            valid: true
+                        };
+                        
+                        // If this is the current file, update editor
+                        if (state.currentFile === path) {
+                            state.editor.setValue(newContent);
+                            validateCurrentFile(true);
+                        }
+                        
+                        updateUI();
+                        showOutput('File reloaded: ' + path.split('/').pop(), 'success');
+                    } else {
+                        showOutput('File unchanged', 'info');
+                    }
+                } else {
+                    showOutput('Error reloading: ' + result.error, 'error');
+                }
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
             }
         }
         

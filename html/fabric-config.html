@@ -1014,6 +1014,7 @@
                     <div class="content-subtitle" id="content-subtitle">Select a device from the left panel</div>
                 </div>
                 <div class="action-buttons" id="action-buttons">
+                    <span class="status-text" id="status-text" style="margin-right: 10px;">Ready</span>
                     <button class="btn btn-secondary" onclick="refreshDevice()" id="btn-refresh" style="display: none;">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
@@ -1038,7 +1039,6 @@
                         </svg>
                         Deploy
                     </button>
-                    <span class="status-text" id="status-text">Ready</span>
                 </div>
             </div>
             
@@ -5683,7 +5683,7 @@ Without bonds, the EVPN Multihoming configuration will be incomplete.
                     <div class="form-group">
                         <label>System MAC</label>
                         <input type="text" id="evpn-mh-sysmac" placeholder="44:38:39:ff:XX:XX" pattern="^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$" required style="width: 100%; padding: 10px 12px; background: #1e1e1e; border: 1px solid #404040; border-radius: 4px; color: #fff; font-size: 14px;">
-                        <div class="form-hint">Format: 44:38:39:ff:XX:XX (unique per MLAG pair)</div>
+                        <div class="form-hint">Format: 44:38:39:ff:XX:XX (unique per ES/switch pair)</div>
                     </div>
                     <div class="form-group">
                         <label>DF Preference</label>

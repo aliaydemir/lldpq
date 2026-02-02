@@ -262,18 +262,18 @@
         }
         
         .btn-edit {
-            padding: 5px 10px;
+            padding: 6px 12px;
             font-size: 12px;
-            background: #3c3c3c;
-            color: #d4d4d4;
-            border: 1px solid #555;
+            background: rgba(33, 150, 243, 0.2);
+            color: #64b5f6;
+            border: none;
             border-radius: 4px;
             cursor: pointer;
         }
         
         .btn-edit:hover {
-            background: #4a4a4a;
-            border-color: #76b900;
+            background: #2196f3;
+            color: white;
         }
         
         /* Empty State */
@@ -482,7 +482,7 @@
                     <th>Local IP</th>
                     <th>Remote Peer</th>
                     <th style="width: 60px; text-align: center;">BFD</th>
-                    <th style="width: 70px;">Actions</th>
+                    <th style="width: 70px; text-align: right;">Actions</th>
                 </tr>
             </thead>
             <tbody id="peers-table">
@@ -850,7 +850,7 @@
                             ${peer.bfd_enabled ? '✓' : '✗'}
                         </span>
                     </td>
-                    <td>
+                    <td style="text-align: right;">
                         <button class="btn-edit" onclick="openEditModal('${encodeURIComponent(JSON.stringify(peer))}')">Edit</button>
                     </td>
                 </tr>
@@ -1021,12 +1021,12 @@
                 if (result.success) {
                     closeModal('edit-peer-modal');
                     loadExternalPeers();
-                    alert('Peer updated successfully!');
+                    showResult(true, 'Success', 'Peer updated successfully!');
                 } else {
-                    alert('Error: ' + (result.error || 'Failed to update peer'));
+                    showResult(false, 'Error', result.error || 'Failed to update peer');
                 }
             } catch (e) {
-                alert('Error: ' + e.message);
+                showResult(false, 'Error', e.message);
             }
         }
         
