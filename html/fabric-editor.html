@@ -226,6 +226,29 @@
             font-size: 10px;
         }
         
+        /* Git modified file indicator */
+        .file-item.git-modified {
+            color: #e2c08d;
+        }
+        .file-item.git-modified::before {
+            content: 'M';
+            margin-right: 6px;
+            color: #e2c08d;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        /* Folder with modified files */
+        .folder.has-git-modified > .folder-header {
+            color: #e2c08d;
+        }
+        .folder.has-git-modified > .folder-header::after {
+            content: '●';
+            margin-left: 6px;
+            color: #e2c08d;
+            font-size: 8px;
+        }
+        
         .file-icon {
             margin-right: 8px;
             color: #e8ab53;
@@ -1239,44 +1262,39 @@
             <button id="btn-pull" class="btn btn-secondary" onclick="gitPull()">
                 Pull
             </button>
-            <div class="dropdown" style="display: inline-block;">
-                <button class="btn btn-secondary dropdown-toggle" onclick="toggleGitMenu()">
-                    Git ▲
-                </button>
-                <div id="git-menu" class="dropdown-menu">
-                    <a href="#" onclick="gitStatus(); return false;">View Changes</a>
-                    <a href="#" onclick="gitLog(); return false;">History</a>
-                    <a href="#" onclick="gitDiff(); return false;">Show Diff</a>
-                    <a href="#" onclick="gitReset(); return false;" style="color: #ff6b6b;">Reset All Changes</a>
-                </div>
-            </div>
-        </div>
-        <div class="bottom-right">
-            <button id="btn-generate" class="btn btn-success" onclick="runGenerate()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-                </svg>
-                Generate
+            <button class="btn btn-secondary" onclick="gitStatus()" title="View uncommitted changes">
+                Status
             </button>
-            <div class="host-dropdown">
-                <div class="host-dropdown-trigger" onclick="toggleHostDropdown()">
-                    <span id="host-dropdown-text">Select hosts...</span>
-                    <span class="arrow">▼</span>
-                </div>
-                <div id="host-dropdown-menu" class="host-dropdown-menu"></div>
-            </div>
-            <button id="btn-diff" class="btn btn-secondary" onclick="runDiff()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
-                </svg>
+            <button class="btn btn-secondary" onclick="gitLog()" title="View commit history">
+                History
+            </button>
+            <button class="btn btn-secondary" onclick="gitDiff()" title="Show git diff">
                 Diff
             </button>
-            <button id="btn-deploy" class="btn btn-warning" onclick="runDeploy()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
-                </svg>
-                Deploy
+            <button class="btn btn-secondary" onclick="gitReset()" style="color: #ff6b6b;" title="Discard all uncommitted changes">
+                Reset
             </button>
+        </div>
+        <div class="bottom-right" style="display: flex; align-items: center; gap: 15px;">
+            <!-- Search in inventory -->
+            <div style="position: relative; display: flex; align-items: center;">
+                <span id="search-clear" onclick="clearSearch()" 
+                      style="position: absolute; left: 6px; cursor: pointer; color: #888; font-size: 14px; display: none; z-index: 1;"
+                      title="Clear search">✕</span>
+                <input type="text" id="inventory-search" placeholder="mgrep inventory" 
+                       style="background: #333; border: 1px solid #555; color: #ccc; padding: 4px 10px 4px 24px; border-radius: 4px; font-size: 12px; width: 190px;"
+                       onkeydown="if(event.key==='Enter') searchInventory(this.value)"
+                       oninput="document.getElementById('search-clear').style.display = this.value ? 'block' : 'none'">
+            </div>
+            <!-- Modified Files Indicator -->
+            <div id="git-modified-indicator" style="display: flex; gap: 20px; align-items: center; font-size: 12px;">
+                <span id="host-vars-count" style="color: #666; cursor: pointer;" onclick="filterToHostVars()" title="Click to filter host vars">
+                    host vars: <span style="color: #666;">0</span>
+                </span>
+                <span id="group-vars-count" style="color: #666; cursor: pointer;" onclick="filterToGroupVars()" title="Click to filter group vars">
+                    group vars: <span style="color: #666;">0</span>
+                </span>
+            </div>
         </div>
     </div>
     
@@ -1293,6 +1311,10 @@
     
     <script>
         // Check authentication - admin only page
+        // Early git status (loaded in parallel with other resources)
+        let earlyGitModifiedFiles = [];
+        let gitStatusLoadedOnce = false;  // Prevent early fetch from overwriting later updates
+        
         (async function checkAuth() {
             try {
                 const response = await fetch('/auth-api?action=check');
@@ -1306,6 +1328,23 @@
                     window.location.href = '/';
                     return;
                 }
+                
+                // Start loading git status immediately after auth (parallel with Monaco)
+                fetch('/ansible-api?action=get-modified-files')
+                    .then(r => r.json())
+                    .then(result => {
+                        if (result.success && !gitStatusLoadedOnce) {
+                            earlyGitModifiedFiles = result.modified_files || [];
+                            // Update UI if state is ready
+                            if (typeof state !== 'undefined' && state.gitModifiedFiles !== undefined) {
+                                state.gitModifiedFiles = earlyGitModifiedFiles;
+                                if (typeof updateModifiedFilter === 'function') updateModifiedFilter();
+                                if (typeof markGitModifiedFiles === 'function') markGitModifiedFiles();
+                            }
+                        }
+                    })
+                    .catch(() => {});
+                    
             } catch (e) {
                 window.location.href = '/login.html';
             }
@@ -1320,8 +1359,16 @@
             groups: [],          // Ansible groups
             hosts: [],           // Individual hosts
             decorations: [],     // For error markers
-            previewListener: null // For markdown preview updates
+            previewListener: null, // For markdown preview updates
+            gitModifiedFiles: earlyGitModifiedFiles || []  // Files with uncommitted git changes (may be pre-loaded)
         };
+        
+        // Apply early loaded git status if available
+        if (earlyGitModifiedFiles && earlyGitModifiedFiles.length > 0) {
+            setTimeout(() => {
+                updateModifiedFilter();
+            }, 100);
+        }
         
         // Check if js-yaml is loaded
         const hasJsYaml = typeof jsyaml !== 'undefined';
@@ -1515,7 +1562,7 @@
         }
         
         // Load file tree immediately (no Monaco needed)
-        fetch('/ansible-api.sh?action=list')
+        fetch('/ansible-api?action=list')
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
@@ -1523,6 +1570,11 @@
                     state.groups = data.groups || [];
                     state.hosts = data.hosts || [];
                     populateHostSelect();
+                    // Mark git modified files after tree is loaded
+                    if (state.gitModifiedFiles && state.gitModifiedFiles.length > 0) {
+                        markGitModifiedFiles();
+                        updateModifiedFilter();
+                    }
                 }
             })
             .catch(e => console.error('Failed to load files:', e));
@@ -1991,6 +2043,8 @@
                     state.groups = result.groups || [];
                     state.hosts = result.hosts || [];
                     populateHostSelect();
+                    // Load git modified files (async, non-blocking)
+                    loadGitModifiedFiles();
                 } else {
                     showOutput('Error loading files: ' + result.error, 'error');
                 }
@@ -1998,6 +2052,152 @@
                 showOutput('Error: ' + e.message, 'error');
             }
             showLoading(false);
+        }
+        
+        // Load git modified files
+        async function loadGitModifiedFiles() {
+            try {
+                const result = await apiCall('get-modified-files');
+                if (result.success) {
+                    gitStatusLoadedOnce = true;  // Prevent early fetch from overwriting
+                    state.gitModifiedFiles = result.modified_files || [];
+                    markGitModifiedFiles();
+                    updateModifiedFilter();
+                }
+            } catch (e) {
+                console.error('Error loading git modified files:', e);
+            }
+        }
+        
+        // Auto-refresh git status when tab becomes visible
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') {
+                loadGitModifiedFiles();
+            }
+        });
+        
+        // Also refresh when window gets focus
+        window.addEventListener('focus', function() {
+            loadGitModifiedFiles();
+        });
+        
+        // Mark git modified files in file tree
+        function markGitModifiedFiles() {
+            document.querySelectorAll('.file-item').forEach(el => {
+                const path = el.dataset.path;
+                el.classList.remove('git-modified');
+                if (state.gitModifiedFiles.includes(path)) {
+                    el.classList.add('git-modified');
+                }
+            });
+            
+            // Also mark folders that contain modified files
+            document.querySelectorAll('.folder').forEach(folder => {
+                const folderPath = folder.dataset.path;
+                const hasModified = state.gitModifiedFiles.some(f => f.startsWith(folderPath + '/'));
+                folder.classList.toggle('has-git-modified', hasModified);
+            });
+        }
+        
+        // Update modified files counts in indicator
+        function updateModifiedFilter() {
+            const hostVarsFiles = state.gitModifiedFiles.filter(f => f.includes('host_vars/'));
+            const groupVarsFiles = state.gitModifiedFiles.filter(f => f.includes('group_vars/'));
+            
+            const hostVarsEl = document.getElementById('host-vars-count');
+            const groupVarsEl = document.getElementById('group-vars-count');
+            
+            if (hostVarsEl) {
+                const count = hostVarsFiles.length;
+                hostVarsEl.innerHTML = `host vars: <span style="color: ${count > 0 ? '#e2c08d' : '#666'};">${count}</span>`;
+                hostVarsEl.style.color = count > 0 ? '#ccc' : '#666';
+            }
+            if (groupVarsEl) {
+                const count = groupVarsFiles.length;
+                groupVarsEl.innerHTML = `group vars: <span style="color: ${count > 0 ? '#e2c08d' : '#666'};">${count}</span>`;
+                groupVarsEl.style.color = count > 0 ? '#ccc' : '#666';
+            }
+        }
+        
+        // Track active filter
+        let activeFileFilter = null;
+        
+        // Filter functions for modified files
+        function filterToHostVars() {
+            // Toggle: if already filtered to host_vars, reset
+            if (activeFileFilter === 'host_vars') {
+                resetFileFilter();
+                return;
+            }
+            const files = state.gitModifiedFiles.filter(f => f.includes('host_vars/'));
+            applyFileFilter(files, 'host_vars');
+        }
+        
+        function filterToGroupVars() {
+            // Toggle: if already filtered to group_vars, reset
+            if (activeFileFilter === 'group_vars') {
+                resetFileFilter();
+                return;
+            }
+            const files = state.gitModifiedFiles.filter(f => f.includes('group_vars/'));
+            applyFileFilter(files, 'group_vars');
+        }
+        
+        function applyFileFilter(files, category) {
+            if (files.length === 0) {
+                showOutput(`No modified files in ${category}`, 'info');
+                return;
+            }
+            
+            activeFileFilter = category;
+            
+            // Hide all files, show only filtered
+            document.querySelectorAll('.file-item').forEach(el => {
+                const path = el.dataset.path;
+                el.style.display = files.includes(path) ? '' : 'none';
+            });
+            
+            // Expand folders with matching files
+            document.querySelectorAll('.folder').forEach(folder => {
+                const folderPath = folder.dataset.path;
+                const hasMatch = files.some(f => f.startsWith(folderPath + '/'));
+                if (hasMatch) {
+                    folder.classList.remove('collapsed');
+                } else {
+                    folder.classList.add('collapsed');
+                }
+            });
+            
+            // Highlight active filter
+            updateFilterHighlight();
+            
+            showOutput(`Showing ${files.length} modified file(s) in ${category} (click again to show all)`, 'info');
+        }
+        
+        function resetFileFilter() {
+            activeFileFilter = null;
+            
+            // Show all files
+            document.querySelectorAll('.file-item').forEach(el => {
+                el.style.display = '';
+            });
+            
+            // Reset filter highlight
+            updateFilterHighlight();
+            
+            showOutput('Showing all files', 'info');
+        }
+        
+        function updateFilterHighlight() {
+            const hostVarsEl = document.getElementById('host-vars-count');
+            const groupVarsEl = document.getElementById('group-vars-count');
+            
+            if (hostVarsEl) {
+                hostVarsEl.style.textDecoration = activeFileFilter === 'host_vars' ? 'underline' : 'none';
+            }
+            if (groupVarsEl) {
+                groupVarsEl.style.textDecoration = activeFileFilter === 'group_vars' ? 'underline' : 'none';
+            }
         }
         
         // Render file tree (nested structure)
@@ -2182,6 +2382,8 @@
             if (host === 'all') {
                 selectedHosts = ['all'];
                 updateHostDropdownUI();
+                // Reset file filter to show all files
+                resetFileFilter();
                 // Close the dropdown
                 document.getElementById('host-dropdown-menu').classList.remove('show');
                 return;
@@ -2230,60 +2432,16 @@
             updateHostDropdownUI();
         }
         
-        // Populate host dropdown menu
+        // Populate host select (dropdown removed - now using modified files indicator)
         function populateHostSelect() {
-            const menu = document.getElementById('host-dropdown-menu');
-            menu.innerHTML = '';
-            
-            // Add "ALL HOSTS" option
-            const allItem = document.createElement('div');
-            allItem.className = 'host-dropdown-item';
-            allItem.dataset.value = 'all';
-            allItem.textContent = '-- ALL HOSTS --';
-            allItem.onclick = () => toggleHostSelection('all');
-            menu.appendChild(allItem);
-            
-            // Add groups section
-            if (state.groups && state.groups.length > 0) {
-                const groupLabel = document.createElement('div');
-                groupLabel.className = 'host-dropdown-group';
-                groupLabel.textContent = 'GROUPS (' + state.groups.length + ')';
-                menu.appendChild(groupLabel);
-                
-                state.groups.forEach(group => {
-                    const item = document.createElement('div');
-                    item.className = 'host-dropdown-item';
-                    item.dataset.value = group;
-                    item.textContent = '▸ ' + group + ' (all)';
-                    item.onclick = () => toggleHostSelection(group);
-                    menu.appendChild(item);
-                });
-            }
-            
-            // Add individual hosts section
-            if (state.hosts && state.hosts.length > 0) {
-                const hostLabel = document.createElement('div');
-                hostLabel.className = 'host-dropdown-group';
-                hostLabel.textContent = 'HOSTS (' + state.hosts.length + ')';
-                menu.appendChild(hostLabel);
-                
-                state.hosts.forEach(host => {
-                    const item = document.createElement('div');
-                    item.className = 'host-dropdown-item';
-                    item.dataset.value = host;
-                    item.textContent = '    ' + host;
-                    item.onclick = () => toggleHostSelection(host);
-                    menu.appendChild(item);
-                });
-            }
+            // No longer needed - dropdown removed
+            // Generate will run for all hosts by default
         }
         
-        // Close dropdown when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.host-dropdown')) {
-                document.getElementById('host-dropdown-menu').classList.remove('show');
-            }
-        });
+        // Filter to show all modified files
+        function filterToAllModified() {
+            applyFileFilter(state.gitModifiedFiles, 'all');
+        }
         
         // Open file
         async function openFile(path) {
@@ -2895,6 +3053,9 @@
                     if (wasNewFile) {
                         await loadFileTree();
                     }
+                    
+                    // Refresh git modified status (small delay for disk write)
+                    setTimeout(() => loadGitModifiedFiles(), 500);
                 } else {
                     showOutput('Error saving: ' + result.error, 'error');
                 }
@@ -3140,6 +3301,10 @@
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
+            
+            // Remove grep-specific ANSI codes: [K (clear line), [m (reset without number)
+            html = html.replace(/\u001b\[K/g, '');
+            html = html.replace(/\u001b\[m/g, '</span>');
             
             // Wrap in span to handle orphan closing tags
             html = '<span>' + html + '</span>';
@@ -3420,6 +3585,11 @@
                 });
                 const result = await response.json();
                 showOutput(result.output || result.error, result.success ? 'success' : 'error');
+                
+                // Refresh git modified status immediately
+                if (result.success) {
+                    loadGitModifiedFiles();
+                }
             } catch (e) {
                 showOutput('Error: ' + e.message, 'error');
             }
@@ -3434,8 +3604,11 @@
                 const result = await apiCall('git-pull');
                 showOutput(result.output || result.error, result.success ? 'success' : 'error');
                 if (result.success) {
-                    // Reload file list
-                    setTimeout(() => loadFileTree(), 1000);
+                    // Reload file list and git status
+                    setTimeout(() => {
+                        loadFileTree();
+                        loadGitModifiedFiles();
+                    }, 500);
                 }
             } catch (e) {
                 showOutput('Error: ' + e.message, 'error');
@@ -3448,6 +3621,43 @@
             try {
                 const result = await apiCall('git-status');
                 showOutput(result.output || result.error, result.success ? '' : 'error');
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            showLoading(false);
+        }
+        
+        // Clear search input
+        function clearSearch() {
+            const input = document.getElementById('inventory-search');
+            input.value = '';
+            document.getElementById('search-clear').style.display = 'none';
+            hideOutput();
+            input.focus();
+        }
+        
+        // Search in inventory folder (grep) - with colored output like terminal
+        async function searchInventory(query) {
+            if (!query || query.trim() === '') {
+                showOutput('Please enter a search term', 'info');
+                return;
+            }
+            
+            showLoading(true, 'Searching in inventory...');
+            try {
+                const response = await fetch('/ansible-api?action=grep&query=' + encodeURIComponent(query.trim()) + '&path=inventory');
+                const result = await response.json();
+                
+                if (result.success) {
+                    if (result.output && result.output.trim()) {
+                        // showOutput already handles ANSI codes via ansiToHtml
+                        showOutput('mgrep "' + query + '" inventory/\n\n' + result.output);
+                    } else {
+                        showOutput('No matches found for "' + query + '" in inventory/', 'info');
+                    }
+                } else {
+                    showOutput(result.error || 'Search failed', 'error');
+                }
             } catch (e) {
                 showOutput('Error: ' + e.message, 'error');
             }
@@ -3494,9 +3704,13 @@
                     try {
                         const result = await apiCall('git-reset');
                         showOutput(result.output || result.error, result.success ? '' : 'error');
-                        if (result.success && currentFile) {
+                        if (result.success) {
+                            // Refresh git modified status immediately
+                            loadGitModifiedFiles();
                             // Reload current file to show reverted content
-                            await loadFile(currentFile);
+                            if (state.currentFile) {
+                                await reloadFile(state.currentFile);
+                            }
                         }
                     } catch (e) {
                         showOutput('Error: ' + e.message, 'error');

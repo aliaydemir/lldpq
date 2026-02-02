@@ -519,6 +519,48 @@ case "$ACTION" in
             json_response "{\"success\": false, \"error\": \"Failed to reset: $output\"}"
         fi
         ;;
+    grep)
+        # Search in specified path (default: inventory) - like mgrep
+        QUERY=$(echo "$QUERY_STRING" | sed -n 's/.*query=\([^&]*\).*/\1/p' | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read().strip()))")
+        SEARCH_PATH=$(echo "$QUERY_STRING" | sed -n 's/.*path=\([^&]*\).*/\1/p')
+        SEARCH_PATH="${SEARCH_PATH:-inventory}"
+        
+        if [ -z "$QUERY" ]; then
+            json_response '{"success": false, "error": "No search query provided"}'
+            exit 0
+        fi
+        
+        cd "$ANSIBLE_DIR" || { json_response '{"success": false, "error": "Cannot access ansible directory"}'; exit 0; }
+        
+        # Run grep like mgrep and properly preserve ANSI escape sequences via Python
+        export GREP_QUERY="$QUERY"
+        export GREP_PATH="$SEARCH_PATH"
+        
+        # Output headers first (like json_response does)
+        echo "Content-Type: application/json"
+        echo "Access-Control-Allow-Origin: *"
+        echo ""
+        
+        python3 << 'PYEOF'
+import subprocess
+import json
+import os
+
+query = os.environ.get('GREP_QUERY', '')
+path = os.environ.get('GREP_PATH', 'inventory')
+
+result = subprocess.run(
+    ['grep', '-rnIi', '--color=always', query, path],
+    capture_output=True,
+    text=True
+)
+output = result.stdout
+# Limit to 100 lines
+lines = output.split('\n')[:100]
+output = '\n'.join(lines)
+print(json.dumps({'success': True, 'output': output}))
+PYEOF
+        ;;
     get-modified-devices)
         # Get list of modified device hostnames from git diff
         cd "$ANSIBLE_DIR" || { json_response '{"success": false, "error": "Cannot access ansible directory"}'; exit 0; }
@@ -539,6 +581,28 @@ case "$ACTION" in
             devices_json=$(echo "$all_hostnames" | while read -r h; do printf '"%s",' "$h"; done | sed 's/,$//')
             count=$(echo "$all_hostnames" | wc -l | tr -d ' ')
             json_response "{\"success\": true, \"modified_devices\": [${devices_json}], \"count\": ${count}}"
+        fi
+        ;;
+    get-modified-files)
+        # Get list of ALL modified files from git diff (for editor marking)
+        cd "$ANSIBLE_DIR" || { json_response '{"success": false, "error": "Cannot access ansible directory"}'; exit 0; }
+        git config --global --add safe.directory "$ANSIBLE_DIR" 2>/dev/null || true
+        
+        # Get modified files (staged and unstaged)
+        modified=$(git diff --name-only 2>/dev/null || true)
+        staged=$(git diff --cached --name-only 2>/dev/null || true)
+        untracked=$(git ls-files --others --exclude-standard 2>/dev/null || true)
+        
+        # Combine all, make unique, filter hidden
+        all_files=$(echo -e "${modified}\n${staged}\n${untracked}" | grep -v "^$" | grep -v "^\.git" | sort -u || true)
+        
+        # Build JSON array
+        if [ -z "$all_files" ]; then
+            json_response '{"success": true, "modified_files": [], "count": 0}'
+        else
+            files_json=$(echo "$all_files" | while read -r f; do printf '"%s",' "$f"; done | sed 's/,$//')
+            count=$(echo "$all_files" | wc -l | tr -d ' ')
+            json_response "{\"success\": true, \"modified_files\": [${files_json}], \"count\": ${count}}"
         fi
         ;;
     image)
