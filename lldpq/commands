@@ -1,5 +1,7 @@
 #nv show system
 #nv show system | grep product-release
+#echo $(cat /sys/class/net/eth0/address) $(sudo dmidecode -s system-serial-number 2>/dev/null | head -1)
+#
 #sudo clagctl
 #sudo vtysh -c "sh bgp sum"
 #nv show interface | grep -v 9216
