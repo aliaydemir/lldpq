@@ -1230,6 +1230,143 @@
             document.getElementById('output-area').innerHTML = '';
         }
         
+        function ansiToHtml(text) {
+            // Escape HTML first
+            let html = text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            
+            // Wrap in span to handle orphan closing tags
+            html = '<span>' + html + '</span>';
+            
+            // ANSI color map
+            const colors = {
+                '30': '#000', '31': '#e74c3c', '32': '#2ecc71', '33': '#f1c40f',
+                '34': '#3498db', '35': '#9b59b6', '36': '#1abc9c', '37': '#ecf0f1',
+                '90': '#7f8c8d', '91': '#ff6b6b', '92': '#4ec9b0', '93': '#ffd93d',
+                '94': '#6997d5', '95': '#c586c0', '96': '#56d4bc', '97': '#fff'
+            };
+            
+            // Replace ANSI codes with spans
+            html = html.replace(/\u001b\[([0-9;]+)m/g, (match, codes) => {
+                const codeList = codes.split(';');
+                let style = '';
+                let isReset = false;
+                
+                for (const code of codeList) {
+                    if (code === '0' || code === '') {
+                        isReset = true;
+                        continue;
+                    }
+                    if (code === '1') style += 'font-weight:bold;';
+                    else if (code === '4') style += 'text-decoration:underline;';
+                    else if (colors[code]) style += `color:${colors[code]};`;
+                    else {
+                        const bg = parseInt(code);
+                        if (bg >= 40 && bg <= 47) {
+                            const fgCode = String(bg - 10);
+                            if (colors[fgCode]) style += `background:${colors[fgCode]};`;
+                        }
+                    }
+                }
+                
+                if (isReset && !style) return '</span>';
+                if (style) return `</span><span style="${style}">`;
+                return '';
+            });
+            
+            return html;
+        }
+        
+        function showDiffModal(content, changesCount) {
+            // Remove existing modal if any
+            const existing = document.getElementById('diff-popup-modal');
+            if (existing) existing.remove();
+            
+            const hasChanges = changesCount > 0;
+            const headerBg = hasChanges ? '#c53030' : '#76b900';
+            const headerText = hasChanges ? '#ffffff' : '#000000';
+            const icon = hasChanges ? '⚠️' : '✅';
+            const title = hasChanges 
+                ? `Configuration Changes Detected (${changesCount})`
+                : 'All Switches Synchronized';
+            
+            const modal = document.createElement('div');
+            modal.id = 'diff-popup-modal';
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; justify-content: center; align-items: center;';
+            
+            modal.innerHTML = `
+                <div style="background: #2d2d2d; border-radius: 8px; max-width: 900px; width: 90%; max-height: 80vh; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+                    <div style="padding: 15px 20px; background: ${headerBg}; color: ${headerText}; display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0; font-size: 16px;">${icon} ${title}</h3>
+                        <button onclick="this.closest('#diff-popup-modal').remove()" style="background: none; border: none; color: ${headerText}; font-size: 24px; cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+                    </div>
+                    <div style="padding: 20px; max-height: 60vh; overflow: auto; background: #1e1e1e;">
+                        <pre id="diff-popup-content" style="margin: 0; white-space: pre; font-family: 'DejaVu Sans Mono', 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 13px; line-height: 1.4; color: #d4d4d4; tab-size: 4; min-width: max-content;">${ansiToHtml(content)}</pre>
+                    </div>
+                    <div style="padding: 15px 20px; background: #252526; text-align: center; border-top: 1px solid #404040;">
+                        <button onclick="this.closest('#diff-popup-modal').remove()" style="background: #404040; color: white; border: none; padding: 10px 30px; border-radius: 4px; cursor: pointer; font-size: 14px; margin-right: 10px;">Close</button>
+                        <button onclick="copyDiffContent()" style="background: #76b900; color: #000; border: none; padding: 10px 30px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold;">Copy</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+        
+        function copyDiffContent() {
+            const pre = document.getElementById('diff-popup-content');
+            if (pre) {
+                const text = pre.textContent;
+                navigator.clipboard.writeText(text).then(() => {
+                    showAlert('Diff content copied to clipboard!', 'success', 'Copied');
+                }).catch(() => {
+                    // Fallback
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    showAlert('Diff content copied to clipboard!', 'success', 'Copied');
+                });
+            }
+        }
+        
+        function extractDiffSummary(output) {
+            // Extract the summary section from diff output
+            const lines = output.split('\n');
+            const summaryLines = [];
+            let inSummary = false;
+            let foundDevices = false;
+            
+            for (const line of lines) {
+                // Start capturing at CONFIG DIFF SUMMARY
+                if (line.includes('CONFIG DIFF SUMMARY')) {
+                    inSummary = true;
+                    summaryLines.push(line);
+                    continue;
+                }
+                
+                // Capture summary content
+                if (inSummary) {
+                    // End at PLAY RECAP
+                    if (line.includes('PLAY RECAP') || line.includes('TASKS RECAP')) {
+                        break;
+                    }
+                    summaryLines.push(line);
+                    
+                    // Track if we found device changes
+                    if (line.includes('SWITCHES WITH CHANGES')) {
+                        foundDevices = true;
+                    }
+                }
+            }
+            
+            return summaryLines.join('\n');
+        }
+        
         function resetOutputPlaceholder() {
             const output = document.getElementById('output-area');
             output.classList.remove('has-content');
@@ -1313,6 +1450,18 @@
                     }
                     
                     appendFormattedOutput(output);
+                    
+                    // Show diff modal popup
+                    const summary = extractDiffSummary(output);
+                    if (summary) {
+                        showDiffModal(summary, changesCount);
+                    } else {
+                        // Fallback if no summary found
+                        const fallbackMsg = changesCount > 0 
+                            ? `${changesCount} device(s) have configuration changes.\n\nCheck the output panel for details.`
+                            : 'All devices are in sync with Ansible configurations.';
+                        showDiffModal(fallbackMsg, changesCount);
+                    }
                 } else {
                     appendOutput('Diff failed!', 'error');
                     appendFormattedOutput(result.error || result.output || 'Unknown error');

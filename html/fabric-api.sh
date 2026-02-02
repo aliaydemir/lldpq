@@ -1153,6 +1153,200 @@ except Exception as e:
 PYTHON
 }
 
+# Create Port Profile
+create_port_profile() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+import yaml
+import os
+import sys
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = {}
+
+profile_name = data.get('profile_name', '').strip()
+sw_port_mode = data.get('sw_port_mode', 'access')
+description = data.get('description', '')
+access_vlan = data.get('access_vlan')
+native_vlan = data.get('native_vlan')
+trunk_allowed_vlans = data.get('trunk_allowed_vlans', [])
+trunk_allowed_vlan_all = data.get('trunk_allowed_vlan_all', False)
+stp_bpduguard = data.get('stp_bpduguard', True)
+stp_portadminedge = data.get('stp_portadminedge', True)
+stp_portautoedgedisable = data.get('stp_portautoedgedisable', True)
+
+if not profile_name:
+    print(json.dumps({'success': False, 'error': 'Profile name is required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+port_file = f"{ansible_dir}/inventory/group_vars/all/sw_port_profiles.yaml"
+
+# Load existing
+config = {}
+if os.path.exists(port_file):
+    with open(port_file, 'r') as f:
+        config = yaml.safe_load(f) or {}
+
+if 'sw_port_profiles' not in config:
+    config['sw_port_profiles'] = {}
+
+if profile_name in config['sw_port_profiles']:
+    print(json.dumps({'success': False, 'error': f'Profile {profile_name} already exists'}))
+    sys.exit(0)
+
+# Build profile entry
+profile_entry = {
+    'sw_port_mode': sw_port_mode
+}
+
+if description:
+    profile_entry['description'] = description
+
+if sw_port_mode == 'access':
+    if access_vlan:
+        profile_entry['access_vlan'] = int(access_vlan)
+    profile_entry['stp_bpduguard'] = stp_bpduguard
+    profile_entry['stp_portadminedge'] = stp_portadminedge
+    profile_entry['stp_portautoedgedisable'] = stp_portautoedgedisable
+elif sw_port_mode == 'trunk':
+    if native_vlan:
+        profile_entry['trunk_untagged'] = int(native_vlan)
+    if trunk_allowed_vlan_all:
+        profile_entry['trunk_allowed_vlan_all'] = True
+    elif trunk_allowed_vlans:
+        profile_entry['trunk_allowed_vlan_list'] = trunk_allowed_vlans
+
+config['sw_port_profiles'][profile_name] = profile_entry
+
+with open(port_file, 'w') as f:
+    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+print(json.dumps({'success': True, 'profile_name': profile_name}))
+PYTHON
+}
+
+# Update Port Profile
+update_port_profile() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+import yaml
+import os
+import sys
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = {}
+
+original_name = data.get('original_name', '').strip()
+profile_name = data.get('profile_name', '').strip()
+sw_port_mode = data.get('sw_port_mode', 'access')
+description = data.get('description', '')
+access_vlan = data.get('access_vlan')
+native_vlan = data.get('native_vlan')
+trunk_allowed_vlans = data.get('trunk_allowed_vlans', [])
+trunk_allowed_vlan_all = data.get('trunk_allowed_vlan_all', False)
+stp_bpduguard = data.get('stp_bpduguard', True)
+stp_portadminedge = data.get('stp_portadminedge', True)
+stp_portautoedgedisable = data.get('stp_portautoedgedisable', True)
+
+if not original_name:
+    print(json.dumps({'success': False, 'error': 'Original profile name is required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+port_file = f"{ansible_dir}/inventory/group_vars/all/sw_port_profiles.yaml"
+
+config = {}
+if os.path.exists(port_file):
+    with open(port_file, 'r') as f:
+        config = yaml.safe_load(f) or {}
+
+if 'sw_port_profiles' not in config or original_name not in config['sw_port_profiles']:
+    print(json.dumps({'success': False, 'error': f'Profile {original_name} not found'}))
+    sys.exit(0)
+
+# Build updated entry
+profile_entry = {
+    'sw_port_mode': sw_port_mode
+}
+
+if description:
+    profile_entry['description'] = description
+
+if sw_port_mode == 'access':
+    if access_vlan:
+        profile_entry['access_vlan'] = int(access_vlan)
+    profile_entry['stp_bpduguard'] = stp_bpduguard
+    profile_entry['stp_portadminedge'] = stp_portadminedge
+    profile_entry['stp_portautoedgedisable'] = stp_portautoedgedisable
+elif sw_port_mode == 'trunk':
+    if native_vlan:
+        profile_entry['trunk_untagged'] = int(native_vlan)
+    if trunk_allowed_vlan_all:
+        profile_entry['trunk_allowed_vlan_all'] = True
+    elif trunk_allowed_vlans:
+        profile_entry['trunk_allowed_vlan_list'] = trunk_allowed_vlans
+
+# Remove old if renaming
+if original_name != profile_name:
+    del config['sw_port_profiles'][original_name]
+
+config['sw_port_profiles'][profile_name] = profile_entry
+
+with open(port_file, 'w') as f:
+    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+print(json.dumps({'success': True, 'profile_name': profile_name}))
+PYTHON
+}
+
+# Delete Port Profile
+delete_port_profile() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+import yaml
+import os
+import sys
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = {}
+
+profile_name = data.get('profile_name', '').strip()
+
+if not profile_name:
+    print(json.dumps({'success': False, 'error': 'Profile name is required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+port_file = f"{ansible_dir}/inventory/group_vars/all/sw_port_profiles.yaml"
+
+config = {}
+if os.path.exists(port_file):
+    with open(port_file, 'r') as f:
+        config = yaml.safe_load(f) or {}
+
+if 'sw_port_profiles' not in config or profile_name not in config['sw_port_profiles']:
+    print(json.dumps({'success': False, 'error': f'Profile {profile_name} not found'}))
+    sys.exit(0)
+
+del config['sw_port_profiles'][profile_name]
+
+with open(port_file, 'w') as f:
+    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+print(json.dumps({'success': True, 'deleted': profile_name}))
+PYTHON
+}
+
 # Create VLAN - adds to vlan_profiles.yaml and sw_port_profiles.yaml
 create_vlan() {
     # Read POST data
@@ -1188,6 +1382,7 @@ try:
     vrr_vip = data.get('vrr_vip', '')
     even_ip = data.get('even_ip', '')
     odd_ip = data.get('odd_ip', '')
+    vrr_vmac = data.get('vrr_vmac', '')
     gateway_ip = data.get('gateway_ip', '')
     
     # Validate VLAN ID
@@ -1235,6 +1430,8 @@ try:
                 vlan_entry['even_ip'] = even_ip
             if odd_ip:
                 vlan_entry['odd_ip'] = odd_ip
+            if vrr_vmac:
+                vlan_entry['vrr_vmac'] = vrr_vmac
         else:
             # Single gateway IP mode
             if gateway_ip:
@@ -1570,6 +1767,7 @@ vrf = data.get('vrf', 'default')
 vrr_vip = data.get('vrr_vip', '')
 even_ip = data.get('even_ip', '')
 odd_ip = data.get('odd_ip', '')
+vrr_vmac = data.get('vrr_vmac', '')
 gateway_ip = data.get('gateway_ip', '')
 
 if not original_name:
@@ -1611,6 +1809,8 @@ if svi_enabled:
             vlan_entry['even_ip'] = even_ip
         if odd_ip:
             vlan_entry['odd_ip'] = odd_ip
+        if vrr_vmac:
+            vlan_entry['vrr_vmac'] = vrr_vmac
     else:
         if gateway_ip:
             vlan_entry['ip'] = gateway_ip
@@ -1657,6 +1857,15 @@ case "$ACTION" in
         ;;
     "get-port-profiles")
         get_port_profiles
+        ;;
+    "create-port-profile")
+        create_port_profile
+        ;;
+    "update-port-profile")
+        update_port_profile
+        ;;
+    "delete-port-profile")
+        delete_port_profile
         ;;
     "get-vrfs")
         get_vrfs

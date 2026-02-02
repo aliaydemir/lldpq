@@ -1103,6 +1103,7 @@
         let currentVxlanIntMapping = {};  // VRF -> VXLAN interface VLAN mapping
         let ansibleDir = '';
         let vlanProfiles = {};  // Global VLAN profiles
+        let portProfiles = {};  // Global SW Port profiles
         let leakedSubnets = {};  // Subnet -> {target_vrf, route_map}
         
         // Helper: Get VRF badge class
@@ -1315,7 +1316,7 @@
         function renderDeviceDashboard(data) {
             const config = data.config;
             const deviceInfo = data.device_info;
-            const portProfiles = data.port_profiles || {};
+            portProfiles = data.port_profiles || {};  // Update global
             const vlanToVrf = data.vlan_to_vrf || {};
             vlanProfiles = data.vlan_profiles || {};  // Update global
             const vxlanIntMapping = data.vxlan_int_mapping || {};  // VRF name -> VLAN ID mapping
@@ -1344,8 +1345,40 @@
                 if (!profileName || !portProfiles[profileName]) return null;
                 const profile = portProfiles[profileName];
                 if (profile.access_vlan) return String(profile.access_vlan);
+                // Check both native_vlan and trunk_untagged for trunk profiles
                 if (profile.native_vlan) return String(profile.native_vlan);
+                if (profile.trunk_untagged) return String(profile.trunk_untagged);
                 return null;
+            }
+            
+            // Helper function to get detailed port profile info
+            function getPortProfileInfo(profileName) {
+                const result = { mode: 'access', vlans: '-', native: '-' };
+                if (!profileName || !portProfiles[profileName]) return result;
+                
+                const profile = portProfiles[profileName];
+                const mode = profile.sw_port_mode || 'access';
+                result.mode = mode;
+                
+                if (mode === 'access') {
+                    result.vlans = profile.access_vlan ? String(profile.access_vlan) : '-';
+                    result.native = '-';
+                } else {
+                    // Trunk mode
+                    if (profile.trunk_allowed_vlan_all) {
+                        result.vlans = 'ALL';
+                    } else if (profile.trunk_allowed_vlan_range) {
+                        result.vlans = profile.trunk_allowed_vlan_range;
+                    } else {
+                        const vlans = profile.trunk_allowed_vlans || profile.trunk_allowed_vlan_list || [];
+                        if (vlans.length > 0) {
+                            result.vlans = vlans.length > 3 ? vlans.slice(0, 3).join(', ') + '...' : vlans.join(', ');
+                        }
+                    }
+                    result.native = profile.native_vlan || profile.trunk_untagged || '-';
+                }
+                
+                return result;
             }
             
             // Helper function to resolve VRF from VLAN ID
@@ -1979,7 +2012,8 @@
                                             <th>Bond</th>
                                             <th>IP</th>
                                             <th>Profile</th>
-                                            <th>VLAN</th>
+                                            <th>VLAN(s)</th>
+                                            <th>Native</th>
                                             <th>VRF</th>
                                             <th>Description</th>
                                             <th style="width: 60px;">Actions</th>
@@ -1992,6 +2026,7 @@
                         const cfg = ifConfig || {};
                         const bondInfo = interfaceToBond[ifName];
                         const profile = cfg.sw_port_profile || (bondInfo?.profile) || '';
+                        const profileInfo = getPortProfileInfo(profile);
                         
                         // Get VLAN - check direct vlan field first (for VLAN sub-interfaces), then profile
                         let vlan = cfg.vlan ? String(cfg.vlan) : null;
@@ -2008,6 +2043,21 @@
                         const ipAddr = cfg.ip || '-';
                         const description = cfg.description || (bondInfo?.description) || '-';
                         
+                        // Format VLAN(s) display based on profile mode
+                        let vlanDisplay = '-';
+                        if (profile && profileInfo.vlans !== '-') {
+                            const isTrunk = profileInfo.mode === 'trunk';
+                            const badgeColor = isTrunk ? (profileInfo.vlans === 'ALL' ? 'badge-cyan' : 'badge-purple') : 'badge-green';
+                            vlanDisplay = `<span class="badge ${badgeColor}">${profileInfo.vlans}</span>`;
+                        } else if (vlan) {
+                            vlanDisplay = `<span class="badge badge-green">${vlan}</span>`;
+                        }
+                        
+                        // Native VLAN display
+                        const nativeDisplay = profileInfo.native !== '-' 
+                            ? `<span class="badge badge-orange">${profileInfo.native}</span>` 
+                            : '-';
+                        
                         // Escape quotes for onclick
                         const escapedIfName = ifName.replace(/'/g, "\\'");
                         const escapedProfile = (profile || '').replace(/'/g, "\\'");
@@ -2021,7 +2071,8 @@
                                 <td>${bondInfo ? `<span class="badge badge-orange">${bondInfo.bondName}</span>` : '-'}</td>
                                 <td>${ipAddr !== '-' ? `<span class="badge badge-blue">${ipAddr}</span>` : '-'}</td>
                                 <td>${displayProfile}</td>
-                                <td>${vlan ? `<span class="badge badge-green">${vlan}</span>` : '-'}</td>
+                                <td>${vlanDisplay}</td>
+                                <td>${nativeDisplay}</td>
                                 <td>${displayVrf ? `<span class="badge badge-blue">${displayVrf}</span>` : '-'}</td>
                                 <td>${description}</td>
                                 <td>
@@ -2058,7 +2109,8 @@
                                         <th>Bond</th>
                                         <th>Members</th>
                                         <th>Profile</th>
-                                        <th>VLAN</th>
+                                        <th>VLAN(s)</th>
+                                        <th>Native</th>
                                         <th>VRF</th>
                                         <th>ESI</th>
                                         <th>LACP Mode</th>
@@ -2073,6 +2125,7 @@
                 for (const [bondName, bondConfig] of bonds) {
                     const cfg = bondConfig || {};
                     const profile = cfg.sw_port_profile || '';
+                    const profileInfo = getPortProfileInfo(profile);
                     const vlan = getVlanFromProfile(profile);
                     const vrf = getVrfFromVlan(vlan);
                     const displayVrf = vrf || (vlan ? 'default' : null);
@@ -2085,6 +2138,19 @@
                     const lacpMode = isActive ? 'ACTIVE' : 'PASSIVE';
                     const lacpBypass = cfg.lacp_bypass ? true : false;
                     
+                    // Format VLAN(s) display based on mode
+                    let vlanDisplay = '-';
+                    if (profileInfo.vlans !== '-') {
+                        const isTrunk = profileInfo.mode === 'trunk';
+                        const badgeColor = isTrunk ? (profileInfo.vlans === 'ALL' ? 'badge-cyan' : 'badge-purple') : 'badge-green';
+                        vlanDisplay = `<span class="badge ${badgeColor}">${profileInfo.vlans}</span>`;
+                    }
+                    
+                    // Native VLAN display
+                    const nativeDisplay = profileInfo.native !== '-' 
+                        ? `<span class="badge badge-orange">${profileInfo.native}</span>` 
+                        : '-';
+                    
                     // Escape quotes for onclick
                     const escapedBondName = bondName.replace(/'/g, "\\'");
                     const escapedBondProfile = (profile || '').replace(/'/g, "\\'");
@@ -2096,7 +2162,8 @@
                             <td><strong>${bondName}</strong></td>
                             <td>${members}</td>
                             <td>${profile || '-'}</td>
-                            <td>${vlan ? `<span class="badge badge-green">${vlan}</span>` : '-'}</td>
+                            <td>${vlanDisplay}</td>
+                            <td>${nativeDisplay}</td>
                             <td>${displayVrf ? `<span class="badge badge-blue">${displayVrf}</span>` : '-'}</td>
                             <td>${esi !== '-' ? `<span class="badge badge-orange">${esi}</span>` : '-'}</td>
                             <td><span class="badge ${isActive ? 'badge-green' : 'badge-orange'}">${lacpMode}</span></td>
@@ -2663,10 +2730,12 @@
                     document.getElementById('edit-vlan-vrr-vip').value = vp.vrr_vip || '';
                     document.getElementById('edit-vlan-even-ip').value = vp.even_ip || '';
                     document.getElementById('edit-vlan-odd-ip').value = vp.odd_ip || '';
+                    document.getElementById('edit-vlan-vrr-vmac').value = vp.vrr_vmac || '';
                 } else {
                     document.getElementById('edit-vrr-fields').classList.remove('visible');
                     document.getElementById('edit-single-ip-field').style.display = 'block';
                     document.getElementById('edit-vlan-gateway-ip').value = vp.ip || '';
+                    document.getElementById('edit-vlan-vrr-vmac').value = '';
                 }
             } else {
                 document.getElementById('edit-svi-fields').classList.remove('visible');
@@ -2786,6 +2855,10 @@
                     data.vrr_vip = document.getElementById('edit-vlan-vrr-vip').value;
                     data.even_ip = document.getElementById('edit-vlan-even-ip').value;
                     data.odd_ip = document.getElementById('edit-vlan-odd-ip').value;
+                    const vrrVmac = document.getElementById('edit-vlan-vrr-vmac').value.trim();
+                    if (vrrVmac) {
+                        data.vrr_vmac = vrrVmac;
+                    }
                 } else {
                     data.gateway_ip = document.getElementById('edit-vlan-gateway-ip').value;
                 }
@@ -3258,6 +3331,10 @@
                     data.vrr_vip = document.getElementById('vlan-vrr-vip').value.trim();
                     data.even_ip = document.getElementById('vlan-even-ip').value.trim();
                     data.odd_ip = document.getElementById('vlan-odd-ip').value.trim();
+                    const vrrVmac = document.getElementById('vlan-vrr-vmac').value.trim();
+                    if (vrrVmac) {
+                        data.vrr_vmac = vrrVmac;
+                    }
                 } else {
                     // Single gateway IP mode
                     data.gateway_ip = document.getElementById('vlan-gateway-ip').value.trim();
@@ -4184,29 +4261,22 @@
             const select = document.getElementById(selectId);
             select.innerHTML = '<option value="">No Profile (clear)</option>';
             
-            // First add profiles assigned to this device (from vlan_templates)
-            const deviceProfiles = currentDeviceConfig?.vlan_templates || [];
-            const addedProfiles = new Set();
-            
-            // Add device's assigned profiles first (highlighted)
-            for (const profileName of deviceProfiles) {
-                const selected = profileName === currentValue ? 'selected' : '';
-                select.innerHTML += `<option value="${profileName}" ${selected}>${profileName}</option>`;
-                addedProfiles.add(profileName);
-            }
-            
-            // Then add other available profiles from global vlanProfiles
-            if (Object.keys(vlanProfiles).length > 0) {
-                let hasOthers = false;
-                for (const profileName of Object.keys(vlanProfiles)) {
-                    if (!addedProfiles.has(profileName)) {
-                        if (!hasOthers) {
-                            select.innerHTML += '<option disabled>──────────</option>';
-                            hasOthers = true;
-                        }
-                        const selected = profileName === currentValue ? 'selected' : '';
-                        select.innerHTML += `<option value="${profileName}" ${selected} style="color: #888;">${profileName} (not assigned)</option>`;
-                    }
+            // Use SW Port Profiles (not VLAN profiles) for interface configuration
+            if (Object.keys(portProfiles).length > 0) {
+                // Sort profiles: Access first, then Trunk
+                const sortedProfiles = Object.keys(portProfiles).sort((a, b) => {
+                    const modeA = portProfiles[a].sw_port_mode || 'access';
+                    const modeB = portProfiles[b].sw_port_mode || 'access';
+                    if (modeA !== modeB) return modeA === 'access' ? -1 : 1;
+                    return a.localeCompare(b);
+                });
+                
+                for (const profileName of sortedProfiles) {
+                    const profile = portProfiles[profileName];
+                    const mode = profile.sw_port_mode || 'access';
+                    const modeLabel = mode === 'trunk' ? '[T]' : '[A]';
+                    const selected = profileName === currentValue ? 'selected' : '';
+                    select.innerHTML += `<option value="${profileName}" ${selected}>${modeLabel} ${profileName}</option>`;
                 }
             }
         }
@@ -4424,8 +4494,12 @@
                 if (editIdx !== null && config.dhcp_relay && config.dhcp_relay[editIdx]) {
                     const relay = config.dhcp_relay[editIdx];
                     vrfSelect.value = relay.vrf || '';
+                    
+                    // Select multiple interfaces
                     if (relay.interfaces && relay.interfaces.length > 0) {
-                        interfaceSelect.value = relay.interfaces[0];
+                        for (const opt of interfaceSelect.options) {
+                            opt.selected = relay.interfaces.includes(opt.value);
+                        }
                     }
                     document.getElementById('dhcp-relay-servers').value = relay.servers?.join(', ') || '';
                     
@@ -4542,7 +4616,8 @@
         
         async function saveDhcpRelay() {
             const vrf = document.getElementById('dhcp-relay-vrf').value;
-            const interfaceVal = document.getElementById('dhcp-relay-interface').value;
+            const interfaceSelect = document.getElementById('dhcp-relay-interface');
+            const selectedInterfaces = Array.from(interfaceSelect.selectedOptions).map(opt => opt.value);
             const serversStr = document.getElementById('dhcp-relay-servers').value.trim();
             const upstream = document.getElementById('dhcp-relay-upstream').value.trim();
             const giaddr = document.getElementById('dhcp-relay-giaddr').value.trim();
@@ -4551,8 +4626,8 @@
                 showAlert('Please select a VRF');
                 return;
             }
-            if (!interfaceVal) {
-                showAlert('Please select an interface');
+            if (selectedInterfaces.length === 0) {
+                showAlert('Please select at least one interface');
                 return;
             }
             if (!serversStr) {
@@ -4573,7 +4648,7 @@
                     device: selectedDevice,
                     index: editingDhcpRelayIdx,
                     vrf: vrf,
-                    interfaces: [interfaceVal],
+                    interfaces: selectedInterfaces,
                     servers: servers,
                     upstream: upstream ? [upstream] : []
                 };
@@ -4894,6 +4969,11 @@ Without bonds, the EVPN Multihoming configuration will be incomplete.
                                     <input type="text" id="vlan-odd-ip" placeholder="e.g., 10.10.100.3/24">
                                 </div>
                             </div>
+                            <div class="form-group" style="margin-top: 10px;">
+                                <label>VRR Virtual MAC <span style="color: #888; font-weight: normal;">(optional)</span></label>
+                                <input type="text" id="vlan-vrr-vmac" placeholder="44:38:39:ff:XX:XX" style="font-family: monospace;">
+                                <div class="form-hint">Custom virtual MAC for VRR (leave empty for auto)</div>
+                            </div>
                         </div>
                         
                         <!-- Leaking Section -->
@@ -5085,6 +5165,11 @@ Without bonds, the EVPN Multihoming configuration will be incomplete.
                                     <label>Odd Switch IP</label>
                                     <input type="text" id="edit-vlan-odd-ip" placeholder="e.g., 10.10.100.3/24">
                                 </div>
+                            </div>
+                            <div class="form-group" style="margin-top: 10px;">
+                                <label>VRR Virtual MAC <span style="color: #888; font-weight: normal;">(optional)</span></label>
+                                <input type="text" id="edit-vlan-vrr-vmac" placeholder="44:38:39:ff:XX:XX" style="font-family: monospace;">
+                                <div class="form-hint">Custom virtual MAC for VRR (leave empty for auto)</div>
                             </div>
                         </div>
                         
@@ -5527,11 +5612,10 @@ Without bonds, the EVPN Multihoming configuration will be incomplete.
                     </div>
                     
                     <div class="form-group">
-                        <label>Interface *</label>
-                        <select id="dhcp-relay-interface" style="width: 100%; padding: 10px 12px; background: #1e1e1e; border: 1px solid #404040; border-radius: 4px; color: #fff; font-size: 14px;">
-                            <option value="">Select Interface...</option>
+                        <label>Interfaces *</label>
+                        <select id="dhcp-relay-interface" multiple style="width: 100%; min-height: 120px; padding: 8px; background: #1e1e1e; border: 1px solid #404040; border-radius: 4px; color: #fff; font-size: 14px;">
                         </select>
-                        <div class="form-hint">L3 interface (SVI) to enable DHCP relay on</div>
+                        <div class="form-hint">Hold Ctrl/Cmd to select multiple interfaces</div>
                     </div>
                     
                     <div class="form-group">

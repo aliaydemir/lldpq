@@ -508,12 +508,6 @@
                 </svg>
                 Refresh
             </button>
-            <button class="btn btn-primary" onclick="openCreateModal()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                </svg>
-                Create VLAN
-            </button>
         </div>
     </div>
     
@@ -544,11 +538,39 @@
                 <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z"/>
             </svg>
             VLAN Profiles
+            <button class="btn btn-primary" onclick="openCreateModal()" style="margin-left: auto;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                Create VLAN
+            </button>
         </div>
         <div class="section-content" id="content-area">
             <div class="loading">
                 <div class="spinner"></div>
                 Loading VLAN data...
+            </div>
+        </div>
+    </div>
+    
+    <!-- Port Profiles Section -->
+    <div class="dashboard-section" style="margin-top: 30px;">
+        <div class="section-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6zm0 4h8v2H6zm10 0h2v2h-2zm-6-4h8v2h-8z"/>
+            </svg>
+            Port Profiles
+            <button class="btn btn-primary" onclick="openCreatePortProfileModal()" style="margin-left: auto;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                Add Port Profile
+            </button>
+        </div>
+        <div class="section-content" id="port-profiles-content">
+            <div class="loading">
+                <div class="spinner"></div>
+                Loading port profiles...
             </div>
         </div>
     </div>
@@ -668,6 +690,11 @@
                                     <label>Odd Switch IP</label>
                                     <input type="text" id="vlan-odd-ip" placeholder="e.g., 10.10.100.3/24">
                                 </div>
+                            </div>
+                            <div class="form-group" style="margin-top: 10px;">
+                                <label>VRR Virtual MAC <span style="color: #888; font-weight: normal;">(optional)</span></label>
+                                <input type="text" id="vlan-vrr-vmac" placeholder="44:38:39:ff:XX:XX" style="font-family: monospace;">
+                                <div class="form-hint">Custom virtual MAC for VRR (leave empty for auto)</div>
                             </div>
                         </div>
                         
@@ -813,6 +840,11 @@
                                     <input type="text" id="edit-vlan-odd-ip" placeholder="e.g., 10.10.100.3/24">
                                 </div>
                             </div>
+                            <div class="form-group" style="margin-top: 10px;">
+                                <label>VRR Virtual MAC <span style="color: #888; font-weight: normal;">(optional)</span></label>
+                                <input type="text" id="edit-vlan-vrr-vmac" placeholder="44:38:39:ff:XX:XX" style="font-family: monospace;">
+                                <div class="form-hint">Custom virtual MAC for VRR (leave empty for auto)</div>
+                            </div>
                         </div>
                         
                         <!-- Leaking Section for Edit -->
@@ -865,6 +897,196 @@
         </div>
     </div>
     
+    <!-- Create Port Profile Modal -->
+    <div class="modal" id="create-port-profile-modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>Create Port Profile</h3>
+                <button class="modal-close" onclick="closeCreatePortProfileModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="create-port-profile-form" onsubmit="event.preventDefault(); createPortProfile();">
+                    <div class="form-group">
+                        <label>Profile Name *</label>
+                        <input type="text" id="pp-name" placeholder="e.g., ACCESS_VLAN_100" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Description</label>
+                        <input type="text" id="pp-description" placeholder="e.g., Management Network">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Port Mode *</label>
+                        <select id="pp-mode" onchange="togglePortProfileMode()">
+                            <option value="access">Access</option>
+                            <option value="trunk">Trunk</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Access Mode Fields -->
+                    <div id="pp-access-fields">
+                        <div class="form-group">
+                            <label>Access VLAN *</label>
+                            <select id="pp-access-vlan">
+                                <option value="">Select VLAN...</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="pp-stp-bpduguard" checked>
+                                <span>STP BPDU Guard</span>
+                            </label>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="pp-stp-portadminedge" checked>
+                                <span>STP Port Admin Edge</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Trunk Mode Fields -->
+                    <div id="pp-trunk-fields" style="display: none;">
+                        <div class="form-group">
+                            <label>Native (Untagged) VLAN</label>
+                            <select id="pp-native-vlan">
+                                <option value="">None (tagged only)</option>
+                            </select>
+                            <div class="form-hint">Untagged VLAN for this trunk port</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="pp-trunk-all" onchange="toggleTrunkVlanSelect()">
+                                <span>Allow All VLANs</span>
+                            </label>
+                        </div>
+                        
+                        <div class="form-group" id="pp-trunk-vlans-group">
+                            <label>Allowed VLANs</label>
+                            <select id="pp-trunk-vlans" multiple style="min-height: 150px;">
+                            </select>
+                            <div class="form-hint">Hold Ctrl/Cmd to select multiple VLANs</div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeCreatePortProfileModal()">Cancel</button>
+                <button class="btn btn-primary" id="btn-create-pp" onclick="createPortProfile()">Create</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Port Profile Modal -->
+    <div class="modal" id="edit-port-profile-modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>Edit Port Profile</h3>
+                <button class="modal-close" onclick="closeEditPortProfileModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="edit-port-profile-form" onsubmit="event.preventDefault(); savePortProfile();">
+                    <input type="hidden" id="edit-pp-original-name">
+                    
+                    <div class="form-group">
+                        <label>Profile Name *</label>
+                        <input type="text" id="edit-pp-name" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Description</label>
+                        <input type="text" id="edit-pp-description" placeholder="e.g., Management Network">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Port Mode *</label>
+                        <select id="edit-pp-mode" onchange="toggleEditPortProfileMode()">
+                            <option value="access">Access</option>
+                            <option value="trunk">Trunk</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Access Mode Fields -->
+                    <div id="edit-pp-access-fields">
+                        <div class="form-group">
+                            <label>Access VLAN *</label>
+                            <select id="edit-pp-access-vlan">
+                                <option value="">Select VLAN...</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="edit-pp-stp-bpduguard" checked>
+                                <span>STP BPDU Guard</span>
+                            </label>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="edit-pp-stp-portadminedge" checked>
+                                <span>STP Port Admin Edge</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Trunk Mode Fields -->
+                    <div id="edit-pp-trunk-fields" style="display: none;">
+                        <div class="form-group">
+                            <label>Native (Untagged) VLAN</label>
+                            <select id="edit-pp-native-vlan">
+                                <option value="">None (tagged only)</option>
+                            </select>
+                            <div class="form-hint">Untagged VLAN for this trunk port</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="edit-pp-trunk-all" onchange="toggleEditTrunkVlanSelect()">
+                                <span>Allow All VLANs</span>
+                            </label>
+                        </div>
+                        
+                        <div class="form-group" id="edit-pp-trunk-vlans-group">
+                            <label>Allowed VLANs</label>
+                            <select id="edit-pp-trunk-vlans" multiple style="min-height: 150px;">
+                            </select>
+                            <div class="form-hint">Hold Ctrl/Cmd to select multiple VLANs</div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeEditPortProfileModal()">Cancel</button>
+                <button class="btn btn-primary" id="btn-save-pp" onclick="savePortProfile()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Delete Port Profile Modal -->
+    <div class="modal" id="delete-port-profile-modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3 style="color: #ff6b6b;">Delete Port Profile</h3>
+                <button class="modal-close" onclick="closeDeletePortProfileModal()">×</button>
+            </div>
+            <div class="modal-body" style="text-align: center;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="#ff6b6b" style="margin-bottom: 15px;">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                </svg>
+                <p style="color: #ccc; margin-bottom: 10px;">Are you sure you want to delete port profile:</p>
+                <p style="color: #76b900; font-weight: bold; font-size: 18px;" id="delete-pp-name"></p>
+            </div>
+            <div class="modal-footer" style="justify-content: center; gap: 15px;">
+                <button class="btn btn-secondary" onclick="closeDeletePortProfileModal()">Cancel</button>
+                <button class="btn" id="btn-confirm-delete-pp" onclick="confirmDeletePortProfile()" style="background: #dc3545; color: white;">Delete</button>
+            </div>
+        </div>
+    </div>
     
     <script>
         // State
@@ -874,6 +1096,8 @@
         let vrfCount = 0;
         let availableVrfs = ['default'];
         let leakedSubnets = {};  // subnet -> {target_vrf, route_map}
+        let portProfiles = {};
+        let deletingPortProfile = null;
         
         // Initialize
         async function init() {
@@ -890,19 +1114,27 @@
         // Load all data
         async function loadData() {
             document.getElementById('content-area').innerHTML = '<div class="loading"><div class="spinner"></div>Loading VLAN data...</div>';
+            document.getElementById('port-profiles-content').innerHTML = '<div class="loading"><div class="spinner"></div>Loading port profiles...</div>';
             
             try {
-                // Fetch VLAN data and leaked subnets in parallel
-                const [vlanResponse, leakResponse] = await Promise.all([
+                // Fetch VLAN data, leaked subnets, and port profiles in parallel
+                const [vlanResponse, leakResponse, portResponse] = await Promise.all([
                     fetch('/fabric-api.sh?action=get-vlan-report'),
-                    fetch('/fabric-api.sh?action=get-all-leaked-subnets')
+                    fetch('/fabric-api.sh?action=get-all-leaked-subnets'),
+                    fetch('/fabric-api.sh?action=get-port-profiles')
                 ]);
                 
                 const data = await vlanResponse.json();
                 const leakData = await leakResponse.json();
+                const portData = await portResponse.json();
                 
                 if (leakData.success) {
                     leakedSubnets = leakData.leaked_subnets || {};
+                }
+                
+                if (portData.success) {
+                    portProfiles = portData.port_profiles || {};
+                    renderPortProfilesTable();
                 }
                 
                 if (data.success) {
@@ -1501,6 +1733,10 @@
                     data.vrr_vip = document.getElementById('vlan-vrr-vip').value.trim();
                     data.even_ip = document.getElementById('vlan-even-ip').value.trim();
                     data.odd_ip = document.getElementById('vlan-odd-ip').value.trim();
+                    const vrrVmac = document.getElementById('vlan-vrr-vmac').value.trim();
+                    if (vrrVmac) {
+                        data.vrr_vmac = vrrVmac;
+                    }
                 } else {
                     data.gateway_ip = document.getElementById('vlan-gateway-ip').value.trim();
                 }
@@ -1639,6 +1875,7 @@
             let vrrVip = '';
             let evenIp = '';
             let oddIp = '';
+            let vrrVmac = '';
             let gatewayIp = '';
             
             if (vp.vlans && typeof vp.vlans === 'object') {
@@ -1655,6 +1892,7 @@
                             vrrVip = vlanInfo.vrr_vip || '';
                             evenIp = vlanInfo.even_ip || '';
                             oddIp = vlanInfo.odd_ip || '';
+                            vrrVmac = vlanInfo.vrr_vmac || '';
                         } else if (vlanInfo.ip) {
                             gatewayIp = vlanInfo.ip || '';
                         }
@@ -1674,10 +1912,12 @@
                     document.getElementById('edit-vlan-vrr-vip').value = vrrVip;
                     document.getElementById('edit-vlan-even-ip').value = evenIp;
                     document.getElementById('edit-vlan-odd-ip').value = oddIp;
+                    document.getElementById('edit-vlan-vrr-vmac').value = vrrVmac;
                 } else {
                     document.getElementById('edit-vrr-fields').classList.remove('visible');
                     document.getElementById('edit-single-ip-field').style.display = 'block';
                     document.getElementById('edit-vlan-gateway-ip').value = gatewayIp;
+                    document.getElementById('edit-vlan-vrr-vmac').value = '';
                 }
             } else {
                 document.getElementById('edit-svi-fields').classList.remove('visible');
@@ -1798,6 +2038,10 @@
                     data.vrr_vip = document.getElementById('edit-vlan-vrr-vip').value;
                     data.even_ip = document.getElementById('edit-vlan-even-ip').value;
                     data.odd_ip = document.getElementById('edit-vlan-odd-ip').value;
+                    const vrrVmac = document.getElementById('edit-vlan-vrr-vmac').value.trim();
+                    if (vrrVmac) {
+                        data.vrr_vmac = vrrVmac;
+                    }
                 } else {
                     data.gateway_ip = document.getElementById('edit-vlan-gateway-ip').value;
                 }
@@ -1988,6 +2232,429 @@
         }
         
         // Init on load
+        // ============= PORT PROFILES =============
+        
+        function renderPortProfilesTable() {
+            const container = document.getElementById('port-profiles-content');
+            const profiles = Object.entries(portProfiles);
+            
+            if (profiles.length === 0) {
+                container.innerHTML = '<div class="no-data">No port profiles configured</div>';
+                return;
+            }
+            
+            // Sort: trunk first, then access
+            profiles.sort((a, b) => {
+                const modeA = a[1].sw_port_mode || 'access';
+                const modeB = b[1].sw_port_mode || 'access';
+                if (modeA !== modeB) return modeA === 'trunk' ? -1 : 1;
+                return a[0].localeCompare(b[0]);
+            });
+            
+            let html = `
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #404040;">
+                            <th style="padding: 12px; text-align: left; color: #888; font-size: 11px;">PROFILE NAME</th>
+                            <th style="padding: 12px; text-align: left; color: #888; font-size: 11px;">MODE</th>
+                            <th style="padding: 12px; text-align: left; color: #888; font-size: 11px;">VLAN(s)</th>
+                            <th style="padding: 12px; text-align: center; color: #888; font-size: 11px;">NATIVE</th>
+                            <th style="padding: 12px; text-align: center; color: #888; font-size: 11px;">BPDU GUARD</th>
+                            <th style="padding: 12px; text-align: center; color: #888; font-size: 11px;">ADMIN EDGE</th>
+                            <th style="padding: 12px; text-align: center; color: #888; font-size: 11px;">AUTO EDGE</th>
+                            <th style="padding: 12px; text-align: left; color: #888; font-size: 11px;">DESCRIPTION</th>
+                            <th style="padding: 12px; text-align: center; color: #888; font-size: 11px;">ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            const checkIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="#76b900"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+            const dashIcon = '<span style="color: #555;">-</span>';
+            
+            for (const [name, profile] of profiles) {
+                const mode = profile.sw_port_mode || 'access';
+                const modeColor = mode === 'trunk' ? '#4fc3f7' : '#76b900';
+                const modeLabel = mode.toUpperCase();
+                
+                let vlanInfo = '-';
+                if (mode === 'access' && profile.access_vlan) {
+                    vlanInfo = profile.access_vlan;
+                } else if (mode === 'trunk') {
+                    if (profile.trunk_allowed_vlan_all) {
+                        vlanInfo = '<span style="color: #4fc3f7;">ALL</span>';
+                    } else if (profile.trunk_allowed_vlan_range) {
+                        vlanInfo = `<span style="color: #4fc3f7;">${profile.trunk_allowed_vlan_range}</span>`;
+                    } else {
+                        // Check both field names
+                        const vlans = profile.trunk_allowed_vlans || profile.trunk_allowed_vlan_list || [];
+                        if (vlans.length > 0) {
+                            vlanInfo = vlans.length > 5 ? vlans.slice(0, 5).join(', ') + '...' : vlans.join(', ');
+                        }
+                    }
+                }
+                
+                // Native VLAN for trunk (check both field names)
+                const nativeVlan = profile.native_vlan || profile.trunk_untagged || '-';
+                
+                // STP settings (show for all modes if defined)
+                const bpduGuard = profile.stp_bpduguard ? checkIcon : dashIcon;
+                const adminEdge = profile.stp_portadminedge ? checkIcon : dashIcon;
+                const autoEdge = profile.stp_portautoedgedisable ? checkIcon : dashIcon;
+                
+                html += `
+                    <tr style="border-bottom: 1px solid #333;">
+                        <td style="padding: 12px; color: #76b900; font-weight: 500;">${name}</td>
+                        <td style="padding: 12px;">
+                            <span style="background: ${modeColor}22; color: ${modeColor}; padding: 3px 8px; border-radius: 4px; font-size: 11px;">${modeLabel}</span>
+                        </td>
+                        <td style="padding: 12px; color: #ccc;">${vlanInfo}</td>
+                        <td style="padding: 12px; text-align: center; color: #ccc;">${nativeVlan}</td>
+                        <td style="padding: 12px; text-align: center;">${bpduGuard}</td>
+                        <td style="padding: 12px; text-align: center;">${adminEdge}</td>
+                        <td style="padding: 12px; text-align: center;">${autoEdge}</td>
+                        <td style="padding: 12px; color: #888;">${profile.description || '-'}</td>
+                        <td style="padding: 12px; text-align: center;">
+                            <button onclick="openEditPortProfileModal('${name}')" style="background: none; border: none; color: #76b900; cursor: pointer; margin-right: 10px;" title="Edit">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                            </button>
+                            <button onclick="openDeletePortProfileModal('${name}')" style="background: none; border: none; color: #ff6b6b; cursor: pointer;" title="Delete">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        function getVlanOptions() {
+            const options = [];
+            for (const [name, vp] of Object.entries(vlanProfiles)) {
+                if (vp.vlans) {
+                    for (const vid of Object.keys(vp.vlans)) {
+                        options.push({ id: parseInt(vid), name: name });
+                    }
+                }
+            }
+            options.sort((a, b) => a.id - b.id);
+            return options;
+        }
+        
+        function populateVlanDropdowns() {
+            const vlanOptions = getVlanOptions();
+            const accessSelect = document.getElementById('pp-access-vlan');
+            const trunkSelect = document.getElementById('pp-trunk-vlans');
+            const nativeSelect = document.getElementById('pp-native-vlan');
+            const editAccessSelect = document.getElementById('edit-pp-access-vlan');
+            const editTrunkSelect = document.getElementById('edit-pp-trunk-vlans');
+            const editNativeSelect = document.getElementById('edit-pp-native-vlan');
+            
+            const optionsHtml = vlanOptions.map(v => `<option value="${v.id}">${v.id} (${v.name})</option>`).join('');
+            
+            accessSelect.innerHTML = '<option value="">Select VLAN...</option>' + optionsHtml;
+            trunkSelect.innerHTML = optionsHtml;
+            nativeSelect.innerHTML = '<option value="">None (tagged only)</option>' + optionsHtml;
+            editAccessSelect.innerHTML = '<option value="">Select VLAN...</option>' + optionsHtml;
+            editTrunkSelect.innerHTML = optionsHtml;
+            editNativeSelect.innerHTML = '<option value="">None (tagged only)</option>' + optionsHtml;
+        }
+        
+        function openCreatePortProfileModal() {
+            document.getElementById('create-port-profile-form').reset();
+            document.getElementById('pp-mode').value = 'access';
+            document.getElementById('pp-access-fields').style.display = 'block';
+            document.getElementById('pp-trunk-fields').style.display = 'none';
+            document.getElementById('pp-trunk-vlans-group').style.display = 'block';
+            populateVlanDropdowns();
+            document.getElementById('create-port-profile-modal').classList.add('visible');
+        }
+        
+        function closeCreatePortProfileModal() {
+            document.getElementById('create-port-profile-modal').classList.remove('visible');
+        }
+        
+        function togglePortProfileMode() {
+            const mode = document.getElementById('pp-mode').value;
+            document.getElementById('pp-access-fields').style.display = mode === 'access' ? 'block' : 'none';
+            document.getElementById('pp-trunk-fields').style.display = mode === 'trunk' ? 'block' : 'none';
+        }
+        
+        function toggleTrunkVlanSelect() {
+            const allChecked = document.getElementById('pp-trunk-all').checked;
+            document.getElementById('pp-trunk-vlans-group').style.display = allChecked ? 'none' : 'block';
+        }
+        
+        async function createPortProfile() {
+            const btn = document.getElementById('btn-create-pp');
+            const name = document.getElementById('pp-name').value.trim();
+            const description = document.getElementById('pp-description').value.trim();
+            const mode = document.getElementById('pp-mode').value;
+            
+            if (!name) {
+                alert('Profile name is required');
+                return;
+            }
+            
+            const data = {
+                profile_name: name,
+                description: description,
+                sw_port_mode: mode
+            };
+            
+            if (mode === 'access') {
+                const accessVlan = document.getElementById('pp-access-vlan').value;
+                if (!accessVlan) {
+                    alert('Please select an access VLAN');
+                    return;
+                }
+                data.access_vlan = parseInt(accessVlan);
+                data.stp_bpduguard = document.getElementById('pp-stp-bpduguard').checked;
+                data.stp_portadminedge = document.getElementById('pp-stp-portadminedge').checked;
+                data.stp_portautoedgedisable = true;
+            } else {
+                const nativeVlan = document.getElementById('pp-native-vlan').value;
+                if (nativeVlan) {
+                    data.native_vlan = parseInt(nativeVlan);
+                }
+                
+                const trunkAll = document.getElementById('pp-trunk-all').checked;
+                if (trunkAll) {
+                    data.trunk_allowed_vlan_all = true;
+                } else {
+                    const trunkVlans = Array.from(document.getElementById('pp-trunk-vlans').selectedOptions).map(o => parseInt(o.value));
+                    if (trunkVlans.length === 0) {
+                        alert('Please select at least one VLAN for trunk');
+                        return;
+                    }
+                    data.trunk_allowed_vlans = trunkVlans;
+                }
+            }
+            
+            btn.disabled = true;
+            btn.textContent = 'Creating...';
+            
+            try {
+                const response = await fetch('/fabric-api.sh?action=create-port-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeCreatePortProfileModal();
+                    await loadData();
+                } else {
+                    alert('Error: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Create';
+        }
+        
+        function openEditPortProfileModal(name) {
+            const profile = portProfiles[name];
+            if (!profile) return;
+            
+            populateVlanDropdowns();
+            
+            document.getElementById('edit-pp-original-name').value = name;
+            document.getElementById('edit-pp-name').value = name;
+            document.getElementById('edit-pp-description').value = profile.description || '';
+            document.getElementById('edit-pp-mode').value = profile.sw_port_mode || 'access';
+            
+            const mode = profile.sw_port_mode || 'access';
+            document.getElementById('edit-pp-access-fields').style.display = mode === 'access' ? 'block' : 'none';
+            document.getElementById('edit-pp-trunk-fields').style.display = mode === 'trunk' ? 'block' : 'none';
+            
+            if (mode === 'access') {
+                document.getElementById('edit-pp-access-vlan').value = profile.access_vlan || '';
+                document.getElementById('edit-pp-stp-bpduguard').checked = profile.stp_bpduguard !== false;
+                document.getElementById('edit-pp-stp-portadminedge').checked = profile.stp_portadminedge !== false;
+            } else {
+                // Native/Untagged VLAN (check both field names)
+                const nativeVlan = profile.native_vlan || profile.trunk_untagged || '';
+                document.getElementById('edit-pp-native-vlan').value = nativeVlan;
+                
+                const trunkAll = profile.trunk_allowed_vlan_all === true;
+                document.getElementById('edit-pp-trunk-all').checked = trunkAll;
+                document.getElementById('edit-pp-trunk-vlans-group').style.display = trunkAll ? 'none' : 'block';
+                
+                // Get allowed VLANs (check both field names)
+                let allowedVlansList = profile.trunk_allowed_vlans || profile.trunk_allowed_vlan_list || [];
+                
+                // Handle range format like "50-255"
+                if (profile.trunk_allowed_vlan_range) {
+                    const rangeMatch = profile.trunk_allowed_vlan_range.match(/(\d+)-(\d+)/);
+                    if (rangeMatch) {
+                        const start = parseInt(rangeMatch[1]);
+                        const end = parseInt(rangeMatch[2]);
+                        allowedVlansList = [];
+                        for (let i = start; i <= end; i++) {
+                            allowedVlansList.push(i);
+                        }
+                    }
+                }
+                
+                if (!trunkAll && allowedVlansList.length > 0) {
+                    const select = document.getElementById('edit-pp-trunk-vlans');
+                    const existingValues = new Set(Array.from(select.options).map(o => o.value));
+                    
+                    // Add any VLANs that aren't in the dropdown
+                    for (const vid of allowedVlansList) {
+                        if (!existingValues.has(String(vid))) {
+                            const opt = document.createElement('option');
+                            opt.value = vid;
+                            opt.textContent = `${vid} (custom)`;
+                            select.appendChild(opt);
+                        }
+                    }
+                    
+                    // Now select the VLANs
+                    const allowedVlans = allowedVlansList.map(v => String(v));
+                    for (const opt of select.options) {
+                        opt.selected = allowedVlans.includes(opt.value);
+                    }
+                }
+            }
+            
+            document.getElementById('edit-port-profile-modal').classList.add('visible');
+        }
+        
+        function closeEditPortProfileModal() {
+            document.getElementById('edit-port-profile-modal').classList.remove('visible');
+        }
+        
+        function toggleEditPortProfileMode() {
+            const mode = document.getElementById('edit-pp-mode').value;
+            document.getElementById('edit-pp-access-fields').style.display = mode === 'access' ? 'block' : 'none';
+            document.getElementById('edit-pp-trunk-fields').style.display = mode === 'trunk' ? 'block' : 'none';
+        }
+        
+        function toggleEditTrunkVlanSelect() {
+            const allChecked = document.getElementById('edit-pp-trunk-all').checked;
+            document.getElementById('edit-pp-trunk-vlans-group').style.display = allChecked ? 'none' : 'block';
+        }
+        
+        async function savePortProfile() {
+            const btn = document.getElementById('btn-save-pp');
+            const originalName = document.getElementById('edit-pp-original-name').value;
+            const name = document.getElementById('edit-pp-name').value.trim();
+            const description = document.getElementById('edit-pp-description').value.trim();
+            const mode = document.getElementById('edit-pp-mode').value;
+            
+            if (!name) {
+                alert('Profile name is required');
+                return;
+            }
+            
+            const data = {
+                original_name: originalName,
+                profile_name: name,
+                description: description,
+                sw_port_mode: mode
+            };
+            
+            if (mode === 'access') {
+                const accessVlan = document.getElementById('edit-pp-access-vlan').value;
+                if (!accessVlan) {
+                    alert('Please select an access VLAN');
+                    return;
+                }
+                data.access_vlan = parseInt(accessVlan);
+                data.stp_bpduguard = document.getElementById('edit-pp-stp-bpduguard').checked;
+                data.stp_portadminedge = document.getElementById('edit-pp-stp-portadminedge').checked;
+                data.stp_portautoedgedisable = true;
+            } else {
+                const nativeVlan = document.getElementById('edit-pp-native-vlan').value;
+                if (nativeVlan) {
+                    data.native_vlan = parseInt(nativeVlan);
+                }
+                
+                const trunkAll = document.getElementById('edit-pp-trunk-all').checked;
+                if (trunkAll) {
+                    data.trunk_allowed_vlan_all = true;
+                } else {
+                    const trunkVlans = Array.from(document.getElementById('edit-pp-trunk-vlans').selectedOptions).map(o => parseInt(o.value));
+                    if (trunkVlans.length === 0) {
+                        alert('Please select at least one VLAN for trunk');
+                        return;
+                    }
+                    data.trunk_allowed_vlans = trunkVlans;
+                }
+            }
+            
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            
+            try {
+                const response = await fetch('/fabric-api.sh?action=update-port-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeEditPortProfileModal();
+                    await loadData();
+                } else {
+                    alert('Error: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Save Changes';
+        }
+        
+        function openDeletePortProfileModal(name) {
+            deletingPortProfile = name;
+            document.getElementById('delete-pp-name').textContent = name;
+            document.getElementById('delete-port-profile-modal').classList.add('visible');
+        }
+        
+        function closeDeletePortProfileModal() {
+            document.getElementById('delete-port-profile-modal').classList.remove('visible');
+            deletingPortProfile = null;
+        }
+        
+        async function confirmDeletePortProfile() {
+            if (!deletingPortProfile) return;
+            
+            const btn = document.getElementById('btn-confirm-delete-pp');
+            btn.disabled = true;
+            btn.textContent = 'Deleting...';
+            
+            try {
+                const response = await fetch('/fabric-api.sh?action=delete-port-profile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ profile_name: deletingPortProfile })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeDeletePortProfileModal();
+                    await loadData();
+                } else {
+                    alert('Error: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Delete';
+        }
+        
         document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
