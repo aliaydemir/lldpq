@@ -3924,6 +3924,10 @@ try:
     interface = data.get('interface', '')  # e.g., swp1.1002
     local_ip = data.get('local_ip', '')
     remote_peer = data.get('remote_peer', '')
+    weight = data.get('weight')  # Can be None or int
+    policy_name = data.get('policy_name')  # Can be None or string
+    policy_direction = data.get('policy_direction')  # Can be None or 'inbound'/'outbound'
+    soft_reconfiguration = data.get('soft_reconfiguration', False)  # Boolean
     bfd_enabled = data.get('bfd_enabled', False)
     
     if not all([device, vrf, interface, local_ip, remote_peer]):
@@ -4009,21 +4013,31 @@ try:
     # Update BFD setting for the External peer group
     external_pg['enable_bfd'] = bfd_enabled
     
-    # Update peer IP if changed
+    # Update peer
+    peers = external_pg.get('peers', {})
+    
+    if isinstance(peers, list):
+        # Convert list format to dict format for weight support
+        peers = {str(p): {} for p in peers}
+        external_pg['peers'] = peers
+    
+    # Handle peer IP change
     if original_peer and original_peer != remote_peer:
-        peers = external_pg.get('peers', {})
-        
-        if isinstance(peers, list):
-            # List format
-            if original_peer in peers:
-                peers.remove(original_peer)
-            if remote_peer not in peers:
-                peers.append(remote_peer)
-        else:
-            # Dict format
-            if original_peer in peers:
-                del peers[original_peer]
-            peers[remote_peer] = None
+        if original_peer in peers:
+            del peers[original_peer]
+    
+    # Set/update peer with weight, policy, and soft_reconfiguration
+    peer_config = {}
+    if weight is not None:
+        peer_config['weight'] = int(weight)
+    if policy_name and policy_direction:
+        peer_config['policy'] = {
+            'name': policy_name,
+            'direction': policy_direction
+        }
+    if soft_reconfiguration:
+        peer_config['soft_reconfiguration'] = True
+    peers[remote_peer] = peer_config if peer_config else {}
     
     # Save bgp_profiles
     _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(bgp_profiles_file), suffix='.tmp')
@@ -4143,8 +4157,35 @@ try:
         peer_groups = profile_config.get('peer_groups', {})
         if 'External' in peer_groups:
             external_pg = peer_groups['External']
+            peers_data = external_pg.get('peers', {})
+            
+            # Build peers dict with weight, policy, and soft_reconfiguration info
+            peers_with_info = {}
+            if isinstance(peers_data, dict):
+                for peer_ip, peer_config in peers_data.items():
+                    weight = None
+                    policy_name = None
+                    policy_direction = None
+                    soft_reconfiguration = False
+                    if isinstance(peer_config, dict):
+                        weight = peer_config.get('weight')
+                        soft_reconfiguration = peer_config.get('soft_reconfiguration', False)
+                        policy = peer_config.get('policy', {})
+                        if isinstance(policy, dict):
+                            policy_name = policy.get('name')
+                            policy_direction = policy.get('direction')
+                    peers_with_info[peer_ip] = {
+                        'weight': weight,
+                        'policy_name': policy_name,
+                        'policy_direction': policy_direction,
+                        'soft_reconfiguration': soft_reconfiguration
+                    }
+            else:
+                for peer_ip in peers_data:
+                    peers_with_info[peer_ip] = {'weight': None, 'policy_name': None, 'policy_direction': None, 'soft_reconfiguration': False}
+            
             profiles_with_external[profile_name] = {
-                'peers': list(external_pg.get('peers', {}).keys()) if isinstance(external_pg.get('peers'), dict) else external_pg.get('peers', []),
+                'peers': peers_with_info,
                 'bfd_enabled': external_pg.get('enable_bfd', False),
                 'description': external_pg.get('description', ''),
                 'has_external': True
@@ -4174,11 +4215,11 @@ try:
                 has_external = True
                 external_info = profiles_with_external[profile_name]
                 
-                # Get peer IPs from the profile
-                peer_ips = external_info['peers']
+                # Get peer IPs from the profile (dict with weight info)
+                peers_data = external_info['peers']
                 
                 # Try to match subinterfaces to find local IPs
-                for peer_ip in peer_ips:
+                for peer_ip, peer_info in peers_data.items():
                     # Find matching subinterface (same /31 network)
                     local_ip = ''
                     interface_name = ''
@@ -4209,6 +4250,10 @@ try:
                         'interface': interface_name,
                         'local_ip': local_ip.split('/')[0] if local_ip else '',
                         'remote_peer': str(peer_ip),
+                        'weight': peer_info.get('weight'),
+                        'policy_name': peer_info.get('policy_name'),
+                        'policy_direction': peer_info.get('policy_direction'),
+                        'soft_reconfiguration': peer_info.get('soft_reconfiguration', False),
                         'bfd_enabled': external_info['bfd_enabled']
                     })
         

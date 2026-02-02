@@ -1417,7 +1417,7 @@
                 const pgNames = Object.keys(peerGroups).slice(0, 2).join(', ');
                 const pgDisplay = pgCount > 0 ? `<span class="badge badge-purple">${pgCount}</span> ${pgNames}${pgCount > 2 ? '...' : ''}` : '-';
                 
-                html += `
+html += `
                     <tr>
                         <td><strong style="color: #76b900;">${name}</strong></td>
                         <td style="font-size: 12px;">${redistText}</td>
@@ -1476,7 +1476,7 @@
                     </label>
                 </div>
                 <input type="text" class="pg-description" placeholder="Description (optional)" style="width: 100%; padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff; margin-bottom: 10px;">
-                <textarea class="pg-peers" placeholder="Peers (one per line: swp1, swp2 or 10.0.0.1, 10.0.0.2)" style="width: 100%; padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff; min-height: 60px; font-family: monospace;"></textarea>
+                <textarea class="pg-peers" placeholder="Peers (one per line: 10.0.0.1, 10.0.0.2 or swp1, swp2)" style="width: 100%; padding: 8px; background: #2d2d2d; border: 1px solid #404040; border-radius: 4px; color: #fff; min-height: 60px; font-family: monospace;"></textarea>
             `;
             container.appendChild(entry);
         }
@@ -1623,6 +1623,7 @@
                 
                 // Format peers
                 let peersText = '';
+                
                 if (pg.peers) {
                     if (Array.isArray(pg.peers)) {
                         peersText = pg.peers.join('\n');

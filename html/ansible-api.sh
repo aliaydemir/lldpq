@@ -251,7 +251,9 @@ run_diff() {
     # Escape output for JSON
     local output_json=$(echo "$output" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')
     
-    if [ $exit_code -eq 0 ]; then
+    # Exit codes: 0=success, 2=unreachable (but we continue with ignore_unreachable)
+    # Treat both as success since playbook completes for reachable hosts
+    if [ $exit_code -eq 0 ] || [ $exit_code -eq 2 ]; then
         json_response "{\"success\": true, \"output\": $output_json}"
     else
         json_response "{\"success\": false, \"output\": $output_json, \"error\": \"Diff failed with exit code $exit_code\"}"
@@ -283,7 +285,8 @@ run_deploy() {
     # Escape output for JSON
     local output_json=$(echo "$output" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')
     
-    if [ $exit_code -eq 0 ]; then
+    # Exit codes: 0=success, 2=unreachable (but we continue with ignore_unreachable)
+    if [ $exit_code -eq 0 ] || [ $exit_code -eq 2 ]; then
         json_response "{\"success\": true, \"output\": $output_json}"
     else
         json_response "{\"success\": false, \"output\": $output_json, \"error\": \"Deploy failed with exit code $exit_code\"}"

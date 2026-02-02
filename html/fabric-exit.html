@@ -481,13 +481,17 @@
                     <th>Interface</th>
                     <th>Local IP</th>
                     <th>Remote Peer</th>
-                    <th style="width: 60px; text-align: center;">BFD</th>
+                    <th style="width: 70px; text-align: center;">Weight</th>
+                    <th style="width: 100px;">Policy</th>
+                    <th style="width: 80px;">Direction</th>
+                    <th style="width: 50px; text-align: center;">Soft</th>
+                    <th style="width: 50px; text-align: center;">BFD</th>
                     <th style="width: 70px; text-align: right;">Actions</th>
                 </tr>
             </thead>
             <tbody id="peers-table">
                 <tr>
-                    <td colspan="8">
+                    <td colspan="12">
                         <div class="loading">Loading external BGP peers...</div>
                     </td>
                 </tr>
@@ -540,6 +544,33 @@
                     <label>Remote Peer IP</label>
                     <input type="text" id="edit-remote-peer" placeholder="10.127.172.2">
                     <div class="form-hint">Remote BGP peer IP address</div>
+                </div>
+                
+                <div class="form-group" style="display: flex; align-items: center; gap: 20px; margin-bottom: 10px; flex-wrap: wrap;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0; white-space: nowrap;">
+                        <input type="checkbox" id="edit-weight-toggle" onchange="document.getElementById('edit-weight-section').style.display = this.checked ? 'block' : 'none'">
+                        <span style="text-transform: none; color: #ccc;">Set Weight</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0; white-space: nowrap;">
+                        <input type="checkbox" id="edit-policy-toggle" onchange="document.getElementById('edit-policy-section').style.display = this.checked ? 'grid' : 'none'">
+                        <span style="text-transform: none; color: #ccc;">Set Policy</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0; white-space: nowrap;">
+                        <input type="checkbox" id="edit-soft-reconfig">
+                        <span style="text-transform: none; color: #ccc;">Soft Reconfig</span>
+                    </label>
+                </div>
+                
+                <div id="edit-weight-section" style="display: none; margin-bottom: 15px;">
+                    <input type="number" id="edit-weight" placeholder="Weight (e.g. 75)" min="0" max="65535" style="width: 100%; padding: 10px 12px; background: #1e1e1e; border: 1px solid #404040; border-radius: 4px; color: #d4d4d4;">
+                </div>
+                
+                <div id="edit-policy-section" style="display: none; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <input type="text" id="edit-policy-name" placeholder="Policy name (e.g. deny_lo)" style="padding: 10px 12px; background: #1e1e1e; border: 1px solid #404040; border-radius: 4px; color: #d4d4d4;">
+                    <select id="edit-policy-direction" style="padding: 10px 12px; background: #1e1e1e; border: 1px solid #404040; border-radius: 4px; color: #d4d4d4;">
+                        <option value="inbound">Inbound</option>
+                        <option value="outbound">Outbound</option>
+                    </select>
                 </div>
                 
                 <div class="form-group">
@@ -610,6 +641,33 @@
                 <div class="form-group">
                     <label>Remote Peer IP</label>
                     <input type="text" id="add-remote-peer" placeholder="10.127.172.2">
+                </div>
+                
+                <div class="form-group" style="display: flex; align-items: center; gap: 20px; margin-bottom: 10px; flex-wrap: wrap;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0; white-space: nowrap;">
+                        <input type="checkbox" id="add-weight-toggle" onchange="document.getElementById('add-weight-section').style.display = this.checked ? 'block' : 'none'">
+                        <span style="text-transform: none; color: #ccc;">Set Weight</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0; white-space: nowrap;">
+                        <input type="checkbox" id="add-policy-toggle" onchange="document.getElementById('add-policy-section').style.display = this.checked ? 'grid' : 'none'">
+                        <span style="text-transform: none; color: #ccc;">Set Policy</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0; white-space: nowrap;">
+                        <input type="checkbox" id="add-soft-reconfig">
+                        <span style="text-transform: none; color: #ccc;">Soft Reconfig</span>
+                    </label>
+                </div>
+                
+                <div id="add-weight-section" style="display: none; margin-bottom: 15px;">
+                    <input type="number" id="add-weight" placeholder="Weight (e.g. 75)" min="0" max="65535" style="width: 100%; padding: 10px 12px; background: #1e1e1e; border: 1px solid #404040; border-radius: 4px; color: #d4d4d4;">
+                </div>
+                
+                <div id="add-policy-section" style="display: none; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 15px;">
+                    <input type="text" id="add-policy-name" placeholder="Policy name (e.g. deny_lo)" style="padding: 10px 12px; background: #1e1e1e; border: 1px solid #404040; border-radius: 4px; color: #d4d4d4;">
+                    <select id="add-policy-direction" style="padding: 10px 12px; background: #1e1e1e; border: 1px solid #404040; border-radius: 4px; color: #d4d4d4;">
+                        <option value="inbound">Inbound</option>
+                        <option value="outbound">Outbound</option>
+                    </select>
                 </div>
             </div>
             <div class="modal-footer">
@@ -823,7 +881,7 @@
             if (filtered.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="8">
+                        <td colspan="12">
                             <div class="empty-state">
                                 <svg viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
@@ -846,6 +904,20 @@
                     <td class="ip-address">${peer.local_ip || '-'}</td>
                     <td class="ip-address">${peer.remote_peer}</td>
                     <td style="text-align: center;">
+                        ${peer.weight ? `<span class="vrf-badge badge-cyan">${peer.weight}</span>` : '-'}
+                    </td>
+                    <td>
+                        ${peer.policy_name ? `<span class="vrf-badge badge-purple">${peer.policy_name}</span>` : '-'}
+                    </td>
+                    <td>
+                        ${peer.policy_direction ? `<span class="vrf-badge badge-orange">${peer.policy_direction}</span>` : '-'}
+                    </td>
+                    <td style="text-align: center;">
+                        <span class="bfd-status ${peer.soft_reconfiguration ? 'bfd-enabled' : 'bfd-disabled'}">
+                            ${peer.soft_reconfiguration ? '✓' : '✗'}
+                        </span>
+                    </td>
+                    <td style="text-align: center;">
                         <span class="bfd-status ${peer.bfd_enabled ? 'bfd-enabled' : 'bfd-disabled'}">
                             ${peer.bfd_enabled ? '✓' : '✗'}
                         </span>
@@ -861,7 +933,7 @@
             const tbody = document.getElementById('peers-table');
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="8">
+                    <td colspan="12">
                         <div class="empty-state" style="color: #f44336;">
                             <h3>Error</h3>
                             <p>${message}</p>
@@ -890,6 +962,23 @@
             document.getElementById('edit-profile').value = peer.bgp_profile;
             document.getElementById('edit-local-ip').value = peer.local_ip || '';
             document.getElementById('edit-remote-peer').value = peer.remote_peer;
+            
+            // Weight toggle
+            const hasWeight = peer.weight !== null && peer.weight !== undefined;
+            document.getElementById('edit-weight-toggle').checked = hasWeight;
+            document.getElementById('edit-weight-section').style.display = hasWeight ? 'block' : 'none';
+            document.getElementById('edit-weight').value = peer.weight || '';
+            
+            // Policy toggle
+            const hasPolicy = peer.policy_name && peer.policy_direction;
+            document.getElementById('edit-policy-toggle').checked = hasPolicy;
+            document.getElementById('edit-policy-section').style.display = hasPolicy ? 'grid' : 'none';
+            document.getElementById('edit-policy-name').value = peer.policy_name || '';
+            document.getElementById('edit-policy-direction').value = peer.policy_direction || 'outbound';
+            
+            // Soft Reconfig toggle
+            document.getElementById('edit-soft-reconfig').checked = peer.soft_reconfiguration || false;
+            
             document.getElementById('edit-bfd').value = peer.bfd_enabled ? 'true' : 'false';
             
             // Store original BFD value for warning
@@ -923,6 +1012,19 @@
             document.getElementById('add-vlan-id').value = '';
             document.getElementById('add-local-ip').value = '';
             document.getElementById('add-remote-peer').value = '';
+            
+            // Reset toggles
+            document.getElementById('add-weight-toggle').checked = false;
+            document.getElementById('add-weight-section').style.display = 'none';
+            document.getElementById('add-weight').value = '';
+            
+            document.getElementById('add-policy-toggle').checked = false;
+            document.getElementById('add-policy-section').style.display = 'none';
+            document.getElementById('add-policy-name').value = '';
+            document.getElementById('add-policy-direction').value = 'outbound';
+            
+            document.getElementById('add-soft-reconfig').checked = false;
+            
             currentDeviceConfig = null;
             
             // Populate device dropdown with ALL leaf devices
@@ -999,6 +1101,12 @@
         }
         
         async function savePeerEdit() {
+            const weightToggle = document.getElementById('edit-weight-toggle').checked;
+            const policyToggle = document.getElementById('edit-policy-toggle').checked;
+            const softReconfig = document.getElementById('edit-soft-reconfig').checked;
+            const weightVal = document.getElementById('edit-weight').value;
+            const policyName = document.getElementById('edit-policy-name').value.trim();
+            const policyDirection = document.getElementById('edit-policy-direction').value;
             const data = {
                 device: document.getElementById('edit-original-device').value,
                 vrf: document.getElementById('edit-original-vrf').value,
@@ -1006,6 +1114,10 @@
                 interface: document.getElementById('edit-interface').value,
                 local_ip: document.getElementById('edit-local-ip').value,
                 remote_peer: document.getElementById('edit-remote-peer').value,
+                weight: (weightToggle && weightVal) ? parseInt(weightVal) : null,
+                policy_name: (policyToggle && policyName) ? policyName : null,
+                policy_direction: (policyToggle && policyDirection) ? policyDirection : null,
+                soft_reconfiguration: softReconfig,
                 bfd_enabled: document.getElementById('edit-bfd').value === 'true'
             };
             
@@ -1098,6 +1210,12 @@
             const deviceIp = deviceOption.dataset.ip || '';
             const lastOctet = deviceIp ? deviceIp.split('.').pop() : '00';
             
+            const weightToggle = document.getElementById('add-weight-toggle').checked;
+            const policyToggle = document.getElementById('add-policy-toggle').checked;
+            const softReconfig = document.getElementById('add-soft-reconfig').checked;
+            const weightVal = document.getElementById('add-weight').value;
+            const policyName = document.getElementById('add-policy-name').value.trim();
+            const policyDirection = document.getElementById('add-policy-direction').value;
             const data = {
                 device,
                 vrf,
@@ -1105,6 +1223,10 @@
                 vlan_id: vlanId,
                 local_ip: localIp,
                 remote_peer: remotePeer,
+                weight: (weightToggle && weightVal) ? parseInt(weightVal) : null,
+                policy_name: (policyToggle && policyName) ? policyName : null,
+                policy_direction: (policyToggle && policyDirection) ? policyDirection : null,
+                soft_reconfiguration: softReconfig,
                 create_border_profile: !hasExternal,
                 border_profile_suffix: lastOctet
             };

@@ -1589,6 +1589,17 @@
                     
                     appendOutput('\n--- Full Diff Output ---\n');
                     appendFormattedOutput(output);
+                    
+                    // Show diff modal popup (same as runDiff)
+                    const summary = extractDiffSummary(output);
+                    if (summary) {
+                        showDiffModal(summary, pendingCount);
+                    } else {
+                        const fallbackMsg = pendingCount > 0 
+                            ? `${pendingCount} device(s) have configuration changes.\n\nCheck the output panel for details.`
+                            : 'All devices are in sync with Ansible configurations.';
+                        showDiffModal(fallbackMsg, pendingCount);
+                    }
                 } else {
                     appendOutput('Scan failed!', 'error');
                     appendFormattedOutput(result.error || result.output || 'Unknown error');
@@ -1631,10 +1642,13 @@
                     appendOutput('Deployment completed!', 'success');
                     appendFormattedOutput(result.output || '');
                     
-                    // Auto-scan after successful deploy to update status
-                    appendOutput('\n=== Auto-scanning to update status... ===', 'info');
+                    // Clear modified status for deployed devices
+                    for (const hostname of selected) {
+                        modifiedDevices.delete(hostname);
+                    }
+                    renderDeviceList();
+                    updateSummaryCards();
                     showLoading(false);
-                    await scanFabric();
                 } else {
                     appendOutput('Deployment failed!', 'error');
                     appendFormattedOutput(result.error || result.output || 'Unknown error');
