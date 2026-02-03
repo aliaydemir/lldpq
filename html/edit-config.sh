@@ -26,20 +26,32 @@ echo ""
 
 # Handle get-inventory action - return device groups from Ansible inventory
 if [ "$ACTION" = "get-inventory" ]; then
-    INVENTORY_FILE="$ANSIBLE_DIR/inventory/hosts"
-    
-    if [ ! -f "$INVENTORY_FILE" ]; then
+    # Fallback: try inventory.ini first, then hosts
+    if [ -f "$ANSIBLE_DIR/inventory/inventory.ini" ]; then
+        INVENTORY_FILE="$ANSIBLE_DIR/inventory/inventory.ini"
+    elif [ -f "$ANSIBLE_DIR/inventory/hosts" ]; then
+        INVENTORY_FILE="$ANSIBLE_DIR/inventory/hosts"
+    else
         echo '{"success": false, "error": "Inventory file not found"}'
         exit 0
     fi
     
     # Parse inventory file and output as JSON
+    export INVENTORY_FILE
     python3 << 'PYEOF'
 import json
 import re
 import os
 
-inventory_file = os.environ.get('ANSIBLE_DIR', '/home/nvidia/dt-mvp') + '/inventory/hosts'
+# Use INVENTORY_FILE from environment, fallback to checking both files
+inventory_file = os.environ.get('INVENTORY_FILE')
+if not inventory_file:
+    ansible_dir = os.environ.get('ANSIBLE_DIR', '/home/nvidia/dt-mvp')
+    for name in ['inventory.ini', 'hosts']:
+        path = f"{ansible_dir}/inventory/{name}"
+        if os.path.exists(path):
+            inventory_file = path
+            break
 
 groups = {}
 current_group = None

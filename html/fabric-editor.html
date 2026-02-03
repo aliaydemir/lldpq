@@ -128,6 +128,53 @@
             gap: 10px;
         }
         
+        .file-search-container {
+            padding: 8px 10px;
+            background: #252526;
+            border-bottom: 1px solid #3c3c3c;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .file-search-input {
+            flex: 1;
+            padding: 6px 10px;
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            color: #ccc;
+            font-size: 12px;
+            outline: none;
+        }
+        
+        .file-search-input:focus {
+            border-color: #76b900;
+        }
+        
+        .file-search-input::placeholder {
+            color: #666;
+        }
+        
+        .file-search-count {
+            font-size: 11px;
+            color: #888;
+            white-space: nowrap;
+        }
+        
+        .file-item.search-match {
+            background: rgba(118, 185, 0, 0.2) !important;
+        }
+        
+        .file-item.search-highlight {
+            background: rgba(118, 185, 0, 0.4) !important;
+            outline: 1px solid #76b900;
+        }
+        
+        .folder-header.search-match {
+            background: rgba(118, 185, 0, 0.15) !important;
+        }
+        
         .file-tree {
             flex: 1;
             overflow-y: auto;
@@ -1130,6 +1177,10 @@
                     <path d="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z"/>
                 </svg>
                 Fabric Editor
+            </div>
+            <div class="file-search-container">
+                <input type="text" id="file-search" class="file-search-input" placeholder="Search files..." oninput="filterFileTree(this.value)" onkeydown="handleSearchKeydown(event)">
+                <span id="file-search-count" class="file-search-count"></span>
             </div>
             <div id="file-tree" class="file-tree">
                 <!-- File tree will be populated by JavaScript -->
@@ -2200,6 +2251,93 @@
             }
         }
         
+        // File search functionality
+        let searchMatches = [];
+        let currentSearchIndex = -1;
+        
+        function filterFileTree(query) {
+            const items = document.querySelectorAll('.file-item');
+            const countEl = document.getElementById('file-search-count');
+            
+            // Clear previous highlights
+            items.forEach(item => {
+                item.classList.remove('search-match', 'search-highlight');
+            });
+            searchMatches = [];
+            currentSearchIndex = -1;
+            
+            if (!query.trim()) {
+                countEl.textContent = '';
+                // Collapse all folders when search is cleared
+                document.querySelectorAll('.folder').forEach(f => f.classList.add('collapsed'));
+                return;
+            }
+            
+            const lowerQuery = query.toLowerCase();
+            
+            // Find matching items and expand their parent folders
+            items.forEach(item => {
+                const filepath = item.getAttribute('data-path') || item.textContent;
+                if (filepath.toLowerCase().includes(lowerQuery)) {
+                    item.classList.add('search-match');
+                    searchMatches.push(item);
+                    
+                    // Expand parent folders - only use classList, no inline styles
+                    let parent = item.parentElement;
+                    while (parent && parent.id !== 'file-tree') {
+                        if (parent.classList && parent.classList.contains('folder')) {
+                            parent.classList.remove('collapsed');
+                        }
+                        parent = parent.parentElement;
+                    }
+                }
+            });
+            
+            // Update count and highlight first match
+            if (searchMatches.length > 0) {
+                countEl.textContent = searchMatches.length + ' found';
+                currentSearchIndex = 0;
+                highlightAndScrollToMatch(0);
+            } else {
+                countEl.textContent = 'No matches';
+            }
+        }
+        
+        function highlightAndScrollToMatch(index) {
+            // Remove previous highlight
+            searchMatches.forEach(item => item.classList.remove('search-highlight'));
+            
+            if (index >= 0 && index < searchMatches.length) {
+                const item = searchMatches[index];
+                item.classList.add('search-highlight');
+                item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Update count display
+                const countEl = document.getElementById('file-search-count');
+                countEl.textContent = (index + 1) + '/' + searchMatches.length;
+            }
+        }
+        
+        function handleSearchKeydown(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                if (searchMatches.length > 0) {
+                    if (event.shiftKey) {
+                        // Previous match
+                        currentSearchIndex = (currentSearchIndex - 1 + searchMatches.length) % searchMatches.length;
+                    } else {
+                        // Next match
+                        currentSearchIndex = (currentSearchIndex + 1) % searchMatches.length;
+                    }
+                    highlightAndScrollToMatch(currentSearchIndex);
+                }
+            } else if (event.key === 'Escape') {
+                // Clear search
+                document.getElementById('file-search').value = '';
+                filterFileTree('');
+            }
+        }
+        
         // Render file tree (nested structure)
         function renderFileTree(files) {
             const tree = document.getElementById('file-tree');
@@ -2225,9 +2363,18 @@
                 });
             });
             
+            // Folders and files to hide from the tree (at root level)
+            const hiddenFolders = ['assets', 'configs', 'files', 'scripts', 'srv-configs', 'topology'];
+            const hiddenFiles = ['.gitignore', 'ansible.cfg'];
+            
             // Render tree recursively
             function renderNode(node, parentEl, depth = 0, currentPath = '') {
-                const entries = Object.keys(node).filter(k => k !== '_files').sort();
+                let entries = Object.keys(node).filter(k => k !== '_files').sort();
+                
+                // Hide certain folders at root level
+                if (depth === 0) {
+                    entries = entries.filter(k => !hiddenFolders.includes(k));
+                }
                 
                 // Render folders
                 entries.forEach(folderName => {
@@ -2254,7 +2401,12 @@
                 
                 // Render files
                 if (node._files) {
-                    node._files.sort((a, b) => a.name.localeCompare(b.name)).forEach(file => {
+                    let filesToRender = node._files.sort((a, b) => a.name.localeCompare(b.name));
+                    // Hide certain files at root level
+                    if (depth === 0) {
+                        filesToRender = filesToRender.filter(f => !hiddenFiles.includes(f.name));
+                    }
+                    filesToRender.forEach(file => {
                         const fileEl = document.createElement('div');
                         fileEl.className = 'file-item';
                         fileEl.style.paddingLeft = (depth * 0 + 25) + 'px';

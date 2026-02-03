@@ -101,9 +101,16 @@ list_files() {
         files_json="[]"
     fi
     
-    # Get groups from inventory/hosts file
+    # Get groups from inventory file (fallback: inventory.ini -> hosts)
     local groups=()
-    if [ -f "$ANSIBLE_DIR/inventory/hosts" ]; then
+    local inventory_file=""
+    if [ -f "$ANSIBLE_DIR/inventory/inventory.ini" ]; then
+        inventory_file="$ANSIBLE_DIR/inventory/inventory.ini"
+    elif [ -f "$ANSIBLE_DIR/inventory/hosts" ]; then
+        inventory_file="$ANSIBLE_DIR/inventory/hosts"
+    fi
+    
+    if [ -n "$inventory_file" ]; then
         while IFS= read -r line; do
             # Skip comments and empty lines
             if [[ "$line" =~ ^[[:space:]]*# ]] || [[ "$line" =~ ^[[:space:]]*$ ]]; then
@@ -115,7 +122,7 @@ list_files() {
                 current_group="${BASH_REMATCH[1]}"
                 groups+=("$current_group")
             fi
-        done < "$ANSIBLE_DIR/inventory/hosts"
+        done < "$inventory_file"
     fi
     
     # Get individual hosts from host_vars directory

@@ -24,14 +24,20 @@ parse_query() {
     HOSTNAME=$(echo "$query" | grep -oP 'hostname=\K[^&]*' | head -1 | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read().strip()))")
 }
 
-# List devices from inventory/hosts
+# List devices from inventory (fallback: inventory.ini -> hosts)
 list_devices() {
-    local hosts_file="$ANSIBLE_DIR/inventory/hosts"
-    
-    if [[ ! -f "$hosts_file" ]]; then
-        echo '{"success": false, "error": "Inventory file not found: '"$hosts_file"'"}'
+    # Fallback: try inventory.ini first, then hosts
+    local hosts_file=""
+    if [[ -f "$ANSIBLE_DIR/inventory/inventory.ini" ]]; then
+        hosts_file="$ANSIBLE_DIR/inventory/inventory.ini"
+    elif [[ -f "$ANSIBLE_DIR/inventory/hosts" ]]; then
+        hosts_file="$ANSIBLE_DIR/inventory/hosts"
+    else
+        echo '{"success": false, "error": "Inventory file not found"}'
         return
     fi
+    
+    export INVENTORY_FILE="$hosts_file"
     
     # Python script to parse hosts file
     python3 << 'PYTHON'
@@ -40,7 +46,14 @@ import json
 import os
 
 ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
-hosts_file = f"{ansible_dir}/inventory/hosts"
+# Use INVENTORY_FILE from environment, fallback to checking both files
+hosts_file = os.environ.get('INVENTORY_FILE')
+if not hosts_file:
+    for name in ['inventory.ini', 'hosts']:
+        path = f"{ansible_dir}/inventory/{name}"
+        if os.path.exists(path):
+            hosts_file = path
+            break
 
 devices = {}
 current_group = None
@@ -126,7 +139,15 @@ import os
 ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
 hostname = "$hostname"
 host_vars_file = f"{ansible_dir}/inventory/host_vars/{hostname}.yaml"
-hosts_file = f"{ansible_dir}/inventory/hosts"
+# Fallback: try inventory.ini first, then hosts
+hosts_file = None
+for name in ['inventory.ini', 'hosts']:
+    path = f"{ansible_dir}/inventory/{name}"
+    if os.path.exists(path):
+        hosts_file = path
+        break
+if not hosts_file:
+    hosts_file = f"{ansible_dir}/inventory/hosts"  # default for error message
 port_profiles_file = f"{ansible_dir}/inventory/group_vars/all/sw_port_profiles.yaml"
 vlan_profiles_file = f"{ansible_dir}/inventory/group_vars/all/vlan_profiles.yaml"
 
