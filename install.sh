@@ -18,7 +18,7 @@ while getopts "y" opt; do
     esac
 done
 
-echo "🚀 LLDPq Installation Script"
+echo "LLDPq Installation Script"
 echo "=================================="
 if [[ "$AUTO_YES" == "true" ]]; then
     echo "   Running in non-interactive mode (-y)"
@@ -26,7 +26,7 @@ fi
 
 # Check if running via sudo from non-root user (causes $HOME issues)
 if [[ $EUID -eq 0 ]] && [[ -n "$SUDO_USER" ]] && [[ "$SUDO_USER" != "root" ]]; then
-    echo "❌ Please run without sudo: ./install.sh"
+    echo "[!] Please run without sudo: ./install.sh"
     echo "   The script will ask for sudo when needed"
     exit 1
 fi
@@ -38,7 +38,7 @@ fi
 
 # Check if we're in the lldpq-src directory
 if [[ ! -f "README.md" ]] || [[ ! -d "lldpq" ]]; then
-    echo "❌ Please run this script from the lldpq-src directory"
+    echo "[!] Please run this script from the lldpq-src directory"
     echo "   Make sure you're in the directory containing README.md and lldpq/"
     exit 1
 fi
@@ -53,7 +53,7 @@ echo "[00] Checking for existing installation..."
 EXISTING_INSTALL=false
 if [[ -f /etc/lldpq.conf ]] || [[ -f /etc/lldpq-users.conf ]] || [[ -d /var/lib/lldpq ]]; then
     EXISTING_INSTALL=true
-    echo "   ⚠️  Existing LLDPq installation detected:"
+    echo "   [!] Existing LLDPq installation detected:"
     [[ -f /etc/lldpq.conf ]] && echo "     • /etc/lldpq.conf"
     [[ -f /etc/lldpq-users.conf ]] && echo "     • /etc/lldpq-users.conf (user credentials)"
     [[ -d /var/lib/lldpq ]] && echo "     • /var/lib/lldpq/ (sessions)"
@@ -70,12 +70,12 @@ if [[ -f /etc/lldpq.conf ]] || [[ -f /etc/lldpq-users.conf ]] || [[ -d /var/lib/
         read -p "   Clean install? [y/N]: " clean_response
     fi
     if [[ "$clean_response" =~ ^[Yy]$ ]]; then
-        echo "   🧹 Cleaning existing installation..."
+        echo "   Cleaning existing installation..."
         sudo rm -f /etc/lldpq.conf
         sudo rm -f /etc/lldpq-users.conf
         sudo rm -rf /var/lib/lldpq
         # Don't remove ~/lldpq here - it has user configs like devices.yaml
-        echo "   ✅ Old installation files removed"
+        echo "   Old installation files removed"
     else
         echo "   Keeping existing files"
     fi
@@ -88,7 +88,7 @@ echo "[01] Checking for conflicting services..."
 
 # Check if Apache2 is running (would conflict with nginx on port 80)
 if systemctl is-active --quiet apache2 2>/dev/null; then
-    echo "⚠️  Apache2 is running on port 80!"
+    echo "[!] Apache2 is running on port 80!"
     echo "   LLDPq uses nginx as web server."
     echo ""
     echo "   Options:"
@@ -104,9 +104,9 @@ if systemctl is-active --quiet apache2 2>/dev/null; then
     if [[ ! "$response" =~ ^[Nn]$ ]]; then
         sudo systemctl stop apache2
         sudo systemctl disable apache2
-        echo "   ✅ Apache2 stopped and disabled"
+        echo "   Apache2 stopped and disabled"
     else
-        echo "   ❌ Please stop Apache2 or configure nginx to use a different port"
+        echo "   [!] Please stop Apache2 or configure nginx to use a different port"
         echo "   Edit /etc/nginx/sites-available/lldpq to change the port"
         exit 1
     fi
@@ -114,8 +114,12 @@ fi
 
 echo ""
 echo "[02] Installing required packages..."
-sudo apt update
-sudo apt install -y nginx fcgiwrap python3 python3-pip python3-yaml util-linux bsdextrautils sshpass unzip acl
+sudo apt update || { echo "[!] apt update failed"; exit 1; }
+sudo apt install -y nginx fcgiwrap python3 python3-pip python3-yaml util-linux bsdextrautils sshpass unzip acl || {
+    echo "[!] Package installation failed"
+    echo "   Try running: sudo apt --fix-broken install"
+    exit 1
+}
 sudo systemctl enable --now nginx
 sudo systemctl enable --now fcgiwrap
 
@@ -126,32 +130,26 @@ MONACO_DIR="$WEB_ROOT/monaco"
 if [[ ! -d "$MONACO_DIR" ]]; then
     echo "   - Downloading Monaco Editor v${MONACO_VERSION}..."
     TMP_DIR=$(mktemp -d)
-    curl -sL "https://registry.npmjs.org/monaco-editor/-/monaco-editor-${MONACO_VERSION}.tgz" -o "$TMP_DIR/monaco.tgz"
-    mkdir -p "$TMP_DIR/monaco"
-    tar -xzf "$TMP_DIR/monaco.tgz" -C "$TMP_DIR/monaco" --strip-components=1
-    sudo mkdir -p "$MONACO_DIR"
-    sudo cp -r "$TMP_DIR/monaco/min/vs" "$MONACO_DIR/"
+    if curl -sL "https://registry.npmjs.org/monaco-editor/-/monaco-editor-${MONACO_VERSION}.tgz" -o "$TMP_DIR/monaco.tgz"; then
+        mkdir -p "$TMP_DIR/monaco"
+        tar -xzf "$TMP_DIR/monaco.tgz" -C "$TMP_DIR/monaco" --strip-components=1
+        sudo mkdir -p "$MONACO_DIR"
+        sudo cp -r "$TMP_DIR/monaco/min/vs" "$MONACO_DIR/"
+        echo "   Monaco Editor installed to $MONACO_DIR"
+    else
+        echo "   [!] Monaco Editor download failed (editor will use CDN fallback)"
+    fi
     rm -rf "$TMP_DIR"
-    echo "   ✅ Monaco Editor installed to $MONACO_DIR"
 else
     echo "   Monaco Editor already exists, skipping download"
 fi
 
-echo "   - Downloading js-yaml for YAML validation..."
-JSYAML_VERSION="4.1.0"
-if [[ ! -f "$WEB_ROOT/css/js-yaml.min.js" ]]; then
-    curl -sL "https://cdn.jsdelivr.net/npm/js-yaml@${JSYAML_VERSION}/dist/js-yaml.min.js" -o "$WEB_ROOT/css/js-yaml.min.js" 2>/dev/null || \
-    sudo curl -sL "https://cdn.jsdelivr.net/npm/js-yaml@${JSYAML_VERSION}/dist/js-yaml.min.js" -o "$WEB_ROOT/css/js-yaml.min.js"
-    echo "   ✅ js-yaml installed"
-else
-    echo "   js-yaml already exists, skipping download"
-fi
-
-
-# Install Python packages for alert system
-echo "   - Installing Python packages for alerts..."
-pip3 install --user requests >/dev/null 2>&1 || echo "   ⚠️  requests already installed"
-echo "Required packages installed"
+# Install Python packages for LLDPq
+echo "   - Installing Python packages..."
+pip3 install --user requests ruamel.yaml >/dev/null 2>&1 || \
+    pip3 install requests ruamel.yaml >/dev/null 2>&1 || \
+    echo "   [!] Some Python packages may need manual installation"
+echo "   Python packages installed (requests, ruamel.yaml)"
 
 echo ""
 echo "[03] Copying files to system directories..."
@@ -160,6 +158,17 @@ sudo cp -r etc/* /etc/
 
 echo "   - Copying html/* to $WEB_ROOT/"
 sudo cp -r html/* "$WEB_ROOT/"
+
+echo "   - Downloading js-yaml for YAML validation..."
+JSYAML_VERSION="4.1.0"
+if [[ ! -f "$WEB_ROOT/css/js-yaml.min.js" ]]; then
+    sudo curl -sL "https://cdn.jsdelivr.net/npm/js-yaml@${JSYAML_VERSION}/dist/js-yaml.min.js" -o "$WEB_ROOT/css/js-yaml.min.js" || \
+        echo "   [!] js-yaml download failed (will work without offline validation)"
+    echo "   js-yaml installed"
+else
+    echo "   js-yaml already exists, skipping download"
+fi
+
 echo "   - Copying VERSION to $WEB_ROOT/"
 sudo cp VERSION "$WEB_ROOT/"
 sudo chmod 644 "$WEB_ROOT/VERSION"
@@ -190,13 +199,13 @@ if [[ -L ~/lldpq/topology.dot ]]; then
     # Already a symlink - just ensure web root file has correct permissions
     echo "     topology.dot symlink already exists"
     if [[ -f "$WEB_ROOT/topology.dot" ]]; then
-        sudo chown www-data:$USER "$WEB_ROOT/topology.dot"
+        sudo chown "www-data:$USER" "$WEB_ROOT/topology.dot"
         sudo chmod 664 "$WEB_ROOT/topology.dot"
     fi
 elif [[ -f ~/lldpq/topology.dot ]]; then
     # Regular file - move to web root and create symlink
     sudo mv ~/lldpq/topology.dot "$WEB_ROOT/topology.dot"
-    sudo chown www-data:$USER "$WEB_ROOT/topology.dot"
+    sudo chown "www-data:$USER" "$WEB_ROOT/topology.dot"
     sudo chmod 664 "$WEB_ROOT/topology.dot"
     ln -sf "$WEB_ROOT/topology.dot" ~/lldpq/topology.dot
 else
@@ -205,7 +214,7 @@ else
     if [[ ! -f "$WEB_ROOT/topology.dot" ]]; then
         echo "# LLDPq Topology Definition" | sudo tee "$WEB_ROOT/topology.dot" > /dev/null
     fi
-    sudo chown www-data:$USER "$WEB_ROOT/topology.dot"
+    sudo chown "www-data:$USER" "$WEB_ROOT/topology.dot"
     sudo chmod 664 "$WEB_ROOT/topology.dot"
     ln -sf "$WEB_ROOT/topology.dot" ~/lldpq/topology.dot
 fi
@@ -216,13 +225,13 @@ if [[ -L ~/lldpq/topology_config.yaml ]]; then
     # Already a symlink - just ensure web root file has correct permissions
     echo "     topology_config.yaml symlink already exists"
     if [[ -f "$WEB_ROOT/topology_config.yaml" ]]; then
-        sudo chown www-data:$USER "$WEB_ROOT/topology_config.yaml"
+        sudo chown "www-data:$USER" "$WEB_ROOT/topology_config.yaml"
         sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
     fi
 elif [[ -f ~/lldpq/topology_config.yaml ]]; then
     # Regular file - move to web root and create symlink
     sudo mv ~/lldpq/topology_config.yaml "$WEB_ROOT/topology_config.yaml"
-    sudo chown www-data:$USER "$WEB_ROOT/topology_config.yaml"
+    sudo chown "www-data:$USER" "$WEB_ROOT/topology_config.yaml"
     sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
     ln -sf "$WEB_ROOT/topology_config.yaml" ~/lldpq/topology_config.yaml
 fi
@@ -236,13 +245,13 @@ for dir in "$HOME"/*; do
     if [[ -d "$dir" ]] && [[ -d "$dir/inventory" ]] && [[ -d "$dir/playbooks" ]]; then
         ANSIBLE_DIR="$dir"
         echo ""
-        echo "   ✅ Found Ansible directory: $ANSIBLE_DIR"
+        echo "   Found Ansible directory: $ANSIBLE_DIR"
         break
     fi
 done
 
 if [[ -z "$ANSIBLE_DIR" ]]; then
-    echo "   ℹ️  Ansible directory not detected automatically"
+    echo "   Ansible directory not detected automatically"
     echo ""
     echo "   Looking for a directory containing:"
     echo "     - inventory/ (Ansible inventory files)"
@@ -294,21 +303,21 @@ fi
 
 # Validate ansible directory
 if [[ -n "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR" ]]; then
-    echo "   ✅ Using Ansible directory: $ANSIBLE_DIR"
+    echo "   Using Ansible directory: $ANSIBLE_DIR"
     
     # Add www-data to current user's group for ansible file access
     echo "   Configuring web access permissions..."
-    sudo usermod -a -G $(whoami) www-data
-    echo "   ✅ www-data user added to $(whoami) group"
+    sudo usermod -a -G "$(whoami)" www-data
+    echo "   www-data user added to $(whoami) group"
     
     # Ensure ansible directory has group write permission (for file editing/delete)
     chmod -R g+rw "$ANSIBLE_DIR" 2>/dev/null || true
-    echo "   ✅ Group write permission set on ansible directory"
+    echo "   Group write permission set on ansible directory"
     
     # Set default ACL so new files also get group write permission (survives git operations)
     if command -v setfacl &> /dev/null; then
         setfacl -R -d -m g::rwX "$ANSIBLE_DIR" 2>/dev/null || true
-        echo "   ✅ Default ACL set (new files will inherit group write permission)"
+        echo "   Default ACL set (new files will inherit group write permission)"
     fi
     
     # If git repo exists, add hooks to fix permissions after git operations
@@ -326,7 +335,7 @@ HOOKEOF
         # Create post-checkout hook (for git checkout, git reset)
         cp "$ANSIBLE_DIR/.git/hooks/post-merge" "$ANSIBLE_DIR/.git/hooks/post-checkout"
         
-        echo "   ✅ Git hooks created (post-merge, post-checkout)"
+        echo "   Git hooks created (post-merge, post-checkout)"
     fi
     
     # Add git safe.directory for www-data user (for git operations from web)
@@ -341,13 +350,13 @@ HOOKEOF
     git -C "$ANSIBLE_DIR" config core.sharedRepository group 2>/dev/null || true
     
     # Fix existing .git directory permissions
-    sudo chown -R $(whoami):www-data "$ANSIBLE_DIR/.git" 2>/dev/null || true
+    sudo chown -R "$(whoami):www-data" "$ANSIBLE_DIR/.git" 2>/dev/null || true
     sudo chmod -R g+rwX "$ANSIBLE_DIR/.git" 2>/dev/null || true
     
-    echo "   ✅ Git safe.directory and sharedRepository configured for web access"
+    echo "   Git safe.directory and sharedRepository configured for web access"
 elif [[ -n "$ANSIBLE_DIR" ]]; then
     # User specified a path but it doesn't exist
-    echo "   ⚠️  Warning: Ansible directory '$ANSIBLE_DIR' does not exist"
+    echo "   [!] Warning: Ansible directory '$ANSIBLE_DIR' does not exist"
     echo "   It will be created when needed or you can create it manually"
 fi
 
@@ -429,18 +438,18 @@ echo "[06] Adding cron jobs..."
 sudo sed -i '/lldpq\|monitor\|get-conf/d' /etc/crontab
 
 # Add new cron jobs
-echo "*/5 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab
-echo "0 */12 * * * $(whoami) /usr/local/bin/get-conf" | sudo tee -a /etc/crontab
-echo "* * * * * $(whoami) /usr/local/bin/lldpq-trigger" | sudo tee -a /etc/crontab
-echo "0 0 * * * $(whoami) cd $HOME/lldpq && cp /var/www/html/topology.dot topology.dot.bkp 2>/dev/null; cp /var/www/html/topology_config.yaml topology_config.yaml.bkp 2>/dev/null; git add -A; git diff --cached --quiet || git commit -m 'auto: \$(date +\\%Y-\\%m-\\%d)'" | sudo tee -a /etc/crontab
+echo "*/5 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab > /dev/null
+echo "0 */12 * * * $(whoami) /usr/local/bin/get-conf" | sudo tee -a /etc/crontab > /dev/null
+echo "* * * * * $(whoami) /usr/local/bin/lldpq-trigger" | sudo tee -a /etc/crontab > /dev/null
+echo "0 0 * * * $(whoami) cd $HOME/lldpq && cp /var/www/html/topology.dot topology.dot.bkp 2>/dev/null; cp /var/www/html/topology_config.yaml topology_config.yaml.bkp 2>/dev/null; git add -A; git diff --cached --quiet || git commit -m 'auto: \$(date +\\%Y-\\%m-\\%d)'" | sudo tee -a /etc/crontab > /dev/null
 
 # Add Fabric Scan cron job if Ansible directory exists
 if [[ -d "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR/playbooks" ]]; then
-    echo "33 3 * * * $(whoami) $HOME/lldpq/fabric-scan-cron.sh" | sudo tee -a /etc/crontab
+    echo "33 3 * * * $(whoami) $HOME/lldpq/fabric-scan-cron.sh" | sudo tee -a /etc/crontab > /dev/null
     chmod +x ~/lldpq/fabric-scan-cron.sh
     # Create cache file with user write permission
     sudo touch "$WEB_ROOT/fabric-scan-cache.json"
-    sudo chown $(whoami):www-data "$WEB_ROOT/fabric-scan-cache.json"
+    sudo chown "$(whoami):www-data" "$WEB_ROOT/fabric-scan-cache.json"
     sudo chmod 664 "$WEB_ROOT/fabric-scan-cache.json"
     echo "   - fabric-scan:     daily at 03:33 (Ansible diff check)"
 fi

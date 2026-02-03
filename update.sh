@@ -19,7 +19,7 @@ while getopts "y" opt; do
     esac
 done
 
-echo "🔄 LLDPq Update Script"
+echo "LLDPq Update Script"
 echo "======================"
 if [[ "$AUTO_YES" == "true" ]]; then
     echo "   Running in non-interactive mode (-y)"
@@ -27,7 +27,7 @@ fi
 
 # Check if running via sudo from non-root user (causes $HOME issues)
 if [[ $EUID -eq 0 ]] && [[ -n "$SUDO_USER" ]] && [[ "$SUDO_USER" != "root" ]]; then
-    echo "❌ Please run without sudo: ./update.sh"
+    echo "[!] Please run without sudo: ./update.sh"
     echo "   The script will ask for sudo when needed"
     exit 1
 fi
@@ -39,7 +39,7 @@ fi
 
 # Check if we're in the lldpq-src directory
 if [[ ! -f "README.md" ]] || [[ ! -d "lldpq" ]]; then
-    echo "❌ Please run this script from the lldpq-src directory"
+    echo "[!] Please run this script from the lldpq-src directory"
     echo "   Make sure you're in the directory containing README.md and lldpq/"
     exit 1
 fi
@@ -89,6 +89,34 @@ rm -rf "$system_config_backup"
 
 echo "   - Updating html/* to $WEB_ROOT/"
 sudo cp -r html/* "$WEB_ROOT/"
+
+# Ensure Monaco Editor exists
+MONACO_DIR="$WEB_ROOT/monaco"
+if [[ ! -d "$MONACO_DIR" ]]; then
+    echo "   - Downloading Monaco Editor..."
+    MONACO_VERSION="0.45.0"
+    TMP_DIR=$(mktemp -d)
+    if curl -sL "https://registry.npmjs.org/monaco-editor/-/monaco-editor-${MONACO_VERSION}.tgz" -o "$TMP_DIR/monaco.tgz"; then
+        mkdir -p "$TMP_DIR/monaco"
+        tar -xzf "$TMP_DIR/monaco.tgz" -C "$TMP_DIR/monaco" --strip-components=1
+        sudo mkdir -p "$MONACO_DIR"
+        sudo cp -r "$TMP_DIR/monaco/min/vs" "$MONACO_DIR/"
+        echo "   Monaco Editor installed"
+    else
+        echo "   [!] Monaco Editor download failed (editor will use CDN fallback)"
+    fi
+    rm -rf "$TMP_DIR"
+fi
+
+# Ensure js-yaml exists for YAML validation
+echo "   - Verifying js-yaml..."
+JSYAML_VERSION="4.1.0"
+if [[ ! -f "$WEB_ROOT/css/js-yaml.min.js" ]]; then
+    echo "     Downloading js-yaml..."
+    sudo curl -sL "https://cdn.jsdelivr.net/npm/js-yaml@${JSYAML_VERSION}/dist/js-yaml.min.js" -o "$WEB_ROOT/css/js-yaml.min.js" || \
+        echo "     [!] js-yaml download failed (will work without offline validation)"
+fi
+
 echo "   - Updating VERSION to $WEB_ROOT/"
 sudo cp VERSION "$WEB_ROOT/"
 sudo chmod 644 "$WEB_ROOT/VERSION"
@@ -133,7 +161,7 @@ else
     if [[ -f "$HOME/lldpq/topology.dot" ]] && [[ ! -L "$HOME/lldpq/topology.dot" ]]; then
         sudo mv "$HOME/lldpq/topology.dot" "$WEB_ROOT/topology.dot"
         # www-data owns it (for web editing), user's group has access too
-        sudo chown www-data:$USER "$WEB_ROOT/topology.dot"
+        sudo chown "www-data:$USER" "$WEB_ROOT/topology.dot"
         sudo chmod 664 "$WEB_ROOT/topology.dot"
         ln -sf "$WEB_ROOT/topology.dot" "$HOME/lldpq/topology.dot"
     fi
@@ -151,7 +179,7 @@ else
     # First time setup: move topology_config.yaml to web root
     if [[ -f "$HOME/lldpq/topology_config.yaml" ]] && [[ ! -L "$HOME/lldpq/topology_config.yaml" ]]; then
         sudo mv "$HOME/lldpq/topology_config.yaml" "$WEB_ROOT/topology_config.yaml"
-        sudo chown www-data:$USER "$WEB_ROOT/topology_config.yaml"
+        sudo chown "www-data:$USER" "$WEB_ROOT/topology_config.yaml"
         sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
         ln -sf "$WEB_ROOT/topology_config.yaml" "$HOME/lldpq/topology_config.yaml"
     fi
@@ -166,12 +194,12 @@ fi
 
 # Verify if existing ANSIBLE_DIR still exists
 if [[ -n "$ANSIBLE_DIR_EXISTING" ]] && [[ -d "$ANSIBLE_DIR_EXISTING" ]]; then
-    echo "     ✅ Existing ANSIBLE_DIR still valid: $ANSIBLE_DIR_EXISTING"
+    echo "     Existing ANSIBLE_DIR still valid: $ANSIBLE_DIR_EXISTING"
     ANSIBLE_DIR="$ANSIBLE_DIR_EXISTING"
     
     # Ensure www-data is in user's group (may have been reset)
     echo "     Ensuring web access permissions..."
-    sudo usermod -a -G $(whoami) www-data 2>/dev/null || true
+    sudo usermod -a -G "$(whoami)" www-data 2>/dev/null || true
     
     # Ensure ansible directory has group write permission
     chmod -R g+rw "$ANSIBLE_DIR" 2>/dev/null || true
@@ -207,22 +235,22 @@ HOOKEOF
     git -C "$ANSIBLE_DIR" config core.sharedRepository group 2>/dev/null || true
     
     # Fix existing .git directory permissions
-    sudo chown -R $(whoami):www-data "$ANSIBLE_DIR/.git" 2>/dev/null || true
+    sudo chown -R "$(whoami):www-data" "$ANSIBLE_DIR/.git" 2>/dev/null || true
     sudo chmod -R g+rwX "$ANSIBLE_DIR/.git" 2>/dev/null || true
 else
     if [[ -n "$ANSIBLE_DIR_EXISTING" ]]; then
-        echo "     ⚠️  Previous ANSIBLE_DIR no longer exists: $ANSIBLE_DIR_EXISTING"
+        echo "     [!] Previous ANSIBLE_DIR no longer exists: $ANSIBLE_DIR_EXISTING"
     fi
     
     # Try to detect ansible directory
-    echo "     🔍 Searching for Ansible directory..."
+    echo "     Searching for Ansible directory..."
     ANSIBLE_DIR=""
     
     # Search all directories in home for ones containing inventory/ and playbooks/
     for dir in "$HOME"/*; do
         if [[ -d "$dir" ]] && [[ -d "$dir/inventory" ]] && [[ -d "$dir/playbooks" ]]; then
             ANSIBLE_DIR="$dir"
-            echo "     ✅ Found Ansible directory: $ANSIBLE_DIR"
+            echo "     Found Ansible directory: $ANSIBLE_DIR"
             break
         fi
     done
@@ -230,44 +258,44 @@ else
     # Configure web access if found
     if [[ -n "$ANSIBLE_DIR" ]]; then
         echo "     Ensuring web access permissions..."
-        sudo usermod -a -G $(whoami) www-data 2>/dev/null || true
+        sudo usermod -a -G "$(whoami)" www-data 2>/dev/null || true
         
-    # Ensure ansible directory has group write permission
-    chmod -R g+rw "$ANSIBLE_DIR" 2>/dev/null || true
-    
-    # Set default ACL so new files also get group write permission (survives git operations)
-    if command -v setfacl &> /dev/null; then
-        setfacl -R -d -m g::rwX "$ANSIBLE_DIR" 2>/dev/null || true
-    fi
-    
-    # If git repo exists, add hooks to fix permissions after git operations
-    if [[ -d "$ANSIBLE_DIR/.git" ]]; then
-        # Create post-merge hook
-        cat > "$ANSIBLE_DIR/.git/hooks/post-merge" << 'HOOKEOF'
+        # Ensure ansible directory has group write permission
+        chmod -R g+rw "$ANSIBLE_DIR" 2>/dev/null || true
+        
+        # Set default ACL so new files also get group write permission (survives git operations)
+        if command -v setfacl &> /dev/null; then
+            setfacl -R -d -m g::rwX "$ANSIBLE_DIR" 2>/dev/null || true
+        fi
+        
+        # If git repo exists, add hooks to fix permissions after git operations
+        if [[ -d "$ANSIBLE_DIR/.git" ]]; then
+            # Create post-merge hook
+            cat > "$ANSIBLE_DIR/.git/hooks/post-merge" << 'HOOKEOF'
 #!/bin/bash
 # Fix permissions after git pull/merge
 chmod -R g+rw "$(git rev-parse --show-toplevel)" 2>/dev/null || true
 HOOKEOF
-        chmod +x "$ANSIBLE_DIR/.git/hooks/post-merge" 2>/dev/null || true
+            chmod +x "$ANSIBLE_DIR/.git/hooks/post-merge" 2>/dev/null || true
+            
+            # Create post-checkout hook (for git checkout, git reset)
+            cp "$ANSIBLE_DIR/.git/hooks/post-merge" "$ANSIBLE_DIR/.git/hooks/post-checkout" 2>/dev/null || true
+        fi
         
-        # Create post-checkout hook (for git checkout, git reset)
-        cp "$ANSIBLE_DIR/.git/hooks/post-merge" "$ANSIBLE_DIR/.git/hooks/post-checkout" 2>/dev/null || true
-    fi
-    
-    # Add git safe.directory for www-data user
-    sudo -u www-data git config --global --add safe.directory "$ANSIBLE_DIR" 2>/dev/null || true
-    
-    # Configure git sharedRepository for proper group permissions
-    git -C "$ANSIBLE_DIR" config core.sharedRepository group 2>/dev/null || true
-    
-    # Fix existing .git directory permissions
-    sudo chown -R $(whoami):www-data "$ANSIBLE_DIR/.git" 2>/dev/null || true
-    sudo chmod -R g+rwX "$ANSIBLE_DIR/.git" 2>/dev/null || true
+        # Add git safe.directory for www-data user
+        sudo -u www-data git config --global --add safe.directory "$ANSIBLE_DIR" 2>/dev/null || true
         
-        echo "     ✅ Ansible directory configured: $ANSIBLE_DIR"
+        # Configure git sharedRepository for proper group permissions
+        git -C "$ANSIBLE_DIR" config core.sharedRepository group 2>/dev/null || true
+        
+        # Fix existing .git directory permissions
+        sudo chown -R "$(whoami):www-data" "$ANSIBLE_DIR/.git" 2>/dev/null || true
+        sudo chmod -R g+rwX "$ANSIBLE_DIR/.git" 2>/dev/null || true
+        
+        echo "     Ansible directory configured: $ANSIBLE_DIR"
     else
         ANSIBLE_DIR="$HOME/ansible"
-        echo "     ℹ️  No Ansible directory detected, using default: $ANSIBLE_DIR"
+        echo "     No Ansible directory detected, using default: $ANSIBLE_DIR"
     fi
 fi
 
@@ -282,6 +310,22 @@ echo "     Configuration saved to /etc/lldpq.conf"
 echo "   - Updating bin/* to /usr/local/bin/"
 sudo cp bin/* /usr/local/bin/
 sudo chmod +x /usr/local/bin/*
+
+echo "   - Verifying Python packages..."
+# Check if ruamel.yaml is installed (required for comment-preserving YAML)
+if ! python3 -c "import ruamel.yaml" 2>/dev/null; then
+    echo "     Installing ruamel.yaml..."
+    pip3 install --user ruamel.yaml >/dev/null 2>&1 || \
+        pip3 install ruamel.yaml >/dev/null 2>&1 || \
+        echo "     [!] ruamel.yaml installation failed - YAML comment preservation may not work"
+fi
+# Check requests module
+if ! python3 -c "import requests" 2>/dev/null; then
+    echo "     Installing requests..."
+    pip3 install --user requests >/dev/null 2>&1 || \
+        pip3 install requests >/dev/null 2>&1 || true
+fi
+echo "   Python packages verified"
 echo "System files updated"
 
 echo ""
@@ -300,14 +344,14 @@ if [[ -d "$HOME/lldpq/monitor-results" ]] || [[ -d "$HOME/lldpq/lldp-results" ]]
         echo ""
     fi
     if [[ $REPLY =~ ^[Nn]$ ]]; then
-        echo "   ⚠️  Monitoring data will be LOST during update!"
+        echo "   [!] Monitoring data will be LOST during update!"
     else
         backup_data_dir=$(mktemp -d)
-        echo "   📦 Backing up monitoring data..."
+        echo "   Backing up monitoring data..."
         [[ -d "$HOME/lldpq/monitor-results" ]] && cp -r "$HOME/lldpq/monitor-results" "$backup_data_dir/"
         [[ -d "$HOME/lldpq/lldp-results" ]] && cp -r "$HOME/lldpq/lldp-results" "$backup_data_dir/"
         [[ -d "$HOME/lldpq/alert-states" ]] && cp -r "$HOME/lldpq/alert-states" "$backup_data_dir/"
-        echo "   ✅ Monitoring data backed up to temporary location"
+        echo "   Monitoring data backed up to temporary location"
     fi
 else
     echo "   No existing monitoring data found"
@@ -338,7 +382,7 @@ if [[ -d "$HOME/lldpq" ]]; then
     elif [[ -f "$HOME/lldpq/topology.dot" ]]; then
         echo "     • topology.dot (migrating to $WEB_ROOT)"
         sudo cp "$HOME/lldpq/topology.dot" "$WEB_ROOT/topology.dot"
-        sudo chown www-data:$USER "$WEB_ROOT/topology.dot"
+        sudo chown "www-data:$USER" "$WEB_ROOT/topology.dot"
         sudo chmod 664 "$WEB_ROOT/topology.dot"
     fi
     
@@ -349,7 +393,7 @@ if [[ -d "$HOME/lldpq" ]]; then
     elif [[ -f "$HOME/lldpq/topology_config.yaml" ]]; then
         echo "     • topology_config.yaml (migrating to $WEB_ROOT)"
         sudo cp "$HOME/lldpq/topology_config.yaml" "$WEB_ROOT/topology_config.yaml"
-        sudo chown www-data:$USER "$WEB_ROOT/topology_config.yaml"
+        sudo chown "www-data:$USER" "$WEB_ROOT/topology_config.yaml"
         sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
     fi
     
@@ -361,7 +405,7 @@ if [[ -d "$HOME/lldpq" ]]; then
     # Check if lldpq processes are running before removing directory
     if pgrep -f "$HOME/lldpq/monitor.sh" >/dev/null 2>&1 || pgrep -f "/usr/local/bin/lldpq-trigger" >/dev/null 2>&1; then
         echo ""
-        echo "   ⚠️  WARNING: LLDPq processes are currently running!"
+        echo "   [!] WARNING: LLDPq processes are currently running!"
         if [[ "$AUTO_YES" == "true" ]]; then
             REPLY="y"
         else
@@ -373,9 +417,9 @@ if [[ -d "$HOME/lldpq" ]]; then
             pkill -f "$HOME/lldpq/monitor.sh" 2>/dev/null || true
             pkill -f "/usr/local/bin/lldpq-trigger" 2>/dev/null || true
             sleep 2
-            echo "   ✅ Processes stopped"
+            echo "   Processes stopped"
         else
-            echo "   ⚠️  Proceeding with running processes (may cause issues)"
+            echo "   [!] Proceeding with running processes (may cause issues)"
         fi
     fi
     
@@ -405,11 +449,11 @@ echo "lldpq directory updated with preserved configs"
 # Restore monitoring data if backed up
 if [[ -n "$backup_data_dir" ]] && [[ -d "$backup_data_dir" ]]; then
     echo ""
-    echo "   📁 Restoring monitoring data..."
+    echo "   Restoring monitoring data..."
     [[ -d "$backup_data_dir/monitor-results" ]] && cp -r "$backup_data_dir/monitor-results" "$HOME/lldpq/"
     [[ -d "$backup_data_dir/lldp-results" ]] && cp -r "$backup_data_dir/lldp-results" "$HOME/lldpq/"
     [[ -d "$backup_data_dir/alert-states" ]] && cp -r "$backup_data_dir/alert-states" "$HOME/lldpq/"
-    echo "   ✅ Monitoring data restored successfully"
+    echo "   Monitoring data restored successfully"
     # Clean up temporary backup
     rm -rf "$backup_data_dir"
 fi
@@ -420,7 +464,7 @@ echo "[05] Updating cron jobs..."
 if [[ -d "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR/playbooks" ]]; then
     if ! grep -q "fabric-scan-cron.sh" /etc/crontab 2>/dev/null; then
         echo "33 3 * * * $(whoami) $HOME/lldpq/fabric-scan-cron.sh" | sudo tee -a /etc/crontab > /dev/null
-        echo "   ✅ Added Fabric Scan cron job (daily at 03:33)"
+        echo "   Added Fabric Scan cron job (daily at 03:33)"
     else
         echo "   Fabric Scan cron job already configured"
     fi
@@ -429,7 +473,7 @@ if [[ -d "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR/playbooks" ]]; then
     if [[ ! -f "$WEB_ROOT/fabric-scan-cache.json" ]]; then
         sudo touch "$WEB_ROOT/fabric-scan-cache.json"
     fi
-    sudo chown $(whoami):www-data "$WEB_ROOT/fabric-scan-cache.json" 2>/dev/null || true
+    sudo chown "$(whoami):www-data" "$WEB_ROOT/fabric-scan-cache.json" 2>/dev/null || true
     sudo chmod 664 "$WEB_ROOT/fabric-scan-cache.json" 2>/dev/null || true
 fi
 
@@ -481,5 +525,5 @@ if [[ -n "$backup_dir" ]]; then
     echo "If you encounter issues, your backup is available at:"
     echo "      $backup_dir"
 fi
-echo "✅ LLDPq update completed successfully!"
+echo "LLDPq update completed successfully!"
 echo ""
