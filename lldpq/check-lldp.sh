@@ -6,7 +6,7 @@
 
 # Start timing
 START_TIME=$(date +%s)
-echo "🚀 Starting OPTIMIZED LLDP check at $(date)"
+echo "Starting LLDP check at $(date)"
 
 DATE=$(date '+%Y-%m-%d--%H-%M')
 
@@ -112,15 +112,14 @@ process_device() {
         count=$(cat "$completed_count_file")
         count=$((count + 1))
         echo "$count" > "$completed_count_file"
-        printf "\r📊 Progress: %d/%d devices completed" "$count" "$TOTAL_DEVICES"
+        printf "\rCollecting [%d/%d]" "$count" "$TOTAL_DEVICES"
     ) 200>"$completed_count_file.lock"
 }
 
 # ============================================================================
 # PARALLEL EXECUTION WITH LIMITS
 # ============================================================================
-echo "📡 Collecting LLDP data from $TOTAL_DEVICES devices (max $MAX_PARALLEL parallel)..."
-echo ""
+echo "Devices: $TOTAL_DEVICES"
 
 job_count=0
 for device in "${!devices[@]}"; do
@@ -156,7 +155,7 @@ if [ -s "$unreachable_hosts_file" ]; then
 fi
 
 # Run validation
-echo "🔍 Running LLDP validation..."
+echo "Validating..."
 /usr/bin/python3 ./lldp-validate.py
 
 # Process results
@@ -183,7 +182,7 @@ if ! grep -q "Created on" lldp-results/down-lldp_results.ini; then
 fi
 
 # Copy results to web server
-echo "📤 Copying results to web server..."
+echo "Copying to web..."
 sudo cp lldp-results/lldp_results.ini "$WEB_ROOT/"
 sudo chmod o+r "$WEB_ROOT/lldp_results.ini"
 sudo mv "$WEB_ROOT/problems-lldp_results.ini" "$WEB_ROOT/hstr/Problems-${DATE}.ini" 2>/dev/null
@@ -219,5 +218,5 @@ rm -f "$unreachable_hosts_file" "$active_jobs_file" "$completed_count_file" "$co
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 echo ""
-echo "✅ LLDP check completed in ${DURATION} seconds"
+echo "Done: ${DURATION}s"
 exit 0

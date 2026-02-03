@@ -308,7 +308,7 @@ class LogAnalyzer:
     
     def generate_html_report(self):
         """Generate HTML report for log analysis"""
-        print("🎨 Generating log analysis HTML report...")
+        print("Generating log analysis HTML report...")
         
         # Calculate totals
         total_devices = len(self.log_counts)
@@ -968,7 +968,7 @@ class LogAnalyzer:
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    console.log('✅ Monitor analysis triggered successfully');
+                    console.log('Monitor analysis triggered successfully');
                     // Show notification
                     const notification = document.createElement('div');
                     notification.style.cssText = `
@@ -986,7 +986,7 @@ class LogAnalyzer:
                         font-family: monospace;
                     `;
                     notification.innerHTML = `
-                        <strong>✅ Monitor Analysis Started</strong><br>
+                        <strong>Monitor Analysis Started</strong><br>
                         The full system analysis is running in the background.<br>
                         <small>Page will automatically refresh in 35 seconds to show the latest results.</small>
                     `;
@@ -1085,7 +1085,7 @@ class LogAnalyzer:
                 link.click();
                 document.body.removeChild(link);
                 
-                console.log(`✅ CSV downloaded: ${filename}`);
+                console.log(`CSV downloaded: ${filename}`);
                 
             } catch (error) {
                 console.error('❌ Error generating CSV:', error);
@@ -1101,7 +1101,7 @@ class LogAnalyzer:
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
-        print(f"✅ Log analysis HTML generated: {output_file}")
+        print(f"Log analysis HTML generated: {output_file}")
     
     def save_summary_data(self):
         """Save summary data for dashboard integration"""
@@ -1121,11 +1121,11 @@ class LogAnalyzer:
         with open(summary_file, 'w') as f:
             json.dump(summary_data, f, indent=2)
         
-        print(f"✅ Log summary data saved: {summary_file}")
+        print(f"Log summary data saved: {summary_file}")
     
     def run_analysis(self):
         """Main analysis function"""
-        print("🚀 Starting log analysis...")
+        print("Starting log analysis...")
         
         if not os.path.exists(self.log_data_dir):
             print(f"❌ Log data directory not found: {self.log_data_dir}")
@@ -1149,7 +1149,7 @@ class LogAnalyzer:
             
             self.process_device_logs(device_name, log_file_path)
         
-        print(f"📊 Processed {len(log_files)} devices")
+        print(f"Processed {len(log_files)} devices")
         
         # Generate outputs
         self.generate_html_report()
@@ -1160,7 +1160,7 @@ class LogAnalyzer:
         total_critical = sum(device["critical"] for device in self.log_counts.values())
         total_warning = sum(device["warning"] for device in self.log_counts.values())
         
-        print(f"📈 Analysis complete:")
+        print(f"Analysis complete:")
         print(f"   • Total devices: {len(self.log_counts)}")
         print(f"   • Total log entries: {total_logs}")
         print(f"   • Critical issues: {total_critical}")

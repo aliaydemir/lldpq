@@ -37,15 +37,51 @@ cd lldpq-src
 - collects bgp, optical, ber, link flap, hardware health data
 - shows network topology with lldp
 - web dashboard with real-time stats
+- live network tables (MAC, ARP, VTEP, Routes, LLDP neighbors)
 
 ## [02] analysis coverage
 
 - **bgp neighbors**: state, uptime, prefix counts, health status
+- **evpn summary**: VNI counts (L2/L3), Type-2/Type-5 route analysis
 - **optical diagnostics**: power levels, temperature, bias current, link margins  
 - **link flap detection**: carrier transitions on all interfaces (including breakouts)
 - **bit error rate**: comprehensive error statistics with industry thresholds
 - **hardware health**: cpu/asic temperatures, memory usage, fan speeds, psu efficiency
 - **topology validation**: lldp neighbor verification against expected topology
+
+## [02b] fabric search (live queries)
+
+access via web UI: `http://<server>/search.html`
+
+### global search
+- search IP or MAC across **all devices** at once
+- **cross-reference**: IP → finds associated MAC, MAC → finds associated IP
+- **bond expansion**: shows physical ports for bond interfaces
+- **vxlan filtering**: excludes vxlan interfaces for real physical data
+- **route best match**: shows how each VRF would route an IP (longest prefix match)
+  - VRF-based grouping with colored badges
+  - "No Route" indicator for VRFs without matching routes
+  - Device consistency check (shows if all devices use same route)
+  - Uses cached data for fast queries
+
+### per-device tables
+
+| Tab | Description | Data Source |
+|-----|-------------|-------------|
+| **MAC** | MAC address table | `bridge fdb show` |
+| **ARP** | ARP/Neighbor table per VRF | `ip neigh show` |
+| **VTEP** | Remote VXLAN tunnel endpoints with MAC, Type, State | `bridge fdb show \| grep dst` |
+| **Routes** | Routing table with VRF tabs, ECMP paths, AD/Metric | `vtysh -c "show ip route vrf all"` |
+| **LLDP** | LLDP neighbor discovery | `lldpctl -f json` |
+
+### features
+- real-time SSH queries to devices
+- **VRF tabs** for route filtering (click to filter by VRF)
+- **route best match**: when IP not found, shows best matching route per VRF
+- sortable table columns (click headers)
+- search/filter support
+- CSV export for MAC/ARP tables
+- parallel queries for "All Devices" mode
 
 ## [03] configuration files
 

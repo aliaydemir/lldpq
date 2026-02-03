@@ -22,7 +22,7 @@ def parse_assets_file(assets_file_path="assets.ini"):
     try:
         with open(assets_file_path, 'r') as file:
             lines = file.readlines()
-            print(f"🔍 Parsing assets.ini with {len(lines)} lines")
+            print(f"Parsing assets.ini with {len(lines)} lines")
             
             header_found = False
             for i, line in enumerate(lines):
@@ -39,7 +39,7 @@ def parse_assets_file(assets_file_path="assets.ini"):
                 # Skip header line
                 if device_name == "DEVICE-NAME":
                     header_found = True
-                    print(f"📋 Found header at line {i+1}: {parts}")
+                    print(f"Found header at line {i+1}: {parts}")
                     continue
                     
                 if header_found and len(parts) >= 5:
@@ -467,7 +467,7 @@ def generate_hardware_html():
     
     # Parse assets.ini to get device model information
     assets_data = parse_assets_file("assets.ini")
-    print(f"📋 Loaded {len(assets_data)} device models from assets.ini")
+    print(f"Loaded {len(assets_data)} device models from assets.ini")
     
     # Read existing hardware history (create empty if doesn't exist)
     hardware_history = {}
@@ -475,13 +475,13 @@ def generate_hardware_html():
         with open("monitor-results/hardware_history.json", "r") as f:
             data = json.load(f)
             hardware_history = data.get("hardware_history", {})
-        print("📊 Loaded existing hardware history data")
+        print("Loaded existing hardware history data")
     except FileNotFoundError:
-        print("📝 No hardware_history.json found - creating initial report with current data")
+        print("No hardware_history.json found - creating initial report with current data")
         hardware_history = {}
     except Exception as e:
         print(f"⚠️  Warning: Could not read hardware_history.json: {e}")
-        print("📝 Proceeding with empty history data")
+        print("Proceeding with empty history data")
         hardware_history = {}
     
     # Get latest data for each device
@@ -492,7 +492,7 @@ def generate_hardware_html():
     
     # If no historical data, create basic entries from current hardware files
     if not latest_devices:
-        print("📂 No historical data - analyzing current hardware files directly")
+        print("No historical data - analyzing current hardware files directly")
         hardware_data_dir = "monitor-results/hardware-data"
         if os.path.exists(hardware_data_dir):
             for filename in os.listdir(hardware_data_dir):
@@ -507,7 +507,7 @@ def generate_hardware_html():
                         'cpu_load': 'N/A',
                         'uptime': 'N/A'
                     }
-            print(f"📊 Created basic entries for {len(latest_devices)} devices")
+            print(f"Created basic entries for {len(latest_devices)} devices")
     
     # Calculate summary
     summary = {
@@ -1231,7 +1231,7 @@ def generate_hardware_html():
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    console.log('✅ Monitor analysis triggered successfully');
+                    console.log('Monitor analysis triggered successfully');
                     // Show notification
                     const notification = document.createElement('div');
                     notification.style.cssText = `
@@ -1249,7 +1249,7 @@ def generate_hardware_html():
                         font-family: monospace;
                     `;
                     notification.innerHTML = `
-                        <strong>✅ Monitor Analysis Started</strong><br>
+                        <strong>Monitor Analysis Started</strong><br>
                         The full system analysis is running in the background.<br>
                         <small>Page will automatically refresh in 35 seconds to show the latest results.</small>
                     `;
@@ -1356,7 +1356,7 @@ def generate_hardware_html():
                 link.click();
                 document.body.removeChild(link);
                 
-                console.log(`✅ CSV downloaded: ${filename}`);
+                console.log(`CSV downloaded: ${filename}`);
                 
             } catch (error) {
                 console.error('❌ Error generating CSV:', error);
@@ -1371,7 +1371,7 @@ def generate_hardware_html():
     with open("monitor-results/hardware-analysis.html", 'w') as f:
         f.write(html_content)
     
-    print(f"✅ Hardware analysis HTML generated with {total_devices} devices!")
+    print(f"Hardware analysis HTML generated with {total_devices} devices!")
     print(f"   - Excellent: {len(summary['excellent_devices'])}")
     print(f"   - Good: {len(summary['good_devices'])}")
     print(f"   - Warning: {len(summary['warning_devices'])}")

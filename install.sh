@@ -354,6 +354,12 @@ HOOKEOF
     sudo chmod -R g+rwX "$ANSIBLE_DIR/.git" 2>/dev/null || true
     
     echo "   Git safe.directory and sharedRepository configured for web access"
+    
+    # Configure sudoers for www-data to run SSH commands as LLDPQ user (for search-api.sh)
+    echo "   Configuring sudoers for network device access..."
+    echo "www-data ALL=($(whoami)) NOPASSWD: /usr/bin/timeout, /usr/bin/ssh" | sudo tee /etc/sudoers.d/www-data-lldpq > /dev/null
+    sudo chmod 440 /etc/sudoers.d/www-data-lldpq
+    echo "   Sudoers configured for MAC/ARP table access"
 elif [[ -n "$ANSIBLE_DIR" ]]; then
     # User specified a path but it doesn't exist
     echo "   [!] Warning: Ansible directory '$ANSIBLE_DIR' does not exist"
@@ -370,6 +376,7 @@ echo ""
 echo "   - Creating /etc/lldpq.conf"
 echo "# LLDPq Configuration" | sudo tee /etc/lldpq.conf > /dev/null
 echo "LLDPQ_DIR=$HOME/lldpq" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "LLDPQ_USER=$(whoami)" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "WEB_ROOT=$WEB_ROOT" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "ANSIBLE_DIR=$ANSIBLE_DIR" | sudo tee -a /etc/lldpq.conf > /dev/null
 sudo chmod 644 /etc/lldpq.conf
@@ -435,12 +442,13 @@ echo "   - Authentication API configured"
 echo ""
 echo "[06] Adding cron jobs..."
 # Remove existing LLDPq cron jobs if they exist
-sudo sed -i '/lldpq\|monitor\|get-conf/d' /etc/crontab
+sudo sed -i '/lldpq\|monitor\|get-conf\|fabric-scan/d' /etc/crontab
 
 # Add new cron jobs
 echo "*/5 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab > /dev/null
 echo "0 */12 * * * $(whoami) /usr/local/bin/get-conf" | sudo tee -a /etc/crontab > /dev/null
 echo "* * * * * $(whoami) /usr/local/bin/lldpq-trigger" | sudo tee -a /etc/crontab > /dev/null
+echo "* * * * * $(whoami) cd $HOME/lldpq && ./fabric-scan.sh >/dev/null 2>&1" | sudo tee -a /etc/crontab > /dev/null
 echo "0 0 * * * $(whoami) cd $HOME/lldpq && cp /var/www/html/topology.dot topology.dot.bkp 2>/dev/null; cp /var/www/html/topology_config.yaml topology_config.yaml.bkp 2>/dev/null; git add -A; git diff --cached --quiet || git commit -m 'auto: \$(date +\\%Y-\\%m-\\%d)'" | sudo tee -a /etc/crontab > /dev/null
 
 # Add Fabric Scan cron job if Ansible directory exists

@@ -1027,6 +1027,12 @@
                         </svg>
                         Generate
                     </button>
+                    <button class="btn btn-info" onclick="runValidate()" id="btn-validate" style="background: #0097a7; border-color: #0097a7;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                        Validate
+                    </button>
                     <button class="btn btn-secondary" onclick="runDiff()">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
@@ -2382,6 +2388,112 @@
             setStatus('Ready');
         }
         
+        // Run Validate
+        async function runValidate() {
+            const host = getTargetHost();
+            if (!host) {
+                showOutputModal('Error', 'Please select a device first', 'error');
+                return;
+            }
+            
+            showLoading(true, `Validating ${host}...`);
+            setStatus('Validating...');
+            
+            try {
+                const response = await fetch(`/edit-config?action=validate&devices=${encodeURIComponent(host)}`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    showOutputModal('Validation Error', data.error || 'Failed to run validation', 'error');
+                    showLoading(false);
+                    setStatus('Ready');
+                    return;
+                }
+                
+                const result = data.result;
+                let html = '<div style="font-family: monospace; font-size: 13px;">';
+                
+                // Summary
+                const summary = result.summary;
+                const isValid = result.valid;
+                const statusColor = isValid ? '#76b900' : '#f44336';
+                const statusIcon = isValid ? '✓' : '✗';
+                
+                html += `<div style="padding: 15px; background: ${isValid ? 'rgba(118,185,0,0.1)' : 'rgba(244,67,54,0.1)'}; border-radius: 8px; margin-bottom: 15px; border: 1px solid ${statusColor};">`;
+                html += `<div style="font-size: 18px; color: ${statusColor}; margin-bottom: 10px;">${statusIcon} ${isValid ? 'All Configurations Valid' : 'Validation Issues Found'}</div>`;
+                html += `<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; color: #ccc;">`;
+                html += `<div>Files: <span style="color: #fff;">${summary.total_files}</span> (${summary.valid_files} valid, ${summary.invalid_files} invalid)</div>`;
+                html += `<div>File Issues: <span style="color: #f44336;">${summary.total_errors} errors</span>, <span style="color: #ff9800;">${summary.total_warnings} warnings</span></div>`;
+                if (result.topology) {
+                    html += `<div>Topology Issues: <span style="color: #f44336;">${summary.topology_errors} errors</span>, <span style="color: #ff9800;">${summary.topology_warnings} warnings</span></div>`;
+                }
+                html += '</div></div>';
+                
+                // File issues
+                const filesWithIssues = result.files.filter(f => f.issues && f.issues.length > 0);
+                if (filesWithIssues.length > 0) {
+                    html += '<div style="margin-bottom: 15px;"><div style="color: #76b900; font-weight: bold; margin-bottom: 10px; font-size: 14px;">File Validation Issues</div>';
+                    
+                    filesWithIssues.forEach(file => {
+                        html += `<div style="background: #2a2a2a; border-radius: 6px; padding: 12px; margin-bottom: 10px;">`;
+                        html += `<div style="color: #4fc3f7; margin-bottom: 8px; font-weight: bold;">${file.filename}</div>`;
+                        
+                        file.issues.forEach(issue => {
+                            const sevColor = issue.severity === 'ERROR' ? '#f44336' : issue.severity === 'WARNING' ? '#ff9800' : '#4fc3f7';
+                            html += `<div style="margin-left: 10px; margin-bottom: 6px; border-left: 2px solid ${sevColor}; padding-left: 10px;">`;
+                            html += `<span style="color: ${sevColor}; font-weight: bold;">[${issue.severity}]</span> `;
+                            html += `<span style="color: #888;">${issue.path}:</span> `;
+                            html += `<span style="color: #ddd;">${issue.message}</span>`;
+                            if (issue.suggestion) {
+                                html += `<div style="color: #999; margin-top: 3px; font-style: italic;">→ ${issue.suggestion}</div>`;
+                            }
+                            html += '</div>';
+                        });
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                }
+                
+                // Topology issues
+                if (result.topology && result.topology.issues && result.topology.issues.length > 0) {
+                    html += '<div><div style="color: #76b900; font-weight: bold; margin-bottom: 10px; font-size: 14px;">Topology Analysis Issues</div>';
+                    
+                    result.topology.issues.forEach(issue => {
+                        const sevColor = issue.severity === 'ERROR' ? '#f44336' : issue.severity === 'WARNING' ? '#ff9800' : '#4fc3f7';
+                        html += `<div style="background: #2a2a2a; border-radius: 6px; padding: 12px; margin-bottom: 10px; border-left: 3px solid ${sevColor};">`;
+                        html += `<div style="margin-bottom: 5px;"><span style="color: ${sevColor}; font-weight: bold;">[${issue.severity}]</span> <span style="color: #888;">${issue.category}</span></div>`;
+                        html += `<div style="color: #ddd; margin-bottom: 5px;">${issue.message}</div>`;
+                        if (issue.devices && issue.devices.length > 0) {
+                            html += `<div style="color: #4fc3f7; font-size: 12px;">Devices: ${issue.devices.join(', ')}</div>`;
+                        }
+                        if (issue.suggestion) {
+                            html += `<div style="color: #999; margin-top: 5px; font-style: italic;">→ ${issue.suggestion}</div>`;
+                        }
+                        if (issue.details && issue.details.length > 0) {
+                            html += `<div style="color: #888; margin-top: 5px; font-size: 12px;">${issue.details.join('<br>')}</div>`;
+                        }
+                        html += '</div>';
+                    });
+                    html += '</div>';
+                }
+                
+                html += '</div>';
+                
+                showOutputModal(
+                    isValid ? 'Validation Passed' : 'Validation Results',
+                    html,
+                    isValid ? 'success' : 'warning',
+                    true
+                );
+                
+            } catch (err) {
+                showOutputModal('Error', 'Failed to run validation: ' + err.message, 'error');
+            }
+            
+            showLoading(false);
+            setStatus('Ready');
+        }
+        
         // Run Diff
         async function runDiff() {
             const host = getTargetHost();
@@ -2418,27 +2530,62 @@
         
         // Show Diff Summary Modal (special formatting)
         function showDiffSummaryModal(output, changesCount, host = '') {
-            // Extract summary section
+            const hasChanges = changesCount > 0;
+            const statusColor = hasChanges ? '#ff9800' : '#76b900';
+            const statusIcon = hasChanges ? '⚠' : '✓';
+            
+            let html = '<div style="font-family: monospace; font-size: 13px;">';
+            
+            // Summary header
+            html += `<div style="padding: 15px; background: ${hasChanges ? 'rgba(255,152,0,0.1)' : 'rgba(118,185,0,0.1)'}; border-radius: 8px; margin-bottom: 15px; border: 1px solid ${statusColor};">`;
+            html += `<div style="font-size: 18px; color: ${statusColor}; margin-bottom: 10px;">${statusIcon} ${hasChanges ? 'Changes Detected' : 'No Changes - Synchronized'}</div>`;
+            html += `<div style="color: #ccc;">`;
+            html += `<div>Device: <span style="color: #4fc3f7; font-weight: bold;">${host}</span></div>`;
+            if (hasChanges) {
+                html += `<div>Pending Changes: <span style="color: #ff9800; font-weight: bold;">${changesCount}</span></div>`;
+            }
+            html += '</div></div>';
+            
+            // Parse diff content
             const lines = output.split('\n');
-            let summaryLines = [];
-            let inSummary = false;
+            let diffLines = [];
+            let inDiff = false;
             
             for (const line of lines) {
                 if (line.includes('PLAY RECAP')) break;
-                if (line.includes('CONFIG DIFF SUMMARY') || line.includes('╔') || inSummary) {
-                    inSummary = true;
-                    summaryLines.push(line);
+                if (line.match(/^[+-]/) || line.includes('---') || line.includes('+++') || inDiff) {
+                    if (line.includes('---') || line.includes('+++')) inDiff = true;
+                    if (line.trim()) diffLines.push(line);
                 }
             }
             
-            const summaryContent = summaryLines.join('\n') || output;
-            const hasChanges = changesCount > 0;
-            const hostInfo = host ? ` - ${host}` : '';
-            const title = hasChanges 
-                ? `⚠️ Changes Detected${hostInfo}`
-                : `✅ Synchronized${hostInfo}`;
+            if (diffLines.length > 0 && hasChanges) {
+                html += '<div style="margin-top: 15px;"><div style="color: #76b900; font-weight: bold; margin-bottom: 10px; font-size: 14px;">Configuration Differences</div>';
+                html += '<div style="background: #1a1a1a; border-radius: 6px; padding: 12px; overflow-x: auto;">';
+                
+                diffLines.forEach(line => {
+                    let lineColor = '#888';
+                    let bgColor = 'transparent';
+                    if (line.startsWith('+') && !line.startsWith('+++')) {
+                        lineColor = '#76b900';
+                        bgColor = 'rgba(118,185,0,0.1)';
+                    } else if (line.startsWith('-') && !line.startsWith('---')) {
+                        lineColor = '#f44336';
+                        bgColor = 'rgba(244,67,54,0.1)';
+                    } else if (line.startsWith('@@')) {
+                        lineColor = '#4fc3f7';
+                    }
+                    const escapedLine = line.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    html += `<div style="color: ${lineColor}; background: ${bgColor}; padding: 2px 5px; white-space: pre;">${escapedLine}</div>`;
+                });
+                
+                html += '</div></div>';
+            }
             
-            showOutputModal(title, summaryContent, hasChanges ? 'warning' : 'success');
+            html += '</div>';
+            
+            const title = hasChanges ? `Changes Detected - ${host}` : `Synchronized - ${host}`;
+            showOutputModal(title, html, hasChanges ? 'warning' : 'success', true);
         }
         
         // Run Deploy

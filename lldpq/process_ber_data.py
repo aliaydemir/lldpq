@@ -89,8 +89,8 @@ def process_ber_data_files(data_dir="monitor-results/ber-data"):
     """Process BER data files and update BER analyzer"""
     ber_analyzer = BERAnalyzer("monitor-results")
     
-    print(f"🔬 Processing BER analysis data")
-    print(f"📊 Using thresholds: Good < {ber_analyzer.config['raw_ber_threshold']:.2e}, "
+    print(f"Processing BER analysis data")
+    print(f"Using thresholds: Good < {ber_analyzer.config['raw_ber_threshold']:.2e}, "
           f"Warning < {ber_analyzer.config['warning_ber_threshold']:.2e}, "
           f"Critical > {ber_analyzer.config['critical_ber_threshold']:.2e}")
     
@@ -220,18 +220,18 @@ def process_ber_data_files(data_dir="monitor-results/ber-data"):
     summary = ber_analyzer.get_ber_summary()
     anomalies = ber_analyzer.detect_ber_anomalies()
     
-    print(f"\n📊 BER Analysis Summary:")
-    print(f"  📱 Total devices processed: {processed_devices}")
-    print(f"  🔌 Total interfaces analyzed: {total_interfaces_processed}")
-    print(f"  ✅ Excellent quality: {len(summary['excellent_ports'])}")
-    print(f"  🟢 Good quality: {len(summary['good_ports'])}")
-    print(f"  🟡 Warning level: {len(summary['warning_ports'])}")
-    print(f"  🔴 Critical issues: {len(summary['critical_ports'])}")
-    print(f"  🚨 Anomalies detected: {len(anomalies)}")
+    print(f"\nBER Analysis Summary:")
+    print(f"  Total devices processed: {processed_devices}")
+    print(f"  Total interfaces analyzed: {total_interfaces_processed}")
+    print(f"  Excellent quality: {len(summary['excellent_ports'])}")
+    print(f"  Good quality: {len(summary['good_ports'])}")
+    print(f"  Warning level: {len(summary['warning_ports'])}")
+    print(f"  Critical issues: {len(summary['critical_ports'])}")
+    print(f"  Anomalies detected: {len(anomalies)}")
     
     # Show critical issues
     if summary['critical_ports']:
-        print(f"\n🔴 Critical BER Issues (Immediate Attention):")
+        print(f"\nCritical BER Issues (Immediate Attention):")
         for port_info in summary['critical_ports'][:5]:  # Show first 5
             port = port_info['port']
             ber_value = port_info['ber_value']
@@ -252,15 +252,15 @@ def process_ber_data_files(data_dir="monitor-results/ber-data"):
     # Export web report
     output_file = "monitor-results/ber-analysis.html"
     ber_analyzer.export_ber_data_for_web(output_file)
-    print(f"📄 BER analysis report generated: {output_file}")
+    print(f"BER analysis report generated: {output_file}")
     
     # Final summary
     total_ports = summary['total_ports']
     if total_ports > 0:
         health_ratio = (len(summary['excellent_ports']) + len(summary['good_ports'])) / total_ports
-        print(f"🎯 Overall network health: {health_ratio*100:.1f}% ({len(summary['excellent_ports']) + len(summary['good_ports'])}/{total_ports} ports healthy)")
+        print(f"Overall network health: {health_ratio*100:.1f}% ({len(summary['excellent_ports']) + len(summary['good_ports'])}/{total_ports} ports healthy)")
     
-    print(f"💾 BER history saved")
+    print(f"BER history saved")
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]}] BER data processing completed")
 
 def main():

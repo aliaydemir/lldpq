@@ -90,6 +90,12 @@
             border-radius: 6px;
             border-left: 3px solid #76b900;
             text-align: center;
+            transition: all 0.2s ease;
+        }
+        
+        .stat-item:hover {
+            background: #2a2d2e;
+            transform: translateY(-2px);
         }
         
         .stat-value {
@@ -288,19 +294,19 @@
         <div class="dashboard-stats">
             <div class="dashboard-stats-title">Network Health Overview</div>
             <div class="stats-grid">
-                <div class="stat-item">
+                <div class="stat-item" onclick="window.location.href='assets.html'" style="cursor: pointer;">
                     <div class="stat-value" id="total-network-devices">--</div>
                     <div class="stat-label">Total Devices</div>
                 </div>
-                <div class="stat-item">
+                <div class="stat-item" onclick="window.location.href='monitor-results/optical-analysis.html'" style="cursor: pointer;">
                     <div class="stat-value" id="total-interfaces">--</div>
                     <div class="stat-label">Total Interfaces</div>
                 </div>
-                <div class="stat-item">
+                <div class="stat-item" onclick="window.location.href='monitor-results/hardware-analysis.html'" style="cursor: pointer;">
                     <div class="stat-value" id="overall-health">--</div>
                     <div class="stat-label">Overall Health</div>
                 </div>
-                <div class="stat-item" id="critical-issues-container" style="position: relative; cursor: help;">
+                <div class="stat-item" id="critical-issues-container" onclick="window.location.href='lldp-problem.html'" style="position: relative; cursor: pointer;">
                     <div class="stat-value" id="critical-issues">--</div>
                     <div class="stat-label">Critical Issues</div>
                     <div class="critical-tooltip" id="critical-tooltip"></div>
@@ -473,6 +479,40 @@
                 <div class="summary-card card-total" onclick="window.location.href='monitor-results/bgp-analysis.html'">
                     <div class="card-value" id="bgp-health">0.0%</div>
                     <div class="card-label">Health Ratio</div>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <!-- EVPN Summary Section -->
+        <div class="analysis-section">
+            <div class="section-header">
+                <h2 class="section-title" onclick="window.location.href='monitor-results/bgp-analysis.html#evpn'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                    EVPN Summary
+                </h2>
+            </div>
+            <div class="section-content">
+            <div class="summary-grid">
+                <div class="summary-card card-info" onclick="window.location.href='monitor-results/bgp-analysis.html#evpn'">
+                    <div class="card-value status-info" id="evpn-total-vnis">0</div>
+                    <div class="card-label">Total VNIs</div>
+                </div>
+                <div class="summary-card" style="border-left-color: #9c27b0;" onclick="window.location.href='monitor-results/bgp-analysis.html#evpn'">
+                    <div class="card-value" style="color: #ce93d8;" id="evpn-l2-vnis">0</div>
+                    <div class="card-label">L2 VNIs</div>
+                </div>
+                <div class="summary-card" style="border-left-color: #ff9800;" onclick="window.location.href='monitor-results/bgp-analysis.html#evpn'">
+                    <div class="card-value" style="color: #ffb74d;" id="evpn-l3-vnis">0</div>
+                    <div class="card-label">L3 VNIs</div>
+                </div>
+                <div class="summary-card" style="border-left-color: #00bcd4;" onclick="window.location.href='monitor-results/bgp-analysis.html#evpn'">
+                    <div class="card-value" style="color: #4dd0e1;" id="evpn-type2">0</div>
+                    <div class="card-label">Type-2 Routes (MAC/IP)</div>
+                </div>
+                <div class="summary-card" style="border-left-color: #8bc34a;" onclick="window.location.href='monitor-results/bgp-analysis.html#evpn'">
+                    <div class="card-value" style="color: #aed581;" id="evpn-type5">0</div>
+                    <div class="card-label">Type-5 Routes (IP Prefix)</div>
                 </div>
             </div>
             </div>
@@ -702,6 +742,48 @@
                     
                     // LLDP data parsed with warning calculation
                     
+                } else if (dataType === 'evpn') {
+                    // Parse EVPN data from bgp-analysis.html summary cards
+                    const response = await fetch('monitor-results/bgp-analysis.html');
+                    
+                    if (!response.ok) {
+                        return { totalVnis: 0, l2Vnis: 0, l3Vnis: 0, type2Routes: 0, type5Routes: 0 };
+                    }
+                    
+                    const html = await response.text();
+                    
+                    // Parse EVPN metrics from the HTML using regex (more reliable than DOM parsing for inline values)
+                    const totalVnisMatch = html.match(/id="evpn-total-vnis"[^>]*>(\d+)</);
+                    const l2VnisMatch = html.match(/id="evpn-l2-vnis"[^>]*>(\d+)</);
+                    const l3VnisMatch = html.match(/id="evpn-l3-vnis"[^>]*>(\d+)</);
+                    const type2Match = html.match(/id="evpn-type2-routes"[^>]*>(\d+)</);
+                    const type5Match = html.match(/id="evpn-type5-routes"[^>]*>(\d+)</);
+                    
+                    // Also try parsing from the metric divs if IDs aren't found
+                    if (!totalVnisMatch) {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
+                        const metricDivs = doc.querySelectorAll('.summary-card .metric');
+                        const labels = doc.querySelectorAll('.summary-card .metric-label');
+                        
+                        metricDivs.forEach((div, idx) => {
+                            const label = labels[idx]?.textContent?.toLowerCase() || '';
+                            const value = parseInt(div.textContent) || 0;
+                            
+                            if (label.includes('total vni')) summaryData.totalVnis = value;
+                            else if (label.includes('l2 vni')) summaryData.l2Vnis = value;
+                            else if (label.includes('l3 vni')) summaryData.l3Vnis = value;
+                            else if (label.includes('type-2') || label.includes('mac/ip')) summaryData.type2Routes = value;
+                            else if (label.includes('type-5') || label.includes('ip prefix')) summaryData.type5Routes = value;
+                        });
+                    } else {
+                        summaryData.totalVnis = totalVnisMatch ? parseInt(totalVnisMatch[1]) : 0;
+                        summaryData.l2Vnis = l2VnisMatch ? parseInt(l2VnisMatch[1]) : 0;
+                        summaryData.l3Vnis = l3VnisMatch ? parseInt(l3VnisMatch[1]) : 0;
+                        summaryData.type2Routes = type2Match ? parseInt(type2Match[1]) : 0;
+                        summaryData.type5Routes = type5Match ? parseInt(type5Match[1]) : 0;
+                    }
+                    
                 } else if (dataType === 'optical') {
                     // Special case for optical: use summary cards because they have correct total ports count
                     const response = await fetch('monitor-results/optical-analysis.html');
@@ -872,10 +954,11 @@
         async function updateNetworkStats() {
             try {
                 // Fetch data directly from raw data files
-                const [assetsData, lldpData, bgpData, opticalData, berData, flapData, hardwareData, logData] = await Promise.all([
+                const [assetsData, lldpData, bgpData, evpnData, opticalData, berData, flapData, hardwareData, logData] = await Promise.all([
                     fetchRawDataSummary('assets'),
                     fetchRawDataSummary('lldp'), 
                     fetchRawDataSummary('bgp'),
+                    fetchRawDataSummary('evpn'),
                     fetchRawDataSummary('optical'),
                     fetchRawDataSummary('ber'),
                     fetchRawDataSummary('flap'),
@@ -903,6 +986,12 @@
                 updateDashboardCard('bgp-established', bgpData.established);
                 updateDashboardCard('bgp-down', bgpData.failed);
                 updateDashboardCard('bgp-health', bgpData.healthPercent ? bgpData.healthPercent + '%' : '0.0%');
+
+                updateDashboardCard('evpn-total-vnis', evpnData.totalVnis);
+                updateDashboardCard('evpn-l2-vnis', evpnData.l2Vnis);
+                updateDashboardCard('evpn-l3-vnis', evpnData.l3Vnis);
+                updateDashboardCard('evpn-type2', evpnData.type2Routes);
+                updateDashboardCard('evpn-type5', evpnData.type5Routes);
 
                 updateDashboardCard('optical-total', opticalData.totalPorts);
                 updateDashboardCard('optical-excellent', opticalData.excellent);

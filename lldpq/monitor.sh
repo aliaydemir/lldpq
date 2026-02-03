@@ -7,7 +7,7 @@
 
 # Start timing
 START_TIME=$(date +%s)
-echo "🚀 Starting OPTIMIZED monitoring at $(date)"
+echo "Starting monitoring at $(date)"
 
 DATE=$(date '+%Y-%m-%d %H-%M-%S')
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -24,6 +24,7 @@ SSH_TIMEOUT=60   # SSH connection timeout in seconds
 mkdir -p "$SCRIPT_DIR/monitor-results"
 mkdir -p "$SCRIPT_DIR/monitor-results/flap-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/bgp-data"
+mkdir -p "$SCRIPT_DIR/monitor-results/evpn-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/optical-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/ber-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/hardware-data"
@@ -59,7 +60,7 @@ execute_commands_optimized() {
     declare -a section_names
     declare -a section_times
     
-    echo "🚀 Processing $hostname..."
+    # Progress output removed for performance
     
     # Create HTML header
     cat > monitor-results/${hostname}.html << EOF
@@ -108,7 +109,7 @@ EOF
     # =========================================================================
     # SINGLE SSH SESSION - Collect ALL data at once
     # =========================================================================
-    echo "🔄 [$hostname] Starting data collection..."
+    # Verbose output removed for performance
     local ssh_start=$(date +%s)
     
     timeout 180 ssh $SSH_OPTS -q "$user@$device" '
@@ -196,6 +197,18 @@ EOF
         echo "===BGP_DATA_START==="
         sudo vtysh -c "show bgp vrf all sum" 2>/dev/null
         echo "===BGP_DATA_END==="
+        
+        # =====================================================================
+        # SECTION 2b: EVPN Data (for EVPN route counts)
+        # =====================================================================
+        echo "===EVPN_DATA_START==="
+        # VNI summary - full output
+        echo "=== EVPN VNI SUMMARY ==="
+        sudo vtysh -c "show evpn vni" 2>/dev/null | cat || echo "EVPN not configured"
+        # Type-2 and Type-5 route counts (grep lines with route types [N]:)
+        echo "=== EVPN TYPE COUNTS ==="
+        sudo vtysh -c "show bgp l2vpn evpn" 2>/dev/null | grep -E '\[[1-5]\]:' | head -1000 || echo "No EVPN routes"
+        echo "===EVPN_DATA_END==="
         
         # =====================================================================
         # SECTION 3: Carrier Transitions (for flap analysis)
@@ -406,14 +419,12 @@ EOF
     
     local ssh_end=$(date +%s)
     local ssh_duration=$((ssh_end - ssh_start))
-    echo "✅ [$hostname] SSH data collection completed in ${ssh_duration}s"
     section_names+=("SSH Data Collection")
     section_times+=("$ssh_duration")
     
     # =========================================================================
     # Parse raw data into separate files
     # =========================================================================
-    echo "🔄 [$hostname] Starting data processing..."
     local parse_start=$(date +%s)
     
     if [ -f "monitor-results/${hostname}_raw_data.txt" ]; then
@@ -424,6 +435,10 @@ EOF
         # Extract BGP data
         sed -n '/===BGP_DATA_START===/,/===BGP_DATA_END===/p' "monitor-results/${hostname}_raw_data.txt" | \
             grep -v "===BGP_DATA" > "monitor-results/bgp-data/${hostname}_bgp.txt"
+        
+        # Extract EVPN data
+        sed -n '/===EVPN_DATA_START===/,/===EVPN_DATA_END===/p' "monitor-results/${hostname}_raw_data.txt" | \
+            grep -v "===EVPN_DATA" > "monitor-results/evpn-data/${hostname}_evpn.txt"
         
         # Extract Carrier data
         echo "=== CARRIER TRANSITIONS ===" > "monitor-results/flap-data/${hostname}_carrier_transitions.txt"
@@ -457,12 +472,10 @@ EOF
     
     local parse_end=$(date +%s)
     local parse_duration=$((parse_end - parse_start))
-    echo "✅ [$hostname] Data processing completed in ${parse_duration}s"
     section_names+=("Data Processing")
     section_times+=("$parse_duration")
     
     # Add config section to HTML
-    echo "🔄 [$hostname] Adding configuration section..."
     local config_start=$(date +%s)
     
     cat >> monitor-results/${hostname}.html << EOF
@@ -499,24 +512,7 @@ EOF
     section_names+=("Configuration Section")
     section_times+=("$config_duration")
 
-    # Display timing summary
-    echo ""
-    echo "📊 [$hostname] Section Timing Summary:"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    local total_time=0
-    for i in "${!section_names[@]}"; do
-        local section="${section_names[i]}"
-        local time="${section_times[i]}"
-        total_time=$((total_time + time))
-        printf "%-25s : %3ds\n" "$section" "$time"
-    done
-    
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    printf "%-25s : %3ds\n" "TOTAL DEVICE TIME" "$total_time"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    echo "🎉 [$hostname] All sections completed successfully!"
+    # Silent completion - no per-device output for performance
 }
 
 process_device() {
@@ -532,16 +528,20 @@ process_device() {
 # ============================================================================
 # PARALLEL EXECUTION WITH LIMIT
 # ============================================================================
-echo "🚀 Starting optimized monitoring (max $MAX_PARALLEL parallel)..."
-echo "📊 Total devices: ${#devices[@]}"
+# Parallel monitoring started
+total_devices=${#devices[@]}
+completed_file="/tmp/monitor_completed_$$"
+echo "0" > "$completed_file"
 
+# Simple parallel execution without animation (animation causes hangs)
 job_count=0
+device_count=0
 for device in "${!devices[@]}"; do
     IFS=' ' read -r user hostname <<< "${devices[$device]}"
     
-    # Start job in background
     process_device "$device" "$user" "$hostname" &
     ((job_count++))
+    ((device_count++))
     
     # Wait if we hit the parallel limit
     if [ $job_count -ge $MAX_PARALLEL ]; then
@@ -552,102 +552,29 @@ done
 
 # Wait for all remaining jobs
 wait
-
-echo ""
-echo -e "\e[1;34m✅ Data collection completed!\e[0m"
+echo "Collected $device_count devices"
 data_collection_end=$(date +%s)
 data_collection_duration=$((data_collection_end - START_TIME))
 
 # ============================================================================
 # PARALLEL ANALYSIS PHASE
 # ============================================================================
-echo -e "\n🔬 \e[1;34mStarting PARALLEL Analysis Phase...\e[0m"
+echo "Analyzing..."
 analysis_start=$(date +%s)
 
-# Timing files for parallel analysis
-timing_dir="/tmp/monitor_timing_$$"
-mkdir -p "$timing_dir"
-declare -a analysis_order=("BGP Analysis" "Link Flap Analysis" "Optical Analysis" "BER Analysis" "Hardware Analysis" "Log Analysis")
+# Run all analyses in parallel (suppress all output)
+python3 process_bgp_data.py >/dev/null 2>&1 &
+python3 process_flap_data.py >/dev/null 2>&1 &
+python3 process_optical_data.py >/dev/null 2>&1 &
+python3 process_ber_data.py >/dev/null 2>&1 &
+python3 process_hardware_data.py >/dev/null 2>&1 &
+python3 process_log_data.py >/dev/null 2>&1 &
 
-# Run all analyses in parallel - each writes its own timing
-{
-    start_t=$(date +%s)
-    python3 process_bgp_data.py
-    echo $(($(date +%s) - start_t)) > "$timing_dir/bgp"
-} &
-pid_bgp=$!
-
-{
-    start_t=$(date +%s)
-    python3 process_flap_data.py
-    echo $(($(date +%s) - start_t)) > "$timing_dir/flap"
-} &
-pid_flap=$!
-
-{
-    start_t=$(date +%s)
-    python3 process_optical_data.py
-    echo $(($(date +%s) - start_t)) > "$timing_dir/optical"
-} &
-pid_optical=$!
-
-{
-    start_t=$(date +%s)
-    python3 process_ber_data.py
-    echo $(($(date +%s) - start_t)) > "$timing_dir/ber"
-} &
-pid_ber=$!
-
-{
-    start_t=$(date +%s)
-    python3 process_hardware_data.py
-    echo $(($(date +%s) - start_t)) > "$timing_dir/hardware"
-} &
-pid_hardware=$!
-
-{
-    start_t=$(date +%s)
-    python3 process_log_data.py
-    echo $(($(date +%s) - start_t)) > "$timing_dir/log"
-} &
-pid_log=$!
-
-# Wait for all analyses
-wait $pid_bgp && echo "✅ BGP analysis done" || echo "⚠️ BGP analysis failed"
-wait $pid_flap && echo "✅ Flap analysis done" || echo "⚠️ Flap analysis failed"
-wait $pid_optical && echo "✅ Optical analysis done" || echo "⚠️ Optical analysis failed"
-wait $pid_ber && echo "✅ BER analysis done" || echo "⚠️ BER analysis failed"
-wait $pid_hardware && echo "✅ Hardware analysis done" || echo "⚠️ Hardware analysis failed"
-wait $pid_log && echo "✅ Log analysis done" || echo "⚠️ Log analysis failed"
-
-# Read timing results
-declare -A analysis_durations
-analysis_durations["BGP Analysis"]=$(cat "$timing_dir/bgp" 2>/dev/null || echo "FAILED")
-analysis_durations["Link Flap Analysis"]=$(cat "$timing_dir/flap" 2>/dev/null || echo "FAILED")
-analysis_durations["Optical Analysis"]=$(cat "$timing_dir/optical" 2>/dev/null || echo "FAILED")
-analysis_durations["BER Analysis"]=$(cat "$timing_dir/ber" 2>/dev/null || echo "FAILED")
-analysis_durations["Hardware Analysis"]=$(cat "$timing_dir/hardware" 2>/dev/null || echo "FAILED")
-analysis_durations["Log Analysis"]=$(cat "$timing_dir/log" 2>/dev/null || echo "FAILED")
-rm -rf "$timing_dir"
+# Wait for all
+wait
 
 analysis_end=$(date +%s)
 analysis_duration=$((analysis_end - analysis_start))
-
-# Display analysis timing summary
-echo ""
-echo "🔬 Analysis Phase Summary:"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-for name in "${analysis_order[@]}"; do
-    duration="${analysis_durations[$name]}"
-    if [[ "$duration" == "FAILED" ]]; then
-        printf "%-25s : %s\n" "$name" "FAILED"
-    else
-        printf "%-25s : %3ds\n" "$name" "$duration"
-    fi
-done
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-printf "%-25s : %3ds\n" "TOTAL ANALYSIS TIME" "$analysis_duration"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ============================================================================
 # COPY RESULTS
@@ -664,14 +591,5 @@ DURATION=$((END_TIME - START_TIME))
 MINUTES=$((DURATION / 60))
 SECONDS=$((DURATION % 60))
 
-echo ""
-echo "🎉 ==============================================="
-echo "⚡ OPTIMIZED monitoring completed!"
-echo "⏱️  Total execution time: ${MINUTES}m ${SECONDS}s"
-echo "📊 Devices processed: ${#devices[@]}"
-echo "🔧 Max parallel: $MAX_PARALLEL"
-echo "📡 Data collection: ${data_collection_duration}s"
-echo "🔬 Analysis time: ${analysis_duration}s"
-echo "🌐 Results available at web interface"
-echo "=================================================="
+echo "Done: ${#devices[@]} devices, ${MINUTES}m${SECONDS}s (collect:${data_collection_duration}s, analyze:${analysis_duration}s)"
 exit 0

@@ -123,7 +123,7 @@ if ! command -v sshpass >/dev/null 2>&1; then
     exit 1
 fi
 
-echo -e "${BLUE}📋 Configuration Summary${NC}"
+echo -e "${BLUE}Configuration Summary${NC}"
 echo "=================================="
 echo -e "${GREEN}Username: ${USERNAME}${NC}"
 echo -e "${GREEN}Devices: ${#devices[@]}${NC}"

@@ -72,7 +72,7 @@ def process_carrier_transition_files(data_dir="monitor-results/flap-data"):
     
     # Check for flapping
     if flap_analyzer.check_flapping():
-        print("🚨 link flapping detected!")
+        print("link flapping detected!")
     
     # Save updated flap history
     flap_analyzer.save_flap_history()
@@ -94,7 +94,7 @@ def process_carrier_transition_files(data_dir="monitor-results/flap-data"):
     print(f"  Anomalies detected: {len(anomalies)}")
     
     if summary['flapping_ports']:
-        print("\n🔴 Currently Flapping Ports (detected):")
+        print("\nCurrently Flapping Ports (detected):")
         for port in summary['flapping_ports']:
             print(f"    {port['port']}: {port['counters']['flap_30_sec']} flaps in last 30 seconds")
     
@@ -108,13 +108,13 @@ def process_carrier_transition_files(data_dir="monitor-results/flap-data"):
     stability_ratio = ((summary['total_ports'] - total_problematic) / summary['total_ports'] * 100) if summary['total_ports'] > 0 else 0
     
     if stability_ratio >= 95:
-        print(f"\n✅ Network Stability: EXCELLENT ({stability_ratio:.1f}%)")
+        print(f"\nNetwork Stability: EXCELLENT ({stability_ratio:.1f}%)")
     elif stability_ratio >= 85:
-        print(f"\n🟢 Network Stability: GOOD ({stability_ratio:.1f}%)")
+        print(f"\nNetwork Stability: GOOD ({stability_ratio:.1f}%)")
     elif stability_ratio >= 70:
-        print(f"\n🟡 Network Stability: WARNING ({stability_ratio:.1f}%)")
+        print(f"\nNetwork Stability: WARNING ({stability_ratio:.1f}%)")
     else:
-        print(f"\n🔴 Network Stability: CRITICAL ({stability_ratio:.1f}%)")
+        print(f"\nNetwork Stability: CRITICAL ({stability_ratio:.1f}%)")
     
     print(f"\nProcessed {processed_devices} devices using algorithm")
 

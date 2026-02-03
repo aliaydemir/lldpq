@@ -478,13 +478,32 @@ if [[ -d "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR/playbooks" ]]; then
 fi
 
 echo ""
-echo "[06] Restarting web services..."
+echo "[06] Checking permissions and sudoers..."
+# Ensure sudoers is configured for www-data to run SSH as LLDPQ user
+if [[ ! -f /etc/sudoers.d/www-data-lldpq ]]; then
+    LLDPQ_USER="${LLDPQ_USER:-$(whoami)}"
+    echo "   Configuring sudoers for network device access..."
+    echo "www-data ALL=($LLDPQ_USER) NOPASSWD: /usr/bin/timeout, /usr/bin/ssh" | sudo tee /etc/sudoers.d/www-data-lldpq > /dev/null
+    sudo chmod 440 /etc/sudoers.d/www-data-lldpq
+    echo "   Sudoers configured for MAC/ARP table access"
+else
+    echo "   Sudoers already configured"
+fi
+
+# Ensure LLDPQ_USER is in config
+if ! grep -q "^LLDPQ_USER=" /etc/lldpq.conf 2>/dev/null; then
+    echo "LLDPQ_USER=$(whoami)" | sudo tee -a /etc/lldpq.conf > /dev/null
+    echo "   Added LLDPQ_USER to /etc/lldpq.conf"
+fi
+
+echo ""
+echo "[07] Restarting web services..."
 sudo systemctl restart nginx
 sudo systemctl restart fcgiwrap
 echo "nginx and fcgiwrap restarted"
 
 echo ""
-echo "[07] Data preservation summary:"
+echo "[08] Data preservation summary:"
 echo "   The following files/directories were preserved:"
 echo "   Configuration files:"
 # nccm.yml removed - zzh uses devices.yaml
@@ -501,7 +520,7 @@ if [[ -n "$backup_data_dir" ]] || [[ -d "$HOME/lldpq/monitor-results" ]] || [[ -
 fi
 
 echo ""
-echo "[08] Testing updated tools..."
+echo "[09] Testing updated tools..."
 echo "   You can test the updated tools:"
 echo "   - lldpq"
 echo "   - get-conf"

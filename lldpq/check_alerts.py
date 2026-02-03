@@ -42,7 +42,7 @@ class LLDPqAlerts:
                 config = yaml.safe_load(f)
                 
             if not config.get('notifications', {}).get('enabled', False):
-                print("ℹ️  Notifications disabled in config")
+                print("Notifications disabled in config")
                 return None
                 
             return config
@@ -151,7 +151,7 @@ class LLDPqAlerts:
             
             response = requests.post(slack_config['webhook'], json=payload, timeout=10)
             if response.status_code == 200:
-                print(f"✅ Slack alert sent: {title}")
+                print(f"Slack alert sent: {title}")
             else:
                 print(f"❌ Slack alert failed: {response.status_code}")
                 
@@ -207,7 +207,7 @@ class LLDPqAlerts:
                     )
                 elif current_state == "OK" and self.config.get('frequency', {}).get('send_recovery', True):
                     self.send_notification(
-                        f"✅ CPU Temperature Recovered",
+                        f"CPU Temperature Recovered",
                         f"CPU temperature: {cpu_temp}°C (back to normal)",
                         "RECOVERED", device, "cpu_temp"
                     )
@@ -243,7 +243,7 @@ class LLDPqAlerts:
                     )
                 elif current_state == "OK" and self.config.get('frequency', {}).get('send_recovery', True):
                     self.send_notification(
-                        f"✅ ASIC Temperature Recovered",
+                        f"ASIC Temperature Recovered",
                         f"ASIC temperature: {asic_temp}°C (back to normal)",
                         "RECOVERED", device, "asic_temp"
                     )
@@ -288,7 +288,7 @@ class LLDPqAlerts:
                     )
                 elif current_state == "OK" and self.config.get('frequency', {}).get('send_recovery', True):
                     self.send_notification(
-                        f"✅ Fan Speeds Recovered",
+                        f"Fan Speeds Recovered",
                         f"All fans operating normally",
                         "RECOVERED", device, "fan_speed"
                     )
@@ -316,7 +316,7 @@ class LLDPqAlerts:
                     
                     if self.should_send_alert(device, "bgp_neighbors", current_state):
                         self.send_notification(
-                            f"🔴 BGP Neighbors Down",
+                            f"BGP Neighbors Down",
                             f"BGP neighbors down: {', '.join(neighbor_list)}",
                             "CRITICAL", device, "bgp_neighbors"
                         )
@@ -326,7 +326,7 @@ class LLDPqAlerts:
                     if self.should_send_alert(device, "bgp_neighbors", current_state):
                         if self.config.get('frequency', {}).get('send_recovery', True):
                             self.send_notification(
-                                f"✅ BGP Neighbors Recovered",
+                                f"BGP Neighbors Recovered",
                                 f"All BGP neighbors established",
                                 "RECOVERED", device, "bgp_neighbors"
                             )
@@ -379,7 +379,7 @@ class LLDPqAlerts:
                     )
                 elif current_state == "OK" and self.config.get('frequency', {}).get('send_recovery', True):
                     self.send_notification(
-                        f"✅ Link Flaps Stabilized",
+                        f"Link Flaps Stabilized",
                         f"All interfaces stable",
                         "RECOVERED", device, "link_flaps"
                     )
@@ -417,7 +417,7 @@ class LLDPqAlerts:
                 current_state = "CRITICAL"
                 if self.should_send_alert(device, "system_logs", current_state):
                     self.send_notification(
-                        f"📋 Critical System Logs",
+                        f"Critical System Logs",
                         f"Found {len(critical_logs)} critical log entries",
                         "CRITICAL", device, "system_logs"
                     )
@@ -427,7 +427,7 @@ class LLDPqAlerts:
                 if self.should_send_alert(device, "system_logs", current_state):
                     if self.config.get('frequency', {}).get('send_recovery', True):
                         self.send_notification(
-                            f"✅ System Logs Clear",
+                            f"System Logs Clear",
                             f"No critical system issues detected",
                             "RECOVERED", device, "system_logs"
                         )
@@ -438,14 +438,14 @@ class LLDPqAlerts:
     def check_all_devices(self):
         """Check alerts for all monitored devices"""
         if not self.config:
-            print("ℹ️  Notifications disabled or config error")
+            print("Notifications disabled or config error")
             return
             
         # Get alert strategy
         alert_strategy = self.config.get('alert_strategy', {})
         mode = alert_strategy.get('mode', 'summary')
         
-        print(f"🔍 Checking alerts for all devices (mode: {mode})...")
+        print(f"Checking alerts for all devices (mode: {mode})...")
         
         # Get list of devices from hardware data
         hardware_dir = self.monitor_results / "hardware-data"
@@ -460,7 +460,7 @@ class LLDPqAlerts:
             print("❌ No device hardware files found")
             return
             
-        print(f"📊 Found {len(devices)} devices to check")
+        print(f"Found {len(devices)} devices to check")
         
         if mode == "summary":
             self.send_summary_alert(devices)
@@ -478,11 +478,11 @@ class LLDPqAlerts:
                     print(f"    ❌ Error checking {device}: {e}")
                     continue
         
-        print("✅ Alert check completed")
+        print("Alert check completed")
 
     def send_summary_alert(self, devices):
         """Send dashboard-style summary alert"""
-        print("📊 Generating network health summary...")
+        print("Generating network health summary...")
         
         # Get stats directly from HTML analysis files with defaults
         total_devices = len(devices)
@@ -520,19 +520,19 @@ class LLDPqAlerts:
             critical_issues.append(f"🔥 Hardware: {hardware_stats['critical']} devices with critical issues")
         
         if log_stats.get('critical', 0) > 0:
-            critical_issues.append(f"📋 Logs: {log_stats['critical']} critical log entries")
+            critical_issues.append(f"Logs: {log_stats['critical']} critical log entries")
         
         if bgp_stats.get('down', 0) > 0:
-            critical_issues.append(f"🔴 BGP: {bgp_stats['down']} neighbors down")
+            critical_issues.append(f"BGP: {bgp_stats['down']} neighbors down")
         
         if optical_stats.get('critical', 0) > 0:
-            critical_issues.append(f"🔴 Optical: {optical_stats['critical']} ports with critical issues")
+            critical_issues.append(f"Optical: {optical_stats['critical']} ports with critical issues")
         
         if ber_stats.get('critical', 0) > 0:
-            critical_issues.append(f"🔴 BER: {ber_stats['critical']} ports with critical errors")
+            critical_issues.append(f"BER: {ber_stats['critical']} ports with critical errors")
         
         if flap_stats.get('critical', 0) > 0:
-            critical_issues.append(f"🔴 Link Flap: {flap_stats['critical']} problematic ports")
+            critical_issues.append(f"Link Flap: {flap_stats['critical']} problematic ports")
         
         # Analyze LLDP topology (global analysis, not per device)
         lldp_stats = self.get_lldp_stats_from_ini()
@@ -561,7 +561,7 @@ Total Devices: {total_devices}
 Hardware Health Analysis:
 
 
-🟢 Excellent: {hardware_stats['excellent']}     🔵 Good: {hardware_stats['good']}     🟡 Warnings: {hardware_stats['warnings']}     🔴 Critical: {hardware_stats['critical']}
+Excellent: {hardware_stats['excellent']}     🔵 Good: {hardware_stats['good']}     Warnings: {hardware_stats['warnings']}     Critical: {hardware_stats['critical']}
 
 
 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ──
@@ -569,7 +569,7 @@ Hardware Health Analysis:
 Log Analysis Results:
 
 
-🔴 Critical: {log_stats['critical']}     🟡 Warnings: {log_stats['warnings']}     🔵 Errors: {log_stats['errors']}
+Critical: {log_stats['critical']}     Warnings: {log_stats['warnings']}     🔵 Errors: {log_stats['errors']}
 
 
 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ──
@@ -577,7 +577,7 @@ Log Analysis Results:
 Asset Analysis Results:
 
 
-🟢 Successful: {asset_stats['successful']}     🔴 Failed: {asset_stats['failed']}
+Successful: {asset_stats['successful']}     Failed: {asset_stats['failed']}
 
 
 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ──
@@ -585,7 +585,7 @@ Asset Analysis Results:
 LLDP Topology Analysis Results:
 
 
-🟢 Successful: {lldp_stats['successful']}     🔴 Failed: {lldp_stats['failed']}     🟡 Warnings: {lldp_stats['warnings']}     🔵 No Info: {lldp_stats['no_info']}
+Successful: {lldp_stats['successful']}     Failed: {lldp_stats['failed']}     Warnings: {lldp_stats['warnings']}     🔵 No Info: {lldp_stats['no_info']}
 
 
 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ──
@@ -593,7 +593,7 @@ LLDP Topology Analysis Results:
 BGP Analysis Results:
 
 
-🟢 Established: {bgp_stats['established']}     🔴 Down: {bgp_stats['down']}
+Established: {bgp_stats['established']}     Down: {bgp_stats['down']}
 
 
 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ──
@@ -601,14 +601,14 @@ BGP Analysis Results:
 Link Flap Analysis Results:
 
 
-🟢 Stable: {flap_stats['stable']}     🟡 Warnings: {flap_stats['warnings']}     🔴 Critical: {flap_stats['critical']}
+Stable: {flap_stats['stable']}     Warnings: {flap_stats['warnings']}     Critical: {flap_stats['critical']}
 
 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ──
 
 Optical Diagnostics Analysis:
 
 
-🟢 Excellent: {optical_stats['excellent']}     🟢 Good: {optical_stats['good']}     🟡 Warning: {optical_stats['warnings']}     🔴 Critical: {optical_stats['critical']}
+Excellent: {optical_stats['excellent']}     Good: {optical_stats['good']}     Warning: {optical_stats['warnings']}     Critical: {optical_stats['critical']}
 
 
 ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ──
@@ -616,7 +616,7 @@ Optical Diagnostics Analysis:
 BER Analysis Results:
 
 
-🟢 Excellent: {ber_stats['excellent']}     🟢 Good: {ber_stats['good']}     🟡 Warnings: {ber_stats['warnings']}     🔴 Critical: {ber_stats['critical']}
+Excellent: {ber_stats['excellent']}     Good: {ber_stats['good']}     Warnings: {ber_stats['warnings']}     Critical: {ber_stats['critical']}
 
 """
             if critical_issues:
@@ -624,7 +624,7 @@ BER Analysis Results:
                 if len(critical_issues) > 5:
                     message += f"\n... and {len(critical_issues) - 5} more issues"
                     
-            message += f"\n\n─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ──\n\n[📊 View Full Dashboard]({server_url})"
+            message += f"\n\n─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ──\n\n[View Full Dashboard]({server_url})"
             
             # Send notification
             color = "#FF0000" if critical_issues else "#00AA00"
@@ -1107,7 +1107,7 @@ def main():
         script_dir = os.path.dirname(os.path.abspath(__file__))
         alerts = LLDPqAlerts(script_dir)
         
-        print(f"🔍 Checking alerts for device: {device}")
+        print(f"Checking alerts for device: {device}")
         alerts.check_hardware_alerts(device)
         alerts.check_network_alerts(device)
         alerts.check_log_alerts(device)

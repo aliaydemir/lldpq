@@ -49,10 +49,10 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
     """Process optical data files and update optical analyzer"""
     optical_analyzer = OpticalAnalyzer("monitor-results")
 
-    print("🔬 Processing optical diagnostics data")
-    print(f"📁 Data directory: {data_dir}")
+    print("Processing optical diagnostics data")
+    print(f"Data directory: {data_dir}")
     print(
-        f"📊 Using optical thresholds: RX Power min={optical_analyzer.thresholds['rx_power_min_dbm']:.1f} dBm, "
+        f"Using optical thresholds: RX Power min={optical_analyzer.thresholds['rx_power_min_dbm']:.1f} dBm, "
         f"warn high={optical_analyzer.thresholds.get('rx_power_warning_high_dbm', 5.0):.1f} dBm, "
         f"crit high={optical_analyzer.thresholds.get('rx_power_critical_high_dbm', 7.0):.1f} dBm, "
         f"Temperature max={optical_analyzer.thresholds['temperature_max_c']:.1f}°C"
@@ -64,7 +64,7 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
 
     # List files in directory
     files = os.listdir(data_dir)
-    print(f"📂 Found {len(files)} optical data files")
+    print(f"Found {len(files)} optical data files")
 
     # Process all optical diagnostic files
     total_processed = 0
@@ -140,23 +140,23 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                 else:
                     pass  # No optical parameters detected
 
-    print(f"\n📊 Processed {total_processed} files total")
+    print(f"\nProcessed {total_processed} files total")
 
     # Save updated optical history
     optical_analyzer.save_optical_history()
-    print("💾 Optical history saved")
+    print("Optical history saved")
 
     # Generate web report
     output_file = "monitor-results/optical-analysis.html"
     optical_analyzer.export_optical_data_for_web(output_file)
-    print(f"📄 Optical analysis report generated: {output_file}")
+    print(f"Optical analysis report generated: {output_file}")
 
     # Generate summary for dashboard
     summary = optical_analyzer.get_optical_summary()
     anomalies = optical_analyzer.detect_optical_anomalies()
-    print(f"📈 Summary stats: {len(optical_analyzer.current_optical_stats)} total ports analyzed")
+    print(f"Summary stats: {len(optical_analyzer.current_optical_stats)} total ports analyzed")
 
-    print(f"\n🔬 Optical Analysis Summary:")
+    print(f"\nOptical Analysis Summary:")
     print(f"  Total ports monitored: {summary['total_ports']}")
     print(f"  Excellent health: {len(summary['excellent_ports'])}")
     print(f"  Good health: {len(summary['good_ports'])}")
@@ -165,7 +165,7 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
     print(f"  Anomalies detected: {len(anomalies)}")
 
     if summary['critical_ports']:
-        print("\n🔴 Critical Optical Issues (Immediate Attention):")
+        print("\nCritical Optical Issues (Immediate Attention):")
         for port in summary['critical_ports']:
             rx_power = f"{port['rx_power_dbm']:.2f} dBm" if port['rx_power_dbm'] is not None else "N/A"
             temp = f"{port['temperature_c']:.1f}°C" if port['temperature_c'] is not None else "N/A"
@@ -186,7 +186,7 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
 
     # Check for excellent performers
     if summary['excellent_ports']:
-        print(f"\n✅ Excellent Optical Health: {len(summary['excellent_ports'])} ports performing optimally")
+        print(f"\nExcellent Optical Health: {len(summary['excellent_ports'])} ports performing optimally")
 
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))

@@ -28,6 +28,10 @@ wait_until_not_running "check-lldp.sh"
 eval "./check-lldp.sh $QUIET"
 eval "./monitor.sh $QUIET"
 
+# Fabric table scan for search
+wait_until_not_running "fabric-scan.sh"
+eval "./fabric-scan.sh $QUIET"
+
 # Check for network alerts (only if monitoring data exists)
 if [[ -d "monitor-results" ]] && [[ -f "notifications.yaml" ]]; then
     eval "python3 ./check_alerts.py $QUIET" || echo "⚠️  Alert check failed (non-critical)"

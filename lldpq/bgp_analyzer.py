@@ -61,6 +61,22 @@ class BGPNeighbor:
     description: str
     interface: Optional[str] = None
 
+@dataclass
+class EVPNStats:
+    """EVPN statistics for a device"""
+    hostname: str
+    total_vnis: int = 0
+    l2_vnis: int = 0
+    l3_vnis: int = 0
+    type2_routes: int = 0  # MAC/IP routes
+    type5_routes: int = 0  # IP prefix routes
+    vni_details: List[Dict] = None
+    
+    def __post_init__(self):
+        if self.vni_details is None:
+            self.vni_details = []
+
+
 class BGPAnalyzer:
     """BGP neighbor health and status analyzer"""
     
@@ -79,10 +95,12 @@ class BGPAnalyzer:
         self.data_dir = data_dir
         self.bgp_history = {}  # hostname -> BGP historical data
         self.current_bgp_stats = {}  # hostname -> current BGP neighbors
+        self.current_evpn_stats = {}  # hostname -> EVPN statistics
         self.thresholds = self.DEFAULT_THRESHOLDS.copy()
         
-        # Ensure bgp-data directory exists
+        # Ensure bgp-data and evpn-data directories exist
         os.makedirs(f"{self.data_dir}/bgp-data", exist_ok=True)
+        os.makedirs(f"{self.data_dir}/evpn-data", exist_ok=True)
         
         # Load historical data
         self.load_bgp_history()
@@ -372,6 +390,104 @@ class BGPAnalyzer:
         if len(self.bgp_history[hostname]) > 50:
             self.bgp_history[hostname] = self.bgp_history[hostname][-50:]
     
+    def parse_evpn_output(self, evpn_data: str) -> EVPNStats:
+        """Parse EVPN data output from vtysh commands"""
+        stats = EVPNStats(hostname="")
+        
+        lines = evpn_data.strip().split('\n')
+        current_section = None
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Detect section markers
+            if "=== EVPN VNI SUMMARY ===" in line:
+                current_section = "vni_summary"
+                continue
+            elif "=== EVPN ROUTE COUNTS ===" in line:
+                current_section = "route_counts"
+                continue
+            elif "=== EVPN TYPE COUNTS ===" in line:
+                current_section = "type_counts"
+                continue
+            
+            # Parse VNI summary section
+            # Format: VNI        Type VxLAN IF              # MACs   # ARPs   # Remote VTEPs  Tenant VRF      VLAN       BRIDGE
+            #         300242     L2   vxlan48               0        0        1               default         0          br_default
+            #         2303002    L3   vxlan99               7        7        n/a             compute         3702       br_l3vni
+            if current_section == "vni_summary":
+                # Match VNI lines (starts with number) - Remote VTEPs can be number or n/a
+                vni_match = re.match(r'^(\d+)\s+(L2|L3)\s+(\S+)\s+(\d+)\s+(\d+)\s+(\S+)\s+(\S+)', line)
+                if vni_match:
+                    vni_type = vni_match.group(2)
+                    if vni_type == "L2":
+                        stats.l2_vnis += 1
+                    else:
+                        stats.l3_vnis += 1
+                    stats.total_vnis += 1
+                    
+                    # Parse remote_vteps - handle n/a
+                    remote_vteps_str = vni_match.group(6)
+                    remote_vteps = int(remote_vteps_str) if remote_vteps_str.isdigit() else 0
+                    
+                    stats.vni_details.append({
+                        'vni': int(vni_match.group(1)),
+                        'type': vni_type,
+                        'interface': vni_match.group(3),
+                        'macs': int(vni_match.group(4)),
+                        'arps': int(vni_match.group(5)),
+                        'remote_vteps': remote_vteps,
+                        'vrf': vni_match.group(7) or 'default'
+                    })
+            
+            # Parse type counts section
+            # Routes format: " *> [2]:[0]:[48]:[...]" or " *  [5]:[0]:[...]"
+            # Lines start with whitespace, then * or >, then route type [N]:
+            if current_section == "type_counts":
+                # Count Type-2 (MAC/IP) routes - lines with [2]:
+                if '[2]:' in line:
+                    stats.type2_routes += 1
+                # Count Type-5 (IP prefix) routes - lines with [5]:
+                elif '[5]:' in line:
+                    stats.type5_routes += 1
+        
+        return stats
+    
+    def update_evpn_stats(self, hostname: str, evpn_data: str):
+        """Update EVPN statistics for a device"""
+        stats = self.parse_evpn_output(evpn_data)
+        stats.hostname = hostname
+        
+        self.current_evpn_stats[hostname] = {
+            "total_vnis": stats.total_vnis,
+            "l2_vnis": stats.l2_vnis,
+            "l3_vnis": stats.l3_vnis,
+            "type2_routes": stats.type2_routes,
+            "type5_routes": stats.type5_routes,
+            "vni_details": stats.vni_details,
+            "last_update": datetime.now().isoformat()
+        }
+    
+    def get_evpn_summary(self) -> Dict[str, Any]:
+        """Get network-wide EVPN summary"""
+        total_devices = len(self.current_evpn_stats)
+        total_vnis = sum(s.get("total_vnis", 0) for s in self.current_evpn_stats.values())
+        total_l2_vnis = sum(s.get("l2_vnis", 0) for s in self.current_evpn_stats.values())
+        total_l3_vnis = sum(s.get("l3_vnis", 0) for s in self.current_evpn_stats.values())
+        total_type2 = sum(s.get("type2_routes", 0) for s in self.current_evpn_stats.values())
+        total_type5 = sum(s.get("type5_routes", 0) for s in self.current_evpn_stats.values())
+        
+        return {
+            "total_devices": total_devices,
+            "total_vnis": total_vnis,
+            "l2_vnis": total_l2_vnis,
+            "l3_vnis": total_l3_vnis,
+            "type2_routes": total_type2,
+            "type5_routes": total_type5,
+            "per_device": self.current_evpn_stats,
+            "timestamp": datetime.now().isoformat()
+        }
+    
     def get_bgp_summary(self) -> Dict[str, Any]:
         """Get network-wide BGP summary"""
         total_devices = len(self.current_bgp_stats)
@@ -474,7 +590,11 @@ class BGPAnalyzer:
     def export_bgp_data_for_web(self, output_file: str):
         """Export BGP data for web display"""
         summary = self.get_bgp_summary()
+        evpn_summary = self.get_evpn_summary()
         anomalies = self.detect_bgp_anomalies()
+        
+        # Serialize EVPN per-device data for JavaScript
+        evpn_per_device_json = json.dumps(evpn_summary.get('per_device', {}))
         
         html_content = f"""
 <!DOCTYPE html>
@@ -544,7 +664,86 @@ class BGPAnalyzer:
         }}
         .summary-card:hover {{ background: #2d2d2d; transform: translateY(-1px); }}
         .summary-card.active {{ background: #333; border-left-width: 5px; }}
+        .evpn-clickable {{ cursor: pointer; }}
+        .evpn-clickable:hover {{ box-shadow: 0 2px 8px rgba(0,0,0,0.3); }}
         .card-excellent {{ border-left-color: #76b900; }}
+        
+        /* EVPN Modal */
+        .evpn-modal {{
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(2px);
+        }}
+        .evpn-modal.show {{ display: flex; justify-content: center; align-items: center; }}
+        .evpn-modal-content {{
+            background: #2d2d2d;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 900px;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }}
+        .evpn-modal-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: #333;
+            border-bottom: 1px solid #444;
+        }}
+        .evpn-modal-header h3 {{ margin: 0; color: #76b900; font-size: 16px; }}
+        .evpn-modal-close {{
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 0 5px;
+        }}
+        .evpn-modal-close:hover {{ color: #fff; }}
+        .evpn-modal-body {{
+            padding: 0;
+            overflow-y: auto;
+            max-height: calc(80vh - 60px);
+        }}
+        .evpn-modal-body table {{
+            margin: 0;
+        }}
+        .evpn-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }}
+        .evpn-table th, .evpn-table td {{
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #404040;
+        }}
+        .evpn-table th {{
+            background: #333;
+            color: #76b900;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }}
+        .evpn-table tr:hover {{ background: #353535; }}
+        .evpn-badge {{
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }}
+        .evpn-badge-l2 {{ background: #9c27b0; color: #fff; }}
+        .evpn-badge-l3 {{ background: #ff9800; color: #000; }}
         .card-critical {{ border-left-color: #f44336; }}
         .card-info {{ border-left-color: #4fc3f7; }}
         .metric {{ font-size: 22px; font-weight: bold; color: #d4d4d4; }}
@@ -720,6 +919,40 @@ class BGPAnalyzer:
             </div>
         </div>
     </div>
+    
+    <!-- EVPN Summary Section -->
+    <div class="dashboard-section" id="evpn">
+        <div class="section-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            </svg>
+            EVPN Summary
+        </div>
+        <div class="section-content">
+            <div class="summary-grid">
+                <div class="summary-card card-info evpn-clickable" onclick="showEvpnModal('all')" title="Click to see VNI details">
+                    <div class="metric" id="evpn-total-vnis" style="color: #4fc3f7;">{evpn_summary['total_vnis']}</div>
+                    <div class="metric-label">Total VNIs</div>
+                </div>
+                <div class="summary-card evpn-clickable" style="border-left-color: #9c27b0;" onclick="showEvpnModal('L2')" title="Click to see L2 VNIs">
+                    <div class="metric" id="evpn-l2-vnis" style="color: #ce93d8;">{evpn_summary['l2_vnis']}</div>
+                    <div class="metric-label">L2 VNIs</div>
+                </div>
+                <div class="summary-card evpn-clickable" style="border-left-color: #ff9800;" onclick="showEvpnModal('L3')" title="Click to see L3 VNIs">
+                    <div class="metric" id="evpn-l3-vnis" style="color: #ffb74d;">{evpn_summary['l3_vnis']}</div>
+                    <div class="metric-label">L3 VNIs</div>
+                </div>
+                <div class="summary-card evpn-clickable" style="border-left-color: #00bcd4;" onclick="showEvpnModal('type2')" title="Click to see Type-2 route breakdown">
+                    <div class="metric" id="evpn-type2-routes" style="color: #4dd0e1;">{evpn_summary['type2_routes']}</div>
+                    <div class="metric-label">Type-2 Routes (MAC/IP)</div>
+                </div>
+                <div class="summary-card evpn-clickable" style="border-left-color: #8bc34a;" onclick="showEvpnModal('type5')" title="Click to see Type-5 route breakdown">
+                    <div class="metric" id="evpn-type5-routes" style="color: #aed581;">{evpn_summary['type5_routes']}</div>
+                    <div class="metric-label">Type-5 Routes (IP Prefix)</div>
+                </div>
+            </div>
+        </div>
+    </div>
 """
         
         # Collect all neighbors for display
@@ -866,11 +1099,118 @@ class BGPAnalyzer:
         </div>
     </div>
 
+    <!-- EVPN Detail Modal -->
+    <div class="evpn-modal" id="evpnModal">
+        <div class="evpn-modal-content">
+            <div class="evpn-modal-header">
+                <h3 id="evpnModalTitle">EVPN Details</h3>
+                <button class="evpn-modal-close" onclick="closeEvpnModal()">&times;</button>
+            </div>
+            <div class="evpn-modal-body" id="evpnModalBody">
+                <!-- Content will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
     <!-- jQuery and Select2 for device search -->
     <script src="/css/jquery-3.5.1.min.js"></script>
     <script src="/css/select2.min.js"></script>
     
     <script>
+        // EVPN per-device data
+        const evpnPerDevice = __EVPN_DATA_PLACEHOLDER__;
+        
+        // EVPN Modal functions
+        function showEvpnModal(filterType) {
+            const modal = document.getElementById('evpnModal');
+            const title = document.getElementById('evpnModalTitle');
+            const body = document.getElementById('evpnModalBody');
+            
+            let html = '';
+            
+            if (filterType === 'type2' || filterType === 'type5') {
+                // Show per-device route count breakdown
+                const routeType = filterType === 'type2' ? 'Type-2 Routes (MAC/IP)' : 'Type-5 Routes (IP Prefix)';
+                const routeKey = filterType === 'type2' ? 'type2_routes' : 'type5_routes';
+                title.textContent = routeType + ' - Per Device';
+                
+                html = '<table class="evpn-table"><thead><tr><th>Device</th><th>Route Count</th></tr></thead><tbody>';
+                
+                // Sort by route count descending
+                const sorted = Object.entries(evpnPerDevice)
+                    .map(([device, data]) => ({ device, count: data[routeKey] || 0 }))
+                    .filter(d => d.count > 0)
+                    .sort((a, b) => b.count - a.count);
+                
+                sorted.forEach(item => {
+                    html += '<tr><td>' + item.device + '</td><td>' + item.count.toLocaleString() + '</td></tr>';
+                });
+                
+                html += '</tbody></table>';
+                if (sorted.length === 0) html = '<p style="color:#888;text-align:center;">No routes found</p>';
+                
+            } else {
+                // Show VNI details table
+                let vniFilter = filterType; // 'all', 'L2', or 'L3'
+                title.textContent = vniFilter === 'all' ? 'All VNIs' : vniFilter + ' VNIs';
+                
+                // Collect all VNIs from all devices
+                let allVnis = [];
+                Object.entries(evpnPerDevice).forEach(([device, data]) => {
+                    if (data.vni_details) {
+                        data.vni_details.forEach(vni => {
+                            if (vniFilter === 'all' || vni.type === vniFilter) {
+                                allVnis.push(Object.assign({}, vni, {device: device}));
+                            }
+                        });
+                    }
+                });
+                
+                // Remove duplicates (same VNI from multiple devices) - keep first occurrence
+                const uniqueVnis = [];
+                const seenVnis = new Set();
+                allVnis.forEach(vni => {
+                    if (!seenVnis.has(vni.vni)) {
+                        seenVnis.add(vni.vni);
+                        uniqueVnis.push(vni);
+                    }
+                });
+                
+                // Sort by Type (L3 first), then VNI number
+                uniqueVnis.sort((a, b) => {
+                    if (a.type !== b.type) return a.type === 'L3' ? -1 : 1;
+                    return a.vni - b.vni;
+                });
+                
+                html = '<table class="evpn-table"><thead><tr><th>VNI</th><th>Type</th><th>VRF</th><th>MACs</th><th>ARPs</th><th>Remote VTEPs</th></tr></thead><tbody>';
+                
+                uniqueVnis.forEach(vni => {
+                    const badge = vni.type === 'L2' ? 'evpn-badge-l2' : 'evpn-badge-l3';
+                    html += '<tr><td>' + vni.vni + '</td><td><span class="evpn-badge ' + badge + '">' + vni.type + '</span></td><td>' + (vni.vrf || 'default') + '</td><td>' + (vni.macs || 0) + '</td><td>' + (vni.arps || 0) + '</td><td>' + (vni.remote_vteps || 0) + '</td></tr>';
+                });
+                
+                html += '</tbody></table>';
+                if (uniqueVnis.length === 0) html = '<p style="color:#888;text-align:center;">No VNIs found</p>';
+            }
+            
+            body.innerHTML = html;
+            modal.classList.add('show');
+        }
+        
+        function closeEvpnModal() {
+            document.getElementById('evpnModal').classList.remove('show');
+        }
+        
+        // Close modal on outside click
+        document.getElementById('evpnModal').addEventListener('click', function(e) {
+            if (e.target === this) closeEvpnModal();
+        });
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeEvpnModal();
+        });
+        
         // Filter functionality
         let currentFilter = 'ALL';
         let allRows = [];
@@ -1391,6 +1731,9 @@ class BGPAnalyzer:
 </body>
 </html>
 """
+        
+        # Replace EVPN data placeholder with actual JSON
+        html_content = html_content.replace('__EVPN_DATA_PLACEHOLDER__', evpn_per_device_json)
         
         with open(output_file, "w") as f:
             f.write(html_content)

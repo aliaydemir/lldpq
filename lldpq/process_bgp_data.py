@@ -12,8 +12,8 @@ import sys
 from datetime import datetime
 from bgp_analyzer import BGPAnalyzer
 
-def parse_bgp_file(filepath):
-    """Parse BGP data file"""
+def parse_data_file(filepath):
+    """Parse data file"""
     try:
         with open(filepath, "r") as f:
             content = f.read()
@@ -40,9 +40,8 @@ def process_bgp_data_files(data_dir="monitor-results/bgp-data"):
             hostname = filename.replace("_bgp.txt", "")
             filepath = os.path.join(data_dir, filename)
             
-            
             # Parse BGP data file
-            bgp_data = parse_bgp_file(filepath)
+            bgp_data = parse_data_file(filepath)
             
             if not bgp_data or len(bgp_data.strip()) < 50:
                 continue
@@ -57,9 +56,24 @@ def process_bgp_data_files(data_dir="monitor-results/bgp-data"):
                 established = stats["established_neighbors"]
                 down = stats["down_neighbors"]
                 
-                
                 # Per-device logging removed for performance
                 # Only summary and critical issues are shown
+    
+    # Process EVPN data files
+    evpn_data_dir = "monitor-results/evpn-data"
+    if os.path.exists(evpn_data_dir):
+        print("Processing EVPN data")
+        for filename in os.listdir(evpn_data_dir):
+            if filename.endswith("_evpn.txt"):
+                hostname = filename.replace("_evpn.txt", "")
+                filepath = os.path.join(evpn_data_dir, filename)
+                
+                # Parse EVPN data file
+                evpn_data = parse_data_file(filepath)
+                
+                if evpn_data and len(evpn_data.strip()) > 20:
+                    # Update EVPN stats
+                    bgp_analyzer.update_evpn_stats(hostname, evpn_data)
     
     # Save updated BGP history
     bgp_analyzer.save_bgp_history()
@@ -71,6 +85,7 @@ def process_bgp_data_files(data_dir="monitor-results/bgp-data"):
     
     # Generate summary for dashboard
     summary = bgp_analyzer.get_bgp_summary()
+    evpn_summary = bgp_analyzer.get_evpn_summary()
     anomalies = bgp_analyzer.detect_bgp_anomalies()
     
     print(f"\n BGP Analysis Summary:")
@@ -81,10 +96,17 @@ def process_bgp_data_files(data_dir="monitor-results/bgp-data"):
     print(f"  Health ratio: {summary['health_ratio']:.1f}%")
     print(f"  Anomalies detected: {len(anomalies)}")
     
+    print(f"\n EVPN Summary:")
+    print(f"  Total VNIs: {evpn_summary['total_vnis']}")
+    print(f"  L2 VNIs: {evpn_summary['l2_vnis']}")
+    print(f"  L3 VNIs: {evpn_summary['l3_vnis']}")
+    print(f"  Type-2 Routes (MAC/IP): {evpn_summary['type2_routes']}")
+    print(f"  Type-5 Routes (IP Prefix): {evpn_summary['type5_routes']}")
+    
     # Show critical issues
     critical_anomalies = [a for a in anomalies if a['severity'] == 'critical']
     if critical_anomalies:
-        print(f"\n🚨 Critical BGP Issues:")
+        print(f"\nCritical BGP Issues:")
         for anomaly in critical_anomalies[:5]:  # Show first 5
             print(f"  • {anomaly['device']}: {anomaly['neighbor']} - {anomaly['message']}")
 

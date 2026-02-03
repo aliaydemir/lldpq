@@ -331,7 +331,7 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
 
     # Load topology configuration
     topology_config = load_topology_config()
-    print(f"📋 Loaded topology config with {len(topology_config.get('device_categories', []))} device patterns")
+    print(f"Loaded topology config with {len(topology_config.get('device_categories', []))} device patterns")
 
     for device_name, info in device_info.items():
         if "OOB-MGMT" in device_name:
