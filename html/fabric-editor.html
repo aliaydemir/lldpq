@@ -1322,8 +1322,11 @@
             <button class="btn btn-secondary" onclick="gitDiff()" title="Show git diff">
                 Diff
             </button>
+            <button class="btn btn-secondary" onclick="confirmResetFile()" style="color: #ffb347;" title="Reset current file to last commit">
+                Reset File
+            </button>
             <button class="btn btn-secondary" onclick="gitReset()" style="color: #ff6b6b;" title="Discard all uncommitted changes">
-                Reset
+                Reset All
             </button>
         </div>
         <div class="bottom-right" style="display: flex; align-items: center; gap: 15px;">
@@ -2435,9 +2438,9 @@
                         
                         fileEl.innerHTML = `<span class="codicon ${iconClass} file-icon"></span>${file.name}`;
                         fileEl.onclick = () => {
-                            // If file is already open, reload it; otherwise open it
+                            // If file is already open, switch to it; otherwise open it
                             if (state.files[file.path]) {
-                                reloadFile(file.path);
+                                switchToFile(file.path);
                             } else {
                                 openFile(file.path);
                             }
@@ -3863,6 +3866,39 @@
                             if (state.currentFile) {
                                 await reloadFile(state.currentFile);
                             }
+                        }
+                    } catch (e) {
+                        showOutput('Error: ' + e.message, 'error');
+                    }
+                    showLoading(false);
+                }
+            );
+        }
+        
+        // Reset single file to last commit
+        async function confirmResetFile() {
+            if (!state.currentFile) {
+                showOutput('No file is currently open', 'error');
+                return;
+            }
+            
+            const filename = state.currentFile.split('/').pop();
+            
+            showConfirmModal(
+                'Reset File',
+                `Are you sure you want to reset <strong>${filename}</strong> to the last commit?<br><br>All uncommitted changes will be lost!`,
+                async () => {
+                    showLoading(true, 'Resetting file...');
+                    try {
+                        const result = await apiCall('git-reset-file', { file: state.currentFile });
+                        if (result.success) {
+                            showOutput(`✓ ${filename} reset to last commit`, 'success');
+                            // Reload file to show reverted content
+                            await reloadFile(state.currentFile);
+                            // Refresh git modified status
+                            loadGitModifiedFiles();
+                        } else {
+                            showOutput(result.error || 'Failed to reset file', 'error');
                         }
                     } catch (e) {
                         showOutput('Error: ' + e.message, 'error');

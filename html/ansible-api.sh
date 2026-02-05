@@ -529,6 +529,42 @@ case "$ACTION" in
             json_response "{\"success\": false, \"error\": \"Failed to reset: $output\"}"
         fi
         ;;
+    git-reset-file)
+        # Reset single file to last commit
+        FILE=$(echo "$QUERY_STRING" | sed -n 's/.*file=\([^&]*\).*/\1/p' | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read().strip()))")
+        
+        if [ -z "$FILE" ]; then
+            json_response '{"success": false, "error": "No file specified"}'
+            exit 0
+        fi
+        
+        cd "$ANSIBLE_DIR" || { json_response '{"success": false, "error": "Cannot access ansible directory"}'; exit 0; }
+        git config --global --add safe.directory "$ANSIBLE_DIR" 2>/dev/null || true
+        
+        # Check if file exists in git
+        if ! git ls-files --error-unmatch "$FILE" >/dev/null 2>&1; then
+            # File not tracked, check if it's a new file
+            if [ -f "$FILE" ]; then
+                json_response '{"success": false, "error": "File is not tracked by git (new file)"}'
+            else
+                json_response '{"success": false, "error": "File not found"}'
+            fi
+            exit 0
+        fi
+        
+        # Reset single file
+        output=$(git checkout HEAD -- "$FILE" 2>&1)
+        reset_code=$?
+        
+        # Fix git permissions after reset
+        fix_git_permissions
+        
+        if [ $reset_code -eq 0 ]; then
+            json_response '{"success": true, "output": "File reset to last commit."}'
+        else
+            json_response "{\"success\": false, \"error\": \"Failed to reset file: $output\"}"
+        fi
+        ;;
     grep)
         # Search in specified path (default: inventory) - like mgrep
         QUERY=$(echo "$QUERY_STRING" | sed -n 's/.*query=\([^&]*\).*/\1/p' | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read().strip()))")

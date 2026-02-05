@@ -193,6 +193,21 @@ sudo chmod +x /usr/local/bin/*
 echo "   - Copying lldpq to ~/lldpq"
 cp -r lldpq ~/lldpq
 
+echo "   - Setting permissions on ~/lldpq for web access (search-api.sh)"
+# www-data needs read access to devices.yaml and monitor-results for search functionality
+chmod 750 ~/lldpq  # user=rwx, group=rx, other=none
+chmod 640 ~/lldpq/devices.yaml  # user=rw, group=r, other=none
+mkdir -p ~/lldpq/monitor-results/fabric-tables
+chmod 750 ~/lldpq/monitor-results
+chmod 750 ~/lldpq/monitor-results/fabric-tables
+
+# Set default ACL so new files/directories also get group read permission (survives git operations)
+if command -v setfacl &> /dev/null; then
+    setfacl -R -d -m g::rX ~/lldpq 2>/dev/null || true
+    echo "   Default ACL set (new files will inherit group read permission)"
+fi
+echo "   Group read permissions set (www-data can access via group)"
+
 echo "   - Setting up topology.dot for web editing"
 # Handle topology.dot - may be symlink from previous install, regular file, or not exist
 if [[ -L ~/lldpq/topology.dot ]]; then
@@ -507,11 +522,32 @@ if ! git config --global user.email >/dev/null 2>&1; then
     git config --global user.email "$(whoami)@$(hostname)"
 fi
 
-# Initialize git repo
-git init -q
+# Initialize git repo with main branch (modern Git convention)
+git init -q -b main
 git add -A
 git commit -q -m "Initial LLDPq configuration"
+
+# Configure git for group permissions
+git config core.sharedRepository group
+
+# Add git hooks to preserve permissions after git operations (pull, checkout, etc)
+echo "   - Setting up git hooks for permission preservation..."
+cat > .git/hooks/post-merge << 'HOOKEOF'
+#!/bin/bash
+# Fix permissions after git pull/merge (preserve group read access for www-data)
+chmod 750 "$(git rev-parse --show-toplevel)" 2>/dev/null || true
+chmod 640 "$(git rev-parse --show-toplevel)/devices.yaml" 2>/dev/null || true
+if [ -d "$(git rev-parse --show-toplevel)/monitor-results" ]; then
+    chmod -R 750 "$(git rev-parse --show-toplevel)/monitor-results" 2>/dev/null || true
+fi
+HOOKEOF
+chmod +x .git/hooks/post-merge
+
+# Create post-checkout hook (for git checkout, git reset)
+cp .git/hooks/post-merge .git/hooks/post-checkout
+
 echo "Git repository initialized with initial commit"
+echo "   - Git hooks created (permissions preserved after git operations)"
 echo "   - Use 'cd ~/lldpq && git diff' to see changes"
 echo "   - Use 'cd ~/lldpq && git log' to see history"
 

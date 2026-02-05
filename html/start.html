@@ -432,11 +432,11 @@
                 </div>
                 <div class="summary-card card-excellent" onclick="window.location.href='lldp.html'">
                     <div class="card-value status-excellent" id="lldp-success">72</div>
-                    <div class="card-label">Successful Links</div>
+                    <div class="card-label">Successful Ports</div>
                 </div>
                 <div class="summary-card card-critical" onclick="window.location.href='lldp.html'">
                     <div class="card-value status-critical" id="lldp-failed">2</div>
-                    <div class="card-label">Failed Links</div>
+                    <div class="card-label">Failed Ports</div>
                 </div>
                 <div class="summary-card card-warning" onclick="window.location.href='lldp.html'">
                     <div class="card-value status-warning" id="lldp-warning">3</div>
@@ -1030,7 +1030,7 @@
             // Calculate critical issues with breakdown for tooltip
             const criticalBreakdown = {
                 'Assets Failed': assetsData.failed || 0,
-                'LLDP Failed Links': lldpData.failed || 0,
+                'LLDP Failed Ports': lldpData.failed || 0,
                 'LLDP No Info': lldpData.noInfo || 0,
                 'BGP Failed': bgpData.failed || 0,
                 'Optical Critical': opticalData.critical || 0,

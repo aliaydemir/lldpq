@@ -262,6 +262,12 @@
             display: flex;
             align-items: center;
             gap: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .device-chip:hover {
+            background: #444;
         }
         
         .device-chip .remove-btn {
@@ -1378,7 +1384,7 @@
                         <td colspan="11">
                             ${devices.length > 0 ? `
                                 <div class="device-chips">
-                                    ${devices.map(d => `<span class="device-chip">${d}<button class="remove-btn" onclick="event.stopPropagation(); confirmRemoveVlanFromDevice('${vlanName}', '${d}')" title="Remove from ${d}">×</button></span>`).join('')}
+                                    ${devices.map(d => `<span class="device-chip" onclick="openDeviceConfig('${d}')" title="Open ${d} config in Fabric Config"><span>${d}</span><button class="remove-btn" onclick="event.stopPropagation(); confirmRemoveVlanFromDevice('${vlanName}', '${d}')" title="Remove from ${d}">×</button></span>`).join('')}
                                 </div>
                             ` : '<span style="color: #888;">No devices assigned</span>'}
                         </td>
@@ -2188,6 +2194,11 @@
         
         
         // ===== Remove VLAN from Single Device =====
+        // Open device config in fabric-config.html
+        function openDeviceConfig(deviceName) {
+            window.open(`fabric-config.html?device=${encodeURIComponent(deviceName)}`, '_blank');
+        }
+        
         let removeVlanName = '';
         let removeDeviceName = '';
         

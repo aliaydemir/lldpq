@@ -294,6 +294,12 @@
             border-radius: 4px;
             font-size: 12px;
             color: #76b900;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .device-chip:hover {
+            background: #444;
         }
         
         /* VRF Name */
@@ -940,7 +946,7 @@
                         <td colspan="6">
                             ${devices.length > 0 ? `
                                 <div class="device-chips">
-                                    ${devices.map(d => `<span class="device-chip">${d}<button class="remove-btn" onclick="event.stopPropagation(); confirmRemoveFromDevice('${vrfName}', '${d}')" title="Remove from ${d}">×</button></span>`).join('')}
+                                    ${devices.map(d => `<span class="device-chip" onclick="openDeviceConfig('${d}')" title="Open ${d} config in Fabric Config"><span>${d}</span><button class="remove-btn" onclick="event.stopPropagation(); confirmRemoveFromDevice('${vrfName}', '${d}')" title="Remove from ${d}">×</button></span>`).join('')}
                                 </div>
                             ` : '<span style="color: #888;">No devices assigned</span>'}
                         </td>
@@ -1320,6 +1326,11 @@
         }
         
         // ===== Remove VRF from Single Device =====
+        // Open device config in fabric-config.html
+        function openDeviceConfig(deviceName) {
+            window.open(`fabric-config.html?device=${encodeURIComponent(deviceName)}`, '_blank');
+        }
+        
         let removeVrfName = '';
         let removeDeviceName = '';
         

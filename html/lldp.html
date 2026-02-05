@@ -379,19 +379,19 @@
             <div class="summary-grid">
                 <div class="summary-card card-total">
                     <div class="card-value" id="total-connections">0</div>
-                    <div class="card-label">Total Connections</div>
+                    <div class="card-label">Total Ports</div>
                 </div>
                 <div class="summary-card card-excellent">
                     <div class="card-value" id="success-connections">0</div>
-                    <div class="card-label">Successful Links</div>
+                    <div class="card-label">Successful Ports</div>
                 </div>
                 <div class="summary-card card-critical">
                     <div class="card-value" id="failed-connections">0</div>
-                    <div class="card-label">Failed Links</div>
+                    <div class="card-label">Failed Ports</div>
                 </div>
                 <div class="summary-card card-warning">
                     <div class="card-value" id="warning-connections">0</div>
-                    <div class="card-label">Warning Links</div>
+                    <div class="card-label">Warning Ports</div>
                 </div>
                 <div class="summary-card card-info">
                     <div class="card-value" id="no-info-connections">0</div>
@@ -504,19 +504,19 @@
             
             if (filterType === 'SUCCESS') {
                 filteredConnections = allConnections.filter(conn => determineLLDPStatus(conn).status === 'SUCCESS');
-                filterText = `Showing ${filteredConnections.length} Successful Links`;
+                filterText = `Showing ${filteredConnections.length} Successful Ports`;
                 document.getElementById('success-connections').parentElement.classList.add('active');
             } else if (filterType === 'FAILED') {
                 filteredConnections = allConnections.filter(conn => determineLLDPStatus(conn).status === 'FAILED');
-                filterText = `Showing ${filteredConnections.length} Failed Links`;
+                filterText = `Showing ${filteredConnections.length} Failed Ports`;
                 document.getElementById('failed-connections').parentElement.classList.add('active');
             } else if (filterType === 'WARNING') {
                 filteredConnections = allConnections.filter(conn => determineLLDPStatus(conn).status === 'WARNING');
-                filterText = `Showing ${filteredConnections.length} Warning Links`;
+                filterText = `Showing ${filteredConnections.length} Warning Ports`;
                 document.getElementById('warning-connections').parentElement.classList.add('active');
             } else if (filterType === 'NO_INFO') {
                 filteredConnections = allConnections.filter(conn => determineLLDPStatus(conn).status === 'NO INFO');
-                filterText = `Showing ${filteredConnections.length} No Information Links`;
+                filterText = `Showing ${filteredConnections.length} No Information Ports`;
                 document.getElementById('no-info-connections').parentElement.classList.add('active');
             } else if (filterType === 'TOTAL') {
                 filteredConnections = allConnections;
@@ -1154,10 +1154,10 @@
                 // Add summary stats as comments
                 csvContent += `# LLDP Connection Summary Report\n`;
                 csvContent += `# Generated: ${now.toLocaleString()}\n`;
-                csvContent += `# Total Connections: ${document.getElementById('total-connections').textContent}\n`;
-                csvContent += `# Successful Links: ${document.getElementById('success-connections').textContent}\n`;
-                csvContent += `# Failed Links: ${document.getElementById('failed-connections').textContent}\n`;
-                csvContent += `# Warning Links: ${document.getElementById('warning-connections').textContent}\n`;
+                csvContent += `# Total Ports: ${document.getElementById('total-connections').textContent}\n`;
+                csvContent += `# Successful Ports: ${document.getElementById('success-connections').textContent}\n`;
+                csvContent += `# Failed Ports: ${document.getElementById('failed-connections').textContent}\n`;
+                csvContent += `# Warning Ports: ${document.getElementById('warning-connections').textContent}\n`;
                 csvContent += `# No Information: ${document.getElementById('no-info-connections').textContent}\n`;
                 csvContent += `#\n`;
                 

@@ -711,6 +711,12 @@
             gap: 8px;
         }
         
+        .data-table td:last-child {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+        
         .btn-icon {
             width: 32px;
             height: 32px;
@@ -1039,6 +1045,12 @@
                         </svg>
                         Diff
                     </button>
+                    <button class="btn" onclick="confirmGitReset()" style="background: #ff9800; border-color: #ff9800; color: #000;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/>
+                        </svg>
+                        Git Reset
+                    </button>
                     <button class="btn btn-warning" onclick="runDeploy()" id="btn-deploy">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
@@ -1167,6 +1179,28 @@
             
             // Load devices
             await loadDevices();
+            
+            // Check URL for device parameter (e.g., ?device=lsw-3na-01-28)
+            const urlParams = new URLSearchParams(window.location.search);
+            const deviceParam = urlParams.get('device');
+            if (deviceParam) {
+                // Wait a bit for device list to render, then select the device
+                setTimeout(() => {
+                    const deviceItem = document.querySelector(`.device-item[data-hostname="${deviceParam}"]`);
+                    if (deviceItem) {
+                        // Expand the parent group first
+                        const group = deviceItem.closest('.device-group');
+                        if (group) {
+                            const header = group.querySelector('.group-header');
+                            if (header && header.classList.contains('collapsed')) {
+                                header.classList.remove('collapsed');
+                            }
+                        }
+                        // Select the device
+                        selectDevice(deviceParam);
+                    }
+                }, 100);
+            }
         }
         
         // Load devices from API
@@ -1733,7 +1767,7 @@
                                         <th>Interfaces</th>
                                         <th>Servers</th>
                                         <th>Upstream</th>
-                                        <th style="width: 80px;">Actions</th>
+                                        <th style="width: 80px; text-align: right;">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1748,8 +1782,8 @@
                                 <td>${relay.interfaces?.join(', ') || '-'}</td>
                                 <td>${relay.servers?.join(', ') || '-'}</td>
                                 <td>${relay.upstream?.join(', ') || '-'}</td>
-                                <td>
-                                    <div style="display: flex; gap: 6px;">
+                                <td style="text-align: right;">
+                                    <div style="display: flex; gap: 6px; justify-content: flex-end;">
                                         <button class="btn-icon btn-icon-edit" onclick="editDhcpRelay(${idx})" title="Edit">
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                                                 <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
@@ -1929,7 +1963,7 @@
                                             <th>Breakout</th>
                                             <th>Sub-Interfaces</th>
                                             <th>Description</th>
-                                            <th style="width: 60px;">Actions</th>
+                                            <th style="width: 60px; text-align: right;">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -1970,7 +2004,7 @@
                                 <td><span class="badge badge-orange">${breakoutType}</span></td>
                                 <td>${subInterfaceText}</td>
                                 <td>${cfg.description || '-'}</td>
-                                <td>
+                                <td style="text-align: right;">
                                     <button class="btn-icon btn-icon-edit" onclick="openBreakoutEditModal('${escapedBreakoutIfName}', '${breakoutType}', '${escapedBreakoutDesc}')" title="Edit Breakout">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
@@ -2022,7 +2056,7 @@
                                             <th>Native</th>
                                             <th>VRF</th>
                                             <th>Description</th>
-                                            <th style="width: 60px;">Actions</th>
+                                            <th style="width: 60px; text-align: right;">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -2081,7 +2115,7 @@
                                 <td>${nativeDisplay}</td>
                                 <td>${displayVrf ? `<span class="badge badge-blue">${displayVrf}</span>` : '-'}</td>
                                 <td>${description}</td>
-                                <td>
+                                <td style="text-align: right;">
                                     <button class="btn-icon btn-icon-edit" onclick="openInterfaceEditModal('${escapedIfName}', '${escapedProfile}', '${escapedDesc}', '${hasBond}', '${cfgJson}')" title="Edit Interface">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
@@ -2122,7 +2156,7 @@
                                         <th>LACP Mode</th>
                                         <th>LACP Bypass</th>
                                         <th>Description</th>
-                                        <th style="width: 60px;">Actions</th>
+                                        <th style="width: 60px; text-align: right;">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -2175,7 +2209,7 @@
                             <td><span class="badge ${isActive ? 'badge-green' : 'badge-orange'}">${lacpMode}</span></td>
                             <td>${lacpBypass ? '<span class="badge badge-green">Yes</span>' : '<span class="badge badge-red">No</span>'}</td>
                             <td>${cfg.description || '-'}</td>
-                            <td>
+                            <td style="text-align: right;">
                                 <button class="btn-icon btn-icon-edit" onclick="openBondEditModal('${escapedBondName}', '${escapedBondProfile}', '${escapedBondDesc}', '${bondCfgJson}')" title="Edit Bond">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
@@ -2526,6 +2560,46 @@
             
             showLoading(false);
             setStatus('Ready');
+        }
+        
+        // Git Reset for selected device
+        async function confirmGitReset() {
+            const host = getTargetHost();
+            if (!host) {
+                showOutputModal('Error', 'Please select a device first', 'error');
+                return;
+            }
+            
+            // Show confirmation modal
+            showConfirm(
+                'Git Reset',
+                `Are you sure you want to reset <strong>${host}.yaml</strong> to the last commit?<br><br>All uncommitted changes will be lost!`,
+                async () => {
+                    showLoading(true, `Resetting ${host}.yaml...`);
+                    setStatus('Resetting...');
+                    
+                    try {
+                        const file = `inventory/host_vars/${host}.yaml`;
+                        const result = await fetch(`/ansible-api.sh?action=git-reset-file&file=${encodeURIComponent(file)}`);
+                        const data = await result.json();
+                        
+                        if (data.success) {
+                            showOutputModal('Success', `<div style="color: #76b900; font-size: 16px;">✓ ${host}.yaml has been reset to last commit</div>`, 'success', true);
+                            // Reload device config to reflect changes
+                            if (selectedDevice === host) {
+                                selectDevice(host);
+                            }
+                        } else {
+                            showOutputModal('Error', data.error || 'Failed to reset file', 'error');
+                        }
+                    } catch (err) {
+                        showOutputModal('Error', 'Failed to reset: ' + err.message, 'error');
+                    }
+                    
+                    showLoading(false);
+                    setStatus('Ready');
+                }
+            );
         }
         
         // Show Diff Summary Modal (special formatting)
