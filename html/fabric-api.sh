@@ -129,11 +129,7 @@ get_device() {
     python3 << PYTHON
 import sys
 import json
-from ruamel.yaml import YAML
-yaml = YAML()
-yaml.preserve_quotes = True
-import tempfile
-import shutil
+import yaml  # PyYAML - faster for read-only operations
 import os
 
 ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
@@ -156,7 +152,7 @@ try:
     config = {}
     if os.path.exists(host_vars_file):
         with open(host_vars_file, 'r') as f:
-            config = yaml.load(f) or {}
+            config = yaml.safe_load(f) or {}
     
     # Find device info from hosts file
     device_info = {'hostname': hostname, 'group': None, 'ip': None}
@@ -189,7 +185,7 @@ try:
         group_vrfs_file = f"{ansible_dir}/inventory/group_vars/{device_info['group']}/vrfs.yaml"
         if os.path.exists(group_vrfs_file):
             with open(group_vrfs_file, 'r') as f:
-                group_config = yaml.load(f) or {}
+                group_config = yaml.safe_load(f) or {}
                 if 'vrfs' in group_config:
                     config['vrfs'] = group_config['vrfs']
     
@@ -197,7 +193,7 @@ try:
     port_profiles = {}
     if os.path.exists(port_profiles_file):
         with open(port_profiles_file, 'r') as f:
-            pp_config = yaml.load(f) or {}
+            pp_config = yaml.safe_load(f) or {}
             port_profiles = pp_config.get('sw_port_profiles', {})
     
     # Load VLAN profiles for VRF and IP resolution
@@ -207,7 +203,7 @@ try:
     
     if os.path.exists(vlan_profiles_file):
         with open(vlan_profiles_file, 'r') as f:
-            vp_config = yaml.load(f) or {}
+            vp_config = yaml.safe_load(f) or {}
             
             # Load vxlan_int mapping (nscale/kddi style: vxlan_int at top level)
             if 'vxlan_int' in vp_config and isinstance(vp_config['vxlan_int'], dict):
@@ -283,11 +279,7 @@ get_vlan_profiles() {
     
     python3 << PYTHON
 import json
-from ruamel.yaml import YAML
-yaml = YAML()
-yaml.preserve_quotes = True
-import tempfile
-import shutil
+import yaml  # PyYAML - faster for read-only operations
 import os
 
 ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
@@ -295,7 +287,7 @@ vlan_file = f"{ansible_dir}/inventory/group_vars/all/vlan_profiles.yaml"
 
 try:
     with open(vlan_file, 'r') as f:
-        config = yaml.load(f) or {}
+        config = yaml.safe_load(f) or {}
     
     print(json.dumps({
         'success': True,
@@ -2492,11 +2484,7 @@ PYTHON
         read -r POST_DATA
         python3 << PYTHON
 import json
-from ruamel.yaml import YAML
-yaml = YAML()
-yaml.preserve_quotes = True
-import tempfile
-import shutil
+import yaml  # PyYAML - faster for read-only operations
 import os
 import glob
 
@@ -2518,28 +2506,24 @@ bgp_file = f"{ansible_dir}/inventory/group_vars/all/bgp_profiles.yaml"
 # Build route_map -> target_vrf mapping from bgp_profiles
 try:
     with open(bgp_file, 'r') as f:
-        bgp_data = yaml.load(f)
+        bgp_data = yaml.safe_load(f)
     
     profiles = bgp_data.get('bgp_profiles', {})
-    route_map_to_target = {}  # route_map -> source_vrf (the VRF that imports)
     
-    for profile_name, profile in profiles.items():
-        ipv4_af = profile.get('ipv4_unicast_af', {})
-        route_import = ipv4_af.get('route_import', {})
-        from_vrfs = route_import.get('from_vrf', [])
-        route_map = route_import.get('route_map', '')
-        if route_map and from_vrfs:
-            # This profile imports from these VRFs using this route_map
-            # We need to find which VRF uses this profile
-            pass
+    # Single pass: collect both route_map->target_vrf mapping AND check prefix-lists
+    route_map_to_target = {}
+    leaked_to = None
+    route_map_found = None
+    all_prefix_list_matches = []  # Store all matches to check after we have route_map mapping
     
-    # Scan devices to find route_map -> target_vrf
     for yaml_file in glob.glob(f"{host_vars_dir}/*.yaml"):
         try:
             with open(yaml_file, 'r') as f:
-                device_data = yaml.load(f)
+                device_data = yaml.safe_load(f)
             if not device_data:
                 continue
+            
+            # Part 1: Build route_map -> target_vrf mapping
             vrfs = device_data.get('vrfs', {})
             for vrf_name, vrf_config in vrfs.items():
                 if isinstance(vrf_config, dict):
@@ -2552,36 +2536,25 @@ try:
                         route_map = route_import.get('route_map', '')
                         if route_map:
                             route_map_to_target[route_map] = vrf_name
-        except:
-            continue
-    
-    # Now check if subnet exists in any prefix-list
-    leaked_to = None
-    route_map_found = None
-    
-    for yaml_file in glob.glob(f"{host_vars_dir}/*.yaml"):
-        try:
-            with open(yaml_file, 'r') as f:
-                device_data = yaml.load(f)
-            if not device_data:
-                continue
             
+            # Part 2: Check prefix-lists for subnet match
             policies = device_data.get('policies', {})
             prefix_lists = policies.get('prefix_list', {})
             
             for pl_name, pl_entries in prefix_lists.items():
-                for seq, entry in pl_entries.items():
-                    if entry.get('match') == subnet:
-                        route_map_found = pl_name
-                        if pl_name in route_map_to_target:
-                            leaked_to = route_map_to_target[pl_name]
-                        break
-                if leaked_to:
-                    break
-            if leaked_to:
-                break
+                if isinstance(pl_entries, dict):
+                    for seq, entry in pl_entries.items():
+                        if isinstance(entry, dict) and entry.get('match') == subnet:
+                            all_prefix_list_matches.append(pl_name)
         except:
             continue
+    
+    # Now resolve matches
+    for pl_name in all_prefix_list_matches:
+        route_map_found = pl_name
+        if pl_name in route_map_to_target:
+            leaked_to = route_map_to_target[pl_name]
+            break
     
     print(json.dumps({
         'success': True,
@@ -2597,11 +2570,7 @@ PYTHON
         # Get VRFs that can receive leaked routes (from a source VRF)
         python3 << 'PYTHON'
 import json
-from ruamel.yaml import YAML
-yaml = YAML()
-yaml.preserve_quotes = True
-import tempfile
-import shutil
+import yaml  # PyYAML - faster for read-only operations
 import os
 import glob
 
@@ -2611,7 +2580,7 @@ host_vars_dir = f"{ansible_dir}/inventory/host_vars"
 
 try:
     with open(bgp_file, 'r') as f:
-        data = yaml.load(f)
+        data = yaml.safe_load(f)
     
     profiles = data.get('bgp_profiles', {})
     
@@ -2633,7 +2602,7 @@ try:
     for yaml_file in glob.glob(f"{host_vars_dir}/*.yaml"):
         try:
             with open(yaml_file, 'r') as f:
-                device_data = yaml.load(f)
+                device_data = yaml.safe_load(f)
             if not device_data:
                 continue
             vrfs = device_data.get('vrfs', {})
