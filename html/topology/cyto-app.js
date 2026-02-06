@@ -452,9 +452,15 @@ document.addEventListener('click', function(e) {
     if (searchBox && !searchBox.contains(e.target)) {
         document.getElementById('searchResults').classList.remove('show');
     }
-    // Also hide context menus
-    hideContextMenu();
-    hideLinkContextMenu();
+    // Hide context menus only if click is outside them
+    const contextMenu = document.getElementById('contextMenu');
+    const linkContextMenu = document.getElementById('linkContextMenu');
+    if (contextMenu && !contextMenu.contains(e.target)) {
+        hideContextMenu();
+    }
+    if (linkContextMenu && !linkContextMenu.contains(e.target)) {
+        hideLinkContextMenu();
+    }
 });
 
 // Context menu state
@@ -468,6 +474,12 @@ let isIsolated = false; // Track if isolation is active
 function showContextMenu(event, node) {
     const menu = document.getElementById('contextMenu');
     contextMenuTarget = node;
+    
+    // Set current layer and icon values in dropdowns
+    const currentLayer = String(node.data('level') || 5);
+    const currentIcon = node.data('icon') || 'switch';
+    document.getElementById('node-layer-select').value = currentLayer;
+    document.getElementById('node-icon-select').value = currentIcon;
     
     // Get mouse position
     const e = event.originalEvent;
@@ -483,6 +495,98 @@ function showContextMenu(event, node) {
     if (rect.bottom > window.innerHeight) {
         menu.style.top = (e.clientY - rect.height) + 'px';
     }
+}
+
+/**
+ * Change node layer
+ */
+function changeNodeLayer(newLayer) {
+    if (!contextMenuTarget || !cy) return;
+    
+    contextMenuTarget.data('level', parseInt(newLayer));
+    hideContextMenu();
+    
+    // Re-apply layout
+    setLayout(currentLayout);
+    createIconOverlays();
+}
+
+/**
+ * Change node icon
+ */
+function changeNodeIcon(newIcon) {
+    if (!contextMenuTarget || !cy) return;
+    
+    const newColor = NODE_COLORS[newIcon] || NODE_COLORS.switch;
+    const newIconChar = ICON_CHARS[newIcon] || ICON_CHARS.switch;
+    
+    contextMenuTarget.data('icon', newIcon);
+    contextMenuTarget.data('color', newColor);
+    contextMenuTarget.data('iconChar', newIconChar);
+    
+    hideContextMenu();
+    
+    // Update overlays
+    createIconOverlays();
+}
+
+/**
+ * Toggle node label visibility
+ */
+function toggleNodeLabel() {
+    if (!contextMenuTarget || !cy) return;
+    
+    const isHidden = contextMenuTarget.data('_labelHidden') === true;
+    
+    if (!isHidden) {
+        // Hide the label
+        contextMenuTarget.style('text-opacity', 0);
+        contextMenuTarget.data('_labelHidden', true);
+    } else {
+        // Show the label
+        contextMenuTarget.style('text-opacity', 1);
+        contextMenuTarget.data('_labelHidden', false);
+    }
+    hideContextMenu();
+}
+
+/**
+ * Hide node and its connected edges
+ */
+function hideNode() {
+    if (!contextMenuTarget || !cy) return;
+    
+    contextMenuTarget.style('display', 'none');
+    contextMenuTarget.connectedEdges().style('display', 'none');
+    hideContextMenu();
+    updateIconOverlays();
+}
+
+/**
+ * Apply layout with current node
+ */
+function applyLayoutWithNode() {
+    hideContextMenu();
+    setLayout(currentLayout);
+}
+
+/**
+ * Show all hidden nodes
+ */
+function showAllHidden() {
+    if (!cy) return;
+    
+    cy.batch(function() {
+        cy.nodes().style('display', 'element');
+        cy.edges().style('display', 'element');
+    });
+    
+    // Re-apply endpoint filter if endpoints are hidden
+    if (!showEndpoints) {
+        toggleEndpoints(false);
+    }
+    
+    updateIconOverlays();
 }
 
 /**
@@ -1096,17 +1200,18 @@ function runLLDPCheck() {
     });
 }
 
+// CodeMirror editor instances
+let topologyEditorCM = null;
+let configEditorCM = null;
+
 /**
  * Open topology editor modal
  */
 function openTopologyEditor() {
     const modal = document.getElementById('topologyEditorModal');
-    const editor = document.getElementById('topologyEditor');
     const status = document.getElementById('topologyEditorStatus');
     
     modal.classList.add('show');
-    editor.value = 'Loading...';
-    editor.disabled = true;
     status.textContent = 'Loading topology.dot...';
     
     fetch('/edit-topology', {
@@ -1115,16 +1220,27 @@ function openTopologyEditor() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            editor.value = data.content;
-            editor.disabled = false;
+            // Initialize CodeMirror if not already done
+            if (!topologyEditorCM) {
+                topologyEditorCM = CodeMirror(document.getElementById('topologyEditorContainer'), {
+                    value: data.content,
+                    mode: 'dot',
+                    theme: 'material-darker',
+                    lineNumbers: true,
+                    lineWrapping: true,
+                    tabSize: 2,
+                    autofocus: true
+                });
+                topologyEditorCM.setSize('100%', '100%');
+            } else {
+                topologyEditorCM.setValue(data.content);
+            }
             status.textContent = 'Loaded successfully. Edit and save.';
         } else {
-            editor.value = '# Error loading file: ' + (data.error || 'Unknown error');
             status.textContent = 'Error: ' + (data.error || 'Unknown');
         }
     })
     .catch(error => {
-        editor.value = '# Network error loading topology.dot';
         status.textContent = 'Network error';
     });
 }
@@ -1145,9 +1261,8 @@ function closeTopologyEditorModal() {
  * Save topology only (no LLDPq run)
  */
 function saveTopologyOnly() {
-    const editor = document.getElementById('topologyEditor');
     const status = document.getElementById('topologyEditorStatus');
-    const content = editor.value;
+    const content = topologyEditorCM ? topologyEditorCM.getValue() : '';
     
     status.textContent = 'Saving...';
     
@@ -1173,9 +1288,8 @@ function saveTopologyOnly() {
  * Save topology and run LLDPq
  */
 function saveTopology() {
-    const editor = document.getElementById('topologyEditor');
     const status = document.getElementById('topologyEditorStatus');
-    const content = editor.value;
+    const content = topologyEditorCM ? topologyEditorCM.getValue() : '';
     
     status.textContent = 'Saving...';
     
@@ -1204,12 +1318,9 @@ function saveTopology() {
  */
 function openConfigEditor() {
     const modal = document.getElementById('configEditorModal');
-    const editor = document.getElementById('configEditor');
     const status = document.getElementById('configEditorStatus');
     
     modal.classList.add('show');
-    editor.value = 'Loading...';
-    editor.disabled = true;
     status.textContent = 'Loading topology_config.yaml...';
     
     fetch('/edit-config', {
@@ -1218,16 +1329,27 @@ function openConfigEditor() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            editor.value = data.content;
-            editor.disabled = false;
+            // Initialize CodeMirror if not already done
+            if (!configEditorCM) {
+                configEditorCM = CodeMirror(document.getElementById('configEditorContainer'), {
+                    value: data.content,
+                    mode: 'yaml',
+                    theme: 'material-darker',
+                    lineNumbers: true,
+                    lineWrapping: true,
+                    tabSize: 2,
+                    autofocus: true
+                });
+                configEditorCM.setSize('100%', '100%');
+            } else {
+                configEditorCM.setValue(data.content);
+            }
             status.textContent = 'Loaded successfully. Edit and save.';
         } else {
-            editor.value = '# Error loading file: ' + (data.error || 'Unknown error');
             status.textContent = 'Error: ' + (data.error || 'Unknown');
         }
     })
     .catch(error => {
-        editor.value = '# Network error loading topology_config.yaml';
         status.textContent = 'Network error';
     });
 }
@@ -1248,9 +1370,8 @@ function closeConfigEditorModal() {
  * Save config only (no LLDPq run)
  */
 function saveConfigOnly() {
-    const editor = document.getElementById('configEditor');
     const status = document.getElementById('configEditorStatus');
-    const content = editor.value;
+    const content = configEditorCM ? configEditorCM.getValue() : '';
     
     status.textContent = 'Saving...';
     
@@ -1276,9 +1397,8 @@ function saveConfigOnly() {
  * Save config and run LLDPq
  */
 function saveConfig() {
-    const editor = document.getElementById('configEditor');
+    const content = configEditorCM ? configEditorCM.getValue() : '';
     const status = document.getElementById('configEditorStatus');
-    const content = editor.value;
     
     status.textContent = 'Saving...';
     
