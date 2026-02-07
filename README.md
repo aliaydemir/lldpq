@@ -38,6 +38,7 @@ cd lldpq-src
 - shows network topology with lldp
 - web dashboard with real-time stats
 - live network tables (MAC, ARP, VTEP, Routes, LLDP neighbors)
+- device details page with command runner
 
 ## [02] analysis coverage
 
@@ -82,6 +83,33 @@ access via web UI: `http://<server>/search.html`
 - search/filter support
 - CSV export for MAC/ARP tables
 - parallel queries for "All Devices" mode
+
+## [02c] device details & command runner
+
+access via web UI: `http://<server>/device.html`
+
+### tabs
+| Tab | Description |
+|-----|-------------|
+| **Overview** | Device info, uptime, model, serial, OS version |
+| **Ports** | Interface status with speed, state, neighbors |
+| **Optical** | SFP/QSFP diagnostics with power levels, temperature |
+| **BGP** | BGP neighbor status per VRF |
+| **Logs** | Recent logs from syslog, FRR, switchd, NVUE |
+| **Commands** | Interactive command runner with templates |
+
+### command runner features
+- **pre-built templates**: organized by category (System, Network, BGP, EVPN, etc.)
+- **interface selector**: dropdown with all switch interfaces
+- **VRF selector**: query BGP/routes per VRF
+- **bond selector**: view bond member details
+- **custom commands**: run any allowed command on device
+- **output display**: formatted command output with auto-scroll
+
+### security
+- commands are whitelisted (only safe monitoring commands allowed)
+- operators can use command runner for monitoring
+- no configuration changes possible via command runner
 
 ## [03] configuration files
 
@@ -134,8 +162,13 @@ patterns are matched against devices found in LLDP neighbor data.
 ```
 */5 * * * * lldpq                       # system monitoring every 5 minutes
 0 */12 * * * get-conf                   # configs every 12 hours
-* * * * * lldpq-trigger                 # web triggers daemon (checks every 5 seconds)
+* * * * * lldpq-trigger                 # web triggers daemon (LLDP, Monitor, Assets)
 ```
+
+the `lldpq-trigger` daemon handles web UI buttons:
+- **Run LLDP Check**: triggers lldp validation and topology update
+- **Run Monitor**: triggers hardware/optical/bgp analysis
+- **Refresh Assets**: triggers device inventory refresh
 
 ## [05] update
 
@@ -307,13 +340,19 @@ alerts automatically start working once webhooks are configured. check `~/lldpq/
 
 ```
 # check if cron is running
-sudo crontab -l | grep lldpq
+grep lldpq /etc/crontab
+
+# check if trigger daemon is running
+ps aux | grep lldpq-trigger
 
 # manual run
 cd ~/lldpq && ./assets.sh && ./check-lldp.sh && ./monitor.sh
 
 # check logs  
 ls -la /var/www/html/monitor-results/
+
+# check trigger logs
+cat /tmp/lldpq-trigger.log
 ```
 
 ## [14] license
