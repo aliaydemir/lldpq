@@ -349,7 +349,7 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
             "model": info.get("model", "N/A"),
             "serial_number": info.get("serial_number", "N/A"),
             "version": info.get("version", "N/A"),
-            "dcimDeviceLink": f"/monitor-results/{device_name}.html"
+            "dcimDeviceLink": f"/device.html?device={device_name}"
         }
         topology_data["nodes"].append(device_node)
         device_nodes[device_name] = device_id
@@ -368,7 +368,7 @@ def parse_lldp_results(directory, device_info, hosts_only_devices):
                 "model": "N/A",
                 "serial_number": "N/A",
                 "version": "N/A",
-                "dcimDeviceLink": f"/monitor-results/{host_device}.html"
+                "dcimDeviceLink": f"/device.html?device={host_device}"
             }
             topology_data["nodes"].append(device_node)
             device_nodes[host_device] = device_id

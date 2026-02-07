@@ -89,16 +89,42 @@ def process_optical_data_files(data_dir="monitor-results/optical-data"):
                 if not optical_data or len(optical_data.strip()) < 10:
                     continue
 
-                # Skip down/unplugged ports - these don't have meaningful optical readings
+                # Check for unplugged ports - add as "unplugged" status for troubleshooting
                 if "status                      : unplugged" in optical_data:
+                    # Add unplugged port to stats with special status
+                    optical_analyzer.current_optical_stats[port_name] = {
+                        'port': port_name,
+                        'device': device_name,
+                        'health_status': 'unplugged',
+                        'rx_power_dbm': None,
+                        'tx_power_dbm': None,
+                        'temperature_c': None,
+                        'voltage_v': None,
+                        'link_margin_db': None,
+                        'timestamp': datetime.now().isoformat()
+                    }
                     continue
 
                 # Check for extremely low RX power indicating link down (even if status shows plugged)
                 rx_power_match = re.search(r'ch-\d+-rx-power\s*:\s*[\d.]+\s*mW\s*/\s*([-\d.]+)\s*dBm', optical_data)
                 if rx_power_match:
                     rx_power_dbm = float(rx_power_match.group(1))
-                    # If RX power is extremely low (< -20 dBm), this indicates no real signal/link down
+                    # If RX power is extremely low (< -20 dBm), mark as "down" for troubleshooting
                     if rx_power_dbm < -20.0:
+                        # Try to get other values even for down ports
+                        temp_match = re.search(r'temperature\s*:\s*([\d.]+)', optical_data)
+                        voltage_match = re.search(r'voltage\s*:\s*([\d.]+)', optical_data)
+                        optical_analyzer.current_optical_stats[port_name] = {
+                            'port': port_name,
+                            'device': device_name,
+                            'health_status': 'down',
+                            'rx_power_dbm': rx_power_dbm,
+                            'tx_power_dbm': None,
+                            'temperature_c': float(temp_match.group(1)) if temp_match else None,
+                            'voltage_v': float(voltage_match.group(1)) if voltage_match else None,
+                            'link_margin_db': None,
+                            'timestamp': datetime.now().isoformat()
+                        }
                         continue
 
                 # Check for ports with no meaningful optical readings (N/A values, temp 0.0, etc.)

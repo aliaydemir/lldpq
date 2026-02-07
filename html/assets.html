@@ -253,6 +253,14 @@
             font-size: 11px;
             font-weight: 600;
         }
+        .status-unreachable { 
+            background: rgba(255, 152, 0, 0.2);
+            color: #ffb74d;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
         .status-warning { 
             background: rgba(255, 152, 0, 0.2);
             color: #ffb74d;
@@ -444,11 +452,11 @@
                 </select>
                 <button id="clearSearchBtn" class="clear-search-btn" onclick="clearDeviceSearch()">✕</button>
             </div>
-            <button id="run-lldp" onclick="runLLDPCheck()" class="btn btn-info">
+            <button id="refresh-assets" onclick="refreshAssets()" class="btn btn-info">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M8,5.14V19.14L19,12.14L8,5.14Z"/>
+                    <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
                 </svg>
-                <span id="run-lldp-text">Run LLDP Check</span>
+                <span id="refresh-assets-text">Refresh Assets</span>
             </button>
             <button id="edit-devices" onclick="openDevicesEditor()" class="btn btn-gray" style="display: none; background: #555; color: #d4d4d4;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -536,6 +544,9 @@
                     </th>
                     <th class="sortable" data-column="7" data-type="status">
                         Status <span class="sort-arrow">▲▼</span>
+                    </th>
+                    <th class="sortable" data-column="8" data-type="string">
+                        Last Seen <span class="sort-arrow">▲▼</span>
                     </th>
                 </tr>
                 </thead>
@@ -649,12 +660,14 @@
         let noInfoCount = 0;
         
         // Parse each line and create table rows
+        // New format: DEVICE-NAME IP ETH0-MAC SERIAL MODEL RELEASE UPTIME STATUS LAST-SEEN
         lines.forEach(line => {
             if (line.startsWith('DEVICE-NAME') || line.trim() === '') return;
+            if (line.startsWith('Created on')) return;
             
-            // Parse the structured data - split by whitespace but handle columns properly
+            // Parse the structured data - split by whitespace
             const parts = line.trim().split(/\s+/);
-            if (parts.length < 6) return;
+            if (parts.length < 7) return;
             
             const deviceName = parts[0];
             const ipAddress = parts[1];
@@ -662,44 +675,49 @@
             const serialNumber = parts[3];
             const model = parts[4];
             const release = parts[5];
-            // Uptime might have multiple parts, join the rest
-            const uptime = parts.slice(6).join(' ');
+            const uptime = parts[6];
+            // STATUS is now a dedicated column (index 7)
+            const rawStatus = parts[7] || '';
+            // LAST-SEEN is the last column (index 8)
+            const lastSeen = parts[8] || '-';
             
-            let status, healthClass, statusClass;
+            let displayStatus, healthClass, statusClass;
             
-            // Determine status based on asset collection results
-            const lineText = line.toLowerCase();
+            // Map status from assets.ini to display status
+            const statusUpper = rawStatus.toUpperCase();
             
-            if (lineText.includes('ssh-failed') || (ipAddress && ipAddress !== 'No-Info' && macAddress === 'SSH-FAILED')) {
-                status = 'SSH FAILED';
+            if (statusUpper === 'OK') {
+                displayStatus = 'SUCCESS';
+                healthClass = 'assets-excellent';
+                statusClass = 'status-success';
+                successCount++;
+            } else if (statusUpper === 'UNREACHABLE') {
+                displayStatus = 'UNREACHABLE';
+                healthClass = 'assets-unreachable';
+                statusClass = 'status-unreachable';
+                warningCount++;
+            } else if (statusUpper === 'SSH-FAILED') {
+                displayStatus = 'SSH FAILED';
                 healthClass = 'assets-critical';
                 statusClass = 'status-ssh-failed';
                 failCount++;
-            } else if (lineText.includes('fail') || lineText.includes('error') || lineText.includes('timeout')) {
-                status = 'FAILED';
-                healthClass = 'assets-critical';
-                statusClass = 'status-fail';
-                failCount++;
-            } else if (lineText.includes('no-info') || lineText.includes('no info') || 
-                       (!ipAddress || ipAddress === 'N/A' || !macAddress || macAddress === 'N/A')) {
-                status = 'NO INFO';
+            } else if (statusUpper === 'NO-INFO') {
+                displayStatus = 'NO INFO';
                 healthClass = 'assets-unknown';
                 statusClass = 'status-no-info';
                 noInfoCount++;
-            } else if (lineText.includes('reated') || lineText.includes('partial') || lineText.includes('warning')) {
-                status = 'WARNING';
-                healthClass = 'assets-warning';
-                statusClass = 'status-warning';
-                warningCount++;
-            } else if (uptime && uptime.includes('up-') && ipAddress && macAddress && 
-                       ipAddress !== 'N/A' && macAddress !== 'N/A') {
-                // Device is up and all asset info collected successfully
-                status = 'SUCCESS';
+            } else if (statusUpper.includes('FAIL') || statusUpper.includes('ERROR')) {
+                displayStatus = 'FAILED';
+                healthClass = 'assets-critical';
+                statusClass = 'status-fail';
+                failCount++;
+            } else if (rawStatus && uptime && uptime.includes('up-')) {
+                displayStatus = 'SUCCESS';
                 healthClass = 'assets-excellent';
                 statusClass = 'status-success';
                 successCount++;
             } else {
-                status = 'WARNING';
+                displayStatus = rawStatus || 'UNKNOWN';
                 healthClass = 'assets-warning';
                 statusClass = 'status-warning';
                 warningCount++;
@@ -707,16 +725,21 @@
             
             totalDevices++;
             
+            // Format last seen for display
+            const lastSeenDisplay = lastSeen.replace(/_/g, ' ');
+            
             const row = document.createElement('tr');
+            row.setAttribute('data-health', healthClass);
             row.innerHTML = `
-                <td><a href="monitor-results/${deviceName}.html" target="_blank" rel="noopener noreferrer" class="device-link">${deviceName}</a></td>
+                <td><a href="device.html?device=${deviceName}" target="_blank" rel="noopener noreferrer" class="device-link">${deviceName}</a></td>
                 <td>${ipAddress || 'N/A'}</td>
                 <td>${macAddress || 'N/A'}</td>
                 <td>${serialNumber || 'N/A'}</td>
                 <td>${model || 'N/A'}</td>
                 <td>${release || 'N/A'}</td>
                 <td>${uptime || 'N/A'}</td>
-                <td><span class="${statusClass}">${status}</span></td>
+                <td><span class="${statusClass}">${displayStatus}</span></td>
+                <td>${lastSeenDisplay}</td>
             `;
             tbody.appendChild(row);
         });
@@ -881,20 +904,20 @@
         
         return (priority[a] || 4) - (priority[b] || 4);
     }
-    // Run LLDP Check Function
-    function runLLDPCheck() {
-        const button = document.getElementById('run-lldp');
-        const buttonText = document.getElementById('run-lldp-text');
+    // Refresh Assets Function
+    function refreshAssets() {
+        const button = document.getElementById('refresh-assets');
+        const buttonText = document.getElementById('refresh-assets-text');
         const originalText = buttonText.textContent;
         
         // Disable button and show loading
         button.disabled = true;
         button.style.opacity = '0.7';
         button.style.cursor = 'not-allowed';
-        buttonText.textContent = 'Running...';
+        buttonText.textContent = 'Refreshing...';
         
-        // Make request to trigger LLDP check via simple endpoint
-        fetch('/trigger-lldp', {
+        // Make request to trigger assets refresh (same mechanism as trigger-lldp)
+        fetch('/trigger-assets', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -902,10 +925,10 @@
         })
         .then(response => response.json())
         .then(data => {
-            console.log('✅ LLDP check response:', data);
+            console.log('✅ Refresh assets response:', data);
             
-            // Always show manual trigger instruction
-            buttonText.textContent = '✓ Triggered';
+            // Show success
+            buttonText.textContent = '✓ Refreshed';
             button.style.background = 'linear-gradient(0deg, #76b900 0%, #5a8c00 100%)';
             
             // Show instruction notification
@@ -926,19 +949,19 @@
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             `;
             notification.innerHTML = `
-                <strong style="color: #76b900;">✅ LLDP Check Started</strong><br>
-                The topology analysis is running in the background.<br>
-                <small style="color: #888;">Page will automatically refresh in 5 seconds to show the latest results.</small>
+                <strong style="color: #76b900;">✅ Assets Refresh Started</strong><br>
+                Collecting device information in the background.<br>
+                <small style="color: #888;">Page will automatically refresh in 10 seconds.</small>
             `;
             
             document.body.appendChild(notification);
             
-            // Auto-refresh page after 7 seconds
+            // Auto-refresh page after 10 seconds (assets collection takes longer)
             setTimeout(() => {
                 location.reload();
-            }, 7000);
+            }, 10000);
             
-            // Auto-remove notification after 6 seconds (before refresh)
+            // Auto-remove notification after 9 seconds (before refresh)
             setTimeout(() => {
                 if (notification.parentNode) {
                     notification.parentNode.removeChild(notification);
@@ -955,7 +978,7 @@
             }, 5000);
         })
         .catch(error => {
-            console.error('❌ Error running LLDP check:', error);
+            console.error('❌ Error refreshing assets:', error);
             
             // Show error state
             buttonText.textContent = '✗ Error';
@@ -980,7 +1003,7 @@
             `;
             notification.innerHTML = `
                 <strong style="color: #ff6b6b;">Error!</strong><br>
-                Could not start LLDP check. Please try again or contact administrator.
+                Could not refresh assets. Please try again or contact administrator.
             `;
             
             document.body.appendChild(notification);
@@ -1368,9 +1391,9 @@
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                document.getElementById('devicesEditorStatus').textContent = '✓ Saved! Running LLDP Check...';
+                document.getElementById('devicesEditorStatus').textContent = '✓ Saved! Refreshing Assets...';
                 closeDevicesEditorModal();
-                runLLDPCheck();
+                refreshAssets();
             } else {
                 document.getElementById('devicesEditorStatus').textContent = 'Error: ' + data.error;
                 document.getElementById('devicesEditorStatus').style.color = '#ff6b6b';

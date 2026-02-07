@@ -144,7 +144,7 @@ class LLDPqAlerts:
                     "actions": [{
                         "type": "button",
                         "text": "View Details",
-                        "url": f"{server_url}/monitor-results/{device}.html"
+                        "url": f"{server_url}/device.html?device={device}"
                     }]
                 }]
             }

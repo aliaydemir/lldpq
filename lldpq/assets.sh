@@ -14,8 +14,77 @@ WEB_ROOT="${WEB_ROOT:-/var/www/html}"
 TMPFILE="$SCRIPT_DIR/assets.tmp"
 UNREACH="$SCRIPT_DIR/unreachable.tmp"
 FINAL="$SCRIPT_DIR/assets.ini"
+CACHE_FILE="$WEB_ROOT/device-cache.json"
 
 rm -f "$TMPFILE" "$UNREACH"
+
+#### CACHE FUNCTIONS
+# Initialize cache file if not exists
+init_cache() {
+  if [[ ! -f "$CACHE_FILE" ]]; then
+    echo '{}' | sudo tee "$CACHE_FILE" > /dev/null
+    sudo chmod o+r "$CACHE_FILE"
+  fi
+}
+
+# Update cache with device info (called after successful data collection)
+update_cache() {
+  local hostname="$1" ip="$2" mac="$3" serial="$4" model="$5" release="$6" uptime="$7"
+  local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+  
+  python3 << PYTHON_END
+import json
+import os
+
+cache_file = "$CACHE_FILE"
+try:
+    with open(cache_file, 'r') as f:
+        cache = json.load(f)
+except:
+    cache = {}
+
+cache["$hostname"] = {
+    "hostname": "$hostname",
+    "ip": "$ip",
+    "mac": "$mac",
+    "serial": "$serial",
+    "model": "$model",
+    "release": "$release",
+    "uptime": "$uptime",
+    "last_seen": "$timestamp",
+    "status": "ok"
+}
+
+with open(cache_file, 'w') as f:
+    json.dump(cache, f, indent=2)
+PYTHON_END
+}
+
+# Get cached data for unreachable device
+get_cached_device() {
+  local hostname="$1"
+  
+  python3 << PYTHON_END
+import json
+import sys
+
+cache_file = "$CACHE_FILE"
+try:
+    with open(cache_file, 'r') as f:
+        cache = json.load(f)
+    
+    if "$hostname" in cache:
+        d = cache["$hostname"]
+        # Output: ip mac serial model release uptime last_seen
+        print(f"{d.get('ip', 'No-Info')}|{d.get('mac', 'No-Info')}|{d.get('serial', 'No-Info')}|{d.get('model', 'No-Info')}|{d.get('release', 'No-Info')}|{d.get('uptime', 'No-Info')}|{d.get('last_seen', 'Never')}")
+    else:
+        print("NOCACHE")
+except Exception as e:
+    print("NOCACHE")
+PYTHON_END
+}
+
+init_cache
 
 #### REMOTE INFO FUNCTION
 remote_info() {
@@ -36,14 +105,14 @@ remote_info() {
   # 7) UPTIME
   up=$(uptime -p | sed 's/,//g; s/ /-/g')
 
-  # Print exactly 7 columns, fixed-width for readability
-  printf '%-20s %-15s %-17s %-12s %-12s %-8s %s\n' \
+  # Print 7 columns (STATUS and LAST-SEEN will be added by collect function)
+  printf '%s %s %s %s %s %s %s\n' \
     "$h" "$ip4" "$mac" "$serial" "$model" "$rel" "$up"
 }
 
-#### HEADER (7 columns)
-printf '%-20s %-15s %-17s %-12s %-12s %-8s %s\n' \
-  "DEVICE-NAME" "IP" "ETH0-MAC" "SERIAL" "MODEL" "RELEASE" "UPTIME" > "$TMPFILE"
+#### HEADER (9 columns - added STATUS and LAST-SEEN)
+printf '%-20s %-15s %-17s %-12s %-20s %-10s %-15s %-12s %s\n' \
+  "DEVICE-NAME" "IP" "ETH0-MAC" "SERIAL" "MODEL" "RELEASE" "UPTIME" "STATUS" "LAST-SEEN" > "$TMPFILE"
 
 #### WORKFLOW
 ping_test() {
@@ -56,17 +125,29 @@ ping_test() {
 
 collect() {
   local ip=$1 user=$2 host=$3
+  local now=$(date '+%Y-%m-%d_%H:%M')
   
   # Try SSH connection and capture result
-  if ssh -o ConnectTimeout=5 -o BatchMode=yes -o StrictHostKeyChecking=no \
-      "$user@$ip" "$(declare -f remote_info); remote_info" \
-    >> "$TMPFILE" 2>/dev/null; then
-    # SSH successful - data already written to TMPFILE
+  local ssh_output
+  if ssh_output=$(ssh -o ConnectTimeout=5 -o BatchMode=yes -o StrictHostKeyChecking=no \
+      "$user@$ip" "$(declare -f remote_info); remote_info" 2>/dev/null); then
+    # SSH successful - parse and write with STATUS=OK and LAST-SEEN=now
+    local r_host r_ip r_mac r_serial r_model r_release r_uptime
+    read -r r_host r_ip r_mac r_serial r_model r_release r_uptime <<< "$ssh_output"
+    
+    # Use devices.yaml hostname ($host) for consistency, not remote hostname
+    printf '%-20s %-15s %-17s %-12s %-20s %-10s %-15s %-12s %s\n' \
+      "$host" "$r_ip" "$r_mac" "$r_serial" "$r_model" "$r_release" "$r_uptime" "OK" "$now" \
+      >> "$TMPFILE"
+    
+    # Update cache with devices.yaml hostname for consistent lookup
+    update_cache "$host" "$r_ip" "$r_mac" "$r_serial" "$r_model" "$r_release" "$r_uptime"
+    
     return 0
   else
-    # SSH failed - add device with SSH FAILED status
-    printf '%-20s %-15s %-17s %-12s %-12s %-8s %s\n' \
-      "$host" "$ip" "SSH-FAILED" "SSH-FAILED" "SSH-FAILED" "SSH-FAILED" "SSH-FAILED" \
+    # SSH failed - add device with SSH-FAILED status
+    printf '%-20s %-15s %-17s %-12s %-20s %-10s %-15s %-12s %s\n' \
+      "$host" "$ip" "N/A" "N/A" "N/A" "N/A" "N/A" "SSH-FAILED" "$now" \
       >> "$TMPFILE"
     return 1
   fi
@@ -94,13 +175,26 @@ rm -f "$TMPFILE"
 sort -t'.' -k1,1n -k2,2n -k3,3n -k4,4n "$SCRIPT_DIR/assets.sorted" > "$SCRIPT_DIR/assets.sorted2"
 rm -f "$SCRIPT_DIR/assets.sorted"
 
-# Append unreachable
+# Append unreachable devices - use cache if available
 if [[ -s "$UNREACH" ]]; then
   while read -r host; do
-    # Fill all other columns with No-Info
-    printf '%-20s %-15s %-17s %-12s %-12s %-8s %s\n' \
-      "$host" "No-Info" "No-Info" "No-Info" "No-Info" "No-Info" "No-Info" \
-      >> "$SCRIPT_DIR/assets.sorted2"
+    # Try to get cached data for this device
+    cached_data=$(get_cached_device "$host")
+    
+    if [[ "$cached_data" != "NOCACHE" ]]; then
+      # Parse cached data (format: ip|mac|serial|model|release|uptime|last_seen)
+      IFS='|' read -r c_ip c_mac c_serial c_model c_release c_uptime c_last_seen <<< "$cached_data"
+      
+      # Write with UNREACHABLE status and cached data
+      printf '%-20s %-15s %-17s %-12s %-20s %-10s %-15s %-12s %s\n' \
+        "$host" "$c_ip" "$c_mac" "$c_serial" "$c_model" "$c_release" "$c_uptime" "UNREACHABLE" "$c_last_seen" \
+        >> "$SCRIPT_DIR/assets.sorted2"
+    else
+      # No cache available - show NO-INFO
+      printf '%-20s %-15s %-17s %-12s %-20s %-10s %-15s %-12s %s\n' \
+        "$host" "No-Info" "No-Info" "No-Info" "No-Info" "No-Info" "No-Info" "NO-INFO" "Never" \
+        >> "$SCRIPT_DIR/assets.sorted2"
+    fi
   done < "$UNREACH"
 fi
 
@@ -108,8 +202,8 @@ fi
 DATE_STR=$(date '+%Y-%m-%d %H-%M-%S')
 echo "Created on $DATE_STR" > "$FINAL.tmp"
 echo "" >> "$FINAL.tmp"
-printf '%-20s %-15s %-17s %-12s %-12s %-8s %s\n' \
-  "DEVICE-NAME" "IP" "ETH0-MAC" "SERIAL" "MODEL" "RELEASE" "UPTIME" >> "$FINAL.tmp"
+printf '%-20s %-15s %-17s %-12s %-20s %-10s %-15s %-12s %s\n' \
+  "DEVICE-NAME" "IP" "ETH0-MAC" "SERIAL" "MODEL" "RELEASE" "UPTIME" "STATUS" "LAST-SEEN" >> "$FINAL.tmp"
 tail -n +2 "$SCRIPT_DIR/assets.sorted2" >> "$FINAL.tmp"
 mv "$FINAL.tmp" "$FINAL"
 sudo cp "$FINAL" "$WEB_ROOT/"

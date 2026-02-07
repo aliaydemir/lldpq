@@ -8,8 +8,10 @@ source /etc/lldpq.conf 2>/dev/null || true
 LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
 LLDP_TRIGGER_FILE="/tmp/.lldp_web_trigger"
 MONITOR_TRIGGER_FILE="/tmp/.monitor_web_trigger"
+ASSETS_TRIGGER_FILE="/tmp/.assets_web_trigger"
 DAEMON_PID_FILE="/tmp/lldp_trigger_daemon.pid"
 LLDP_LOCK_FILE="/tmp/lldp_running.lock"
+ASSETS_LOCK_FILE="/tmp/assets_running.lock"
 
 # Exit if daemon already running
 if [ -f "$DAEMON_PID_FILE" ]; then
@@ -45,6 +47,7 @@ wait_until_not_running() {
 # Main daemon loop - check every 5 seconds
 LLDP_LAST_CHECK_FILE="$LLDPQ_DIR/.last_lldp_trigger_check"
 MONITOR_LAST_CHECK_FILE="$LLDPQ_DIR/.last_monitor_trigger_check"
+ASSETS_LAST_CHECK_FILE="$LLDPQ_DIR/.last_assets_trigger_check"
 
 while true; do
     # Check LLDP trigger
@@ -92,6 +95,31 @@ while true; do
                 sleep 2
             done
             ./monitor.sh >/dev/null 2>&1
+        fi
+    fi
+
+    # Check Assets trigger
+    ASSETS_LAST_CHECK=0
+    if [ -f "$ASSETS_LAST_CHECK_FILE" ]; then
+        ASSETS_LAST_CHECK=$(cat "$ASSETS_LAST_CHECK_FILE")
+    fi
+
+    if [ -f "$ASSETS_TRIGGER_FILE" ]; then
+        ASSETS_TRIGGER_TIME=$(stat -c %Y "$ASSETS_TRIGGER_FILE" 2>/dev/null || stat -f %m "$ASSETS_TRIGGER_FILE" 2>/dev/null || echo 0)
+        
+        if [ "$ASSETS_TRIGGER_TIME" -gt "$ASSETS_LAST_CHECK" ]; then
+            if [ -f "$ASSETS_LOCK_FILE" ] && kill -0 "$(cat "$ASSETS_LOCK_FILE")" 2>/dev/null; then
+                : # Assets refresh already running, skipping trigger
+            else
+                {
+                    echo $$ > "$ASSETS_LOCK_FILE"
+                    echo "$ASSETS_TRIGGER_TIME" > "$ASSETS_LAST_CHECK_FILE"
+                    cd "$LLDPQ_DIR"
+                    wait_until_not_running "./assets.sh"
+                    ./assets.sh >/dev/null 2>&1
+                    rm -f "$ASSETS_LOCK_FILE"
+                }
+            fi
         fi
     fi
     

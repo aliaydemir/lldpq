@@ -152,7 +152,7 @@ try:
     config = {}
     if os.path.exists(host_vars_file):
         with open(host_vars_file, 'r') as f:
-            config = yaml.safe_load(f) or {}
+            config = yaml.load(f, Loader=yaml.CSafeLoader) or {}
     
     # Find device info from hosts file
     device_info = {'hostname': hostname, 'group': None, 'ip': None}
@@ -185,7 +185,7 @@ try:
         group_vrfs_file = f"{ansible_dir}/inventory/group_vars/{device_info['group']}/vrfs.yaml"
         if os.path.exists(group_vrfs_file):
             with open(group_vrfs_file, 'r') as f:
-                group_config = yaml.safe_load(f) or {}
+                group_config = yaml.load(f, Loader=yaml.CSafeLoader) or {}
                 if 'vrfs' in group_config:
                     config['vrfs'] = group_config['vrfs']
     
@@ -193,7 +193,7 @@ try:
     port_profiles = {}
     if os.path.exists(port_profiles_file):
         with open(port_profiles_file, 'r') as f:
-            pp_config = yaml.safe_load(f) or {}
+            pp_config = yaml.load(f, Loader=yaml.CSafeLoader) or {}
             port_profiles = pp_config.get('sw_port_profiles', {})
     
     # Load VLAN profiles for VRF and IP resolution
@@ -203,7 +203,7 @@ try:
     
     if os.path.exists(vlan_profiles_file):
         with open(vlan_profiles_file, 'r') as f:
-            vp_config = yaml.safe_load(f) or {}
+            vp_config = yaml.load(f, Loader=yaml.CSafeLoader) or {}
             
             # Load vxlan_int mapping (nscale/kddi style: vxlan_int at top level)
             if 'vxlan_int' in vp_config and isinstance(vp_config['vxlan_int'], dict):
@@ -287,7 +287,7 @@ vlan_file = f"{ansible_dir}/inventory/group_vars/all/vlan_profiles.yaml"
 
 try:
     with open(vlan_file, 'r') as f:
-        config = yaml.safe_load(f) or {}
+        config = yaml.load(f, Loader=yaml.CSafeLoader) or {}
     
     print(json.dumps({
         'success': True,
@@ -1147,7 +1147,7 @@ for host_file in glob.glob(os.path.join(host_vars_dir, '*.yaml')) + glob.glob(os
     
     try:
         with open(host_file, 'r') as f:
-            host_data = yaml.safe_load(f) or {}
+            host_data = yaml.load(f, Loader=yaml.CSafeLoader) or {}
             device_vrfs = host_data.get('vrfs', {})
             
             if device_vrfs:
@@ -1193,7 +1193,7 @@ vrfs = set()
 
 if os.path.exists(vlan_file):
     with open(vlan_file, 'r') as f:
-        data = yaml.safe_load(f) or {}
+        data = yaml.load(f, Loader=yaml.CSafeLoader) or {}
         vlan_profiles = data.get('vlan_profiles', {})
 
 # Collect VRFs from VLAN profiles
@@ -1213,7 +1213,7 @@ for host_file in glob.glob(os.path.join(host_vars_dir, '*.yaml')) + glob.glob(os
     
     try:
         with open(host_file, 'r') as f:
-            host_data = yaml.safe_load(f) or {}
+            host_data = yaml.load(f, Loader=yaml.CSafeLoader) or {}
             vlan_templates = host_data.get('vlan_templates', [])
             
             if vlan_templates:
@@ -2424,7 +2424,7 @@ bgp_file = f"{ansible_dir}/inventory/group_vars/all/bgp_profiles.yaml"
 
 try:
     with open(bgp_file, 'r') as f:
-        bgp_data = yaml.safe_load(f)
+        bgp_data = yaml.load(f, Loader=yaml.CSafeLoader)
     
     profiles = bgp_data.get('bgp_profiles', {})
     route_map_to_target = {}
@@ -2435,7 +2435,7 @@ try:
     for yaml_file in glob.glob(f"{host_vars_dir}/*.yaml"):
         try:
             with open(yaml_file, 'r') as f:
-                device_data = yaml.safe_load(f)
+                device_data = yaml.load(f, Loader=yaml.CSafeLoader)
             if not device_data:
                 continue
             
@@ -2506,7 +2506,7 @@ bgp_file = f"{ansible_dir}/inventory/group_vars/all/bgp_profiles.yaml"
 # Build route_map -> target_vrf mapping from bgp_profiles
 try:
     with open(bgp_file, 'r') as f:
-        bgp_data = yaml.safe_load(f)
+        bgp_data = yaml.load(f, Loader=yaml.CSafeLoader)
     
     profiles = bgp_data.get('bgp_profiles', {})
     
@@ -2519,7 +2519,7 @@ try:
     for yaml_file in glob.glob(f"{host_vars_dir}/*.yaml"):
         try:
             with open(yaml_file, 'r') as f:
-                device_data = yaml.safe_load(f)
+                device_data = yaml.load(f, Loader=yaml.CSafeLoader)
             if not device_data:
                 continue
             
@@ -2580,7 +2580,7 @@ host_vars_dir = f"{ansible_dir}/inventory/host_vars"
 
 try:
     with open(bgp_file, 'r') as f:
-        data = yaml.safe_load(f)
+        data = yaml.load(f, Loader=yaml.CSafeLoader)
     
     profiles = data.get('bgp_profiles', {})
     
@@ -2602,7 +2602,7 @@ try:
     for yaml_file in glob.glob(f"{host_vars_dir}/*.yaml"):
         try:
             with open(yaml_file, 'r') as f:
-                device_data = yaml.safe_load(f)
+                device_data = yaml.load(f, Loader=yaml.CSafeLoader)
             if not device_data:
                 continue
             vrfs = device_data.get('vrfs', {})
@@ -4072,7 +4072,7 @@ try:
         
         try:
             with open(host_file, 'r') as f:
-                host_data = yaml.safe_load(f) or {}
+                host_data = yaml.load(f, Loader=yaml.CSafeLoader) or {}
             
             # Check if vtep.state is true
             vtep_config = host_data.get('vtep', {})
@@ -4116,7 +4116,7 @@ try:
     
     if os.path.exists(bgp_profiles_file):
         with open(bgp_profiles_file, 'r') as f:
-            bgp_data = yaml.safe_load(f) or {}
+            bgp_data = yaml.load(f, Loader=yaml.CSafeLoader) or {}
             bgp_profiles = bgp_data.get('bgp_profiles', {})
     
     # Find profiles that have "External" peer group
@@ -4167,7 +4167,7 @@ try:
         hostname = os.path.basename(host_file).replace('.yaml', '')
         
         with open(host_file, 'r') as f:
-            host_data = yaml.safe_load(f) or {}
+            host_data = yaml.load(f, Loader=yaml.CSafeLoader) or {}
         
         # Check VRFs for external BGP profiles
         vrfs = host_data.get('vrfs', {})
@@ -4241,6 +4241,311 @@ except Exception as e:
     import traceback
     print(json.dumps({'success': False, 'error': str(e), 'trace': traceback.format_exc()}))
 PYTHON
+        ;;
+    get-device-data)
+        # Get all monitoring data for a specific device
+        DEVICE=$(echo "$QUERY_STRING" | grep -oP 'device=\K[^&]+' | sed 's/%20/ /g')
+        
+        if [[ -z "$DEVICE" ]]; then
+            echo '{"success": false, "error": "Missing device parameter"}'
+            exit 0
+        fi
+        
+        python3 << PYTHON
+import json
+import os
+import re
+from datetime import datetime
+
+device = "$DEVICE"
+monitor_dir = os.environ.get('WEB_ROOT', '/var/www/html') + '/monitor-results'
+
+result = {
+    'success': True,
+    'device': device,
+    'optical': [],
+    'logs': {'critical': 0, 'warning': 0, 'error': 0, 'info': 0},
+    'last_update': None
+}
+
+try:
+    # Get optical data for this device
+    optical_file = f"{monitor_dir}/optical_history.json"
+    if os.path.exists(optical_file):
+        with open(optical_file, 'r') as f:
+            optical_data = json.load(f)
+        
+        optical_history = optical_data.get('optical_history', {})
+        device_optical = []
+        
+        for port_key, readings in optical_history.items():
+            if port_key.startswith(device + ':'):
+                port_name = port_key.split(':')[1]
+                if readings:
+                    latest = readings[-1]
+                    device_optical.append({
+                        'port': port_name,
+                        'health': latest.get('health', 'unknown'),
+                        'rx_power_dbm': latest.get('rx_power_dbm'),
+                        'tx_power_dbm': latest.get('tx_power_dbm'),
+                        'temperature_c': latest.get('temperature_c'),
+                        'link_margin_db': latest.get('link_margin_db'),
+                        'timestamp': latest.get('timestamp')
+                    })
+        
+        result['optical'] = sorted(device_optical, key=lambda x: x['port'])
+    
+    # Get log summary for this device
+    log_file = f"{monitor_dir}/log_summary.json"
+    if os.path.exists(log_file):
+        with open(log_file, 'r') as f:
+            log_data = json.load(f)
+        
+        device_counts = log_data.get('device_counts', {})
+        if device in device_counts:
+            result['logs'] = device_counts[device]
+        
+        result['last_update'] = log_data.get('timestamp')
+    
+    # Get BGP data for this device
+    bgp_file = f"{monitor_dir}/bgp_history.json"
+    if os.path.exists(bgp_file):
+        with open(bgp_file, 'r') as f:
+            bgp_data = json.load(f)
+        
+        # bgp_history format: device -> neighbor -> readings[]
+        if device in bgp_data:
+            device_bgp = []
+            for neighbor, readings in bgp_data[device].items():
+                if readings:
+                    latest = readings[-1] if isinstance(readings, list) else readings
+                    device_bgp.append({
+                        'neighbor': neighbor,
+                        'state': latest.get('state', 'unknown'),
+                        'vrf': latest.get('vrf', 'default'),
+                        'uptime': latest.get('uptime'),
+                        'prefixes_received': latest.get('prefixes_received', 0)
+                    })
+            result['bgp'] = device_bgp
+    
+    print(json.dumps(result))
+
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    run-device-command)
+        # Run a safe command on a device
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_END'
+import json
+import subprocess
+import re
+import os
+
+# Parse input
+post_data = os.environ.get('POST_DATA', '{}')
+try:
+    params = json.loads(post_data)
+except:
+    params = {}
+
+device = params.get('device', '')
+command = params.get('command', '')
+
+if not device or not command:
+    print(json.dumps({'success': False, 'error': 'Missing device or command'}))
+    exit()
+
+# Security: Whitelist of allowed command patterns (checked first)
+ALLOWED_PATTERNS = [
+    # NVUE commands
+    r'^nv show\b',
+    # FRR/vtysh commands
+    r'^sudo vtysh -c ["\']show\b',
+    r'^vtysh -c ["\']show\b',
+    # Layer 1 diagnostics
+    r'^sudo l1-show\b',
+    # ethtool variants
+    r'^/sbin/ethtool\b',
+    r'^sudo /sbin/ethtool\b',
+    r'^ethtool\b',
+    r'^sudo ethtool\b',
+    # IP/network commands
+    r'^ip link\b',
+    r'^ip addr\b',
+    r'^ip route\b',
+    r'^ip neigh\b',
+    r'^/sbin/bridge fdb\b',
+    r'^/sbin/bridge vlan\b',
+    r'^lldpctl\b',
+    r'^sudo lldpctl\b',
+    # Bonding/LAG
+    r'^cat /proc/net/bonding/',
+    # Hardware/sensors
+    r'^sensors\b',
+    r'^sudo sensors\b',
+    r'^smonctl\b',
+    r'^sudo smonctl\b',
+    r'^decode-syseeprom\b',
+    r'^sudo decode-syseeprom\b',
+    r'^cl-resource-query\b',
+    r'^sudo cl-resource-query\b',
+    # Logs
+    r'^cat /var/log/',
+    r'^sudo cat /var/log/',
+    r'^tail\b',
+    r'^sudo tail\b',
+    r'^journalctl\b',
+    r'^sudo journalctl\b',
+    r'^dmesg\b',
+    r'^sudo dmesg\b',
+    # System
+    r'^uptime$',
+    r'^free\b',
+    r'^df\b',
+]
+
+# Security: Blacklist dangerous patterns (only checked if NOT in whitelist)
+BLOCKED_PATTERNS = [
+    r'[;&|`\$]',          # Shell operators
+    r'\bsu\b',
+    r'\brm\b',
+    r'\bmv\b',
+    r'\bcp\b',
+    r'\bchmod\b',
+    r'\bchown\b',
+    r'\bkill\b',
+    r'\breboot\b',
+    r'\bshutdown\b',
+    r'\bnv set\b',
+    r'\bnv apply\b',
+    r'\bnv config\b',
+    r'\bnet add\b',
+    r'\bnet del\b',
+    r'\bnet commit\b',
+    r'configure',
+    r'\becho\b',
+    r'>',                 # Redirect
+    r'\bwget\b',
+    r'\bcurl\b',
+]
+
+# Check if command is in whitelist
+command_allowed = False
+for pattern in ALLOWED_PATTERNS:
+    if re.match(pattern, command, re.IGNORECASE):
+        command_allowed = True
+        break
+
+# If not in whitelist, reject
+if not command_allowed:
+    print(json.dumps({'success': False, 'error': 'Command not in whitelist. Allowed: nv show, net show, sudo vtysh -c "show...", journalctl, uptime'}))
+    exit()
+
+# Even if whitelisted, check for shell injection attempts
+INJECTION_PATTERNS = [r'[;&|`\$]', r'>>', r'<<']
+for pattern in INJECTION_PATTERNS:
+    if re.search(pattern, command):
+        print(json.dumps({'success': False, 'error': 'Command contains unsafe characters'}))
+        exit()
+
+# Validate device name (must be a valid hostname pattern)
+if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9]$', device):
+    print(json.dumps({'success': False, 'error': 'Invalid device name format'}))
+    exit()
+
+# Read config from lldpq.conf
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+lldpq_conf = read_lldpq_conf()
+ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+lldpq_user = lldpq_conf.get('LLDPQ_USER', 'nvidia')
+
+# Get device management IP from ansible inventory
+inventory_paths = [
+    f"{ansible_dir}/inventory/inventory.ini",
+    f"{ansible_dir}/inventory/hosts",
+]
+
+device_ip = None
+for inv_file in inventory_paths:
+    if os.path.exists(inv_file):
+        with open(inv_file, 'r') as f:
+            for line in f:
+                if line.strip().startswith(device):
+                    match = re.search(r'ansible_host=(\S+)', line)
+                    if match:
+                        device_ip = match.group(1)
+                        break
+    if device_ip:
+        break
+
+if not device_ip:
+    print(json.dumps({'success': False, 'error': f'Device {device} not found in inventory'}))
+    exit()
+
+# Execute command via SSH using management IP
+try:
+    ssh_command = [
+        'sudo', '-u', lldpq_user,
+        'ssh', '-o', 'StrictHostKeyChecking=no',
+        '-o', 'ConnectTimeout=10',
+        '-o', 'BatchMode=yes',
+        device_ip,  # Use management IP from inventory
+        command
+    ]
+    
+    result = subprocess.run(
+        ssh_command,
+        capture_output=True,
+        text=True,
+        timeout=30
+    )
+    
+    print(json.dumps({
+        'success': True,
+        'device': device,
+        'command': command,
+        'output': result.stdout,
+        'error_output': result.stderr,
+        'exit_code': result.returncode
+    }))
+
+except subprocess.TimeoutExpired:
+    print(json.dumps({'success': False, 'error': 'Command timed out (30s)'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON_END
+        ;;
+    refresh-assets)
+        # Trigger assets.sh to refresh device inventory using trigger file mechanism
+        # A cron job running as nvidia user watches this file and runs assets.sh
+        TRIGGER_FILE="/tmp/.assets_refresh_trigger"
+        
+        # Create trigger file with timestamp
+        echo "$(date +%s)" > "$TRIGGER_FILE" 2>/dev/null
+        chmod 666 "$TRIGGER_FILE" 2>/dev/null
+        
+        if [ -f "$TRIGGER_FILE" ]; then
+            echo '{"success": true, "message": "Assets refresh triggered. Please wait about 30 seconds."}'
+        else
+            echo '{"success": false, "error": "Failed to create trigger file"}'
+        fi
         ;;
     *)
         echo '{"success": false, "error": "Unknown action: '"$ACTION"'"}'
