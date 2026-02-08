@@ -845,14 +845,23 @@
                     <canvas id="totalThroughputChart"></canvas>
                 </div>
             </div>
-            <!-- AI Ethernet Stats -->
-            <div class="chart-card" style="grid-column: span 2;">
+            <!-- Congestion & Link Health Stats -->
+            <div class="chart-card">
                 <h4>
                     <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
                     TX Wait / Congestion
                 </h4>
-                <div class="chart-container" style="height: 180px;">
+                <div class="chart-container">
                     <canvas id="txWaitChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h4>
+                    <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+                    Link Flaps (per minute)
+                </h4>
+                <div class="chart-container">
+                    <canvas id="linkFlapsChart"></canvas>
                 </div>
             </div>
             <div class="chart-card">
@@ -961,7 +970,7 @@
         <div class="info-grid">
             <div class="info-item">
                 <h4>AI Ethernet Stats</h4>
-                <p>Collects AI-specific ethernet statistics including RoCE, ECN, PFC counters for AI/ML workloads.</p>
+                <p>Collects Adaptive Routing (AR) congestion metrics, SRv6, and Packet Trimming statistics for AI/ML datacenter workloads.</p>
             </div>
             <div class="info-item">
                 <h4>Interface Stats</h4>
@@ -1094,6 +1103,7 @@
         let dropsChart = null;
         // AI Ethernet Stats charts
         let txWaitChart = null;
+        let linkFlapsChart = null;
         let bufferChart = null;
         let pauseChart = null;
         let arCongestionChart = null;
@@ -1289,7 +1299,7 @@
             });
             
             // AI Ethernet Stats Charts
-            // TX Wait Chart (most important - congestion indicator)
+            // TX Wait Chart (congestion indicator)
             txWaitChart = new Chart(document.getElementById('txWaitChart'), {
                 type: 'line',
                 data: { labels: [], datasets: [] },
@@ -1298,6 +1308,19 @@
                     scales: {
                         ...commonOptions.scales,
                         y: { ...commonOptions.scales.y, title: { display: true, text: 'TX Wait Count', color: '#888' } }
+                    }
+                }
+            });
+            
+            // Link Flaps Chart
+            linkFlapsChart = new Chart(document.getElementById('linkFlapsChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: { 
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: { ...commonOptions.scales.y, title: { display: true, text: 'Flaps/min', color: '#888' } }
                     }
                 }
             });
@@ -1380,8 +1403,9 @@
                     updateTopTalkersChart(device),
                     updateErrorsChart(device, timeRange),
                     updateDropsChart(device, timeRange),
-                    // AI Ethernet Stats
+                    // Congestion & Link Health Stats
                     updateTxWaitChart(device, timeRange),
+                    updateLinkFlapsChart(device, timeRange),
                     updateBufferChart(device, timeRange),
                     updatePauseChart(device, timeRange),
                     updateArCongestionChart(device, timeRange),
@@ -1497,6 +1521,17 @@
             const result = await queryPrometheusRange(query, timeRange, '30s');
             if (result.success && result.data?.result) {
                 updateChart(txWaitChart, result.data.result, 'tx_wait/s');
+            }
+        }
+        
+        async function updateLinkFlapsChart(device, timeRange) {
+            const deviceFilter = device !== 'all' ? `{net_host_name="${device}"}` : '';
+            // Carrier changes (link flaps) per minute
+            const query = `sum by (net_host_name) (rate(cumulus_nvswitch_interface_carrier_changes_total${deviceFilter}[2m]) * 60)`;
+            
+            const result = await queryPrometheusRange(query, timeRange, '30s');
+            if (result.success && result.data?.result) {
+                updateChart(linkFlapsChart, result.data.result, 'flaps/min');
             }
         }
         
