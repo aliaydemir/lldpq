@@ -4334,6 +4334,301 @@ except Exception as e:
     print(json.dumps({'success': False, 'error': str(e)}))
 PYTHON
         ;;
+    download-file)
+        # Download a file from a device (for cl-support bundles and PCAP files)
+        # Header already printed at script start
+        
+        DEVICE=$(echo "$QUERY_STRING" | grep -oP 'device=\K[^&]+' | sed 's/%20/ /g' | sed 's/%2F/\//g')
+        FILE_PATH=$(echo "$QUERY_STRING" | grep -oP 'file=\K[^&]+' | sed 's/%2F/\//g' | sed 's/%20/ /g')
+        
+        # Security: Only allow downloading from approved paths
+        if [[ ! "$FILE_PATH" =~ ^/var/support/cl_support.*\.(txz|tar\.xz|tar\.gz)$ ]] && [[ ! "$FILE_PATH" =~ ^/tmp/capture_.*\.pcap$ ]]; then
+            echo '{"success": false, "error": "Only cl-support files from /var/support/ or PCAP files from /tmp/ can be downloaded"}'
+            exit 0
+        fi
+        
+        export DEVICE FILE_PATH
+        python3 << 'PYDOWNLOAD'
+import os
+import re
+import json
+import subprocess
+
+device = os.environ.get('DEVICE', '')
+file_path = os.environ.get('FILE_PATH', '')
+
+# Read config from lldpq.conf (same method as run-device-command)
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+lldpq_conf = read_lldpq_conf()
+ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+web_root = '/var/www/html'
+
+# Get device IP from inventory (same path as run-device-command)
+device_ip = None
+inventory_paths = [
+    f"{ansible_dir}/inventory/inventory.ini",
+    f"{ansible_dir}/inventory/hosts",
+]
+
+for inv_file in inventory_paths:
+    if os.path.exists(inv_file):
+        try:
+            with open(inv_file, 'r') as f:
+                for line in f:
+                    line_stripped = line.strip()
+                    if line_stripped.startswith(device + ' ') or line_stripped.startswith(device + '\t'):
+                        match = re.search(r'ansible_host=(\S+)', line)
+                        if match:
+                            device_ip = match.group(1)
+                            break
+        except:
+            pass
+    if device_ip:
+        break
+
+if not device_ip:
+    print(json.dumps({'success': False, 'error': f'Device {device} not found in inventory'}))
+    exit()
+
+# Create downloads directory
+download_dir = f"{web_root}/downloads"
+os.makedirs(download_dir, exist_ok=True)
+
+# Get filename
+filename = os.path.basename(file_path)
+local_file = f"{download_dir}/{filename}"
+
+# Copy file using SSH + cat (uses same sudo -u lldpq_user as run-device-command)
+try:
+    # Use SSH with cat to stream the file content
+    ssh_command = [
+        'sudo', '-u', lldpq_user,
+        'ssh', '-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=30', '-o', 'BatchMode=yes',
+        device_ip,
+        f'cat {file_path}'
+    ]
+    
+    with open(local_file, 'wb') as f:
+        result = subprocess.run(ssh_command, stdout=f, stderr=subprocess.PIPE, timeout=120)
+    
+    if result.returncode == 0 and os.path.exists(local_file) and os.path.getsize(local_file) > 0:
+        # Fix permissions
+        os.chmod(local_file, 0o644)
+        print(json.dumps({'success': True, 'download_url': f'/downloads/{filename}', 'filename': filename}))
+    else:
+        if os.path.exists(local_file):
+            os.unlink(local_file)
+        print(json.dumps({'success': False, 'error': 'SSH cat failed: ' + result.stderr.decode()[:100]}))
+except subprocess.TimeoutExpired:
+    print(json.dumps({'success': False, 'error': 'Download timeout'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYDOWNLOAD
+        exit 0
+        ;;
+    start-clsupport)
+        # Start cl-support in background
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_CLSUPPORT'
+import json
+import subprocess
+import re
+import os
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+device = data.get('device', '')
+
+if not device:
+    print(json.dumps({'success': False, 'error': 'Device required'}))
+    exit()
+
+lldpq_conf = read_lldpq_conf()
+ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+
+# Get device IP from inventory
+device_ip = None
+for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+    if os.path.exists(inv_file):
+        with open(inv_file, 'r') as f:
+            for line in f:
+                if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                    match = re.search(r'ansible_host=(\S+)', line)
+                    if match:
+                        device_ip = match.group(1)
+                        break
+    if device_ip:
+        break
+
+if not device_ip:
+    print(json.dumps({'success': False, 'error': 'Device not found in inventory'}))
+    exit()
+
+# Start cl-support in background
+remote_cmd = "nohup sudo cl-support -M -T0 > /tmp/clsupport.log 2>&1 &"
+
+ssh_command = [
+    'sudo', '-u', lldpq_user,
+    'ssh', '-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=10', '-o', 'BatchMode=yes',
+    device_ip,
+    remote_cmd
+]
+
+try:
+    result = subprocess.run(ssh_command, capture_output=True, text=True, timeout=15)
+    print(json.dumps({'success': True, 'message': 'cl-support started in background'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+
+PYTHON_CLSUPPORT
+        exit 0
+        ;;
+    start-live-capture)
+        # Start live tcpdump capture in background, return output file path
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_LIVE'
+import json
+import subprocess
+import re
+import os
+import time
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+device = data.get('device', '')
+iface = data.get('interface', 'any')
+duration = int(data.get('duration', 30))
+count = data.get('count', '1000')
+filter_expr = data.get('filter', '')
+
+if not device:
+    print(json.dumps({'success': False, 'error': 'Device required'}))
+    exit()
+
+# Validate interface name
+if not re.match(r'^[a-zA-Z0-9_.-]+$', iface):
+    print(json.dumps({'success': False, 'error': 'Invalid interface name'}))
+    exit()
+
+# Validate filter (basic check - alphanumeric, spaces, and common operators)
+if filter_expr and not re.match(r'^[a-zA-Z0-9\s\.\:\-\(\)]+$', filter_expr):
+    print(json.dumps({'success': False, 'error': 'Invalid filter expression'}))
+    exit()
+
+lldpq_conf = read_lldpq_conf()
+ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+
+# Get device IP from inventory
+device_ip = None
+for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+    if os.path.exists(inv_file):
+        with open(inv_file, 'r') as f:
+            for line in f:
+                if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                    match = re.search(r'ansible_host=(\S+)', line)
+                    if match:
+                        device_ip = match.group(1)
+                        break
+    if device_ip:
+        break
+
+if not device_ip:
+    print(json.dumps({'success': False, 'error': 'Device not found in inventory'}))
+    exit()
+
+# Generate unique output file
+timestamp = time.strftime('%Y%m%d-%H%M%S')
+output_file = f'/tmp/live_{device}_{timestamp}.txt'
+
+# Build tcpdump command
+cmd_parts = ['sudo', 'timeout', str(duration), 'tcpdump', '-l', '-i', iface, '-nnnn', '-vvv']
+if count and count != '0':
+    cmd_parts.extend(['-c', count])
+
+# Build the remote command with output redirection
+tcpdump_cmd = ' '.join(cmd_parts)
+if filter_expr:
+    tcpdump_cmd += f' {filter_expr}'
+remote_cmd = f"nohup sh -c '{tcpdump_cmd} > {output_file} 2>&1' > /dev/null 2>&1 & echo $!"
+
+ssh_command = [
+    'sudo', '-u', lldpq_user,
+    'ssh', '-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=10', '-o', 'BatchMode=yes',
+    device_ip,
+    remote_cmd
+]
+
+result = subprocess.run(ssh_command, capture_output=True, text=True, timeout=15)
+
+if result.returncode == 0:
+    pid = result.stdout.strip()
+    print(json.dumps({
+        'success': True,
+        'output_file': output_file,
+        'pid': pid,
+        'device': device,
+        'duration': duration
+    }))
+else:
+    print(json.dumps({'success': False, 'error': result.stderr[:200]}))
+
+PYTHON_LIVE
+        exit 0
+        ;;
     run-device-command)
         # Run a safe command on a device
         read -r POST_DATA
@@ -4395,6 +4690,7 @@ ALLOWED_PATTERNS = [
     r'^sudo cl-resource-query\b',
     # Logs
     r'^cat /var/log/',
+    r'^cat /tmp/live_',
     r'^sudo cat /var/log/',
     r'^tail\b',
     r'^sudo tail\b',
@@ -4406,6 +4702,25 @@ ALLOWED_PATTERNS = [
     r'^uptime$',
     r'^free\b',
     r'^df\b',
+    r'^ls\b',
+    r'^pgrep\b',
+    r'^sudo pkill\b',
+    r'^sudo killall\b',
+    r'^find /tmp -name "capture_\*\.pcap"',
+    # Packet capture
+    r'^sudo timeout \d+ tcpdump\b',
+    r'^tcpdump\b',
+    r'^sudo tcpdump\b',
+    # Diagnostic bundle
+    r'^sudo cl-support\b',
+    r'^cl-support\b',
+    # Delete cl-support files only
+    r'^sudo rm -f "/var/support/cl_support',
+    r'^sudo rm -f /var/support/cl_support\*\.txz$',
+    # Delete PCAP capture files
+    r'^sudo rm -f "/tmp/capture_',
+    r'^sudo rm -f /tmp/capture_\*\.pcap$',
+    r'^sudo rm -f /tmp/live_',
 ]
 
 # Security: Blacklist dangerous patterns (only checked if NOT in whitelist)
@@ -4474,7 +4789,7 @@ def read_lldpq_conf():
 
 lldpq_conf = read_lldpq_conf()
 ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
-lldpq_user = lldpq_conf.get('LLDPQ_USER', 'nvidia')
+lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
 
 # Get device management IP from ansible inventory
 inventory_paths = [
@@ -4501,9 +4816,20 @@ if not device_ip:
 
 # Execute command via SSH using management IP
 try:
+    # Determine timeout based on command - longer for tcpdump, cl-support
+    cmd_timeout = 30
+    if 'tcpdump' in command or 'cl-support' in command:
+        # Extract timeout value from command if present
+        timeout_match = re.search(r'timeout\s+(\d+)', command)
+        if timeout_match:
+            cmd_timeout = int(timeout_match.group(1)) + 10  # Add 10s buffer
+        else:
+            cmd_timeout = 120  # Default 2 minutes for long commands
+    
     ssh_command = [
         'sudo', '-u', lldpq_user,
-        'ssh', '-o', 'StrictHostKeyChecking=no',
+        'ssh', '-tt',  # Force pseudo-tty for unbuffered output
+        '-o', 'StrictHostKeyChecking=no',
         '-o', 'ConnectTimeout=10',
         '-o', 'BatchMode=yes',
         device_ip,  # Use management IP from inventory
@@ -4514,7 +4840,7 @@ try:
         ssh_command,
         capture_output=True,
         text=True,
-        timeout=30
+        timeout=cmd_timeout
     )
     
     print(json.dumps({
@@ -4527,7 +4853,7 @@ try:
     }))
 
 except subprocess.TimeoutExpired:
-    print(json.dumps({'success': False, 'error': 'Command timed out (30s)'}))
+    print(json.dumps({'success': False, 'error': f'Command timed out ({cmd_timeout}s)'}))
 except Exception as e:
     print(json.dumps({'success': False, 'error': str(e)}))
 PYTHON_END

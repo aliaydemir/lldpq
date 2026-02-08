@@ -46,7 +46,7 @@ import os
 # Use INVENTORY_FILE from environment, fallback to checking both files
 inventory_file = os.environ.get('INVENTORY_FILE')
 if not inventory_file:
-    ansible_dir = os.environ.get('ANSIBLE_DIR', '/home/nvidia/dt-mvp')
+    ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
     for name in ['inventory.ini', 'hosts']:
         path = f"{ansible_dir}/inventory/{name}"
         if os.path.exists(path):

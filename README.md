@@ -97,14 +97,38 @@ access via web UI: `http://<server>/device.html`
 | **BGP** | BGP neighbor status per VRF |
 | **Logs** | Recent logs from syslog, FRR, switchd, NVUE |
 | **Commands** | Interactive command runner with templates |
+| **Capture** | Live packet capture (tcpdump) with PCAP download |
+| **cl-support** | Generate diagnostic bundles for TAC support |
 
 ### command runner features
-- **pre-built templates**: organized by category (System, Network, BGP, EVPN, etc.)
+- **pre-built templates**: organized by category with color-coded icons
+  - System & Hardware (green)
+  - Interfaces & Ports (blue)
+  - Layer 2 / Bridge (purple)
+  - BGP & Routing (orange)
+  - EVPN & VXLAN (teal)
+  - EVPN MH / Bonds (pink)
+  - MLAG / CLAG (indigo)
+  - Logs & Debug (red)
 - **interface selector**: dropdown with all switch interfaces
 - **VRF selector**: query BGP/routes per VRF
-- **bond selector**: view bond member details
+- **bond selector**: view nv bond details, system bond details
 - **custom commands**: run any allowed command on device
 - **output display**: formatted command output with auto-scroll
+
+### packet capture (tcpdump)
+- **interface selection**: auto-populated dropdown including VLANs
+- **filter presets**: common tcpdump filters (ICMP, ARP, LLDP, BGP, etc.)
+- **live mode**: real-time packet output with polling
+- **PCAP mode**: capture to file and download for Wireshark
+- **duration/count controls**: configurable capture limits
+- **cleanup**: automatic old PCAP cleanup, delete all PCAP button
+
+### diagnostic bundle (cl-support)
+- **background generation**: runs `cl-support -M -T0` in background
+- **status polling**: real-time progress indicator
+- **download/delete**: manage bundle files directly from UI
+- **page exit warning**: prevents accidental navigation during generation
 
 ### security
 - commands are whitelisted (only safe monitoring commands allowed)

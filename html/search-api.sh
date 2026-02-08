@@ -7,9 +7,9 @@ if [[ -f /etc/lldpq.conf ]]; then
     source /etc/lldpq.conf
 fi
 
-# Set defaults
-LLDPQ_DIR="${LLDPQ_DIR:-/home/nvidia/lldpq}"
-LLDPQ_USER="${LLDPQ_USER:-nvidia}"
+# Set defaults (use $HOME for portable fallback)
+LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
+LLDPQ_USER="${LLDPQ_USER:-$(whoami)}"
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
 # Export for Python scripts
@@ -39,7 +39,7 @@ devices_file = f"{lldpq_dir}/devices.yaml"
 
 # Fallback paths
 if not os.path.exists(devices_file):
-    devices_file = "/home/nvidia/lldpq/devices.yaml"
+    devices_file = os.path.expanduser("~/lldpq/devices.yaml")
 
 try:
     with open(devices_file, 'r') as f:
@@ -266,7 +266,7 @@ lldpq_dir = os.environ.get('LLDPQ_DIR', os.path.expanduser('~/lldpq'))
 devices_file = f"{lldpq_dir}/devices.yaml"
 
 if not os.path.exists(devices_file):
-    devices_file = "/home/nvidia/lldpq/devices.yaml"
+    devices_file = os.path.expanduser("~/lldpq/devices.yaml")
 
 table_type = "$table_type"
 search = "$search".lower()
@@ -836,7 +836,7 @@ import json
 import os
 from datetime import datetime
 
-lldpq_dir = os.environ.get('LLDPQ_DIR', '/home/nvidia/lldpq')
+lldpq_dir = os.environ.get('LLDPQ_DIR', os.path.expanduser('~/lldpq'))
 summary_file = f"{lldpq_dir}/monitor-results/fabric-tables/summary.json"
 
 try:
@@ -876,7 +876,7 @@ PYTHON
 
 # Trigger fabric scan
 run_fabric_scan() {
-    local lldpq_dir="${LLDPQ_DIR:-/home/nvidia/lldpq}"
+    local lldpq_dir="${LLDPQ_DIR:-$HOME/lldpq}"
     local scan_script="$lldpq_dir/fabric-scan.sh"
     
     if [[ ! -f "$scan_script" ]]; then
@@ -907,7 +907,7 @@ import os
 import struct
 import socket
 
-lldpq_dir = os.environ.get('LLDPQ_DIR', '/home/nvidia/lldpq')
+lldpq_dir = os.environ.get('LLDPQ_DIR', os.path.expanduser('~/lldpq'))
 tables_dir = f"{lldpq_dir}/monitor-results/fabric-tables"
 search_ip = "$search_ip"
 
@@ -1027,7 +1027,7 @@ import json
 import os
 import re
 
-lldpq_dir = os.environ.get('LLDPQ_DIR', '/home/nvidia/lldpq')
+lldpq_dir = os.environ.get('LLDPQ_DIR', os.path.expanduser('~/lldpq'))
 tables_dir = f"{lldpq_dir}/monitor-results/fabric-tables"
 table_type = "$table_type"
 search = "$search".lower()
