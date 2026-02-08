@@ -462,6 +462,11 @@ class OpticalAnalyzer:
         .card-info {{ border-left-color: #4fc3f7; }}
         .metric {{ font-size: 22px; font-weight: bold; color: #d4d4d4; }}
         .metric-label {{ font-size: 12px; color: #888; margin-top: 4px; }}
+        .badge {{ display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }}
+        .badge-green {{ background: rgba(118, 185, 0, 0.2); color: #76b900; }}
+        .badge-red {{ background: rgba(244, 67, 54, 0.2); color: #ff6b6b; }}
+        .badge-orange {{ background: rgba(255, 152, 0, 0.2); color: #ffb74d; }}
+        .badge-gray {{ background: rgba(158, 158, 158, 0.2); color: #999; }}
         .optical-excellent {{ color: #76b900; font-weight: bold; }}
         .optical-good {{ color: #8bc34a; font-weight: bold; }}
         .optical-warning {{ color: #ff9800; font-weight: bold; }}
@@ -610,13 +615,24 @@ class OpticalAnalyzer:
             voltage = f"{port['voltage_v']:.2f}" if port['voltage_v'] is not None else "N/A"
             bias_current = f"{port['bias_current_ma']:.2f}" if port['bias_current_ma'] is not None else "N/A"
             recommended_action = self.get_recommended_action(port)
-            health_class = f"optical-{port['health']}"
+            # Badge class based on health
+            health = port['health']
+            if health == 'excellent':
+                badge_class = 'badge badge-green'
+            elif health == 'good':
+                badge_class = 'badge badge-green'
+            elif health == 'warning':
+                badge_class = 'badge badge-orange'
+            elif health == 'critical':
+                badge_class = 'badge badge-red'
+            else:
+                badge_class = 'badge badge-gray'
 
             html_content += f"""
                 <tr data-health="{port['health']}">
                     <td>{device_name}</td>
                     <td>{interface_name}</td>
-                    <td><span class="{health_class}">{port['health'].upper()}</span></td>
+                    <td><span class="{badge_class}">{port['health'].upper()}</span></td>
                     <td>{rx_power}</td>
                     <td>{tx_power}</td>
                     <td>{temperature}</td>

@@ -578,6 +578,11 @@ def generate_hardware_html():
         .card-good .metric {{ color: #8bc34a; }}
         .card-warning .metric {{ color: #ff9800; }}
         .card-critical .metric {{ color: #f44336; }}
+        .badge {{ display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }}
+        .badge-green {{ background: rgba(118, 185, 0, 0.2); color: #76b900; }}
+        .badge-red {{ background: rgba(244, 67, 54, 0.2); color: #ff6b6b; }}
+        .badge-orange {{ background: rgba(255, 152, 0, 0.2); color: #ffb74d; }}
+        .badge-gray {{ background: rgba(158, 158, 158, 0.2); color: #999; }}
         .hardware-excellent {{ color: #76b900; font-weight: bold; }}
         .hardware-good {{ color: #8bc34a; font-weight: bold; }}
         .hardware-warning {{ color: #ff9800; font-weight: bold; }}
@@ -760,9 +765,29 @@ def generate_hardware_html():
         else:
             fan_status = "N/A"
         
-        health_class = f"hardware-{health_grade.lower()}"
+        # Badge class for health
+        if health_grade == "EXCELLENT":
+            health_badge_class = "badge badge-green"
+        elif health_grade == "GOOD":
+            health_badge_class = "badge badge-green"
+        elif health_grade == "WARNING":
+            health_badge_class = "badge badge-orange"
+        elif health_grade == "CRITICAL":
+            health_badge_class = "badge badge-red"
+        else:
+            health_badge_class = "badge badge-gray"
         
-        fan_class = f"hardware-{fan_status.lower()}" if fan_status != "N/A" else ""
+        # Badge class for fan
+        if fan_status == "HEALTHY" or fan_status == "EXCELLENT" or fan_status == "GOOD":
+            fan_badge_class = "badge badge-green"
+        elif fan_status == "WARNING":
+            fan_badge_class = "badge badge-orange"
+        elif fan_status == "CRITICAL":
+            fan_badge_class = "badge badge-red"
+        elif fan_status != "N/A":
+            fan_badge_class = "badge badge-gray"
+        else:
+            fan_badge_class = ""
         
         # Compute per-metric grades for dot indicators
         def grade_cpu(t):
@@ -861,12 +886,12 @@ def generate_hardware_html():
         html_content += f"""
                 <tr data-status="{health_grade.lower()}">
                     <td>{device_name}</td>
-                    <td><span class="{health_class}">{health_grade.upper()}</span></td>
+                    <td><span class="{health_badge_class}">{health_grade.upper()}</span></td>
                     <td>{cpu_temp_str}{cpu_cell_suffix}</td>
                     <td>{asic_temp_str}{asic_cell_suffix}</td>
                     <td>{memory_usage if isinstance(memory_usage, (int, float)) else 0.0:.1f}%{mem_cell_suffix}</td>
                     <td>{cpu_load if isinstance(cpu_load, (int, float)) else 0.0:.2f}{load_cell_suffix}</td>
-                    <td><span class="{fan_class}">{fan_status}</span>{fan_cell_suffix}</td>
+                    <td><span class="{fan_badge_class}">{fan_status}</span>{fan_cell_suffix}</td>
                     <td>{psu_efficiency:.1f}%{psu_cell_suffix}</td>
                     <td>{psu_in_out_str}</td>
                     <td>{device_model}</td>

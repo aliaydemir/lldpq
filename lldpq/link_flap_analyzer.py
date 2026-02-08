@@ -311,6 +311,10 @@ class LinkFlapAnalyzer:
         .flap-good {{ color: #8bc34a; font-weight: bold; }}
         .flap-warning {{ color: #ff9800; font-weight: bold; }}
         .flap-critical {{ color: #f44336; font-weight: bold; }}
+        .badge {{ display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }}
+        .badge-green {{ background: rgba(118, 185, 0, 0.2); color: #76b900; }}
+        .badge-red {{ background: rgba(244, 67, 54, 0.2); color: #ff6b6b; }}
+        .badge-orange {{ background: rgba(255, 152, 0, 0.2); color: #ffb74d; }}
         .status-ok {{ color: #76b900; font-weight: bold; }}
         .status-flapping {{ color: #f44336; font-weight: bold; }}
         .status-flapped {{ color: #ff9800; font-weight: bold; }}
@@ -519,7 +523,14 @@ class LinkFlapAnalyzer:
         table_rows = []
         for port in sorted_ports:
             counters = port['counters']
-            status_class = f"status-{port['status'].value}"
+            # Badge class based on status
+            status_val = port['status'].value
+            if status_val == 'ok':
+                badge_class = 'badge badge-green'
+            elif status_val == 'flapping':
+                badge_class = 'badge badge-red'
+            else:  # flapped
+                badge_class = 'badge badge-orange'
             
             # Color coding for transition counts
             transition_class = "transition-good"
@@ -529,10 +540,10 @@ class LinkFlapAnalyzer:
                 transition_class = "transition-warning"
                 
             table_rows.append(f"""
-        <tr data-status="{port['status'].value}">
+        <tr data-status="{status_val}">
             <td>{port['device']}</td>
             <td>{port['interface']}</td>
-            <td><span class="{status_class}">{port['status'].value.upper()}</span></td>
+            <td><span class="{badge_class}">{status_val.upper()}</span></td>
             <td>{counters['flap_30_sec']}</td>
             <td>{counters['flap_1_min']}</td>
             <td>{counters['flap_5_min']}</td>

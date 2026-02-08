@@ -578,6 +578,11 @@ class BERAnalyzer:
         .card-good .metric {{ color: #8bc34a; }}
         .card-warning .metric {{ color: #ff9800; }}
         .card-critical .metric {{ color: #f44336; }}
+        .badge {{ display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }}
+        .badge-green {{ background: rgba(118, 185, 0, 0.2); color: #76b900; }}
+        .badge-red {{ background: rgba(244, 67, 54, 0.2); color: #ff6b6b; }}
+        .badge-orange {{ background: rgba(255, 152, 0, 0.2); color: #ffb74d; }}
+        .badge-gray {{ background: rgba(158, 158, 158, 0.2); color: #999; }}
         .ber-excellent {{ color: #76b900; font-weight: bold; }}
         .ber-good {{ color: #8bc34a; font-weight: bold; }}
         .ber-warning {{ color: #ff9800; font-weight: bold; }}
@@ -757,20 +762,20 @@ class BERAnalyzer:
             device = port_name.split(':')[0] if ':' in port_name else "unknown"
             interface = port_name.split(':')[1] if ':' in port_name else port_name
             
-            # Determine status and color
+            # Determine status and badge class
             ber_value = port_info['ber_value']
             if ber_value == 0:
                 status = "EXCELLENT"
-                status_class = "ber-excellent"
+                badge_class = "badge badge-green"
             elif ber_value < self.config["raw_ber_threshold"]:
                 status = "GOOD"
-                status_class = "ber-good"
+                badge_class = "badge badge-green"
             elif ber_value < self.config["warning_ber_threshold"]:
                 status = "WARNING"
-                status_class = "ber-warning"
+                badge_class = "badge badge-orange"
             else:
                 status = "CRITICAL"
-                status_class = "ber-critical"
+                badge_class = "badge badge-red"
             
             ber_display = f"{ber_value:.2e}" if ber_value > 0 else "0"
             
@@ -785,7 +790,7 @@ class BERAnalyzer:
                 <tr data-status="{status.lower()}">
                     <td>{device}</td>
                     <td>{interface}</td>
-                    <td><span class="{status_class}">{status}</span></td>
+                    <td><span class="{badge_class}">{status}</span></td>
                     <td>{ber_display}</td>
                     <td>{raw_phy_display}</td>
                     <td>{port_info['total_packets']:,}</td>

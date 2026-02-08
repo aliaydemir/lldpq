@@ -142,7 +142,33 @@
             font-size: 12px;
         }
         
-        /* Status Colors */
+        /* Status Badges */
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .badge-green {
+            background: rgba(118, 185, 0, 0.2);
+            color: #76b900;
+        }
+        .badge-red {
+            background: rgba(244, 67, 54, 0.2);
+            color: #ff6b6b;
+        }
+        .badge-orange {
+            background: rgba(255, 152, 0, 0.2);
+            color: #ffb74d;
+        }
+        .badge-gray {
+            background: rgba(158, 158, 158, 0.2);
+            color: #999;
+        }
+        
+        /* Legacy status classes (for compatibility) */
         .status-success { color: #76b900; font-weight: bold; }
         .status-fail { color: #f44336; font-weight: bold; }
         .status-warning { color: #ff9800; font-weight: bold; }
@@ -661,26 +687,35 @@
                 row.insertCell(0).textContent = connection.localDevice;
                 row.insertCell(1).textContent = connection.localPort;
                 
-                // Port Status cell (NEW)
+                // Port Status cell with badge
                 const portStatusCell = row.insertCell(2);
                 const portStatus = connection.portStatus || 'N/A';
-                let portStatusClass = '';
+                let portBadgeClass = 'badge badge-gray';
                 if (portStatus === 'UP') {
-                    portStatusClass = 'port-status-up';
+                    portBadgeClass = 'badge badge-green';
                 } else if (portStatus === 'DOWN') {
-                    portStatusClass = 'port-status-down';
-                } else {
-                    portStatusClass = 'port-status-down';  // N/A or unknown = treat as down (red)
+                    portBadgeClass = 'badge badge-red';
                 }
-                portStatusCell.innerHTML = `<span class="${portStatusClass}">${portStatus}</span>`;
+                portStatusCell.innerHTML = `<span class="${portBadgeClass}">${portStatus}</span>`;
                 
                 row.insertCell(3).textContent = connection.expectedDevice || 'N/A';
                 row.insertCell(4).textContent = connection.expectedPort || 'N/A';
                 row.insertCell(5).textContent = connection.actualDevice || 'N/A';
                 row.insertCell(6).textContent = connection.actualPort || 'N/A';
                 
+                // Status cell with badge
                 const statusCell = row.insertCell(7);
-                statusCell.innerHTML = `<span class="${status.statusClass}">${status.status}</span>`;
+                let statusBadgeClass = 'badge badge-gray';
+                if (status.status === 'SUCCESS') {
+                    statusBadgeClass = 'badge badge-green';
+                } else if (status.status === 'FAILED') {
+                    statusBadgeClass = 'badge badge-red';
+                } else if (status.status === 'WARNING') {
+                    statusBadgeClass = 'badge badge-orange';
+                } else if (status.status === 'NO INFO') {
+                    statusBadgeClass = 'badge badge-gray';
+                }
+                statusCell.innerHTML = `<span class="${statusBadgeClass}">${status.status}</span>`;
                 
                 row.insertCell(8).textContent = status.health;
             });
