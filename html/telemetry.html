@@ -633,6 +633,98 @@
             border-radius: 50%;
             background: #888;
         }
+        
+        /* Customize Button */
+        .customize-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 15px;
+            background: #333;
+            border: 1px solid #3c3c3c;
+            border-radius: 6px;
+            color: #d4d4d4;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .customize-btn:hover {
+            background: #404040;
+            border-color: #76b900;
+        }
+        
+        /* Customize Modal */
+        .customize-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .customize-modal.visible { display: flex; }
+        .customize-modal-content {
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .customize-modal h3 {
+            color: #76b900;
+            margin: 0 0 15px 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .customize-modal h3 button {
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 20px;
+        }
+        .customize-modal h3 button:hover { color: #fff; }
+        .chart-toggle-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .chart-toggle-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: #252526;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .chart-toggle-item:hover { background: #333; }
+        .chart-toggle-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #76b900;
+            cursor: pointer;
+        }
+        .chart-toggle-item label {
+            flex: 1;
+            cursor: pointer;
+            color: #d4d4d4;
+        }
+        .chart-toggle-item .chart-desc {
+            font-size: 11px;
+            color: #888;
+            margin-top: 2px;
+        }
+        .chart-card.hidden { display: none !important; }
         .connection-status.connected .dot {
             background: #76b900;
         }
@@ -811,6 +903,10 @@
                     <span class="dot"></span>
                     <span>Prometheus: Checking...</span>
                 </div>
+                <button class="customize-btn" onclick="openCustomizeModal()" title="Customize Dashboard">
+                    <svg viewBox="0 0 24 24" width="16" height="16"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z" fill="currentColor"/></svg>
+                    Customize
+                </button>
             </div>
             <div class="refresh-indicator" id="refreshIndicator">
                 <svg viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>
@@ -832,11 +928,19 @@
                 <div class="label">Total Throughput</div>
                 <div class="value">-<span class="unit">Gbps</span></div>
             </div>
+            <div class="stat-card" id="statErrors">
+                <div class="label">Total Errors</div>
+                <div class="value">-<span class="unit">/s</span></div>
+            </div>
+            <div class="stat-card" id="statDrops">
+                <div class="label">Total Drops</div>
+                <div class="value">-<span class="unit">/s</span></div>
+            </div>
         </div>
         
         <!-- Charts -->
         <div class="charts-grid">
-            <div class="chart-card" style="grid-column: span 2;">
+            <div class="chart-card" id="card-totalThroughput" style="grid-column: span 2;">
                 <h4>
                     <svg viewBox="0 0 24 24"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>
                     Total Throughput (Gbps)
@@ -846,7 +950,7 @@
                 </div>
             </div>
             <!-- Congestion & Link Health Stats -->
-            <div class="chart-card">
+            <div class="chart-card" id="card-txWait">
                 <h4>
                     <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
                     TX Wait / Congestion
@@ -855,34 +959,7 @@
                     <canvas id="txWaitChart"></canvas>
                 </div>
             </div>
-            <div class="chart-card">
-                <h4>
-                    <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
-                    Link Flaps (per minute)
-                </h4>
-                <div class="chart-container">
-                    <canvas id="linkFlapsChart"></canvas>
-                </div>
-            </div>
-            <div class="chart-card">
-                <h4>
-                    <svg viewBox="0 0 24 24"><path d="M2 20h20v-4H2v4zm2-3h2v2H4v-2zM2 4v4h20V4H2zm4 3H4V5h2v2zm-4 7h20v-4H2v4zm2-3h2v2H4v-2z"/></svg>
-                    Buffer Utilization
-                </h4>
-                <div class="chart-container">
-                    <canvas id="bufferChart"></canvas>
-                </div>
-            </div>
-            <div class="chart-card">
-                <h4>
-                    <svg viewBox="0 0 24 24"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg>
-                    Pause Frames (per second)
-                </h4>
-                <div class="chart-container">
-                    <canvas id="pauseChart"></canvas>
-                </div>
-            </div>
-            <div class="chart-card">
+            <div class="chart-card" id="card-arCongestion">
                 <h4>
                     <svg viewBox="0 0 24 24"><path d="M13 3v2h-2V3h2zm0 16v2h-2v-2h2zm8-8v2h-2v-2h2zM5 11v2H3v-2h2zm13.66-6.34l1.41 1.41-1.41 1.42-1.42-1.42 1.42-1.41zM5.93 17.66l1.41 1.41-1.41 1.42-1.42-1.42 1.42-1.41zm11.31 1.41l1.42-1.41 1.41 1.41-1.41 1.42-1.42-1.42zM4.52 6.07l1.42-1.41 1.41 1.41-1.41 1.42-1.42-1.42z"/></svg>
                     AR Congestion Changes
@@ -891,7 +968,34 @@
                     <canvas id="arCongestionChart"></canvas>
                 </div>
             </div>
-            <div class="chart-card">
+            <div class="chart-card" id="card-buffer">
+                <h4>
+                    <svg viewBox="0 0 24 24"><path d="M2 20h20v-4H2v4zm2-3h2v2H4v-2zM2 4v4h20V4H2zm4 3H4V5h2v2zm-4 7h20v-4H2v4zm2-3h2v2H4v-2z"/></svg>
+                    Buffer Utilization
+                </h4>
+                <div class="chart-container">
+                    <canvas id="bufferChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card" id="card-pause">
+                <h4>
+                    <svg viewBox="0 0 24 24"><path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/></svg>
+                    Pause Frames (per second)
+                </h4>
+                <div class="chart-container">
+                    <canvas id="pauseChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card" id="card-linkFlaps">
+                <h4>
+                    <svg viewBox="0 0 24 24"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+                    Link Flaps (per minute)
+                </h4>
+                <div class="chart-container">
+                    <canvas id="linkFlapsChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card" id="card-ecn">
                 <h4>
                     <svg viewBox="0 0 24 24"><path d="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/></svg>
                     ECN Marked Packets
@@ -901,7 +1005,7 @@
                 </div>
             </div>
             <!-- Standard Stats -->
-            <div class="chart-card">
+            <div class="chart-card" id="card-errors">
                 <h4>
                     <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
                     Interface Errors (per second)
@@ -910,7 +1014,7 @@
                     <canvas id="errorsChart"></canvas>
                 </div>
             </div>
-            <div class="chart-card">
+            <div class="chart-card" id="card-drops">
                 <h4>
                     <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
                     Packet Drops (per second)
@@ -919,7 +1023,45 @@
                     <canvas id="dropsChart"></canvas>
                 </div>
             </div>
-            <div class="chart-card" style="grid-column: span 2;">
+            <!-- Hidden by default - Advanced metrics (appear here when enabled) -->
+            <div class="chart-card hidden" id="card-fecErrors">
+                <h4>
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                    FEC Corrected Errors
+                </h4>
+                <div class="chart-container">
+                    <canvas id="fecErrorsChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card hidden" id="card-crcErrors">
+                <h4>
+                    <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                    CRC / FCS Errors
+                </h4>
+                <div class="chart-container">
+                    <canvas id="crcErrorsChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card hidden" id="card-hoqDiscards">
+                <h4>
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8 0-1.85.63-3.55 1.69-4.9L16.9 18.31C15.55 19.37 13.85 20 12 20zm6.31-3.1L7.1 5.69C8.45 4.63 10.15 4 12 4c4.42 0 8 3.58 8 8 0 1.85-.63 3.55-1.69 4.9z"/></svg>
+                    HOQ Discards
+                </h4>
+                <div class="chart-container">
+                    <canvas id="hoqDiscardsChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card hidden" id="card-symbolErrors">
+                <h4>
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                    Symbol Errors
+                </h4>
+                <div class="chart-container">
+                    <canvas id="symbolErrorsChart"></canvas>
+                </div>
+            </div>
+            <!-- Top Talkers (always last before table) -->
+            <div class="chart-card" id="card-topTalkers" style="grid-column: span 2;">
                 <h4>
                     <svg viewBox="0 0 24 24"><path d="M4 9h4v11H4zm6-5h4v16h-4zm6 8h4v8h-4z"/></svg>
                     Top Talkers (Mbps)
@@ -932,7 +1074,7 @@
         
         
         <!-- Interface Stats Table -->
-        <div class="info-section">
+        <div class="info-section" id="card-interfaceTable">
             <h3>
                 <svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z"/></svg>
                 Top Interfaces by Utilization
@@ -957,6 +1099,127 @@
                     </tr>
                 </tbody>
             </table>
+        </div>
+    </div>
+    
+    <!-- Customize Modal -->
+    <div class="customize-modal" id="customizeModal">
+        <div class="customize-modal-content">
+            <h3>
+                Customize Dashboard
+                <button onclick="closeCustomizeModal()">&times;</button>
+            </h3>
+            <div class="chart-toggle-list">
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('totalThroughput')">
+                    <input type="checkbox" id="toggle-totalThroughput" checked onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-totalThroughput">Total Throughput</label>
+                        <div class="chart-desc">Combined RX+TX bandwidth across all interfaces</div>
+                    </div>
+                </div>
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('topTalkers')">
+                    <input type="checkbox" id="toggle-topTalkers" checked onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-topTalkers">Top Talkers</label>
+                        <div class="chart-desc">Highest bandwidth interfaces</div>
+                    </div>
+                </div>
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('txWait')">
+                    <input type="checkbox" id="toggle-txWait" checked onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-txWait">TX Wait / Congestion</label>
+                        <div class="chart-desc">Transmit queue congestion events</div>
+                    </div>
+                </div>
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('linkFlaps')">
+                    <input type="checkbox" id="toggle-linkFlaps" checked onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-linkFlaps">Link Flaps</label>
+                        <div class="chart-desc">Interface up/down state changes</div>
+                    </div>
+                </div>
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('buffer')">
+                    <input type="checkbox" id="toggle-buffer" checked onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-buffer">Buffer Utilization</label>
+                        <div class="chart-desc">RX buffer full/almost full events</div>
+                    </div>
+                </div>
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('pause')">
+                    <input type="checkbox" id="toggle-pause" checked onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-pause">Pause Frames</label>
+                        <div class="chart-desc">Flow control pause frames sent/received</div>
+                    </div>
+                </div>
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('arCongestion')">
+                    <input type="checkbox" id="toggle-arCongestion" checked onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-arCongestion">AR Congestion Changes</label>
+                        <div class="chart-desc">Adaptive Routing congestion state changes</div>
+                    </div>
+                </div>
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('ecn')">
+                    <input type="checkbox" id="toggle-ecn" checked onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-ecn">ECN Marked Packets</label>
+                        <div class="chart-desc">Explicit Congestion Notification marked packets</div>
+                    </div>
+                </div>
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('errors')">
+                    <input type="checkbox" id="toggle-errors" checked onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-errors">Interface Errors</label>
+                        <div class="chart-desc">RX/TX interface errors per second</div>
+                    </div>
+                </div>
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('drops')">
+                    <input type="checkbox" id="toggle-drops" checked onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-drops">Packet Drops</label>
+                        <div class="chart-desc">Discarded packets per second</div>
+                    </div>
+                </div>
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('interfaceTable')">
+                    <input type="checkbox" id="toggle-interfaceTable" checked onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-interfaceTable">Interface Table</label>
+                        <div class="chart-desc">Top interfaces by utilization (table view)</div>
+                    </div>
+                </div>
+                <!-- Advanced metrics (hidden by default) -->
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #3c3c3c;">
+                    <div style="color: #888; font-size: 12px; margin-bottom: 10px;">Advanced Metrics (disabled by default)</div>
+                </div>
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('fecErrors')">
+                    <input type="checkbox" id="toggle-fecErrors" onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-fecErrors">FEC Corrected Errors</label>
+                        <div class="chart-desc">Forward Error Correction - optical/PHY layer corrections</div>
+                    </div>
+                </div>
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('crcErrors')">
+                    <input type="checkbox" id="toggle-crcErrors" onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-crcErrors">CRC / FCS Errors</label>
+                        <div class="chart-desc">Cyclic Redundancy Check errors - cable/signal issues</div>
+                    </div>
+                </div>
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('hoqDiscards')">
+                    <input type="checkbox" id="toggle-hoqDiscards" onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-hoqDiscards">HOQ Discards</label>
+                        <div class="chart-desc">Head of Queue blocking discards - congestion indicator</div>
+                    </div>
+                </div>
+                <div class="chart-toggle-item" onclick="toggleChartCheckbox('symbolErrors')">
+                    <input type="checkbox" id="toggle-symbolErrors" onchange="saveChartPreferences()">
+                    <div>
+                        <label for="toggle-symbolErrors">Symbol Errors</label>
+                        <div class="chart-desc">PHY layer symbol errors - signal quality indicator</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -1108,6 +1371,11 @@
         let pauseChart = null;
         let arCongestionChart = null;
         let markedPacketsChart = null;
+        // Advanced charts (hidden by default)
+        let fecErrorsChart = null;
+        let crcErrorsChart = null;
+        let hoqDiscardsChart = null;
+        let symbolErrorsChart = null;
         let telemetryEnabled = false;
         
         // Chart.js default colors
@@ -1149,6 +1417,7 @@
             await loadPrometheusConfig();
             await loadDevices();
             initCharts();
+            loadChartPreferences();
             checkPrometheusConnection();
             startAutoRefresh();
         });
@@ -1352,6 +1621,55 @@
                 data: { labels: [], datasets: [] },
                 options: { ...commonOptions }
             });
+            
+            // Advanced Charts (hidden by default)
+            fecErrorsChart = new Chart(document.getElementById('fecErrorsChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: { 
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: { ...commonOptions.scales.y, title: { display: true, text: 'Corrections/s', color: '#888' } }
+                    }
+                }
+            });
+            
+            crcErrorsChart = new Chart(document.getElementById('crcErrorsChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: { 
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: { ...commonOptions.scales.y, title: { display: true, text: 'Errors/s', color: '#888' } }
+                    }
+                }
+            });
+            
+            hoqDiscardsChart = new Chart(document.getElementById('hoqDiscardsChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: { 
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: { ...commonOptions.scales.y, title: { display: true, text: 'Discards/s', color: '#888' } }
+                    }
+                }
+            });
+            
+            symbolErrorsChart = new Chart(document.getElementById('symbolErrorsChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: { 
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: { ...commonOptions.scales.y, title: { display: true, text: 'Errors/s', color: '#888' } }
+                    }
+                }
+            });
         }
         
         async function checkPrometheusConnection() {
@@ -1410,7 +1728,9 @@
                     updatePauseChart(device, timeRange),
                     updateArCongestionChart(device, timeRange),
                     updateMarkedPacketsChart(device, timeRange),
-                    updateInterfaceTable(device)
+                    updateInterfaceTable(device),
+                    // Advanced charts (only update if visible)
+                    updateAdvancedCharts(device, timeRange)
                 ]);
             } catch (error) {
                 console.error('Dashboard update error:', error);
@@ -1463,6 +1783,24 @@
             if (tpResult.success && tpResult.data?.result?.[0]) {
                 const value = parseFloat(tpResult.data.result[0].value?.[1] || 0).toFixed(2);
                 document.querySelector('#statThroughput .value').innerHTML = `${value}<span class="unit">Gbps</span>`;
+            }
+            
+            // Total errors/s
+            const errResult = await queryPrometheus('sum(rate(cumulus_nvswitch_interface_if_in_errors[5m]) + rate(cumulus_nvswitch_interface_if_out_errors[5m]))');
+            if (errResult.success && errResult.data?.result?.[0]) {
+                const value = parseFloat(errResult.data.result[0].value?.[1] || 0).toFixed(1);
+                document.querySelector('#statErrors .value').innerHTML = `${value}<span class="unit">/s</span>`;
+            } else {
+                document.querySelector('#statErrors .value').innerHTML = `0<span class="unit">/s</span>`;
+            }
+            
+            // Total drops/s
+            const dropResult = await queryPrometheus('sum(rate(cumulus_nvswitch_interface_if_in_discards[5m]) + rate(cumulus_nvswitch_interface_if_out_discards[5m]))');
+            if (dropResult.success && dropResult.data?.result?.[0]) {
+                const value = parseFloat(dropResult.data.result[0].value?.[1] || 0).toFixed(1);
+                document.querySelector('#statDrops .value').innerHTML = `${value}<span class="unit">/s</span>`;
+            } else {
+                document.querySelector('#statDrops .value').innerHTML = `0<span class="unit">/s</span>`;
             }
             
         }
@@ -1574,6 +1912,47 @@
             const result = await queryPrometheusRange(query, timeRange, '30s');
             if (result.success && result.data?.result) {
                 updateChart(markedPacketsChart, result.data.result, 'pkts/s');
+            }
+        }
+        
+        // Advanced charts update function (only updates visible charts)
+        async function updateAdvancedCharts(device, timeRange) {
+            const deviceFilter = device !== 'all' ? `{net_host_name="${device}"}` : '';
+            
+            // FEC Errors (only if visible)
+            if (!document.getElementById('card-fecErrors')?.classList.contains('hidden')) {
+                const fecQuery = `sum by (net_host_name) (rate(cumulus_nvswitch_interface_phy_layer_fec_per_lane_corrections${deviceFilter}[2m]))`;
+                const fecResult = await queryPrometheusRange(fecQuery, timeRange, '30s');
+                if (fecResult.success && fecResult.data?.result) {
+                    updateChart(fecErrorsChart, fecResult.data.result, 'corrections/s');
+                }
+            }
+            
+            // CRC Errors (only if visible)
+            if (!document.getElementById('card-crcErrors')?.classList.contains('hidden')) {
+                const crcQuery = `sum by (net_host_name) (rate(cumulus_nvswitch_interface_ether_stats_crc_align_errors${deviceFilter}[2m]) + rate(cumulus_nvswitch_interface_dot3_stats_fcs_errors${deviceFilter}[2m]))`;
+                const crcResult = await queryPrometheusRange(crcQuery, timeRange, '30s');
+                if (crcResult.success && crcResult.data?.result) {
+                    updateChart(crcErrorsChart, crcResult.data.result, 'errors/s');
+                }
+            }
+            
+            // HOQ Discards (only if visible)
+            if (!document.getElementById('card-hoqDiscards')?.classList.contains('hidden')) {
+                const hoqQuery = `sum by (net_host_name) (rate(cumulus_nvswitch_interface_discards_egress_hoq${deviceFilter}[2m]) + rate(cumulus_nvswitch_interface_discards_egress_hoq_stall${deviceFilter}[2m]))`;
+                const hoqResult = await queryPrometheusRange(hoqQuery, timeRange, '30s');
+                if (hoqResult.success && hoqResult.data?.result) {
+                    updateChart(hoqDiscardsChart, hoqResult.data.result, 'discards/s');
+                }
+            }
+            
+            // Symbol Errors (only if visible)
+            if (!document.getElementById('card-symbolErrors')?.classList.contains('hidden')) {
+                const symQuery = `sum by (net_host_name) (rate(cumulus_nvswitch_interface_dot3_stats_symbol_errors${deviceFilter}[2m]))`;
+                const symResult = await queryPrometheusRange(symQuery, timeRange, '30s');
+                if (symResult.success && symResult.data?.result) {
+                    updateChart(symbolErrorsChart, symResult.data.result, 'errors/s');
+                }
             }
         }
         
@@ -1746,6 +2125,67 @@
             // Show/hide config buttons
             document.getElementById('configButtons').style.display = tabName === 'config' ? 'flex' : 'none';
         }
+        
+        // ===== Dashboard Customization =====
+        const chartIds = ['totalThroughput', 'topTalkers', 'txWait', 'linkFlaps', 'buffer', 'pause', 'arCongestion', 'ecn', 'errors', 'drops', 'interfaceTable', 'fecErrors', 'crcErrors', 'hoqDiscards', 'symbolErrors'];
+        
+        function openCustomizeModal() {
+            document.getElementById('customizeModal').classList.add('visible');
+        }
+        
+        function closeCustomizeModal() {
+            document.getElementById('customizeModal').classList.remove('visible');
+        }
+        
+        function toggleChartCheckbox(chartId) {
+            const checkbox = document.getElementById('toggle-' + chartId);
+            checkbox.checked = !checkbox.checked;
+            saveChartPreferences();
+        }
+        
+        function saveChartPreferences() {
+            const prefs = {};
+            chartIds.forEach(id => {
+                const checkbox = document.getElementById('toggle-' + id);
+                prefs[id] = checkbox ? checkbox.checked : true;
+                
+                // Apply visibility immediately
+                const card = document.getElementById('card-' + id);
+                if (card) {
+                    card.classList.toggle('hidden', !prefs[id]);
+                }
+            });
+            localStorage.setItem('telemetry-chart-prefs', JSON.stringify(prefs));
+        }
+        
+        function loadChartPreferences() {
+            const saved = localStorage.getItem('telemetry-chart-prefs');
+            if (saved) {
+                try {
+                    const prefs = JSON.parse(saved);
+                    chartIds.forEach(id => {
+                        const visible = prefs[id] !== false; // Default to visible
+                        
+                        // Update checkbox
+                        const checkbox = document.getElementById('toggle-' + id);
+                        if (checkbox) checkbox.checked = visible;
+                        
+                        // Update card visibility
+                        const card = document.getElementById('card-' + id);
+                        if (card) card.classList.toggle('hidden', !visible);
+                    });
+                } catch (e) {
+                    console.error('Error loading chart preferences:', e);
+                }
+            }
+        }
+        
+        // Close modal on outside click
+        document.getElementById('customizeModal')?.addEventListener('click', (e) => {
+            if (e.target.classList.contains('customize-modal')) {
+                closeCustomizeModal();
+            }
+        });
         
         // Store devices with telemetry status
         async function showEnableModal() {
