@@ -2,22 +2,168 @@
 # LLDPq Update Script
 # Updates system files while preserving configuration
 # 
-# Copyright (c) 2024 LLDPq Project
+# Copyright (c) 2024-2026 LLDPq Project
 # Licensed under MIT License - see LICENSE file for details
 #
-# Usage: ./update.sh [-y]
-#   -y  Auto-yes to all prompts (non-interactive mode)
+# Usage: ./update.sh [-y] [--enable-telemetry] [--disable-telemetry]
+#   -y                  Auto-yes to all prompts (non-interactive mode)
+#   --enable-telemetry  Enable streaming telemetry support (installs Docker)
+#   --disable-telemetry Disable streaming telemetry support
 
 set -e
 
+# Determine LLDPQ install directory
+# Read from existing config if available, otherwise use default based on user
+if [[ -f /etc/lldpq.conf ]]; then
+    LLDPQ_INSTALL_DIR=$(grep "^LLDPQ_DIR=" /etc/lldpq.conf 2>/dev/null | cut -d'=' -f2 || echo "")
+fi
+if [[ -z "$LLDPQ_INSTALL_DIR" ]]; then
+    if [[ $EUID -eq 0 ]]; then
+        LLDPQ_INSTALL_DIR="/opt/lldpq"
+    else
+        LLDPQ_INSTALL_DIR="$LLDPQ_INSTALL_DIR"
+    fi
+fi
+
 # Parse arguments
 AUTO_YES=false
-while getopts "y" opt; do
-    case $opt in
-        y) AUTO_YES=true ;;
-        *) ;;
+ENABLE_TELEMETRY=false
+DISABLE_TELEMETRY=false
+
+for arg in "$@"; do
+    case $arg in
+        -y) AUTO_YES=true ;;
+        --enable-telemetry) ENABLE_TELEMETRY=true ;;
+        --disable-telemetry) DISABLE_TELEMETRY=true ;;
+        -h|--help)
+            echo "Usage: ./update.sh [-y] [--enable-telemetry] [--disable-telemetry]"
+            echo ""
+            echo "Options:"
+            echo "  -y                  Auto-yes to all prompts"
+            echo "  --enable-telemetry  Enable streaming telemetry (requires Docker)"
+            echo "  --disable-telemetry Disable streaming telemetry"
+            exit 0
+            ;;
     esac
 done
+
+# Handle telemetry-only mode
+if [[ "$ENABLE_TELEMETRY" == "true" ]] || [[ "$DISABLE_TELEMETRY" == "true" ]]; then
+    if [[ "$ENABLE_TELEMETRY" == "true" ]]; then
+        echo "Enabling Streaming Telemetry..."
+        echo ""
+        
+        # Check/install Docker
+        if ! command -v docker &> /dev/null; then
+            echo "Docker not found. Installing Docker..."
+            curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+            sudo sh /tmp/get-docker.sh
+            sudo usermod -aG docker "$(whoami)"
+            rm /tmp/get-docker.sh
+            echo "Docker installed successfully"
+            echo "[!] NOTE: You may need to logout/login for Docker group to take effect"
+        else
+            echo "Docker found: $(docker --version)"
+        fi
+        
+        if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+            echo "Installing docker-compose..."
+            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+            echo "docker-compose installed"
+        fi
+        
+        # Update config
+        if grep -q "^TELEMETRY_ENABLED=" /etc/lldpq.conf 2>/dev/null; then
+            sudo sed -i 's/^TELEMETRY_ENABLED=.*/TELEMETRY_ENABLED=true/' /etc/lldpq.conf
+        else
+            echo "TELEMETRY_ENABLED=true" | sudo tee -a /etc/lldpq.conf > /dev/null
+        fi
+        
+        if ! grep -q "^PROMETHEUS_URL=" /etc/lldpq.conf 2>/dev/null; then
+            echo "PROMETHEUS_URL=http://localhost:9090" | sudo tee -a /etc/lldpq.conf > /dev/null
+        fi
+        
+        echo ""
+        echo "Telemetry support enabled!"
+        echo ""
+        
+        # Configure Docker storage driver if needed (for VMs without overlay support)
+        if [[ ! -f /etc/docker/daemon.json ]]; then
+            echo "Configuring Docker storage driver..."
+            sudo mkdir -p /etc/docker
+            echo '{"storage-driver": "vfs"}' | sudo tee /etc/docker/daemon.json > /dev/null
+            sudo systemctl restart docker
+        fi
+        
+        # Start the telemetry stack automatically
+        if [[ -f "$LLDPQ_INSTALL_DIR/telemetry/docker-compose.yaml" ]]; then
+            echo ""
+            echo "Starting telemetry stack..."
+            cd "$LLDPQ_INSTALL_DIR/telemetry"
+            # Use sudo for docker if user not yet in docker group (fresh install)
+            if docker compose up -d 2>&1; then
+                : # success without sudo
+            elif docker-compose up -d 2>&1; then
+                : # success with old docker-compose
+            elif sudo docker compose up -d 2>&1; then
+                : # success with sudo
+            elif sudo docker-compose up -d 2>&1; then
+                : # success with sudo + old docker-compose
+            else
+                echo "[!] Could not start stack. Try manually:"
+                echo "    cd $LLDPQ_INSTALL_DIR/telemetry && sudo docker compose up -d"
+            fi
+            cd - > /dev/null
+            
+            # Wait a moment and check status
+            sleep 3
+            if docker ps --filter "name=lldpq-prometheus" --format "{{.Status}}" 2>/dev/null | grep -q "Up"; then
+                echo ""
+                echo "Telemetry stack is running:"
+                echo "  - OTEL Collector: http://localhost:4317"
+                echo "  - Prometheus:     http://localhost:9090"
+                echo "  - Alertmanager:   http://localhost:9093"
+            fi
+        else
+            echo "[!] Telemetry files not found. Run ./install.sh or ./update.sh first."
+        fi
+        
+        echo ""
+        echo "Next step: Enable telemetry on switches from web UI:"
+        echo "  Telemetry → Configuration → Enable Telemetry"
+        
+    elif [[ "$DISABLE_TELEMETRY" == "true" ]]; then
+        echo "Disabling Streaming Telemetry..."
+        echo ""
+        echo "This will completely remove the telemetry stack and all stored metrics."
+        
+        # Stop and remove telemetry stack with volumes
+        if [[ -f "$LLDPQ_INSTALL_DIR/telemetry/docker-compose.yaml" ]]; then
+            cd "$LLDPQ_INSTALL_DIR/telemetry"
+            echo "Stopping and removing containers..."
+            docker-compose down -v 2>/dev/null || docker compose down -v 2>/dev/null || true
+            cd - > /dev/null
+            echo "Telemetry stack removed (containers + volumes)"
+        fi
+        
+        # Remove saved collector config
+        sudo sed -i '/^TELEMETRY_COLLECTOR_IP=/d' /etc/lldpq.conf 2>/dev/null || true
+        sudo sed -i '/^TELEMETRY_COLLECTOR_PORT=/d' /etc/lldpq.conf 2>/dev/null || true
+        sudo sed -i '/^TELEMETRY_COLLECTOR_VRF=/d' /etc/lldpq.conf 2>/dev/null || true
+        
+        # Update config
+        if grep -q "^TELEMETRY_ENABLED=" /etc/lldpq.conf 2>/dev/null; then
+            sudo sed -i 's/^TELEMETRY_ENABLED=.*/TELEMETRY_ENABLED=false/' /etc/lldpq.conf
+        else
+            echo "TELEMETRY_ENABLED=false" | sudo tee -a /etc/lldpq.conf > /dev/null
+        fi
+        
+        echo "Telemetry support disabled"
+    fi
+    
+    exit 0
+fi
 
 echo "LLDPq Update Script"
 echo "======================"
@@ -34,7 +180,7 @@ fi
 
 # Running as root is OK (for dedicated servers)
 if [[ $EUID -eq 0 ]]; then
-    echo "Running as root - files will be in /root/lldpq"
+    echo "Running as root - files will be in /opt/lldpq"
 fi
 
 # Check if we're in the lldpq-src directory
@@ -50,16 +196,16 @@ WEB_ROOT="${WEB_ROOT:-/var/www/html}"
 
 echo ""
 echo "[01] Backup existing lldpq directory?"
-if [[ -d "$HOME/lldpq" ]]; then
+if [[ -d "$LLDPQ_INSTALL_DIR" ]]; then
     if [[ "$AUTO_YES" == "true" ]]; then
         echo "   Skipping backup (auto-yes mode)"
     else
         read -p "Create backup of existing lldpq? [y/N]: " -n 1 -r
         echo ""
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            backup_dir="$HOME/lldpq.backup.$(date +%Y%m%d_%H%M%S)"
-            echo "   Backing up $HOME/lldpq to $backup_dir"
-            cp -r "$HOME/lldpq" "$backup_dir"
+            backup_dir="$LLDPQ_INSTALL_DIR.backup.$(date +%Y%m%d_%H%M%S)"
+            echo "   Backing up $LLDPQ_INSTALL_DIR to $backup_dir"
+            cp -r "$LLDPQ_INSTALL_DIR" "$backup_dir"
             echo "Backup created: $backup_dir"
         else
             echo "   Skipping backup as requested"
@@ -150,38 +296,38 @@ echo "   - Setting up topology.dot for web editing"
 # If topology.dot exists in web root, it's already set up - just ensure symlink
 if [[ -f "$WEB_ROOT/topology.dot" ]]; then
     # Ensure lldpq directory exists before creating symlink
-    mkdir -p "$HOME/lldpq"
+    mkdir -p "$LLDPQ_INSTALL_DIR"
     # Ensure symlink exists
-    if [[ ! -L "$HOME/lldpq/topology.dot" ]]; then
-        rm -f "$HOME/lldpq/topology.dot" 2>/dev/null
-        ln -sf "$WEB_ROOT/topology.dot" "$HOME/lldpq/topology.dot"
+    if [[ ! -L "$LLDPQ_INSTALL_DIR/topology.dot" ]]; then
+        rm -f "$LLDPQ_INSTALL_DIR/topology.dot" 2>/dev/null
+        ln -sf "$WEB_ROOT/topology.dot" "$LLDPQ_INSTALL_DIR/topology.dot"
     fi
 else
     # First time setup: move topology.dot to web root
-    if [[ -f "$HOME/lldpq/topology.dot" ]] && [[ ! -L "$HOME/lldpq/topology.dot" ]]; then
-        sudo mv "$HOME/lldpq/topology.dot" "$WEB_ROOT/topology.dot"
+    if [[ -f "$LLDPQ_INSTALL_DIR/topology.dot" ]] && [[ ! -L "$LLDPQ_INSTALL_DIR/topology.dot" ]]; then
+        sudo mv "$LLDPQ_INSTALL_DIR/topology.dot" "$WEB_ROOT/topology.dot"
         # www-data owns it (for web editing), user's group has access too
         sudo chown "www-data:$USER" "$WEB_ROOT/topology.dot"
         sudo chmod 664 "$WEB_ROOT/topology.dot"
-        ln -sf "$WEB_ROOT/topology.dot" "$HOME/lldpq/topology.dot"
+        ln -sf "$WEB_ROOT/topology.dot" "$LLDPQ_INSTALL_DIR/topology.dot"
     fi
 fi
 
 echo "   - Setting up topology_config.yaml for web editing"
 # If topology_config.yaml exists in web root, ensure symlink
 if [[ -f "$WEB_ROOT/topology_config.yaml" ]]; then
-    mkdir -p "$HOME/lldpq"
-    if [[ ! -L "$HOME/lldpq/topology_config.yaml" ]]; then
-        rm -f "$HOME/lldpq/topology_config.yaml" 2>/dev/null
-        ln -sf "$WEB_ROOT/topology_config.yaml" "$HOME/lldpq/topology_config.yaml"
+    mkdir -p "$LLDPQ_INSTALL_DIR"
+    if [[ ! -L "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]]; then
+        rm -f "$LLDPQ_INSTALL_DIR/topology_config.yaml" 2>/dev/null
+        ln -sf "$WEB_ROOT/topology_config.yaml" "$LLDPQ_INSTALL_DIR/topology_config.yaml"
     fi
 else
     # First time setup: move topology_config.yaml to web root
-    if [[ -f "$HOME/lldpq/topology_config.yaml" ]] && [[ ! -L "$HOME/lldpq/topology_config.yaml" ]]; then
-        sudo mv "$HOME/lldpq/topology_config.yaml" "$WEB_ROOT/topology_config.yaml"
+    if [[ -f "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]] && [[ ! -L "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]]; then
+        sudo mv "$LLDPQ_INSTALL_DIR/topology_config.yaml" "$WEB_ROOT/topology_config.yaml"
         sudo chown "www-data:$USER" "$WEB_ROOT/topology_config.yaml"
         sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
-        ln -sf "$WEB_ROOT/topology_config.yaml" "$HOME/lldpq/topology_config.yaml"
+        ln -sf "$WEB_ROOT/topology_config.yaml" "$LLDPQ_INSTALL_DIR/topology_config.yaml"
     fi
 fi
 
@@ -301,10 +447,15 @@ fi
 
 # Write updated config
 echo "# LLDPq Configuration" | sudo tee /etc/lldpq.conf > /dev/null
-echo "LLDPQ_DIR=$HOME/lldpq" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "LLDPQ_DIR=$LLDPQ_INSTALL_DIR" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "WEB_ROOT=$WEB_ROOT" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "ANSIBLE_DIR=$ANSIBLE_DIR" | sudo tee -a /etc/lldpq.conf > /dev/null
-sudo chmod 644 /etc/lldpq.conf
+# Set permissions so web server can update telemetry config
+USER_GROUP=$(id -gn)
+sudo chown root:$USER_GROUP /etc/lldpq.conf
+sudo chmod 664 /etc/lldpq.conf
+# Add www-data to user's group for web access
+sudo usermod -a -G $USER_GROUP www-data 2>/dev/null || true
 echo "     Configuration saved to /etc/lldpq.conf"
 
 echo "   - Updating bin/* to /usr/local/bin/"
@@ -331,11 +482,11 @@ echo "System files updated"
 echo ""
 echo "[03] Backup monitoring data?"
 backup_data_dir=""
-if [[ -d "$HOME/lldpq/monitor-results" ]] || [[ -d "$HOME/lldpq/lldp-results" ]] || [[ -d "$HOME/lldpq/alert-states" ]]; then
+if [[ -d "$LLDPQ_INSTALL_DIR/monitor-results" ]] || [[ -d "$LLDPQ_INSTALL_DIR/lldp-results" ]] || [[ -d "$LLDPQ_INSTALL_DIR/alert-states" ]]; then
     echo "   Found existing monitoring data directories:"
-    [[ -d "$HOME/lldpq/monitor-results" ]] && echo "     • monitor-results/ (contains all analysis results)"
-    [[ -d "$HOME/lldpq/lldp-results" ]] && echo "     • lldp-results/ (contains LLDP topology data)"
-    [[ -d "$HOME/lldpq/alert-states" ]] && echo "     • alert-states/ (contains alert history and state tracking)"
+    [[ -d "$LLDPQ_INSTALL_DIR/monitor-results" ]] && echo "     • monitor-results/ (contains all analysis results)"
+    [[ -d "$LLDPQ_INSTALL_DIR/lldp-results" ]] && echo "     • lldp-results/ (contains LLDP topology data)"
+    [[ -d "$LLDPQ_INSTALL_DIR/alert-states" ]] && echo "     • alert-states/ (contains alert history and state tracking)"
     echo ""
     if [[ "$AUTO_YES" == "true" ]]; then
         REPLY="y"
@@ -348,9 +499,9 @@ if [[ -d "$HOME/lldpq/monitor-results" ]] || [[ -d "$HOME/lldpq/lldp-results" ]]
     else
         backup_data_dir=$(mktemp -d)
         echo "   Backing up monitoring data..."
-        [[ -d "$HOME/lldpq/monitor-results" ]] && cp -r "$HOME/lldpq/monitor-results" "$backup_data_dir/"
-        [[ -d "$HOME/lldpq/lldp-results" ]] && cp -r "$HOME/lldpq/lldp-results" "$backup_data_dir/"
-        [[ -d "$HOME/lldpq/alert-states" ]] && cp -r "$HOME/lldpq/alert-states" "$backup_data_dir/"
+        [[ -d "$LLDPQ_INSTALL_DIR/monitor-results" ]] && cp -r "$LLDPQ_INSTALL_DIR/monitor-results" "$backup_data_dir/"
+        [[ -d "$LLDPQ_INSTALL_DIR/lldp-results" ]] && cp -r "$LLDPQ_INSTALL_DIR/lldp-results" "$backup_data_dir/"
+        [[ -d "$LLDPQ_INSTALL_DIR/alert-states" ]] && cp -r "$LLDPQ_INSTALL_DIR/alert-states" "$backup_data_dir/"
         echo "   Monitoring data backed up to temporary location"
     fi
 else
@@ -364,46 +515,46 @@ temp_dir=$(mktemp -d)
 cp -r lldpq/* "$temp_dir/"
 
 # If monitor exists, preserve config files
-if [[ -d "$HOME/lldpq" ]]; then
+if [[ -d "$LLDPQ_INSTALL_DIR" ]]; then
     echo "   - Preserving configuration files:"
     
-    if [[ -f "$HOME/lldpq/devices.yaml" ]]; then
+    if [[ -f "$LLDPQ_INSTALL_DIR/devices.yaml" ]]; then
         echo "     • devices.yaml"
-        cp "$HOME/lldpq/devices.yaml" "$temp_dir/"
+        cp "$LLDPQ_INSTALL_DIR/devices.yaml" "$temp_dir/"
     fi
     
     # hosts.ini deprecated - now using endpoint_hosts in devices.yaml
     
-    # topology.dot is now stored in web root with symlink in ~/lldpq
+    # topology.dot is now stored in web root with symlink in $LLDPQ_INSTALL_DIR
     # If it's a symlink, just note it; if it's a real file, migrate to web root
-    if [[ -L "$HOME/lldpq/topology.dot" ]]; then
+    if [[ -L "$LLDPQ_INSTALL_DIR/topology.dot" ]]; then
         echo "     • topology.dot (symlink to $WEB_ROOT)"
         # Symlink will be recreated later
-    elif [[ -f "$HOME/lldpq/topology.dot" ]]; then
+    elif [[ -f "$LLDPQ_INSTALL_DIR/topology.dot" ]]; then
         echo "     • topology.dot (migrating to $WEB_ROOT)"
-        sudo cp "$HOME/lldpq/topology.dot" "$WEB_ROOT/topology.dot"
+        sudo cp "$LLDPQ_INSTALL_DIR/topology.dot" "$WEB_ROOT/topology.dot"
         sudo chown "www-data:$USER" "$WEB_ROOT/topology.dot"
         sudo chmod 664 "$WEB_ROOT/topology.dot"
     fi
     
-    # topology_config.yaml is stored in web root with symlink in ~/lldpq
-    if [[ -L "$HOME/lldpq/topology_config.yaml" ]]; then
+    # topology_config.yaml is stored in web root with symlink in $LLDPQ_INSTALL_DIR
+    if [[ -L "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]]; then
         echo "     • topology_config.yaml (symlink to $WEB_ROOT)"
         # Symlink will be recreated later
-    elif [[ -f "$HOME/lldpq/topology_config.yaml" ]]; then
+    elif [[ -f "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]]; then
         echo "     • topology_config.yaml (migrating to $WEB_ROOT)"
-        sudo cp "$HOME/lldpq/topology_config.yaml" "$WEB_ROOT/topology_config.yaml"
+        sudo cp "$LLDPQ_INSTALL_DIR/topology_config.yaml" "$WEB_ROOT/topology_config.yaml"
         sudo chown "www-data:$USER" "$WEB_ROOT/topology_config.yaml"
         sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
     fi
     
-    if [[ -f "$HOME/lldpq/notifications.yaml" ]]; then
+    if [[ -f "$LLDPQ_INSTALL_DIR/notifications.yaml" ]]; then
         echo "     • notifications.yaml"
-        cp "$HOME/lldpq/notifications.yaml" "$temp_dir/"
+        cp "$LLDPQ_INSTALL_DIR/notifications.yaml" "$temp_dir/"
     fi
     
     # Check if lldpq processes are running before removing directory
-    if pgrep -f "$HOME/lldpq/monitor.sh" >/dev/null 2>&1 || pgrep -f "/usr/local/bin/lldpq-trigger" >/dev/null 2>&1; then
+    if pgrep -f "$LLDPQ_INSTALL_DIR/monitor.sh" >/dev/null 2>&1 || pgrep -f "/usr/local/bin/lldpq-trigger" >/dev/null 2>&1; then
         echo ""
         echo "   [!] WARNING: LLDPq processes are currently running!"
         if [[ "$AUTO_YES" == "true" ]]; then
@@ -414,7 +565,7 @@ if [[ -d "$HOME/lldpq" ]]; then
         fi
         if [[ ! $REPLY =~ ^[Nn]$ ]]; then
             echo "   Stopping lldpq processes..."
-            pkill -f "$HOME/lldpq/monitor.sh" 2>/dev/null || true
+            pkill -f "$LLDPQ_INSTALL_DIR/monitor.sh" 2>/dev/null || true
             pkill -f "/usr/local/bin/lldpq-trigger" 2>/dev/null || true
             sleep 2
             echo "   Processes stopped"
@@ -425,30 +576,49 @@ if [[ -d "$HOME/lldpq" ]]; then
     
     # Remove old lldpq directory (now safer)
     echo "   - Removing old lldpq directory..."
-    rm -rf "$HOME/lldpq"
+    rm -rf "$LLDPQ_INSTALL_DIR"
 fi
 
 # Copy updated files with preserved configs
-mv "$temp_dir" "$HOME/lldpq"
+mv "$temp_dir" "$LLDPQ_INSTALL_DIR"
 
-echo "   - Setting permissions on ~/lldpq for web access (search-api.sh)"
+# Update telemetry stack (preserve user config files)
+echo "   - Updating telemetry stack..."
+if [[ -d "telemetry" ]]; then
+    # Preserve user-modified config files
+    if [[ -d "$LLDPQ_INSTALL_DIR/telemetry/config" ]]; then
+        cp -r "$LLDPQ_INSTALL_DIR/telemetry/config" /tmp/lldpq-telemetry-config-backup 2>/dev/null || true
+    fi
+    
+    cp -r telemetry "$LLDPQ_INSTALL_DIR/telemetry"
+    chmod +x "$LLDPQ_INSTALL_DIR/telemetry/start.sh"
+    
+    # Restore user config files
+    if [[ -d /tmp/lldpq-telemetry-config-backup ]]; then
+        cp -r /tmp/lldpq-telemetry-config-backup/* "$LLDPQ_INSTALL_DIR/telemetry/config/" 2>/dev/null || true
+        rm -rf /tmp/lldpq-telemetry-config-backup
+        echo "     • telemetry config preserved"
+    fi
+fi
+
+echo "   - Setting permissions on $LLDPQ_INSTALL_DIR for web access (search-api.sh)"
 # www-data needs read access to devices.yaml and monitor-results for search functionality
-chmod 750 ~/lldpq  # user=rwx, group=rx, other=none
-chmod 640 ~/lldpq/devices.yaml 2>/dev/null || true  # user=rw, group=r, other=none
-mkdir -p ~/lldpq/monitor-results/fabric-tables 2>/dev/null || true
-chmod 750 ~/lldpq/monitor-results 2>/dev/null || true
-chmod 750 ~/lldpq/monitor-results/fabric-tables 2>/dev/null || true
+chmod 750 $LLDPQ_INSTALL_DIR  # user=rwx, group=rx, other=none
+chmod 640 $LLDPQ_INSTALL_DIR/devices.yaml 2>/dev/null || true  # user=rw, group=r, other=none
+mkdir -p $LLDPQ_INSTALL_DIR/monitor-results/fabric-tables 2>/dev/null || true
+chmod 750 $LLDPQ_INSTALL_DIR/monitor-results 2>/dev/null || true
+chmod 750 $LLDPQ_INSTALL_DIR/monitor-results/fabric-tables 2>/dev/null || true
 
 # Set default ACL so new files/directories also get group read permission (survives git operations)
 if command -v setfacl &> /dev/null; then
-    setfacl -R -d -m g::rX ~/lldpq 2>/dev/null || true
+    setfacl -R -d -m g::rX $LLDPQ_INSTALL_DIR 2>/dev/null || true
     echo "   Default ACL set (new files will inherit group read permission)"
 fi
 
 # Add/update git hooks to preserve permissions after git operations
-if [[ -d ~/lldpq/.git ]]; then
+if [[ -d $LLDPQ_INSTALL_DIR/.git ]]; then
     echo "   - Updating git hooks for permission preservation..."
-    cat > ~/lldpq/.git/hooks/post-merge << 'HOOKEOF'
+    cat > $LLDPQ_INSTALL_DIR/.git/hooks/post-merge << 'HOOKEOF'
 #!/bin/bash
 # Fix permissions after git pull/merge (preserve group read access for www-data)
 chmod 750 "$(git rev-parse --show-toplevel)" 2>/dev/null || true
@@ -457,27 +627,27 @@ if [ -d "$(git rev-parse --show-toplevel)/monitor-results" ]; then
     chmod -R 750 "$(git rev-parse --show-toplevel)/monitor-results" 2>/dev/null || true
 fi
 HOOKEOF
-    chmod +x ~/lldpq/.git/hooks/post-merge
-    cp ~/lldpq/.git/hooks/post-merge ~/lldpq/.git/hooks/post-checkout
+    chmod +x $LLDPQ_INSTALL_DIR/.git/hooks/post-merge
+    cp $LLDPQ_INSTALL_DIR/.git/hooks/post-merge $LLDPQ_INSTALL_DIR/.git/hooks/post-checkout
     
     # Configure git for group permissions
-    git -C ~/lldpq config core.sharedRepository group 2>/dev/null || true
+    git -C $LLDPQ_INSTALL_DIR config core.sharedRepository group 2>/dev/null || true
     echo "   Git hooks updated (permissions preserved after git operations)"
 fi
 echo "   Group read permissions set (www-data can access via group)"
 
 # Ensure topology.dot symlink exists (after lldpq directory is created)
-if [[ -f "$WEB_ROOT/topology.dot" ]] && [[ ! -L "$HOME/lldpq/topology.dot" ]]; then
-    mkdir -p "$HOME/lldpq"  # Ensure directory exists
-    rm -f "$HOME/lldpq/topology.dot" 2>/dev/null
-    ln -sf "$WEB_ROOT/topology.dot" "$HOME/lldpq/topology.dot"
+if [[ -f "$WEB_ROOT/topology.dot" ]] && [[ ! -L "$LLDPQ_INSTALL_DIR/topology.dot" ]]; then
+    mkdir -p "$LLDPQ_INSTALL_DIR"  # Ensure directory exists
+    rm -f "$LLDPQ_INSTALL_DIR/topology.dot" 2>/dev/null
+    ln -sf "$WEB_ROOT/topology.dot" "$LLDPQ_INSTALL_DIR/topology.dot"
 fi
 
 # Ensure topology_config.yaml symlink exists (after lldpq directory is created)
-if [[ -f "$WEB_ROOT/topology_config.yaml" ]] && [[ ! -L "$HOME/lldpq/topology_config.yaml" ]]; then
-    mkdir -p "$HOME/lldpq"  # Ensure directory exists
-    rm -f "$HOME/lldpq/topology_config.yaml" 2>/dev/null
-    ln -sf "$WEB_ROOT/topology_config.yaml" "$HOME/lldpq/topology_config.yaml"
+if [[ -f "$WEB_ROOT/topology_config.yaml" ]] && [[ ! -L "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]]; then
+    mkdir -p "$LLDPQ_INSTALL_DIR"  # Ensure directory exists
+    rm -f "$LLDPQ_INSTALL_DIR/topology_config.yaml" 2>/dev/null
+    ln -sf "$WEB_ROOT/topology_config.yaml" "$LLDPQ_INSTALL_DIR/topology_config.yaml"
 fi
 echo "lldpq directory updated with preserved configs"
 
@@ -485,9 +655,9 @@ echo "lldpq directory updated with preserved configs"
 if [[ -n "$backup_data_dir" ]] && [[ -d "$backup_data_dir" ]]; then
     echo ""
     echo "   Restoring monitoring data..."
-    [[ -d "$backup_data_dir/monitor-results" ]] && cp -r "$backup_data_dir/monitor-results" "$HOME/lldpq/"
-    [[ -d "$backup_data_dir/lldp-results" ]] && cp -r "$backup_data_dir/lldp-results" "$HOME/lldpq/"
-    [[ -d "$backup_data_dir/alert-states" ]] && cp -r "$backup_data_dir/alert-states" "$HOME/lldpq/"
+    [[ -d "$backup_data_dir/monitor-results" ]] && cp -r "$backup_data_dir/monitor-results" "$LLDPQ_INSTALL_DIR/"
+    [[ -d "$backup_data_dir/lldp-results" ]] && cp -r "$backup_data_dir/lldp-results" "$LLDPQ_INSTALL_DIR/"
+    [[ -d "$backup_data_dir/alert-states" ]] && cp -r "$backup_data_dir/alert-states" "$LLDPQ_INSTALL_DIR/"
     echo "   Monitoring data restored successfully"
     # Clean up temporary backup
     rm -rf "$backup_data_dir"
@@ -498,12 +668,12 @@ echo "[05] Updating cron jobs..."
 # Add Fabric Scan cron job if Ansible directory exists and not already configured
 if [[ -d "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR/playbooks" ]]; then
     if ! grep -q "fabric-scan-cron.sh" /etc/crontab 2>/dev/null; then
-        echo "33 3 * * * $(whoami) $HOME/lldpq/fabric-scan-cron.sh" | sudo tee -a /etc/crontab > /dev/null
+        echo "33 3 * * * $(whoami) $LLDPQ_INSTALL_DIR/fabric-scan-cron.sh" | sudo tee -a /etc/crontab > /dev/null
         echo "   Added Fabric Scan cron job (daily at 03:33)"
     else
         echo "   Fabric Scan cron job already configured"
     fi
-    chmod +x ~/lldpq/fabric-scan-cron.sh 2>/dev/null || true
+    chmod +x $LLDPQ_INSTALL_DIR/fabric-scan-cron.sh 2>/dev/null || true
     # Ensure cache file exists with correct permissions
     if [[ ! -f "$WEB_ROOT/fabric-scan-cache.json" ]]; then
         sudo touch "$WEB_ROOT/fabric-scan-cache.json"
@@ -543,15 +713,15 @@ echo "   The following files/directories were preserved:"
 echo "   Configuration files:"
 # nccm.yml removed - zzh uses devices.yaml
 # hosts.ini removed - now using endpoint_hosts in devices.yaml
-echo "     • ~/lldpq/devices.yaml (includes endpoint_hosts for topology)"
-echo "     • $WEB_ROOT/topology.dot (web-editable, symlinked from ~/lldpq)"
-echo "     • $WEB_ROOT/topology_config.yaml (web-editable, symlinked from ~/lldpq)"
-echo "     • ~/lldpq/notifications.yaml"
-if [[ -n "$backup_data_dir" ]] || [[ -d "$HOME/lldpq/monitor-results" ]] || [[ -d "$HOME/lldpq/lldp-results" ]] || [[ -d "$HOME/lldpq/alert-states" ]]; then
+echo "     • $LLDPQ_INSTALL_DIR/devices.yaml (includes endpoint_hosts for topology)"
+echo "     • $WEB_ROOT/topology.dot (web-editable, symlinked from $LLDPQ_INSTALL_DIR)"
+echo "     • $WEB_ROOT/topology_config.yaml (web-editable, symlinked from $LLDPQ_INSTALL_DIR)"
+echo "     • $LLDPQ_INSTALL_DIR/notifications.yaml"
+if [[ -n "$backup_data_dir" ]] || [[ -d "$LLDPQ_INSTALL_DIR/monitor-results" ]] || [[ -d "$LLDPQ_INSTALL_DIR/lldp-results" ]] || [[ -d "$LLDPQ_INSTALL_DIR/alert-states" ]]; then
     echo "   Monitoring data directories:"
-    [[ -d "$HOME/lldpq/monitor-results" ]] && echo "     • monitor-results/ (all analysis results preserved)"
-    [[ -d "$HOME/lldpq/lldp-results" ]] && echo "     • lldp-results/ (LLDP topology data preserved)"
-    [[ -d "$HOME/lldpq/alert-states" ]] && echo "     • alert-states/ (alert history and state tracking preserved)"
+    [[ -d "$LLDPQ_INSTALL_DIR/monitor-results" ]] && echo "     • monitor-results/ (all analysis results preserved)"
+    [[ -d "$LLDPQ_INSTALL_DIR/lldp-results" ]] && echo "     • lldp-results/ (LLDP topology data preserved)"
+    [[ -d "$LLDPQ_INSTALL_DIR/alert-states" ]] && echo "     • alert-states/ (alert history and state tracking preserved)"
 fi
 
 echo ""

@@ -1,0 +1,90 @@
+# Prometheus Alert Rules for Cumulus Linux Telemetry
+
+groups:
+  - name: interface_alerts
+    rules:
+      # High interface utilization
+      - alert: HighInterfaceUtilization
+        expr: rate(cumulus_interface_tx_bytes[5m]) / cumulus_interface_speed * 8 > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High interface utilization on {{ $labels.device }}:{{ $labels.interface }}"
+          description: "Interface {{ $labels.interface }} on {{ $labels.device }} is above 80% utilization for 5 minutes"
+      
+      # Interface down
+      - alert: InterfaceDown
+        expr: cumulus_interface_oper_state == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Interface down on {{ $labels.device }}:{{ $labels.interface }}"
+          description: "Interface {{ $labels.interface }} on {{ $labels.device }} is operationally down"
+      
+      # High error rate
+      - alert: HighInterfaceErrors
+        expr: rate(cumulus_interface_rx_errors[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.device }}:{{ $labels.interface }}"
+          description: "Interface {{ $labels.interface }} on {{ $labels.device }} has more than 10 errors/sec"
+      
+      # High packet drops
+      - alert: HighPacketDrops
+        expr: rate(cumulus_interface_rx_drops[5m]) + rate(cumulus_interface_tx_drops[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High packet drops on {{ $labels.device }}:{{ $labels.interface }}"
+          description: "Interface {{ $labels.interface }} on {{ $labels.device }} dropping more than 100 packets/sec"
+
+  - name: device_alerts
+    rules:
+      # Device unreachable (no metrics)
+      - alert: DeviceUnreachable
+        expr: up{job="otel-collector"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "OTEL Collector unreachable"
+          description: "Cannot collect metrics from OTEL collector"
+
+  - name: bgp_alerts
+    rules:
+      # BGP session down
+      - alert: BGPSessionDown
+        expr: cumulus_bgp_session_state != 6
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "BGP session down on {{ $labels.device }}"
+          description: "BGP session {{ $labels.neighbor }} on {{ $labels.device }} is not in established state"
+
+  - name: hardware_alerts
+    rules:
+      # High CPU temperature
+      - alert: HighCPUTemperature
+        expr: cumulus_platform_cpu_temp > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU temperature on {{ $labels.device }}"
+          description: "CPU temperature on {{ $labels.device }} is {{ $value }}°C"
+      
+      # Fan failure
+      - alert: FanFailure
+        expr: cumulus_platform_fan_status == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Fan failure on {{ $labels.device }}"
+          description: "Fan {{ $labels.fan }} on {{ $labels.device }} has failed"

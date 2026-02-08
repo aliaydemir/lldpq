@@ -1,0 +1,34 @@
+# Prometheus Configuration for LLDPq Telemetry Dashboard
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load alert rules
+rule_files:
+  - /etc/prometheus/alert_rules.yaml
+
+scrape_configs:
+  # Scrape OTEL Collector metrics
+  - job_name: 'otel-collector'
+    scrape_interval: 30s
+    scrape_timeout: 25s
+    static_configs:
+      - targets: ['otel-collector:8889']
+    metric_relabel_configs:
+      # Keep only cumulus metrics to reduce storage
+      - source_labels: [__name__]
+        regex: 'cumulus_.*'
+        action: keep
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

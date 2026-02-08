@@ -24,7 +24,7 @@
 #nv config show -o commands | grep cumulus
 #sudo cat /etc/shadow | grep cumulus
 #sudo cat /etc/nvue.d/startup.yaml | grep hash
-#cat /home/cumulus/.ssh/authorized_keys
+#cat ~/.ssh/authorized_keys
 #
 #nv co replace /tmp/${HOSTNAME}.yaml ; nv co diff
 #

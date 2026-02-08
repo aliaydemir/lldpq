@@ -151,9 +151,21 @@ execute_commands() {
     done
 }
 
+MAX_PARALLEL=300
+job_count=0
+
 for device in "${!devices[@]}"; do
     IFS=' ' read -r user hostname <<< "${devices[$device]}"
-    ping_test "$device" "$hostname" && { execute_commands "$device" "$user" "$hostname" & sleep 0.1; }
+    ping_test "$device" "$hostname" && { 
+        execute_commands "$device" "$user" "$hostname" &
+        ((job_count++))
+        
+        # Limit parallel jobs
+        if [ $job_count -ge $MAX_PARALLEL ]; then
+            wait -n
+            ((job_count--))
+        fi
+    }
 done
 
 wait

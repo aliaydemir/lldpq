@@ -279,7 +279,7 @@ def get_device_table(device_info):
         hostname = str(info) if info else ip
     
     try:
-        lldpq_user = os.environ.get('LLDPQ_USER', 'nvidia')
+        lldpq_user = os.environ.get('LLDPQ_USER', os.environ.get('USER', 'root'))
         if table_type == "mac":
             cmd = f"sudo -u {lldpq_user} timeout 15 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes {ip} '/usr/sbin/bridge fdb show 2>/dev/null | grep -v permanent | head -200'"
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=20)

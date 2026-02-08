@@ -755,6 +755,11 @@ class BGPAnalyzer:
         .bgp-warning {{ color: #ff9800; font-weight: bold; }}
         .bgp-critical {{ color: #f44336; font-weight: bold; }}
         .bgp-unknown {{ color: #888; }}
+        .badge {{ display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }}
+        .badge-green {{ background: rgba(118, 185, 0, 0.2); color: #76b900; }}
+        .badge-red {{ background: rgba(244, 67, 54, 0.2); color: #ff6b6b; }}
+        .badge-orange {{ background: rgba(255, 152, 0, 0.2); color: #ffb74d; }}
+        .badge-gray {{ background: rgba(158, 158, 158, 0.2); color: #999; }}
         .state-established {{ color: #76b900; font-weight: bold; }}
         .state-idle {{ color: #f44336; font-weight: bold; }}
         .state-active {{ color: #f44336; font-weight: bold; }}
@@ -1052,21 +1057,38 @@ class BGPAnalyzer:
             state_val = get_enum_value(neighbor.state)
             health_val = get_enum_value(health)
             
-            state_class = f"state-{state_val}"
-            health_class = f"bgp-{health_val}"
+            # Badge class based on state
+            if state_val == 'established':
+                state_badge_class = 'badge badge-green'
+            elif state_val in ['idle', 'active', 'connect']:
+                state_badge_class = 'badge badge-red'
+            else:
+                state_badge_class = 'badge badge-orange'
+            
+            # Badge class based on health
+            if health_val == 'excellent':
+                health_badge_class = 'badge badge-green'
+            elif health_val == 'good':
+                health_badge_class = 'badge badge-green'
+            elif health_val == 'warning':
+                health_badge_class = 'badge badge-orange'
+            elif health_val == 'critical':
+                health_badge_class = 'badge badge-red'
+            else:
+                health_badge_class = 'badge badge-gray'
             
             html_content += f"""
         <tr data-health="{health_val}" data-state="{state_val}">
             <td>{hostname}</td>
             <td>{neighbor.neighbor_name}</td>
             <td>{neighbor.interface or 'N/A'}</td>
-            <td><span class="{state_class}">{state_val.upper()}</span></td>
+            <td><span class="{state_badge_class}">{state_val.upper()}</span></td>
             <td>{neighbor.asn}</td>
             <td>{neighbor.uptime}</td>
             <td>{neighbor.prefixes_received}/{neighbor.prefixes_sent}</td>
             <td>{neighbor.messages_received}/{neighbor.messages_sent}</td>
             <td>{neighbor.in_queue}/{neighbor.out_queue}</td>
-            <td><span class="{health_class}">{health_val.upper()}</span></td>
+            <td><span class="{health_badge_class}">{health_val.upper()}</span></td>
         </tr>
 """
         

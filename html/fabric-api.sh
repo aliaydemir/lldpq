@@ -4517,6 +4517,832 @@ except Exception as e:
 PYTHON_CLSUPPORT
         exit 0
         ;;
+    check-telemetry-capability)
+        # Check which devices support OTLP telemetry export
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_CHECK_TELEM'
+import json
+import subprocess
+import os
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+def get_device_info(device, ansible_dir, lldpq_conf):
+    """Get device IP and SSH username from devices.yaml"""
+    import yaml
+    import re
+    
+    default_username = 'cumulus'
+    lldpq_dir = lldpq_conf.get('LLDPQ_DIR', '')
+    
+    if lldpq_dir:
+        devices_path = f"{lldpq_dir}/devices.yaml"
+        if os.path.exists(devices_path):
+            try:
+                with open(devices_path, 'r') as f:
+                    data = yaml.safe_load(f) or {}
+                    defaults = data.get('defaults', {})
+                    default_username = defaults.get('username', 'cumulus')
+                    
+                    devices_dict = data.get('devices', {})
+                    for ip, device_info in devices_dict.items():
+                        if isinstance(device_info, dict):
+                            hostname = device_info.get('hostname', '')
+                            username = device_info.get('username', default_username)
+                        else:
+                            hostname = device_info.split()[0] if isinstance(device_info, str) else str(device_info)
+                            username = default_username
+                        
+                        if hostname == device:
+                            return {'ip': str(ip), 'username': username}
+            except:
+                pass
+    
+    # Fallback to inventory.ini
+    for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+        if os.path.exists(inv_file):
+            with open(inv_file, 'r') as f:
+                for line in f:
+                    if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                        match = re.search(r'ansible_host=(\S+)', line)
+                        if match:
+                            return {'ip': match.group(1), 'username': default_username}
+    
+    return {'ip': device, 'username': default_username}
+
+def check_device(device, device_info, lldpq_user):
+    """Check if device supports telemetry export"""
+    try:
+        device_ip = device_info['ip']
+        ssh_user = device_info['username']
+        ssh_target = f"{ssh_user}@{device_ip}"
+        ssh_cmd = [
+            'sudo', '-u', lldpq_user,
+            'ssh',
+            '-T',
+            '-o', 'StrictHostKeyChecking=no',
+            '-o', 'ConnectTimeout=10',
+            '-o', 'LogLevel=ERROR',
+            ssh_target,
+            'nv show system telemetry export 2>&1 | head -5'
+        ]
+        
+        result = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=30)
+        output = result.stdout + result.stderr
+        
+        # Check if export is supported
+        if "'export' is not one of" in output or "Error:" in output:
+            return {'device': device, 'supported': False}
+        else:
+            return {'device': device, 'supported': True}
+    
+    except subprocess.TimeoutExpired:
+        return {'device': device, 'supported': False, 'error': 'timeout'}
+    except Exception as e:
+        return {'device': device, 'supported': False, 'error': str(e)}
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+devices = data.get('devices', [])
+
+if not devices:
+    print(json.dumps({'success': False, 'error': 'Devices required'}))
+    sys.exit()
+
+lldpq_conf = read_lldpq_conf()
+ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+
+supported = []
+unsupported = []
+
+# Check all devices in parallel
+with ThreadPoolExecutor(max_workers=300) as executor:
+    futures = {}
+    for device in devices:
+        device_info = get_device_info(device, ansible_dir, lldpq_conf)
+        future = executor.submit(check_device, device, device_info, lldpq_user)
+        futures[future] = device
+    
+    for future in as_completed(futures):
+        result = future.result()
+        if result.get('supported'):
+            supported.append(result['device'])
+        else:
+            unsupported.append(result['device'])
+
+print(json.dumps({
+    'success': True,
+    'supported': supported,
+    'unsupported': unsupported,
+    'supported_count': len(supported),
+    'unsupported_count': len(unsupported)
+}))
+
+PYTHON_CHECK_TELEM
+        exit 0
+        ;;
+    run-telemetry-commands)
+        # Run telemetry commands on ALL devices in parallel
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_TELEMETRY'
+import json
+import subprocess
+import re
+import os
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+def get_device_info(device, ansible_dir, lldpq_conf):
+    """Get device IP and SSH username from devices.yaml or inventory.ini"""
+    import yaml
+    
+    default_username = 'cumulus'
+    
+    # First try devices.yaml (preferred source)
+    lldpq_dir = lldpq_conf.get('LLDPQ_DIR', '')
+    
+    devices_paths = []
+    if lldpq_dir:
+        devices_paths.append(f"{lldpq_dir}/devices.yaml")
+    
+    for path in devices_paths:
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    data = yaml.safe_load(f) or {}
+                    # Get default username
+                    defaults = data.get('defaults', {})
+                    default_username = defaults.get('username', 'cumulus')
+                    
+                    devices_dict = data.get('devices', {})
+                    for ip, device_info in devices_dict.items():
+                        if isinstance(device_info, dict):
+                            # Extended format: { hostname: ..., username: ..., role: ... }
+                            hostname = device_info.get('hostname', '')
+                            username = device_info.get('username', default_username)
+                        else:
+                            # Simple format: "hostname @role"
+                            hostname = device_info.split()[0] if isinstance(device_info, str) else str(device_info)
+                            username = default_username
+                        
+                        if hostname == device:
+                            return {'ip': str(ip), 'username': username}
+            except:
+                pass
+            break
+    
+    # Fallback to inventory.ini
+    for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+        if os.path.exists(inv_file):
+            with open(inv_file, 'r') as f:
+                for line in f:
+                    if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                        match = re.search(r'ansible_host=(\S+)', line)
+                        if match:
+                            return {'ip': match.group(1), 'username': default_username}
+    
+    return {'ip': device, 'username': default_username}
+
+def run_on_device(device, device_info, combined_cmd, lldpq_user):
+    """Run commands on a single device"""
+    try:
+        device_ip = device_info['ip']
+        ssh_user = device_info['username']
+        ssh_target = f"{ssh_user}@{device_ip}"
+        ssh_cmd = [
+            'sudo', '-u', lldpq_user, 
+            'ssh',
+            '-T',  # Disable pseudo-tty (avoids stty errors from .bashrc)
+            '-o', 'StrictHostKeyChecking=no', 
+            '-o', 'ConnectTimeout=30',
+            '-o', 'LogLevel=ERROR',
+            ssh_target, 
+            combined_cmd
+        ]
+        
+        result = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=120)
+        
+        if result.returncode == 0:
+            return {'device': device, 'success': True, 'output': result.stdout.strip()}
+        else:
+            return {'device': device, 'success': False, 'error': result.stderr.strip() or 'Command failed'}
+    
+    except subprocess.TimeoutExpired:
+        return {'device': device, 'success': False, 'error': 'Timeout (120s)'}
+    except Exception as e:
+        return {'device': device, 'success': False, 'error': str(e)}
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+devices = data.get('devices', [])
+commands = data.get('commands', [])
+
+# Support single device for backward compatibility
+if not devices and data.get('device'):
+    devices = [data.get('device')]
+
+if not devices:
+    print(json.dumps({'success': False, 'error': 'Devices required'}))
+    sys.exit()
+
+if not commands:
+    print(json.dumps({'success': False, 'error': 'Commands required'}))
+    sys.exit()
+
+lldpq_conf = read_lldpq_conf()
+ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+
+# Validate commands - only allow telemetry-related nv commands
+allowed_prefixes = [
+    'nv set system telemetry',
+    'nv unset system telemetry',
+    'nv config apply'
+]
+for cmd in commands:
+    if not any(cmd.startswith(prefix) for prefix in allowed_prefixes):
+        print(json.dumps({'success': False, 'error': f'Only telemetry commands allowed: {cmd}'}))
+        sys.exit()
+
+# Join commands with && to run sequentially on each device
+combined_cmd = ' && '.join(commands)
+
+# Run on all devices in parallel (max 300 concurrent)
+results = []
+with ThreadPoolExecutor(max_workers=300) as executor:
+    futures = {}
+    for device in devices:
+        device_info = get_device_info(device, ansible_dir, lldpq_conf)
+        future = executor.submit(run_on_device, device, device_info, combined_cmd, lldpq_user)
+        futures[future] = device
+    
+    for future in as_completed(futures):
+        result = future.result()
+        results.append(result)
+        # Stream result immediately
+        sys.stdout.write(json.dumps(result) + '\n')
+        sys.stdout.flush()
+
+# Final summary
+success_count = sum(1 for r in results if r['success'])
+print(json.dumps({
+    'complete': True,
+    'total': len(devices),
+    'success': success_count,
+    'failed': len(devices) - success_count
+}))
+
+PYTHON_TELEMETRY
+        exit 0
+        ;;
+    prometheus-query)
+        # Query Prometheus instant query
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_PROM'
+import json
+import urllib.request
+import urllib.parse
+import os
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+query = data.get('query', '')
+if not query:
+    print(json.dumps({'success': False, 'error': 'Query required'}))
+    exit()
+
+lldpq_conf = read_lldpq_conf()
+prometheus_url = lldpq_conf.get('PROMETHEUS_URL', 'http://localhost:9090')
+
+try:
+    url = f"{prometheus_url}/api/v1/query?query={urllib.parse.quote(query)}"
+    req = urllib.request.Request(url, headers={'Accept': 'application/json'})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        result = json.loads(resp.read().decode())
+        if result.get('status') == 'success':
+            print(json.dumps({'success': True, 'data': result.get('data', {})}))
+        else:
+            print(json.dumps({'success': False, 'error': result.get('error', 'Query failed')}))
+except urllib.error.URLError as e:
+    print(json.dumps({'success': False, 'error': f'Connection error: {str(e)}'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+
+PYTHON_PROM
+        exit 0
+        ;;
+    prometheus-query-range)
+        # Query Prometheus range query for time series
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_PROM_RANGE'
+import json
+import urllib.request
+import urllib.parse
+import os
+import time
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+def parse_duration(duration_str):
+    """Convert duration string like '15m', '1h', '24h' to seconds"""
+    units = {'s': 1, 'm': 60, 'h': 3600, 'd': 86400}
+    if not duration_str:
+        return 900  # Default 15 minutes
+    unit = duration_str[-1]
+    if unit in units:
+        try:
+            return int(duration_str[:-1]) * units[unit]
+        except:
+            return 900
+    return 900
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+query = data.get('query', '')
+time_range = data.get('range', '15m')
+step = data.get('step', '30s')
+
+if not query:
+    print(json.dumps({'success': False, 'error': 'Query required'}))
+    exit()
+
+lldpq_conf = read_lldpq_conf()
+prometheus_url = lldpq_conf.get('PROMETHEUS_URL', 'http://localhost:9090')
+
+try:
+    duration_seconds = parse_duration(time_range)
+    end_time = time.time()
+    start_time = end_time - duration_seconds
+    
+    params = {
+        'query': query,
+        'start': str(start_time),
+        'end': str(end_time),
+        'step': step
+    }
+    
+    url = f"{prometheus_url}/api/v1/query_range?{urllib.parse.urlencode(params)}"
+    req = urllib.request.Request(url, headers={'Accept': 'application/json'})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        result = json.loads(resp.read().decode())
+        if result.get('status') == 'success':
+            print(json.dumps({'success': True, 'data': result.get('data', {})}))
+        else:
+            print(json.dumps({'success': False, 'error': result.get('error', 'Query failed')}))
+except urllib.error.URLError as e:
+    print(json.dumps({'success': False, 'error': f'Connection error: {str(e)}'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+
+PYTHON_PROM_RANGE
+        exit 0
+        ;;
+    get-telemetry-config)
+        # Return telemetry configuration and enabled status
+        python3 << 'PYTHON_TELEM_CONFIG'
+import json
+import os
+import subprocess
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+def check_stack_running():
+    """Check if telemetry Docker stack is running by querying Prometheus health endpoint"""
+    try:
+        import urllib.request
+        req = urllib.request.Request('http://localhost:9090/-/healthy', method='GET')
+        with urllib.request.urlopen(req, timeout=2) as response:
+            return response.status == 200
+    except:
+        return False
+
+def get_server_ips():
+    """Get all non-loopback IPv4 addresses of this server"""
+    import socket
+    ips = []
+    try:
+        # Get all network interfaces
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ip = info[4][0]
+            if not ip.startswith('127.'):
+                ips.append(ip)
+        # Also try getting IPs via ip command for more complete list
+        result = subprocess.run(['ip', '-4', 'addr', 'show'], capture_output=True, text=True, timeout=5)
+        for line in result.stdout.split('\n'):
+            if 'inet ' in line and '127.' not in line:
+                parts = line.strip().split()
+                for i, p in enumerate(parts):
+                    if p == 'inet' and i+1 < len(parts):
+                        ip = parts[i+1].split('/')[0]
+                        if ip not in ips:
+                            ips.append(ip)
+    except:
+        pass
+    return list(set(ips))
+
+def get_device_mgmt_ips(conf):
+    """Get management IPs from devices.yaml"""
+    import yaml
+    mgmt_ips = []
+    
+    # Get LLDPQ_DIR from config
+    lldpq_dir = conf.get('LLDPQ_DIR', '')
+    
+    devices_paths = []
+    if lldpq_dir:
+        devices_paths.append(f"{lldpq_dir}/devices.yaml")
+    
+    for path in devices_paths:
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    data = yaml.safe_load(f) or {}
+                    # Format: devices: { "192.168.58.11": "hostname", ... }
+                    devices = data.get('devices', {})
+                    for ip_key in devices.keys():
+                        # Keys are IP addresses
+                        if isinstance(ip_key, str) and '.' in ip_key:
+                            mgmt_ips.append(ip_key)
+            except:
+                pass
+            break
+    return mgmt_ips
+
+def find_matching_server_ip(server_ips, device_ips):
+    """Find server IP that is in same subnet as device mgmt IPs"""
+    for server_ip in server_ips:
+        server_parts = server_ip.rsplit('.', 1)
+        if len(server_parts) != 2:
+            continue
+        server_subnet = server_parts[0]
+        for device_ip in device_ips:
+            if device_ip.startswith(server_subnet + '.'):
+                return server_ip
+    return server_ips[0] if server_ips else ''
+
+lldpq_conf = read_lldpq_conf()
+prometheus_url = lldpq_conf.get('PROMETHEUS_URL', 'http://localhost:9090')
+telemetry_enabled = lldpq_conf.get('TELEMETRY_ENABLED', 'false').lower() == 'true'
+collector_ip = lldpq_conf.get('TELEMETRY_COLLECTOR_IP', '')
+collector_port = lldpq_conf.get('TELEMETRY_COLLECTOR_PORT', '4317')
+collector_vrf = lldpq_conf.get('TELEMETRY_COLLECTOR_VRF', 'mgmt')
+stack_running = check_stack_running()
+
+# Get server IPs and find best match
+server_ips = get_server_ips()
+device_ips = get_device_mgmt_ips(lldpq_conf)
+suggested_ip = find_matching_server_ip(server_ips, device_ips) if not collector_ip else collector_ip
+
+print(json.dumps({
+    'success': True,
+    'prometheus_url': prometheus_url,
+    'telemetry_enabled': telemetry_enabled,
+    'collector_ip': collector_ip,
+    'collector_port': collector_port,
+    'collector_vrf': collector_vrf,
+    'stack_running': stack_running,
+    'server_ips': server_ips,
+    'suggested_ip': suggested_ip
+}))
+
+PYTHON_TELEM_CONFIG
+        exit 0
+        ;;
+    save-telemetry-config)
+        # Save telemetry collector config (called when enabling telemetry)
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_SAVE_TELEM'
+import json
+import os
+import subprocess
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+collector_ip = data.get('collector_ip', '')
+collector_port = data.get('collector_port', '4317')
+collector_vrf = data.get('collector_vrf', 'mgmt')
+
+if not collector_ip:
+    print(json.dumps({'success': False, 'error': 'Collector IP required'}))
+    exit()
+
+# Update /etc/lldpq.conf with sudo
+config_updates = [
+    f"TELEMETRY_COLLECTOR_IP={collector_ip}",
+    f"TELEMETRY_COLLECTOR_PORT={collector_port}",
+    f"TELEMETRY_COLLECTOR_VRF={collector_vrf}"
+]
+
+try:
+    # Read current config
+    config_lines = []
+    if os.path.exists('/etc/lldpq.conf'):
+        with open('/etc/lldpq.conf', 'r') as f:
+            config_lines = f.readlines()
+    
+    # Update or add each config key
+    for update in config_updates:
+        key = update.split('=')[0]
+        # Remove existing key
+        config_lines = [l for l in config_lines if not l.strip().startswith(f'{key}=')]
+        # Add new value
+        config_lines.append(update + '\n')
+    
+    # Write back
+    with open('/etc/lldpq.conf', 'w') as f:
+        f.writelines(config_lines)
+    
+    print(json.dumps({'success': True}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+
+PYTHON_SAVE_TELEM
+        exit 0
+        ;;
+    start-telemetry-stack)
+        # Start Docker telemetry stack (docker-compose up -d)
+        python3 << 'PYTHON_START_STACK'
+import json
+import os
+import subprocess
+
+# Read LLDPQ_DIR from config
+lldpq_dir = None
+try:
+    with open('/etc/lldpq.conf', 'r') as f:
+        for line in f:
+            if line.startswith('LLDPQ_DIR='):
+                lldpq_dir = line.strip().split('=', 1)[1].strip('"\'')
+                break
+except:
+    pass
+
+if not lldpq_dir:
+    print(json.dumps({'success': False, 'error': 'LLDPQ_DIR not configured in /etc/lldpq.conf', 'installed': False}))
+    exit()
+
+telemetry_dir = f"{lldpq_dir}/telemetry"
+
+if not os.path.exists(f"{telemetry_dir}/docker-compose.yaml"):
+    print(json.dumps({'success': False, 'error': 'Telemetry stack not installed', 'installed': False}))
+    exit()
+
+# Check if already running - try docker compose first, then docker-compose
+for cmd in [['docker', 'compose', 'ps', '-q'], ['docker-compose', 'ps', '-q']]:
+    try:
+        check = subprocess.run(cmd, cwd=telemetry_dir, capture_output=True, text=True, timeout=30)
+        if check.returncode == 0 and check.stdout.strip():
+            print(json.dumps({'success': True, 'message': 'Stack already running', 'already_running': True}))
+            exit()
+        if check.returncode == 0:
+            break  # Command worked, no containers running
+    except FileNotFoundError:
+        continue
+    except:
+        pass
+
+# Start the stack - try docker compose first, then docker-compose
+success = False
+last_error = ''
+
+for cmd in [['docker', 'compose', 'up', '-d'], ['docker-compose', 'up', '-d']]:
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=telemetry_dir,
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+        if result.returncode == 0:
+            print(json.dumps({'success': True, 'message': 'Stack started'}))
+            success = True
+            break
+        else:
+            last_error = result.stderr
+    except FileNotFoundError:
+        continue
+    except subprocess.TimeoutExpired:
+        print(json.dumps({'success': False, 'error': 'Timeout starting stack'}))
+        exit()
+    except Exception as e:
+        last_error = str(e)
+
+if not success:
+    print(json.dumps({'success': False, 'error': last_error or 'Could not start stack'}))
+
+PYTHON_START_STACK
+        exit 0
+        ;;
+    stop-telemetry-stack)
+        # Stop Docker telemetry stack (docker-compose stop)
+        python3 << 'PYTHON_STOP_STACK'
+import json
+import os
+import subprocess
+
+# Read LLDPQ_DIR from config
+lldpq_dir = None
+try:
+    with open('/etc/lldpq.conf', 'r') as f:
+        for line in f:
+            if line.startswith('LLDPQ_DIR='):
+                lldpq_dir = line.strip().split('=', 1)[1].strip('"\'')
+                break
+except:
+    pass
+
+if not lldpq_dir:
+    print(json.dumps({'success': False, 'error': 'LLDPQ_DIR not configured'}))
+    exit()
+
+telemetry_dir = f"{lldpq_dir}/telemetry"
+
+if not os.path.exists(f"{telemetry_dir}/docker-compose.yaml"):
+    print(json.dumps({'success': False, 'error': 'Telemetry stack not found'}))
+    exit()
+
+# Try docker compose (newer syntax) first, then docker-compose
+success = False
+last_error = ''
+
+for cmd in [['docker', 'compose', 'stop'], ['docker-compose', 'stop']]:
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=telemetry_dir,
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        if result.returncode == 0:
+            print(json.dumps({'success': True, 'message': 'Stack stopped'}))
+            success = True
+            break
+        else:
+            last_error = result.stderr
+    except FileNotFoundError:
+        continue
+    except subprocess.TimeoutExpired:
+        print(json.dumps({'success': False, 'error': 'Timeout stopping stack'}))
+        exit()
+    except Exception as e:
+        last_error = str(e)
+
+if not success:
+    print(json.dumps({'success': False, 'error': last_error or 'Could not stop stack'}))
+
+PYTHON_STOP_STACK
+        exit 0
+        ;;
+    get-telemetry-disable-commands)
+        # Generate specific unset commands based on saved config
+        python3 << 'PYTHON_DISABLE_CMDS'
+import json
+import os
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+lldpq_conf = read_lldpq_conf()
+collector_ip = lldpq_conf.get('TELEMETRY_COLLECTOR_IP', '')
+collector_port = lldpq_conf.get('TELEMETRY_COLLECTOR_PORT', '4317')
+
+if not collector_ip:
+    # No saved config, use generic unset (with warning)
+    print(json.dumps({
+        'success': True,
+        'warning': 'No saved collector IP. This will remove ALL telemetry config.',
+        'commands': [
+            'nv unset system telemetry',
+            'nv config apply -y'
+        ]
+    }))
+    exit()
+
+# Specific unset commands - only remove what we configured
+commands = [
+    'nv unset system telemetry ai-ethernet-stats',
+    'nv unset system telemetry interface-stats', 
+    f'nv unset system telemetry export otlp grpc destination {collector_ip}',
+    'nv unset system telemetry export otlp grpc insecure',
+    'nv unset system telemetry export otlp state',
+    'nv unset system telemetry export vrf',
+    'nv config apply -y'
+]
+
+print(json.dumps({
+    'success': True,
+    'collector_ip': collector_ip,
+    'commands': commands
+}))
+
+PYTHON_DISABLE_CMDS
+        exit 0
+        ;;
     start-live-capture)
         # Start live tcpdump capture in background, return output file path
         read -r POST_DATA
@@ -4832,6 +5658,7 @@ try:
         '-o', 'StrictHostKeyChecking=no',
         '-o', 'ConnectTimeout=10',
         '-o', 'BatchMode=yes',
+        '-o', 'LogLevel=ERROR',  # Suppress warnings
         device_ip,  # Use management IP from inventory
         command
     ]
