@@ -457,6 +457,14 @@
             font-family: 'Fira Code', monospace;
         }
         
+        .custom-command input:-webkit-autofill,
+        .custom-command input:-webkit-autofill:hover,
+        .custom-command input:-webkit-autofill:focus,
+        .custom-command input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 30px #1e1e1e inset !important;
+            -webkit-text-fill-color: #d4d4d4 !important;
+        }
+        
         .custom-command button {
             padding: 10px 20px;
             background: #76b900;
@@ -1015,7 +1023,7 @@
             
             <!-- Custom Command -->
             <div class="custom-command">
-                <input type="text" id="customCmd" placeholder="Enter custom command (nv show, sudo vtysh -c 'show...')">
+                <input type="text" id="customCmd" name="customCmd" autocomplete="on" placeholder="Enter custom command (nv show, sudo vtysh -c 'show...')">
                 <button onclick="runCustomCommand()">Run</button>
             </div>
         </div>
@@ -1486,13 +1494,41 @@
             liveCaptureFile = null;
             clsupportFilePath = null;
             
+            // Reset Command Runner output, custom command input, and close all dropdown menus
+            const commandOutput = document.getElementById('commandOutput');
+            const cmdHeader = document.getElementById('cmdHeader');
+            const cmdResult = document.getElementById('cmdResult');
+            const customCmd = document.getElementById('customCmd');
+            if (commandOutput) commandOutput.style.display = 'none';
+            if (cmdHeader) cmdHeader.textContent = '';
+            if (cmdResult) cmdResult.innerHTML = '';
+            if (customCmd) customCmd.value = '';
+            
+            // Close all command group dropdowns
+            document.querySelectorAll('.command-group').forEach(g => {
+                g.classList.add('collapsed');
+                const content = g.querySelector('.command-group-content');
+                if (content) {
+                    content.style.left = '';
+                    content.style.right = '';
+                }
+            });
+            
             // Reset capture form and output
             const captureInterface = document.getElementById('captureInterface');
             const captureOutput = document.getElementById('captureOutput');
             const capturePcapResult = document.getElementById('capturePcapResult');
             const captureStatus = document.getElementById('captureStatus');
+            const captureFilter = document.getElementById('captureFilter');
+            const captureDuration = document.getElementById('captureDuration');
+            const captureCount = document.getElementById('captureCount');
+            const captureMode = document.getElementById('captureMode');
             if (captureInterface) captureInterface.value = '';
-            if (captureOutput) captureOutput.textContent = '';
+            if (captureFilter) captureFilter.value = '';
+            if (captureDuration) captureDuration.selectedIndex = 0;
+            if (captureCount) captureCount.selectedIndex = 0;
+            if (captureMode) captureMode.selectedIndex = 0;
+            if (captureOutput) { captureOutput.textContent = ''; captureOutput.style.display = 'none'; }
             if (capturePcapResult) capturePcapResult.style.display = 'none';
             if (captureStatus) captureStatus.textContent = '';
             

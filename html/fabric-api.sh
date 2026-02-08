@@ -5514,8 +5514,10 @@ if not device or not command:
 
 # Security: Whitelist of allowed command patterns (checked first)
 ALLOWED_PATTERNS = [
-    # NVUE commands
+    # NVUE commands (including abbreviations: nv sh, nv sho, nv show)
     r'^nv show\b',
+    r'^nv sho\b',
+    r'^nv sh\b',
     # FRR/vtysh commands
     r'^sudo vtysh -c ["\']show\b',
     r'^vtysh -c ["\']show\b',
