@@ -408,7 +408,7 @@ from the web UI (admin only):
 - **chart visualization**: time-series graphs with device filtering
 - **top interfaces**: top 20 interface utilization ranking across fabric
 - **AI ethernet stats**: TX wait, buffer utilization, pause frames, AR congestion, ECN marked packets
-- **auto-refresh**: updates every 5 seconds
+- **auto-refresh**: updates every 10 seconds
 
 ### available metrics
 | Metric | Description |

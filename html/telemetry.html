@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="/png/favicon.ico">
     <title>Streaming Telemetry - LLDPq</title>
     <script src="/css/chart.js"></script>
     <script src="/css/auth.js"></script>
@@ -813,7 +814,7 @@
             </div>
             <div class="refresh-indicator" id="refreshIndicator">
                 <svg viewBox="0 0 24 24"><path d="M12 4V2A10 10 0 0 0 2 12h2a8 8 0 0 1 8-8z"/></svg>
-                <span>Auto-refresh: 5s</span>
+                <span>Auto-refresh: 10s</span>
             </div>
         </div>
         
@@ -1135,8 +1136,8 @@
             document.getElementById('placeholderContainer').classList.remove('active');
             document.getElementById('mainContent').classList.remove('hidden');
             
-            await loadDevices();
             await loadPrometheusConfig();
+            await loadDevices();
             initCharts();
             checkPrometheusConnection();
             startAutoRefresh();
@@ -1160,27 +1161,24 @@
         
         async function loadDevices() {
             try {
-                const response = await fetch('/fabric-api.sh?action=list-devices');
+                // Get active devices from backend API (queries Prometheus server-side)
+                const response = await fetch('/fabric-api.sh?action=get-active-telemetry-devices');
                 const data = await response.json();
                 
-                if (data.success && data.devices) {
-                    // Use Set to track unique devices
-                    const uniqueDevices = new Set();
-                    const deviceSelect = document.getElementById('dashboardDevice');
+                const deviceSelect = document.getElementById('dashboardDevice');
+                
+                if (data.success && data.devices && data.devices.length > 0) {
+                    data.devices.forEach(hostname => {
+                        const option = document.createElement('option');
+                        option.value = hostname;
+                        option.textContent = hostname;
+                        deviceSelect.appendChild(option);
+                    });
                     
-                    for (const [group, devices] of Object.entries(data.devices)) {
-                        devices.forEach(d => {
-                            if (!uniqueDevices.has(d.hostname)) {
-                                uniqueDevices.add(d.hostname);
-                                const option = document.createElement('option');
-                                option.value = d.hostname;
-                                option.textContent = d.hostname;
-                                deviceSelect.appendChild(option);
-                            }
-                        });
-                    }
-                    allDevices = [...uniqueDevices];
-                    console.log(`Loaded ${allDevices.length} unique devices`);
+                    allDevices = data.devices;
+                    console.log(`Loaded ${allDevices.length} active telemetry devices`);
+                } else {
+                    console.warn('No active telemetry devices found');
                 }
             } catch (error) {
                 console.error('Failed to load devices:', error);
@@ -1209,6 +1207,13 @@
             const commonOptions = {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: {
+                    duration: 800,
+                    easing: 'easeInOutQuart'
+                },
+                transitions: {
+                    active: { animation: { duration: 300 } }
+                },
                 plugins: {
                     legend: {
                         position: 'bottom',
@@ -1248,6 +1253,10 @@
                     indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
+                    animation: {
+                        duration: 800,
+                        easing: 'easeInOutQuart'
+                    },
                     plugins: {
                         legend: { display: false }
                     },
@@ -1356,7 +1365,7 @@
                 updateDashboard().then(() => {
                     setTimeout(() => refreshEl.classList.remove('active'), 1000);
                 });
-            }, 5000);  // 5 second refresh
+            }, 10000);  // 10 second refresh
         }
         
         async function updateDashboard() {
@@ -1456,7 +1465,7 @@
                     tension: 0.3,
                     pointRadius: 0
                 }];
-                totalThroughputChart.update();
+                totalThroughputChart.update('none');
             }
         }
         
@@ -1534,9 +1543,21 @@
         }
         
         async function updateTopTalkersChart(device) {
-            // Query for top 10 interfaces by throughput
             const deviceFilter = device !== 'all' ? `{net_host_name="${device}"}` : '';
-            const query = `topk(20, sum by (interface, net_host_name) (rate(cumulus_nvswitch_interface_if_in_octets${deviceFilter}[5m]) + rate(cumulus_nvswitch_interface_if_out_octets${deviceFilter}[5m])) * 8 / 1000000)`;
+            const isSingleDevice = device !== 'all';
+            
+            // Update chart title based on selection
+            const titleEl = document.querySelector('#topTalkersChart').closest('.chart-card').querySelector('h4');
+            if (titleEl) {
+                titleEl.innerHTML = isSingleDevice 
+                    ? '<svg viewBox="0 0 24 24"><path d="M4 9h4v11H4zm6-5h4v16h-4zm6 8h4v8h-4z"/></svg> Interface Throughput (Mbps)'
+                    : '<svg viewBox="0 0 24 24"><path d="M4 9h4v11H4zm6-5h4v16h-4zm6 8h4v8h-4z"/></svg> Top Talkers (Mbps)';
+            }
+            
+            // For single device: get all interfaces. For all devices: top 20
+            const query = isSingleDevice
+                ? `sum by (interface, net_host_name) (rate(cumulus_nvswitch_interface_if_in_octets${deviceFilter}[5m]) + rate(cumulus_nvswitch_interface_if_out_octets${deviceFilter}[5m])) * 8 / 1000000`
+                : `topk(20, sum by (interface, net_host_name) (rate(cumulus_nvswitch_interface_if_in_octets${deviceFilter}[5m]) + rate(cumulus_nvswitch_interface_if_out_octets${deviceFilter}[5m])) * 8 / 1000000)`;
             
             try {
                 const response = await fetch('/fabric-api.sh?action=prometheus-query', {
@@ -1549,25 +1570,37 @@
                 
                 if (result.success && result.data?.result && result.data.result.length > 0) {
                     // Sort by value descending
-                    const sorted = result.data.result
+                    let sorted = result.data.result
                         .map(r => ({
-                            label: `${r.metric.net_host_name || 'unknown'}:${r.metric.interface || 'unknown'}`,
+                            label: isSingleDevice 
+                                ? (r.metric.interface || 'unknown')
+                                : `${r.metric.net_host_name || 'unknown'}:${r.metric.interface || 'unknown'}`,
                             value: parseFloat(r.value[1]) || 0
                         }))
-                        .sort((a, b) => b.value - a.value)
-                        .slice(0, 20);
+                        .sort((a, b) => b.value - a.value);
+                    
+                    // Only limit for all devices view
+                    if (!isSingleDevice) {
+                        sorted = sorted.slice(0, 20);
+                    }
+                    
+                    // Generate enough colors
+                    const colors = [];
+                    while (colors.length < sorted.length) {
+                        colors.push(...chartColors);
+                    }
                     
                     topTalkersChart.data.labels = sorted.map(s => s.label);
                     topTalkersChart.data.datasets = [{
                         data: sorted.map(s => s.value.toFixed(2)),
-                        backgroundColor: chartColors.concat(chartColors).slice(0, sorted.length),
+                        backgroundColor: colors.slice(0, sorted.length),
                         borderWidth: 0
                     }];
-                    topTalkersChart.update();
+                    topTalkersChart.update('none');
                 } else {
                     topTalkersChart.data.labels = [];
                     topTalkersChart.data.datasets = [];
-                    topTalkersChart.update();
+                    topTalkersChart.update('none');
                 }
             } catch (error) {
                 console.error('Top talkers error:', error);
@@ -1578,7 +1611,7 @@
             if (!results || results.length === 0) {
                 chart.data.labels = [];
                 chart.data.datasets = [];
-                chart.update();
+                chart.update('none');
                 return;
             }
             
@@ -1601,12 +1634,25 @@
             
             chart.data.labels = timestamps;
             chart.data.datasets = datasets;
-            chart.update();
+            chart.update('none');
         }
         
         async function updateInterfaceTable(device) {
             const deviceFilter = device !== 'all' ? `{net_host_name="${device}"}` : '';
-            const query = `topk(20, rate(cumulus_nvswitch_interface_if_in_octets${deviceFilter}[5m]) + rate(cumulus_nvswitch_interface_if_out_octets${deviceFilter}[5m]))`;
+            const isSingleDevice = device !== 'all';
+            
+            // Update table title based on selection
+            const titleEl = document.querySelector('#interfaceTable').closest('.info-section')?.querySelector('h3');
+            if (titleEl) {
+                titleEl.innerHTML = isSingleDevice
+                    ? '<svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z"/></svg> All Interfaces by Utilization'
+                    : '<svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z"/></svg> Top Interfaces by Utilization';
+            }
+            
+            // For single device: get all interfaces. For all devices: top 20
+            const query = isSingleDevice
+                ? `rate(cumulus_nvswitch_interface_if_in_octets${deviceFilter}[5m]) + rate(cumulus_nvswitch_interface_if_out_octets${deviceFilter}[5m])`
+                : `topk(20, rate(cumulus_nvswitch_interface_if_in_octets${deviceFilter}[5m]) + rate(cumulus_nvswitch_interface_if_out_octets${deviceFilter}[5m]))`;
             
             const result = await queryPrometheus(query);
             const tbody = document.getElementById('interfaceTableBody');

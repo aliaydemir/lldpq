@@ -5095,6 +5095,38 @@ print(json.dumps({
 PYTHON_TELEM_CONFIG
         exit 0
         ;;
+    get-active-telemetry-devices)
+        # Get list of devices actively sending telemetry to Prometheus
+        python3 << 'PYTHON_ACTIVE_DEVICES'
+import json
+import urllib.request
+
+try:
+    # Query Prometheus for active devices
+    query = 'count by (net_host_name) (cumulus_nvswitch_interface_if_out_octets)'
+    url = f'http://localhost:9090/api/v1/query?query={urllib.parse.quote(query)}'
+    
+    req = urllib.request.Request(url, method='GET')
+    req.add_header('Accept', 'application/json')
+    
+    with urllib.request.urlopen(req, timeout=5) as response:
+        data = json.loads(response.read().decode())
+        
+        if data.get('status') == 'success' and data.get('data', {}).get('result'):
+            devices = sorted([
+                r['metric']['net_host_name'] 
+                for r in data['data']['result'] 
+                if r.get('metric', {}).get('net_host_name')
+            ])
+            print(json.dumps({'success': True, 'devices': devices}))
+        else:
+            print(json.dumps({'success': True, 'devices': []}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e), 'devices': []}))
+
+PYTHON_ACTIVE_DEVICES
+        exit 0
+        ;;
     save-telemetry-config)
         # Save telemetry collector config (called when enabling telemetry)
         read -r POST_DATA
