@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telemetry - LLDPq</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+        }
+        .icon {
+            margin-bottom: 30px;
+        }
+        .icon svg {
+            width: 80px;
+            height: 80px;
+            stroke: #76b900;
+            fill: none;
+            stroke-width: 1.5;
+        }
+        h1 {
+            color: #76b900;
+            font-size: 32px;
+            font-weight: 500;
+            margin-bottom: 15px;
+        }
+        .coming-soon {
+            font-size: 18px;
+            color: #888;
+            margin-bottom: 30px;
+        }
+        .description {
+            max-width: 500px;
+            line-height: 1.6;
+            color: #666;
+            margin-bottom: 40px;
+        }
+        .features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            max-width: 700px;
+        }
+        .feature {
+            background: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 8px;
+            padding: 20px;
+            width: 200px;
+            text-align: left;
+        }
+        .feature h3 {
+            color: #76b900;
+            font-size: 14px;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .feature p {
+            font-size: 12px;
+            color: #888;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">
+            <svg viewBox="0 0 24 24">
+                <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+                <circle cx="20" cy="4" r="3" fill="#76b900" stroke="none"/>
+            </svg>
+        </div>
+        <h1>Telemetry</h1>
+        <p class="coming-soon">Coming Soon</p>
+        <p class="description">
+            Real-time telemetry and streaming monitoring for your network infrastructure.
+            Collect metrics, visualize trends, and get instant alerts.
+        </p>
+        <div class="features">
+            <div class="feature">
+                <h3>Telemetry Streaming</h3>
+                <p>gNMI/gRPC based real-time data collection from switches</p>
+            </div>
+            <div class="feature">
+                <h3>Interface Metrics</h3>
+                <p>Bandwidth, errors, discards, utilization graphs</p>
+            </div>
+            <div class="feature">
+                <h3>Historical Data</h3>
+                <p>Time-series storage for trend analysis</p>
+            </div>
+            <div class="feature">
+                <h3>Custom Dashboards</h3>
+                <p>Build your own views with drag-and-drop widgets</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,3088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Details</title>
+    <link rel="stylesheet" type="text/css" href="/css/styles2.css">
+    <link rel="icon" type="image/x-icon" href="/png/favicon.ico">
+    <script src="/css/auth.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Layout */
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* Left Panel - Device List (matching dev-conf.html) */
+        .device-panel {
+            width: 280px;
+            background: #252526;
+            border-right: 1px solid #404040;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .panel-header {
+            padding: 15px;
+            background: linear-gradient(0deg, #76b900 0%, #5a8c00 100%);
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .panel-header svg { width: 20px; height: 20px; fill: white; }
+        
+        .search-box {
+            padding: 10px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 8px 12px;
+            background: #3c3c3c;
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #d4d4d4;
+            font-size: 13px;
+        }
+        
+        .search-box input:focus {
+            outline: none;
+            border-color: #76b900;
+        }
+        
+        .device-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 0;
+        }
+        
+        .device-group { margin-bottom: 5px; }
+        
+        .group-header {
+            padding: 8px 15px;
+            background: #2d2d2d;
+            color: #999;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            user-select: none;
+        }
+        
+        .group-header:hover { background: #333; }
+        .group-header .arrow { transition: transform 0.2s; }
+        .group-header.collapsed .arrow { transform: rotate(-90deg); }
+        .group-devices { display: block; }
+        .group-devices.collapsed { display: none; }
+        
+        .device-item {
+            padding: 10px 15px 10px 30px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-left: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        
+        .device-item:hover { background: #2a2d2e; }
+        
+        .device-item.selected {
+            background: #37373d;
+            border-left-color: #76b900;
+        }
+        
+        .device-icon {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #76b900;
+        }
+        
+        .device-name-text {
+            font-size: 13px;
+            color: #d4d4d4;
+        }
+        
+        .device-count {
+            padding: 10px 15px;
+            font-size: 12px;
+            color: #888;
+            border-top: 1px solid #404040;
+            background: #2d2d2d;
+        }
+        
+        /* Right Panel - Content */
+        .content-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .content-header {
+            padding: 15px 20px;
+            background: #2d2d2d;
+            border-bottom: 1px solid #404040;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .content-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #76b900;
+        }
+        
+        .content-subtitle {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+        }
+        
+        /* Content Area */
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        .welcome-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #666;
+        }
+        
+        .welcome-screen svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+            fill: #666;
+        }
+        
+        .welcome-screen h2 {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: #888;
+        }
+        
+        .welcome-screen p {
+            font-size: 14px;
+        }
+        
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px 20px;
+            background: #252526;
+            border-radius: 8px;
+            border: 1px solid #3c3c3c;
+            border-left: 4px solid #76b900;
+        }
+        
+        .device-name {
+            font-size: 24px;
+            font-weight: bold;
+            color: #76b900;
+        }
+        
+        .device-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .device-actions button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .btn-refresh {
+            background: #76b900;
+            color: white;
+        }
+        
+        .btn-refresh:hover {
+            background: #5a8f00;
+        }
+        
+        /* Tab Navigation */
+        .tab-nav {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #3c3c3c;
+            padding-bottom: 0;
+        }
+        
+        .tab-btn {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            color: #808080;
+            cursor: pointer;
+            font-size: 14px;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+        
+        .tab-btn:hover {
+            color: #d4d4d4;
+            background: #2d2d2d;
+        }
+        
+        .tab-btn.active {
+            color: #76b900;
+            border-bottom-color: #76b900;
+        }
+        
+        /* Tab Content */
+        .tab-content {
+            display: none;
+            background: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 8px;
+            padding: 20px;
+            min-height: 400px;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Tables */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        
+        .data-table th {
+            background: #1e1e1e;
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #3c3c3c;
+            color: #808080;
+        }
+        
+        .data-table td {
+            padding: 10px;
+            border-bottom: 1px solid #2d2d2d;
+        }
+        
+        .data-table tr:hover {
+            background: #2d2d2d;
+        }
+        
+        /* Status badges */
+        .status-excellent, .status-up, .status-established {
+            color: #4caf50;
+        }
+        
+        .status-good {
+            color: #8bc34a;
+        }
+        
+        .status-warning {
+            color: #ff9800;
+        }
+        
+        .status-critical, .status-idle {
+            color: #f44336;
+        }
+        
+        .status-down {
+            color: #f44336;
+            font-weight: bold;
+        }
+        
+        .status-unplugged {
+            color: #9e9e9e;
+            font-style: italic;
+        }
+        
+        .down-row {
+            background-color: rgba(244, 67, 54, 0.15);
+        }
+        
+        .down-row:hover {
+            background-color: rgba(244, 67, 54, 0.25);
+        }
+        
+        /* Command Runner */
+        .command-section {
+            margin-bottom: 20px;
+        }
+        
+        .command-groups-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .command-group {
+            border: 1px solid #3c3c3c;
+            border-radius: 6px;
+            overflow: visible;
+            position: relative;
+        }
+        
+        .command-group-title {
+            cursor: pointer;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #2a2a2a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        
+        .command-group-title:hover {
+            background: #333;
+        }
+        
+        .command-group-title::after {
+            content: '▼';
+            font-size: 10px;
+            margin-left: 8px;
+            transition: transform 0.2s;
+        }
+        
+        .command-group.collapsed .command-group-title::after {
+            transform: rotate(-90deg);
+        }
+        
+        .command-group-content {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            min-width: 100%;
+            width: max-content;
+            max-width: 700px;
+            padding: 10px 15px;
+            background: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 0 0 6px 6px;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        
+        /* Dropdown position is dynamically set by JavaScript */
+        
+        .command-group.collapsed .command-group-content {
+            display: none;
+        }
+        
+        .command-group-label {
+            font-size: 14px;
+            color: #76b900;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        
+        .command-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .cmd-btn {
+            padding: 6px 12px;
+            background: #333;
+            border: 1px solid #555;
+            color: #d4d4d4;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: 'Fira Code', monospace;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        
+        .cmd-btn:hover {
+            background: #444;
+            border-color: #76b900;
+        }
+        
+        .custom-command {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .custom-command input {
+            flex: 1;
+            padding: 10px;
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            color: #d4d4d4;
+            border-radius: 4px;
+            font-family: 'Fira Code', monospace;
+        }
+        
+        .custom-command button {
+            padding: 10px 20px;
+            background: #76b900;
+            border: none;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .command-output {
+            margin-top: 20px;
+            background: #1a1a1a;
+            border: 1px solid #3c3c3c;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .command-output .cmd-header {
+            color: #76b900;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+        }
+        
+        /* Summary cards */
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .summary-card {
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .summary-card .value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+        
+        .summary-card .label {
+            color: #808080;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        
+        /* Clickable log cards */
+        .log-card {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .log-card:hover {
+            border-color: #76b900;
+            transform: translateY(-2px);
+        }
+        
+        .log-card.selected {
+            border-color: #76b900;
+            box-shadow: 0 0 10px rgba(118, 185, 0, 0.3);
+        }
+        
+        .log-output {
+            margin-top: 20px;
+            background: #1a1a1a;
+            border: 1px solid #3c3c3c;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #808080;
+        }
+        
+        .error-message {
+            color: #f44336;
+            padding: 20px;
+            background: #2d1515;
+            border-radius: 8px;
+        }
+        
+        /* VRF selector */
+        .vrf-selector {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .vrf-selector select {
+            padding: 8px 12px;
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            color: #d4d4d4;
+            border-radius: 4px;
+            min-width: 150px;
+        }
+        
+        .port-input-row {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .port-input-row input {
+            width: 100px;
+        }
+        
+        /* Dark input styling */
+        .dark-input {
+            width: 100%;
+            background: #1e1e1e !important;
+            color: #d4d4d4 !important;
+            border: 1px solid #3c3c3c;
+            padding: 6px 28px 6px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .dark-input:focus {
+            border-color: #76b900;
+            outline: none;
+        }
+        .dark-input:-webkit-autofill,
+        .dark-input:-webkit-autofill:hover,
+        .dark-input:-webkit-autofill:focus,
+        .dark-input:-webkit-autofill:active {
+            -webkit-box-shadow: 0 0 0 30px #1e1e1e inset !important;
+            -webkit-text-fill-color: #d4d4d4 !important;
+            background-color: #1e1e1e !important;
+        }
+        
+        /* Input with clear button (global) */
+        .input-with-clear {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+        .input-with-clear .clear-btn {
+            position: absolute;
+            right: 6px;
+            background: none;
+            border: none;
+            color: #666;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+        }
+        .input-with-clear .clear-btn:hover {
+            color: #f44336;
+        }
+        
+        /* Clickable table rows */
+        .data-table tr.clickable {
+            cursor: pointer;
+        }
+        
+        .data-table tr.clickable:hover {
+            background: #333;
+        }
+        
+        .data-table tr.selected {
+            background: #2a3a1a;
+            border-left: 3px solid #76b900;
+        }
+        
+        .optical-detail {
+            margin-top: 20px;
+            background: #1a1a1a;
+            border: 1px solid #3c3c3c;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Fira Code', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 6px;
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            color: #d4d4d4;
+            border-radius: 4px;
+        }
+        
+        /* Loading overlay for content */
+        .content-loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(30, 30, 30, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        
+        .content-loading.hidden { display: none; }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #333;
+            border-top-color: #76b900;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        .loading-text {
+            margin-top: 15px;
+            color: #888;
+            font-size: 14px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Loading skeleton for device list */
+        .skeleton-item {
+            padding: 10px 15px 10px 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .skeleton-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #3c3c3c;
+        }
+        
+        .skeleton-text {
+            height: 14px;
+            border-radius: 3px;
+            background: linear-gradient(90deg, #3c3c3c 25%, #4a4a4a 50%, #3c3c3c 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        /* Content area needs relative positioning for overlay */
+        .content-area {
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Left Panel - Device List -->
+        <div class="device-panel">
+            <div class="panel-header">
+                <svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z"/></svg>
+                Device Details
+            </div>
+            <div class="search-box">
+                <input type="text" id="deviceSearch" placeholder="Search devices..." oninput="filterDevices()">
+            </div>
+            <div class="device-list" id="deviceList">
+                <!-- Loading skeleton -->
+                <div class="skeleton-item"><div class="skeleton-dot"></div><div class="skeleton-text" style="width: 120px;"></div></div>
+                <div class="skeleton-item"><div class="skeleton-dot"></div><div class="skeleton-text" style="width: 100px;"></div></div>
+                <div class="skeleton-item"><div class="skeleton-dot"></div><div class="skeleton-text" style="width: 140px;"></div></div>
+                <div class="skeleton-item"><div class="skeleton-dot"></div><div class="skeleton-text" style="width: 110px;"></div></div>
+                <div class="skeleton-item"><div class="skeleton-dot"></div><div class="skeleton-text" style="width: 130px;"></div></div>
+            </div>
+            <div class="device-count" id="deviceCount">Loading...</div>
+        </div>
+        
+        <!-- Right Panel - Content -->
+        <div class="content-panel">
+            <div class="content-header">
+                <div>
+                    <div class="content-title">Device Details</div>
+                    <div class="content-subtitle">Select a device to view configuration</div>
+                </div>
+            </div>
+            
+            <div class="content-area">
+                <!-- Loading overlay -->
+                <div class="content-loading hidden" id="contentLoading">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Loading device data...</div>
+                </div>
+                
+                <!-- Welcome screen when no device selected -->
+                <div class="welcome-screen" id="welcomeScreen">
+                    <svg viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/></svg>
+                    <h2>Device Details Viewer</h2>
+                    <p>Select a device from the left panel to view its details</p>
+                </div>
+                
+                <!-- Device Content (hidden until device selected) -->
+                <div id="deviceContent" style="display: none;">
+                    <div class="device-header">
+                        <div class="device-name" id="deviceName">Loading...</div>
+                        <div class="device-actions">
+                            <button class="btn-refresh" onclick="refreshAllData()">Refresh</button>
+                        </div>
+                    </div>
+    
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab="overview">Overview</button>
+        <button class="tab-btn" data-tab="ports">Ports</button>
+        <button class="tab-btn" data-tab="optical">Optical</button>
+        <button class="tab-btn" data-tab="bgp">BGP</button>
+        <button class="tab-btn" data-tab="logs">Logs</button>
+        <button class="tab-btn" data-tab="commands">Command Runner</button>
+        <button class="tab-btn" data-tab="capture">Capture</button>
+        <button class="tab-btn" data-tab="clsupport">cl-support</button>
+    </div>
+    
+    <!-- Overview Tab -->
+    <div class="tab-content active" id="tab-overview">
+        <div class="summary-cards" id="overviewCards">
+            <div class="loading">Loading device data...</div>
+        </div>
+    </div>
+    
+    <!-- Ports Tab -->
+    <div class="tab-content" id="tab-ports">
+        <div id="portsContent">
+            <div class="loading">Loading port status...</div>
+        </div>
+    </div>
+    
+    <!-- Optical Tab -->
+    <div class="tab-content" id="tab-optical">
+        <p style="color: #808080; margin-bottom: 15px;">Click on a port to see detailed L1 diagnostics</p>
+        <div id="opticalContent">
+            <div class="loading">Loading optical data...</div>
+        </div>
+        <div class="optical-detail" id="opticalDetail" style="display: none;"></div>
+    </div>
+    
+    <!-- BGP Tab -->
+    <div class="tab-content" id="tab-bgp">
+        <div class="vrf-selector">
+            <label>VRF:</label>
+            <select id="vrfSelect" onchange="loadBGPForVRF()">
+                <option value="default">default</option>
+            </select>
+            <button class="cmd-btn" onclick="loadVRFList()">Refresh VRFs</button>
+        </div>
+        <div id="bgpContent">
+            <div class="loading">Loading BGP data...</div>
+        </div>
+    </div>
+    
+    <!-- Logs Tab -->
+    <div class="tab-content" id="tab-logs">
+        <div class="summary-cards" id="logCards">
+            <div class="loading">Loading logs...</div>
+        </div>
+        <div class="log-output" id="logOutput" style="display: none;"></div>
+    </div>
+    
+    <!-- Command Runner Tab -->
+    <div class="tab-content" id="tab-commands">
+        <div class="command-section">
+            <div class="command-groups-grid">
+            <!-- System & Hardware -->
+            <div class="command-group collapsed">
+                <div class="command-group-title" onclick="toggleGroup(this.parentElement)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#76b900" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    <span style="color: #76b900;">System & Hardware</span>
+                </div>
+                <div class="command-group-content">
+                    <div class="command-buttons">
+                        <button class="cmd-btn" onclick="runCommand('nv show system')">nv show system</button>
+                        <button class="cmd-btn" onclick="runCommand('nv show platform')">nv show platform</button>
+                        <button class="cmd-btn" onclick="runCommand('nv show system memory')">nv show system memory</button>
+                        <button class="cmd-btn" onclick="runCommand('uptime')">uptime</button>
+                        <button class="cmd-btn" onclick="runCommand('free -h')">free -h</button>
+                        <button class="cmd-btn" onclick="runCommand('df -h')">df -h</button>
+                        <button class="cmd-btn" onclick="runCommand('sudo sensors')">sensors</button>
+                        <button class="cmd-btn" onclick="runCommand('sudo smonctl')">smonctl</button>
+                        <button class="cmd-btn" onclick="runCommand('sudo decode-syseeprom')">decode-syseeprom</button>
+                        <button class="cmd-btn" onclick="runCommand('sudo cl-resource-query')">cl-resource-query</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Interfaces & Ports -->
+            <div class="command-group collapsed">
+                <div class="command-group-title" onclick="toggleGroup(this.parentElement)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4fc3f7" stroke-width="2"><path d="M4 11h16M4 11l4-4m-4 4l4 4M20 13h-16M20 13l-4-4m4 4l-4 4"/></svg>
+                    <span style="color: #4fc3f7;">Interfaces & Ports</span>
+                </div>
+                <div class="command-group-content">
+                    <div class="command-buttons">
+                        <button class="cmd-btn" onclick="runCommand('nv show interface')">nv show interface</button>
+                        <button class="cmd-btn" onclick="runCommand('ip link show')">ip link show</button>
+                        <button class="cmd-btn" onclick="runCommand('ip addr show')">ip addr show</button>
+                    </div>
+                    <div class="port-input-row">
+                        <div class="input-with-clear">
+                            <input type="text" id="portInput" list="portList" placeholder="swp1s0" class="dark-input" style="width: 120px;">
+                            <button type="button" class="clear-btn" onclick="document.getElementById('portInput').value=''; document.getElementById('portInput').focus();">&times;</button>
+                        </div>
+                        <datalist id="portList"></datalist>
+                        <button class="cmd-btn" onclick="runCommand('sudo l1-show ' + document.getElementById('portInput').value)">l1-show</button>
+                        <button class="cmd-btn" onclick="runCommand('/sbin/ethtool ' + document.getElementById('portInput').value)">ethtool</button>
+                        <button class="cmd-btn" onclick="runCommand('sudo /sbin/ethtool -m ' + document.getElementById('portInput').value)">ethtool -m</button>
+                        <button class="cmd-btn" onclick="runCommand('/sbin/ethtool -S ' + document.getElementById('portInput').value)">ethtool -S</button>
+                        <button class="cmd-btn" onclick="runCommand('/sbin/ethtool -i ' + document.getElementById('portInput').value)">ethtool -i</button>
+                        <button class="cmd-btn" onclick="runCommand('nv show interface ' + document.getElementById('portInput').value + ' counters')">counters</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Layer 2 -->
+            <div class="command-group collapsed">
+                <div class="command-group-title" onclick="toggleGroup(this.parentElement)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ba68c8" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                    <span style="color: #ba68c8;">Layer 2 / Bridge</span>
+                </div>
+                <div class="command-group-content">
+                    <div class="command-buttons">
+                        <button class="cmd-btn" onclick="runCommand('nv show bridge domain br_default')">nv show bridge</button>
+                        <button class="cmd-btn" onclick="runCommand('nv show bridge domain br_default mac-table')">nv show mac-table</button>
+                        <button class="cmd-btn" onclick="runCommand('/sbin/bridge fdb show')">bridge fdb show</button>
+                        <button class="cmd-btn" onclick="runCommand('/sbin/bridge vlan show')">bridge vlan show</button>
+                        <button class="cmd-btn" onclick="runCommand('sudo lldpctl')">lldpctl</button>
+                        <button class="cmd-btn" onclick="runCommand('ip neigh show')">ip neigh show</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- BGP & Routing with VRF -->
+            <div class="command-group collapsed">
+                <div class="command-group-title" onclick="toggleGroup(this.parentElement)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffb74d" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    <span style="color: #ffb74d;">BGP & Routing</span>
+                </div>
+                <div class="command-group-content">
+                    <div class="vrf-selector">
+                        <label>VRF:</label>
+                        <select id="cmdVrfSelect">
+                            <option value="">default</option>
+                        </select>
+                    </div>
+                    <div class="command-buttons">
+                        <button class="cmd-btn" onclick="runVrfCommand('nv show vrf', 'router bgp neighbor')">nv show bgp neighbor</button>
+                        <button class="cmd-btn" onclick="runCommand('nv show router bgp')">nv show router bgp</button>
+                        <button class="cmd-btn" onclick="runVtyshVrf('show bgp summary')">vtysh: bgp summary</button>
+                        <button class="cmd-btn" onclick="runVtyshVrf('show ip route')">vtysh: ip route</button>
+                        <button class="cmd-btn" onclick="runVtyshVrf('show bgp l2vpn evpn summary')">vtysh: evpn summary</button>
+                        <button class="cmd-btn" onclick="runIpRouteVrf()">ip route show</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- EVPN & VXLAN -->
+            <div class="command-group collapsed">
+                <div class="command-group-title" onclick="toggleGroup(this.parentElement)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4db6ac" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    <span style="color: #4db6ac;">EVPN & VXLAN</span>
+                </div>
+                <div class="command-group-content">
+                    <div class="command-buttons">
+                        <button class="cmd-btn" onclick="runCommand('nv show evpn vni')">nv show evpn vni</button>
+                        <button class="cmd-btn" onclick="runCommand(&quot;sudo vtysh -c 'show evpn vni'&quot;)">vtysh: evpn vni</button>
+                        <button class="cmd-btn" onclick="runCommand(&quot;sudo vtysh -c 'show evpn mac vni all'&quot;)">vtysh: evpn mac</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- EVPN Multi-Homing / Bonds -->
+            <div class="command-group collapsed">
+                <div class="command-group-title" onclick="toggleGroup(this.parentElement)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f06292" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    <span style="color: #f06292;">EVPN MH / Bonds</span>
+                </div>
+                <div class="command-group-content">
+                    <div class="command-buttons">
+                        <button class="cmd-btn" onclick="runCommand('nv show interface bonds')">nv show bonds</button>
+                        <button class="cmd-btn" onclick="runCommand('nv show evpn multihoming')">nv show evpn multihoming</button>
+                        <button class="cmd-btn" onclick="runCommand('nv show evpn multihoming esi')">nv show evpn mh esi</button>
+                        <button class="cmd-btn" onclick="runCommand(&quot;sudo vtysh -c 'show evpn es'&quot;)">vtysh: evpn es</button>
+                        <button class="cmd-btn" onclick="runCommand(&quot;sudo vtysh -c 'show evpn es-evi'&quot;)">vtysh: evpn es-evi</button>
+                        <button class="cmd-btn" onclick="runCommand(&quot;sudo vtysh -c 'show evpn es detail'&quot;)">vtysh: evpn es detail</button>
+                    </div>
+                    <div class="port-input-row" style="margin-top: 10px;">
+                        <div class="input-with-clear">
+                            <input type="text" id="bondInput" list="bondList" placeholder="bond0" class="dark-input" style="width: 180px;">
+                            <button type="button" class="clear-btn" onclick="document.getElementById('bondInput').value=''; document.getElementById('bondInput').focus();">&times;</button>
+                        </div>
+                        <datalist id="bondList"></datalist>
+                        <button class="cmd-btn" onclick="runBondCommand('details')">nv bond details</button>
+                        <button class="cmd-btn" onclick="runBondCommand('members')">system bond details</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- MLAG -->
+            <div class="command-group collapsed">
+                <div class="command-group-title" onclick="toggleGroup(this.parentElement)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7986cb" stroke-width="2"><rect x="3" y="8" width="7" height="13" rx="1"/><rect x="14" y="8" width="7" height="13" rx="1"/><path d="M10 15h4"/><path d="M7 3v5M17 3v5"/></svg>
+                    <span style="color: #7986cb;">MLAG / CLAG</span>
+                </div>
+                <div class="command-group-content">
+                    <div class="command-buttons">
+                        <button class="cmd-btn" onclick="runCommand('nv show mlag')">nv show mlag</button>
+                        <button class="cmd-btn" onclick="runCommand('nv show mlag consistency-checker')">nv show mlag consistency</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Logs -->
+            <div class="command-group collapsed">
+                <div class="command-group-title" onclick="toggleGroup(this.parentElement)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef5350" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+                    <span style="color: #ef5350;">Logs & Debug</span>
+                </div>
+                <div class="command-group-content">
+                    <div class="command-buttons">
+                        <button class="cmd-btn" onclick="runCommand('sudo journalctl -n 50')">journalctl -n 50</button>
+                        <button class="cmd-btn" onclick="runCommand('sudo dmesg -T')">dmesg</button>
+                        <button class="cmd-btn" onclick="runCommand('sudo tail -n 50 /var/log/frr/frr.log')">FRR log</button>
+                        <button class="cmd-btn" onclick="runCommand('sudo tail -n 50 /var/log/syslog')">syslog</button>
+                        <button class="cmd-btn" onclick="runCommand('sudo tail -n 50 /var/log/switchd.log')">switchd.log</button>
+                        <button class="cmd-btn" onclick="runCommand('sudo tail -n 50 /var/log/nvued.log')">nvued.log</button>
+                        <button class="cmd-btn" onclick="runCommand('sudo tail -n 50 /var/log/linkstate')">linkstate</button>
+                    </div>
+                </div>
+            </div>
+            </div><!-- end command-groups-grid -->
+            
+            <!-- Custom Command -->
+            <div class="custom-command">
+                <input type="text" id="customCmd" placeholder="Enter custom command (nv show, sudo vtysh -c 'show...')">
+                <button onclick="runCustomCommand()">Run</button>
+            </div>
+        </div>
+        
+        <div class="command-output" id="commandOutput" style="display: none;">
+            <div class="cmd-header" id="cmdHeader"></div>
+            <div id="cmdResult"></div>
+        </div>
+    </div>
+    
+    <!-- Capture Tab (tcpdump only) -->
+    <div class="tab-content" id="tab-capture">
+        <div class="capture-section">
+            <h3 style="color: #76b900; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                </svg>
+                Packet Capture (tcpdump)
+            </h3>
+            
+            <!-- Interface datalist for all interfaces including SVIs -->
+            <datalist id="captureInterfaceList"></datalist>
+            
+            <!-- Filter presets datalist -->
+            <datalist id="captureFilterPresets">
+                <option value="port 67 or port 68">DHCP</option>
+                <option value="arp">ARP</option>
+                <option value="icmp">ICMP / Ping</option>
+                <option value="port 179">BGP</option>
+                <option value="port 22">SSH</option>
+                <option value="port 80 or port 443">HTTP/HTTPS</option>
+                <option value="port 53">DNS</option>
+                <option value="ether proto 0x88cc">LLDP</option>
+                <option value="stp">STP / BPDU</option>
+                <option value="port 4789">VXLAN</option>
+                <option value="udp">UDP only</option>
+                <option value="tcp">TCP only</option>
+                <option value="not port 22">Exclude SSH</option>
+            </datalist>
+            
+            <div class="capture-form">
+                <div class="capture-form-grid">
+                    <div class="form-field">
+                        <label>Interface</label>
+                        <div class="input-with-clear" style="width: 100%;">
+                            <input type="text" id="captureInterface" list="captureInterfaceList" placeholder="any, swp1, vlan80..." class="dark-input">
+                            <button type="button" class="clear-btn" onclick="document.getElementById('captureInterface').value=''; document.getElementById('captureInterface').focus();" title="Clear">&times;</button>
+                        </div>
+                    </div>
+                    <div class="form-field">
+                        <label>Duration</label>
+                        <select id="captureDuration">
+                            <option value="10">10 sec</option>
+                            <option value="30" selected>30 sec</option>
+                            <option value="60">1 min</option>
+                            <option value="120">2 min</option>
+                            <option value="300">5 min</option>
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label>Packet Limit</label>
+                        <select id="captureCount">
+                            <option value="100">100</option>
+                            <option value="500">500</option>
+                            <option value="1000" selected>1000</option>
+                            <option value="5000">5000</option>
+                            <option value="0">No limit</option>
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label>Mode</label>
+                        <select id="captureMode">
+                            <option value="live">Live</option>
+                            <option value="pcap">PCAP</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-top: 10px;">
+                    <input type="text" id="captureFilter" list="captureFilterPresets" placeholder="Filter: select preset or type custom (e.g. icmp, port 80, host 10.0.0.1)" style="width: 100%; max-width: 500px;">
+                </div>
+                <div class="form-row" style="margin-top: 15px; gap: 10px;">
+                    <button class="cmd-btn" id="btnStopCapture" onclick="stopCapture()" style="background: #c53030; color: #fff; padding: 10px 20px; display: none;">
+                        Stop Capture
+                    </button>
+                    <button class="cmd-btn" id="btnStartCapture" onclick="startCapture()" style="background: #76b900; color: #000; padding: 10px 20px;">
+                        Start Capture
+                    </button>
+                    <button class="cmd-btn" id="btnClearCapture" onclick="clearCaptureOutput()" style="background: #3c3c3c; color: #d4d4d4; padding: 10px 20px;">
+                        Clear
+                    </button>
+                    <button class="cmd-btn" id="btnDeleteAllPcap" onclick="deleteAllPcap()" style="background: #7f1d1d; color: #fca5a5; padding: 10px 20px;" title="Delete all PCAP files from this device">
+                        Delete All PCAP
+                    </button>
+                    <span id="captureStatus" style="margin-left: 15px; color: #888;"></span>
+                </div>
+            </div>
+            
+            <!-- Live output area -->
+            <div id="captureOutput" class="capture-output" style="display: none; margin-top: 15px; background: #1a1a1a; border: 1px solid #3c3c3c; border-radius: 4px; padding: 10px; max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 12px;"></div>
+            
+            <!-- PCAP download area -->
+            <div id="capturePcapResult" style="display: none; margin-top: 15px; padding: 15px; background: #1a1a1a; border: 1px solid #3c3c3c; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#76b900" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    <span style="color: #76b900; font-weight: bold;">Capture Complete</span>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="color: #888; font-size: 12px;">PCAP File:</label>
+                    <div id="capturePcapPath" style="background: #252526; padding: 10px; border-radius: 4px; font-family: monospace; color: #dcdcaa; margin-top: 5px;"></div>
+                </div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button id="btnDownloadPcap" onclick="downloadPcap()" class="cmd-btn" style="background: #76b900; color: #000; padding: 10px 20px; display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download for Wireshark
+                    </button>
+                    <button class="cmd-btn" onclick="deletePcap()" style="background: #c53030; color: #fff; padding: 10px 20px; display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <style>
+            .capture-section {
+                background: #252526;
+                border: 1px solid #3c3c3c;
+                border-radius: 8px;
+                padding: 20px;
+            }
+            .capture-form-grid {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 15px;
+                margin-bottom: 10px;
+            }
+            .capture-form .form-field {
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+            }
+            .capture-form .form-field label {
+                color: #888;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            .capture-form .form-row {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 10px;
+            }
+            .capture-form .form-row label {
+                min-width: 50px;
+                color: #888;
+                font-size: 13px;
+            }
+            .capture-form input, .capture-form select {
+                background: #1e1e1e;
+                border: 1px solid #3c3c3c;
+                color: #d4d4d4;
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-size: 13px;
+            }
+            .capture-form input:focus, .capture-form select:focus {
+                border-color: #76b900;
+                outline: none;
+            }
+            /* Fix autocomplete/datalist background */
+            .capture-form input:-webkit-autofill,
+            .capture-form input:-webkit-autofill:hover,
+            .capture-form input:-webkit-autofill:focus,
+            .capture-form input:-webkit-autofill:active {
+                -webkit-box-shadow: 0 0 0 30px #1e1e1e inset !important;
+                -webkit-text-fill-color: #d4d4d4 !important;
+                background-color: #1e1e1e !important;
+            }
+            /* Input with clear button */
+            .input-with-clear {
+                position: relative;
+                display: inline-flex;
+                align-items: center;
+            }
+            .input-with-clear input {
+                padding-right: 28px;
+            }
+            .input-with-clear .clear-btn {
+                position: absolute;
+                right: 6px;
+                background: none;
+                border: none;
+                color: #666;
+                font-size: 16px;
+                cursor: pointer;
+                padding: 0 4px;
+                line-height: 1;
+            }
+            .input-with-clear .clear-btn:hover {
+                color: #f44336;
+            }
+        </style>
+    </div>
+    
+    <!-- cl-support Tab -->
+    <div class="tab-content" id="tab-clsupport">
+        <div class="capture-section" style="max-width: 700px;">
+            <h3 style="color: #ff9800; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                Diagnostic Bundle (cl-support)
+            </h3>
+            <p style="color: #888; font-size: 13px; margin-bottom: 20px; line-height: 1.8;">
+                Generate a comprehensive diagnostic bundle for TAC support cases.<br><br>
+                Command: <code style="background: #1e1e1e; padding: 2px 6px; border-radius: 3px; color: #dcdcaa;">sudo cl-support -M -T0</code><br><br>
+                <span style="color: #ff9800;">Note: This runs in background and takes 2-5 minutes. Please stay on this page until complete.</span>
+            </p>
+            
+            <div class="capture-form">
+                <div class="form-row" style="margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                    <button class="cmd-btn" id="btnGenerateClsupport" onclick="generateClSupport()" style="background: #ff9800; color: #000; padding: 12px 24px; font-size: 14px;">
+                        Generate cl-support
+                    </button>
+                    <button class="cmd-btn" id="btnCheckClsupport" onclick="checkClSupportStatus()" style="background: #3c3c3c; color: #d4d4d4; padding: 12px 24px; font-size: 14px;">
+                        Check Status
+                    </button>
+                    <span id="clsupportStatus" style="margin-left: 10px; color: #888;"></span>
+                </div>
+            </div>
+            
+            <!-- Progress info -->
+            <div id="clsupportProgress" style="display: none; margin-bottom: 15px; padding: 15px; background: #2a2a1a; border: 1px solid #ff9800; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="spinner" style="width: 20px; height: 20px; border: 2px solid #ff9800; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <span style="color: #ff9800;">cl-support is running in background...</span>
+                </div>
+                <div style="color: #888; font-size: 12px; margin-top: 10px;">Click "Check Status" to see if bundle is ready.</div>
+            </div>
+            
+            <!-- Generated file info -->
+            <div id="clsupportResult" style="display: none; margin-top: 20px; padding: 15px; background: #1a1a1a; border: 1px solid #3c3c3c; border-radius: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#76b900" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    <span style="color: #76b900; font-weight: bold;">Bundle Ready for Download</span>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="color: #888; font-size: 12px;">File Path:</label>
+                    <div id="clsupportFilePath" style="background: #252526; padding: 10px; border-radius: 4px; font-family: monospace; color: #dcdcaa; margin-top: 5px;"></div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button id="clsupportDownloadBtn" onclick="downloadClSupport()" class="cmd-btn" style="background: #76b900; color: #000; padding: 10px 20px; display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download
+                    </button>
+                    <button class="cmd-btn" onclick="deleteClSupport()" style="background: #c53030; color: #fff; padding: 10px 20px; display: inline-flex; align-items: center; gap: 8px;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                        Delete
+                    </button>
+                </div>
+            </div>
+            
+        </div>
+        
+        <style>
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+        </style>
+    </div>
+    
+                </div><!-- Close deviceContent -->
+            </div><!-- Close content-area -->
+        </div><!-- Close content-panel -->
+    </div><!-- Close container -->
+    
+    <script>
+        // ===== Device List Management =====
+        let allDevices = [];
+        let devicesByGroup = {};
+        let groupOrder = [];
+        
+        // Track which tabs have been loaded (for lazy loading)
+        let tabsLoaded = { overview: false, ports: false, optical: false, bgp: false, logs: false, commands: false, capture: false, clsupport: false };
+        
+        async function loadDeviceList() {
+            try {
+                // Use fabric-api.sh to get devices from inventory (path from lldpq.conf)
+                const response = await fetch('/fabric-api.sh?action=list-devices');
+                const data = await response.json();
+                
+                if (!data.success || !data.devices) {
+                    throw new Error(data.error || 'Failed to load devices');
+                }
+                
+                allDevices = [];
+                devicesByGroup = {};
+                groupOrder = Object.keys(data.devices); // Preserve order from API
+                
+                // Use Set to track unique devices
+                const uniqueDevices = new Set();
+                
+                for (const [group, groupDevices] of Object.entries(data.devices)) {
+                    const hostnames = groupDevices.map(d => d.hostname);
+                    // Sort devices naturally within each group
+                    hostnames.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+                    devicesByGroup[group] = hostnames;
+                    hostnames.forEach(name => {
+                        allDevices.push({ name, group });
+                        uniqueDevices.add(name);
+                    });
+                }
+                
+                renderDeviceList();
+                document.getElementById('deviceCount').textContent = `${uniqueDevices.size} devices`;
+                
+            } catch (e) {
+                console.error('Failed to load device list:', e);
+                document.getElementById('deviceList').innerHTML = '<div style="padding: 15px; color: #888;">Failed to load devices</div>';
+            }
+        }
+        
+        function renderDeviceList(filter = '') {
+            const container = document.getElementById('deviceList');
+            const filterLower = filter.toLowerCase();
+            
+            let html = '';
+            
+            groupOrder.forEach(group => {
+                const devices = devicesByGroup[group] || [];
+                const filtered = devices.filter(d => d.toLowerCase().includes(filterLower));
+                
+                if (filtered.length === 0) return;
+                
+                // Start collapsed by default (like dev-conf.html)
+                html += `
+                    <div class="device-group">
+                        <div class="group-header collapsed" onclick="toggleDeviceGroup(this)">
+                            <span class="arrow">▶</span>
+                            ${group} (${filtered.length})
+                        </div>
+                        <div class="group-devices collapsed">
+                            ${filtered.map(name => `
+                                <div class="device-item ${name === deviceName ? 'selected' : ''}" 
+                                     onclick="selectDevice('${name}')">
+                                    <span class="device-icon"></span>
+                                    <span class="device-name-text">${name}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html || '<div style="padding: 15px; color: #888;">No devices found</div>';
+            
+            // If a device is selected, expand its group
+            if (deviceName) {
+                const selectedItem = document.querySelector('.device-item.selected');
+                if (selectedItem) {
+                    const groupDevices = selectedItem.closest('.group-devices');
+                    const groupHeader = groupDevices?.previousElementSibling;
+                    if (groupHeader && groupDevices) {
+                        groupHeader.classList.remove('collapsed');
+                        groupDevices.classList.remove('collapsed');
+                    }
+                }
+            }
+        }
+        
+        function filterDevices() {
+            const filter = document.getElementById('deviceSearch').value;
+            renderDeviceList(filter);
+        }
+        
+        function toggleDeviceGroup(header) {
+            header.classList.toggle('collapsed');
+            const groupDevices = header.nextElementSibling;
+            if (groupDevices) {
+                groupDevices.classList.toggle('collapsed');
+            }
+        }
+        
+        function selectDevice(name) {
+            // Update URL without reloading
+            const newUrl = `${window.location.pathname}?device=${encodeURIComponent(name)}`;
+            window.history.pushState({device: name}, '', newUrl);
+            
+            deviceName = name;
+            
+            // Show device content, hide placeholder
+            document.getElementById('welcomeScreen').style.display = 'none';
+            document.getElementById('deviceContent').style.display = 'block';
+            
+            // Update device name in header immediately
+            document.getElementById('deviceName').textContent = name;
+            document.title = `Device: ${name}`;
+            
+            // Update selected state in list
+            document.querySelectorAll('.device-item').forEach(item => {
+                item.classList.toggle('selected', item.textContent.trim() === name);
+            });
+            
+            // Show loading overlay
+            const loadingEl = document.getElementById('contentLoading');
+            loadingEl.classList.remove('hidden');
+            
+            // Reset tab contents to loading state (will be loaded on tab click)
+            const overviewEl = document.getElementById('overviewCards');
+            const portsEl = document.getElementById('portsContent');
+            const opticalEl = document.getElementById('opticalContent');
+            const opticalDetailEl = document.getElementById('opticalDetail');
+            const bgpEl = document.getElementById('bgpContent');
+            const logCardsEl = document.getElementById('logCards');
+            
+            if (overviewEl) overviewEl.innerHTML = '<div class="loading">Loading device data...</div>';
+            if (portsEl) portsEl.innerHTML = '<div class="loading">Click to load port status...</div>';
+            if (opticalEl) opticalEl.innerHTML = '<div class="loading">Loading optical data...</div>';
+            if (opticalDetailEl) { opticalDetailEl.textContent = ''; opticalDetailEl.style.display = 'none'; }
+            if (bgpEl) bgpEl.innerHTML = '<div class="loading">Click to load BGP data...</div>';
+            if (logCardsEl) logCardsEl.innerHTML = '<div class="loading">Loading logs...</div>';
+            
+            // Reset loaded flags for lazy loading
+            tabsLoaded = { overview: false, ports: false, optical: false, bgp: false, logs: false, commands: false, capture: false, clsupport: false };
+            
+            // Stop any active capture on previous device
+            if (captureAbortController) {
+                captureAbortController.abort();
+                captureAbortController = null;
+            }
+            if (livePollingInterval) {
+                clearInterval(livePollingInterval);
+                livePollingInterval = null;
+            }
+            if (clsupportPollingInterval) {
+                clearInterval(clsupportPollingInterval);
+                clsupportPollingInterval = null;
+            }
+            
+            // Clear capture state and form
+            capturePcapPath = null;
+            liveCaptureFile = null;
+            clsupportFilePath = null;
+            
+            // Reset capture form and output
+            const captureInterface = document.getElementById('captureInterface');
+            const captureOutput = document.getElementById('captureOutput');
+            const capturePcapResult = document.getElementById('capturePcapResult');
+            const captureStatus = document.getElementById('captureStatus');
+            if (captureInterface) captureInterface.value = '';
+            if (captureOutput) captureOutput.textContent = '';
+            if (capturePcapResult) capturePcapResult.style.display = 'none';
+            if (captureStatus) captureStatus.textContent = '';
+            
+            // Reset capture buttons
+            const btnStartCapture = document.getElementById('btnStartCapture');
+            const btnStopCapture = document.getElementById('btnStopCapture');
+            if (btnStartCapture) btnStartCapture.style.display = 'inline-block';
+            if (btnStopCapture) btnStopCapture.style.display = 'none';
+            
+            // Reset cl-support display
+            const clsupportStatus = document.getElementById('clsupportStatus');
+            const clsupportResult = document.getElementById('clsupportResult');
+            const clsupportProgress = document.getElementById('clsupportProgress');
+            if (clsupportStatus) clsupportStatus.textContent = '';
+            if (clsupportResult) clsupportResult.style.display = 'none';
+            if (clsupportProgress) clsupportProgress.style.display = 'none';
+            
+            // Always switch to Overview tab when changing devices
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector('.tab-btn[data-tab="overview"]').classList.add('active');
+            document.getElementById('tab-overview').classList.add('active');
+            
+            // Only load overview data initially (with safety timeout)
+            const safetyTimeout = setTimeout(() => {
+                loadingEl.classList.add('hidden');
+                console.warn('Loading timeout reached');
+            }, 20000);
+            
+            loadDeviceData().then(() => {
+                clearTimeout(safetyTimeout);
+                loadingEl.classList.add('hidden');
+                tabsLoaded.overview = true;
+            }).catch(e => {
+                clearTimeout(safetyTimeout);
+                loadingEl.classList.add('hidden');
+                console.error('loadDeviceData failed:', e);
+            });
+        }
+        
+        // Lazy load tab content when tab is clicked
+        function onTabClick(tabName) {
+            if (!deviceName) return;
+            
+            if (tabName === 'ports' && !tabsLoaded.ports) {
+                tabsLoaded.ports = true;
+                loadPortStatus();
+            } else if (tabName === 'bgp' && !tabsLoaded.bgp) {
+                tabsLoaded.bgp = true;
+                loadVRFList();
+            } else if (tabName === 'commands' && !tabsLoaded.commands) {
+                tabsLoaded.commands = true;
+                loadVRFList();
+                loadBondList();
+                // Also load port list for command runner if not already loaded
+                if (!tabsLoaded.ports) {
+                    loadPortListOnly();
+                }
+            } else if (tabName === 'capture' && !tabsLoaded.capture) {
+                tabsLoaded.capture = true;
+                loadCaptureInterfaces();
+            } else if (tabName === 'clsupport') {
+                // Always check status when switching to cl-support tab
+                loadClSupportStatus();
+            }
+        }
+        
+        // Load only port list (for command runner dropdown, without showing in Ports tab)
+        async function loadPortListOnly() {
+            try {
+                const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: 'nv show interface --view=brief'})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    populatePortList(data.output);
+                }
+            } catch (e) {
+                console.error('Failed to load port list:', e);
+            }
+        }
+        
+        // ===== End Device List Management =====
+        
+        // Toggle collapsible command groups (accordion - close others when one opens)
+        function toggleGroup(element) {
+            const wasCollapsed = element.classList.contains('collapsed');
+            // Close all other groups first
+            document.querySelectorAll('.command-group').forEach(g => {
+                g.classList.add('collapsed');
+                const content = g.querySelector('.command-group-content');
+                if (content) {
+                    content.style.left = '';
+                    content.style.right = '';
+                }
+            });
+            // Toggle the clicked one
+            if (wasCollapsed) {
+                element.classList.remove('collapsed');
+                
+                // Check if dropdown overflows viewport and adjust position
+                requestAnimationFrame(() => {
+                    const content = element.querySelector('.command-group-content');
+                    if (content) {
+                        const rect = content.getBoundingClientRect();
+                        const viewportWidth = window.innerWidth;
+                        
+                        // If overflowing right edge, align to right
+                        if (rect.right > viewportWidth - 20) {
+                            content.style.left = 'auto';
+                            content.style.right = '0';
+                        } else {
+                            content.style.left = '0';
+                            content.style.right = 'auto';
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Natural sort for interface names (swp1s0, swp2s0, swp10s0, etc.)
+        function naturalSort(a, b) {
+            return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+        }
+        
+        // Initialize auth
+        async function initPage() {
+            await LLDPqAuth.check();
+        }
+        initPage();
+        
+        // Load device list first
+        loadDeviceList();
+        
+        // Get device name from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        let deviceName = urlParams.get('device');
+        
+        // Also check if we're at monitor-results/xxx.html format
+        if (!deviceName) {
+            const path = window.location.pathname;
+            const match = path.match(/monitor-results\/(.+)\.html/);
+            if (match) {
+                deviceName = match[1];
+            }
+        }
+        
+        if (!deviceName) {
+            // No device selected - show welcome screen
+            document.getElementById('welcomeScreen').style.display = 'flex';
+            document.getElementById('deviceContent').style.display = 'none';
+        } else {
+            // Device specified - use selectDevice for consistent behavior
+            document.getElementById('welcomeScreen').style.display = 'none';
+            document.getElementById('deviceContent').style.display = 'block';
+            document.getElementById('deviceName').textContent = deviceName;
+            document.title = `Device: ${deviceName}`;
+            
+            // Show loading and load only overview (lazy loading)
+            const loadingEl = document.getElementById('contentLoading');
+            loadingEl.classList.remove('hidden');
+            
+            // Safety timeout - hide loading after 20 seconds max
+            const safetyTimeout = setTimeout(() => {
+                loadingEl.classList.add('hidden');
+                console.warn('Loading timeout reached');
+            }, 20000);
+            
+            loadDeviceData().then(() => {
+                clearTimeout(safetyTimeout);
+                loadingEl.classList.add('hidden');
+                tabsLoaded.overview = true;
+            }).catch(e => {
+                clearTimeout(safetyTimeout);
+                loadingEl.classList.add('hidden');
+                console.error('loadDeviceData failed:', e);
+            });
+        }
+        
+        // Handle browser back/forward
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.device) {
+                selectDevice(event.state.device);
+            }
+        });
+        
+        // Tab switching with lazy loading
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+                
+                // Lazy load tab content
+                onTabClick(btn.dataset.tab);
+            });
+        });
+        
+        async function loadDeviceData() {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+                
+                const response = await fetch(`/fabric-api.sh?action=get-device-data&device=${encodeURIComponent(deviceName)}`, {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderOverview(data);
+                    renderOptical(data.optical || []);
+                    renderLogs(data.logs || {});
+                } else {
+                    document.getElementById('overviewCards').innerHTML = `<div class="error-message">Error: ${data.error || 'Unknown error'}</div>`;
+                }
+            } catch (e) {
+                const errorMsg = e.name === 'AbortError' ? 'Request timed out' : e.message;
+                document.getElementById('overviewCards').innerHTML = `<div class="error-message">Failed to load: ${errorMsg}</div>`;
+                console.error('loadDeviceData error:', e);
+            }
+        }
+        
+        async function loadPortStatus() {
+            document.getElementById('portsContent').innerHTML = '<div class="loading">Loading interfaces...</div>';
+            try {
+                const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: 'nv show interface --view=brief'})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('portsContent').innerHTML = `<pre style="font-size: 12px; overflow-x: auto;">${data.output}</pre>`;
+                    // Also populate port datalist from interface list
+                    populatePortList(data.output);
+                } else {
+                    document.getElementById('portsContent').innerHTML = `<div class="error-message">${data.error}</div>`;
+                }
+                document.getElementById('portsContent').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (e) {
+                document.getElementById('portsContent').innerHTML = `<div class="error-message">${e.message}</div>`;
+            }
+        }
+        
+        function populatePortList(output) {
+            const ports = [];
+            const lines = output.split('\n');
+            lines.forEach(line => {
+                // Match swp interfaces (swp1s0, swp10, etc.)
+                const match = line.match(/^(swp\S+)\s+/);
+                if (match) {
+                    ports.push(match[1]);
+                }
+            });
+            
+            // Sort naturally
+            ports.sort(naturalSort);
+            
+            // Populate datalist
+            const portList = document.getElementById('portList');
+            if (portList) {
+                portList.innerHTML = ports.map(p => `<option value="${p}">`).join('');
+            }
+        }
+        
+        async function loadVRFList() {
+            try {
+                const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: 'nv show vrf'})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const vrfs = [];
+                    const lines = data.output.split('\n');
+                    lines.forEach(line => {
+                        const match = line.match(/^(\S+)\s+/);
+                        if (match && !match[1].startsWith('-') && match[1] !== 'vrf' && match[1] !== 'Name' && match[1] !== '==') {
+                            vrfs.push(match[1]);
+                        }
+                    });
+                    
+                    // Update both VRF selects (add 'all' option)
+                    ['vrfSelect', 'cmdVrfSelect'].forEach(id => {
+                        const select = document.getElementById(id);
+                        if (select) {
+                            select.innerHTML = '<option value="all">all</option>' + vrfs.map(v => `<option value="${v}">${v}</option>`).join('');
+                        }
+                    });
+                    
+                    // Load BGP for first VRF
+                    if (vrfs.length > 0) {
+                        loadBGPForVRF();
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load VRF list:', e);
+            }
+        }
+        
+        async function loadBondList() {
+            try {
+                const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: 'nv show interface bonds'})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    const bonds = [];
+                    const lines = data.output.split('\n');
+                    lines.forEach(line => {
+                        // Match bond interfaces (type column shows 'bond')
+                        const match = line.match(/^(bond\S+)\s+/);
+                        if (match) {
+                            bonds.push(match[1]);
+                        }
+                    });
+                    
+                    // Sort bonds naturally
+                    bonds.sort(naturalSort);
+                    
+                    const datalist = document.getElementById('bondList');
+                    if (datalist) {
+                        datalist.innerHTML = bonds.map(b => `<option value="${b}">`).join('');
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load bond list:', e);
+            }
+        }
+        
+        function runBondCommand(type) {
+            const bond = document.getElementById('bondInput').value;
+            if (!bond) {
+                showNotification('Please select or enter a bond name', 'warning');
+                return;
+            }
+            if (type === 'details') {
+                runCommand('nv show interface ' + bond);
+            } else if (type === 'members') {
+                runCommand('cat /proc/net/bonding/' + bond);
+            }
+        }
+        
+        // ===== Capture Functions =====
+        // Store PCAP file path and abort controller
+        let capturePcapPath = null;
+        let captureAbortController = null;
+        let livePollingInterval = null;
+        let liveCaptureFile = null;
+        
+        // Load all interfaces for capture (including SVIs, bonds, etc.)
+        async function loadCaptureInterfaces() {
+            try {
+                const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: 'nv show interface --view=brief'})
+                });
+                const data = await response.json();
+                
+                if (data.success && data.output) {
+                    const datalist = document.getElementById('captureInterfaceList');
+                    datalist.innerHTML = '<option value="any">any (all interfaces)</option>';
+                    
+                    // Parse output - extract valid interface names only
+                    const lines = data.output.trim().split('\n');
+                    const interfaces = [];
+                    
+                    // Valid interface name patterns (vlan80, vlan80-v0, vlan4000_l3, etc.)
+                    const validPatterns = /^(swp\d+|swp\d+s\d+|vlan[a-zA-Z0-9_-]+|bond[a-zA-Z0-9_-]+|eth\d+|lo|mgmt|bridge|peerlink)$/;
+                    
+                    for (const line of lines) {
+                        // Skip header/separator/error lines
+                        if (line.startsWith('Interface') || line.startsWith('=') || line.startsWith('-') || 
+                            line.includes('stty') || line.includes('Welcome') || line.includes('Error') ||
+                            !line.trim()) continue;
+                        
+                        // First column is interface name
+                        const parts = line.trim().split(/\s+/);
+                        const iface = parts[0];
+                        
+                        // Only add if it matches valid interface pattern
+                        if (iface && validPatterns.test(iface)) {
+                            interfaces.push(iface);
+                        }
+                    }
+                    
+                    // Sort: vlanX first (after 'any'), then swpX, then bonds, then others
+                    interfaces.sort((a, b) => {
+                        const getOrder = (name) => {
+                            if (name.startsWith('vlan')) return 1;  // vlan first
+                            if (name.startsWith('swp')) return 2;
+                            if (name.startsWith('bond')) return 3;
+                            if (name === 'eth0' || name === 'lo' || name === 'mgmt') return 5;
+                            return 4;
+                        };
+                        const orderDiff = getOrder(a) - getOrder(b);
+                        if (orderDiff !== 0) return orderDiff;
+                        return a.localeCompare(b, undefined, {numeric: true});
+                    });
+                    
+                    interfaces.forEach(iface => {
+                        const opt = document.createElement('option');
+                        opt.value = iface;
+                        datalist.appendChild(opt);
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to load capture interfaces:', e);
+            }
+        }
+        
+        async function startCapture() {
+            const iface = document.getElementById('captureInterface').value;
+            const duration = document.getElementById('captureDuration').value;
+            const count = document.getElementById('captureCount').value;
+            const filter = document.getElementById('captureFilter').value;
+            const mode = document.getElementById('captureMode').value;
+            
+            if (!iface) {
+                showNotification('Please select an interface', 'error');
+                return;
+            }
+            
+            const statusEl = document.getElementById('captureStatus');
+            const outputEl = document.getElementById('captureOutput');
+            const pcapResultEl = document.getElementById('capturePcapResult');
+            const btnStartEl = document.getElementById('btnStartCapture');
+            const btnStopEl = document.getElementById('btnStopCapture');
+            
+            // Show stop button, hide start button
+            btnStartEl.style.display = 'none';
+            btnStopEl.style.display = 'inline-flex';
+            
+            // Reset UI
+            pcapResultEl.style.display = 'none';
+            capturePcapPath = null;
+            
+            // Create abort controller for this capture
+            captureAbortController = new AbortController();
+            
+            // Helper to restore buttons
+            const restoreButtons = () => {
+                btnStartEl.style.display = 'inline-flex';
+                btnStopEl.style.display = 'none';
+            };
+            
+            if (mode === 'pcap') {
+                // PCAP mode - save to file for Wireshark
+                statusEl.textContent = 'Cleaning old captures...';
+                statusEl.style.color = '#ff9800';
+                outputEl.style.display = 'block';
+                outputEl.innerHTML = 'Preparing capture...';
+                
+                // Clean up old PCAP files for this device (older than 1 hour)
+                try {
+                    await fetch('/fabric-api.sh?action=run-device-command', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({device: deviceName, command: 'find /tmp -name "capture_*.pcap" -mmin +60 -delete'})
+                    });
+                } catch (e) {
+                    // Ignore cleanup errors
+                }
+                
+                statusEl.textContent = 'Capturing to PCAP file...';
+                outputEl.innerHTML = 'Running tcpdump with PCAP output on ' + iface + '...\nThis will take ' + duration + ' seconds.';
+                
+                // Generate unique filename
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                const pcapFile = `/tmp/capture_${deviceName}_${iface}_${timestamp}.pcap`;
+                
+                // Save path immediately so stopCapture() can use it
+                capturePcapPath = pcapFile;
+                
+                // Build command with -w for PCAP output, -U (packet-buffered) for immediate write
+                let cmd = `sudo timeout ${duration} tcpdump -U -i ${iface} -nnnn -w ${pcapFile}`;
+                if (count !== '0') {
+                    cmd += ` -c ${count}`;
+                }
+                if (filter) {
+                    cmd += ` ${filter}`;
+                }
+                
+                try {
+                    const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({device: deviceName, command: cmd}),
+                        signal: captureAbortController.signal
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        document.getElementById('capturePcapPath').textContent = pcapFile;
+                        pcapResultEl.style.display = 'block';
+                        outputEl.innerHTML = escapeHtml(data.output);
+                        statusEl.textContent = 'Capture complete - PCAP ready for download';
+                        statusEl.style.color = '#76b900';
+                    } else {
+                        outputEl.innerHTML = 'Error: ' + escapeHtml(data.error);
+                        statusEl.textContent = 'Capture failed';
+                        statusEl.style.color = '#f44336';
+                        capturePcapPath = null; // Clear on error
+                    }
+                } catch (e) {
+                    // If aborted (stopped early), still show PCAP result since file exists
+                    if (e.name === 'AbortError') {
+                        document.getElementById('capturePcapPath').textContent = pcapFile;
+                        pcapResultEl.style.display = 'block';
+                        statusEl.textContent = 'Capture stopped - PCAP ready for download';
+                        statusEl.style.color = '#76b900';
+                    } else {
+                        outputEl.innerHTML = 'Capture stopped or error: ' + escapeHtml(e.message);
+                        statusEl.textContent = 'Capture ended';
+                        statusEl.style.color = '#888';
+                    }
+                }
+                restoreButtons();
+            } else {
+                // Live mode - real-time streaming via dedicated API
+                statusEl.textContent = 'Starting live capture...';
+                statusEl.style.color = '#76b900';
+                outputEl.style.display = 'block';
+                outputEl.innerHTML = '<pre id="liveOutput" style="margin: 0; white-space: pre-wrap; color: #4ec9b0; max-height: 400px; overflow-y: auto;">Initializing...</pre>';
+                
+                try {
+                    // Start tcpdump via dedicated action (handles background safely)
+                    const startResp = await fetch('/fabric-api.sh?action=start-live-capture', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            device: deviceName,
+                            interface: iface,
+                            duration: duration,
+                            count: count,
+                            filter: filter
+                        })
+                    });
+                    const startData = await startResp.json();
+                    
+                    if (!startData.success) {
+                        throw new Error(startData.error || 'Failed to start capture');
+                    }
+                    
+                    liveCaptureFile = startData.output_file;
+                    statusEl.textContent = 'Live capture running...';
+                    
+                    // Start polling for output
+                    let lastLength = 0;
+                    let emptyCount = 0;
+                    livePollingInterval = setInterval(async () => {
+                        try {
+                            const resp = await fetch('/fabric-api.sh?action=run-device-command', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({device: deviceName, command: `cat ${liveCaptureFile}`})
+                            });
+                            const data = await resp.json();
+                            
+                            if (data.success && data.output) {
+                                const liveEl = document.getElementById('liveOutput');
+                                if (liveEl && data.output.length > lastLength) {
+                                    liveEl.textContent = data.output;
+                                    liveEl.scrollTop = liveEl.scrollHeight; // Auto-scroll
+                                    lastLength = data.output.length;
+                                    emptyCount = 0;
+                                }
+                            } else {
+                                emptyCount++;
+                            }
+                        } catch (e) {
+                            // Ignore polling errors
+                        }
+                    }, 1000); // Poll every 1 second
+                    
+                    // Auto-stop after duration + buffer
+                    setTimeout(() => {
+                        if (livePollingInterval) {
+                            stopLiveCapture();
+                        }
+                    }, parseInt(duration) * 1000 + 3000);
+                    
+                } catch (e) {
+                    outputEl.innerHTML = '<div style="color: #f44336;">Error: ' + escapeHtml(e.message) + '</div>';
+                    statusEl.textContent = 'Error';
+                    statusEl.style.color = '#f44336';
+                    restoreButtons();
+                }
+            }
+        }
+        
+        function clearCaptureOutput() {
+            document.getElementById('captureOutput').style.display = 'none';
+            document.getElementById('captureOutput').innerHTML = '';
+            document.getElementById('capturePcapResult').style.display = 'none';
+            document.getElementById('captureStatus').textContent = '';
+            capturePcapPath = null;
+        }
+        
+        async function stopCapture() {
+            const statusEl = document.getElementById('captureStatus');
+            const btnStartEl = document.getElementById('btnStartCapture');
+            const btnStopEl = document.getElementById('btnStopCapture');
+            const pcapResultEl = document.getElementById('capturePcapResult');
+            
+            statusEl.textContent = 'Stopping capture...';
+            statusEl.style.color = '#ff9800';
+            
+            // Restore buttons immediately - don't wait for response
+            btnStartEl.style.display = 'inline-flex';
+            btnStopEl.style.display = 'none';
+            
+            // Stop live polling if active
+            if (livePollingInterval) {
+                clearInterval(livePollingInterval);
+                livePollingInterval = null;
+            }
+            
+            // Abort the running capture fetch immediately
+            if (captureAbortController) {
+                captureAbortController.abort();
+                captureAbortController = null;
+            }
+            
+            // Kill tcpdump process on device (fire and forget)
+            fetch('/fabric-api.sh?action=run-device-command', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({device: deviceName, command: 'sudo killall tcpdump'})
+            }).catch(() => {});
+            
+            // Clean up live capture file if exists
+            if (liveCaptureFile) {
+                fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: `sudo rm -f ${liveCaptureFile}`})
+                }).catch(() => {});
+                liveCaptureFile = null;
+            }
+            
+            // If PCAP mode was active and we have a file path, show the result
+            if (capturePcapPath) {
+                document.getElementById('capturePcapPath').textContent = capturePcapPath;
+                pcapResultEl.style.display = 'block';
+                statusEl.textContent = 'Capture stopped - PCAP file ready';
+                statusEl.style.color = '#76b900';
+                showNotification('Capture stopped - PCAP ready for download', 'info');
+            } else {
+                statusEl.textContent = 'Capture stopped';
+                statusEl.style.color = '#888';
+                showNotification('Capture stopped', 'info');
+            }
+        }
+        
+        function stopLiveCapture() {
+            const statusEl = document.getElementById('captureStatus');
+            const btnStartEl = document.getElementById('btnStartCapture');
+            const btnStopEl = document.getElementById('btnStopCapture');
+            
+            // Stop polling
+            if (livePollingInterval) {
+                clearInterval(livePollingInterval);
+                livePollingInterval = null;
+            }
+            
+            // Restore buttons
+            btnStartEl.style.display = 'inline-flex';
+            btnStopEl.style.display = 'none';
+            
+            // Clean up file
+            if (liveCaptureFile) {
+                fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: `sudo rm -f ${liveCaptureFile}`})
+                }).catch(() => {});
+                liveCaptureFile = null;
+            }
+            
+            statusEl.textContent = 'Capture complete';
+            statusEl.style.color = '#76b900';
+        }
+        
+        async function downloadPcap() {
+            if (!capturePcapPath) {
+                showNotification('No PCAP file to download', 'warning');
+                return;
+            }
+            
+            const statusEl = document.getElementById('captureStatus');
+            const btnEl = document.getElementById('btnDownloadPcap');
+            
+            btnEl.disabled = true;
+            statusEl.textContent = 'Preparing download...';
+            statusEl.style.color = '#ff9800';
+            
+            try {
+                const response = await fetch(`/fabric-api.sh?action=download-file&device=${encodeURIComponent(deviceName)}&file=${encodeURIComponent(capturePcapPath)}`);
+                const text = await response.text();
+                console.log('Download response:', text);
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (parseErr) {
+                    statusEl.textContent = 'Invalid response from server';
+                    statusEl.style.color = '#f44336';
+                    console.error('Parse error:', parseErr, 'Response:', text.substring(0, 500));
+                    btnEl.disabled = false;
+                    return;
+                }
+                
+                if (data.success && data.download_url) {
+                    const a = document.createElement('a');
+                    a.href = data.download_url;
+                    a.download = data.filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    statusEl.textContent = 'Download started';
+                    statusEl.style.color = '#76b900';
+                    showNotification('Downloading: ' + data.filename, 'info');
+                } else {
+                    statusEl.textContent = 'Download failed: ' + (data.error || 'Unknown error');
+                    statusEl.style.color = '#f44336';
+                }
+            } catch (e) {
+                statusEl.textContent = 'Error: ' + e.message;
+                statusEl.style.color = '#f44336';
+            }
+            
+            btnEl.disabled = false;
+        }
+        
+        async function deletePcap() {
+            if (!capturePcapPath) {
+                showNotification('No file to delete', 'warning');
+                return;
+            }
+            
+            const statusEl = document.getElementById('captureStatus');
+            statusEl.textContent = 'Deleting...';
+            statusEl.style.color = '#ff9800';
+            
+            try {
+                const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: `sudo rm -f "${capturePcapPath}"`})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('capturePcapResult').style.display = 'none';
+                    document.getElementById('captureOutput').style.display = 'none';
+                    capturePcapPath = null;
+                    statusEl.textContent = 'File deleted';
+                    statusEl.style.color = '#76b900';
+                    showNotification('PCAP file deleted', 'info');
+                } else {
+                    statusEl.textContent = 'Delete failed';
+                    statusEl.style.color = '#f44336';
+                }
+            } catch (e) {
+                statusEl.textContent = 'Error: ' + e.message;
+                statusEl.style.color = '#f44336';
+            }
+        }
+        
+        function deleteAllPcap() {
+            showConfirmModal(
+                'Delete All PCAP Files',
+                'Are you sure you want to delete ALL PCAP files from this device?',
+                executeDeleteAllPcap
+            );
+        }
+        
+        async function executeDeleteAllPcap() {
+            const statusEl = document.getElementById('captureStatus');
+            const btnEl = document.getElementById('btnDeleteAllPcap');
+            
+            btnEl.disabled = true;
+            statusEl.textContent = 'Deleting all PCAP files...';
+            statusEl.style.color = '#ff9800';
+            
+            try {
+                const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: 'sudo rm -f /tmp/capture_*.pcap'})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('capturePcapResult').style.display = 'none';
+                    document.getElementById('captureOutput').style.display = 'none';
+                    capturePcapPath = null;
+                    statusEl.textContent = 'All PCAP files deleted';
+                    statusEl.style.color = '#76b900';
+                    showNotification('All PCAP files deleted from device', 'info');
+                } else {
+                    statusEl.textContent = 'Delete failed: ' + (data.error || 'Unknown error');
+                    statusEl.style.color = '#f44336';
+                }
+            } catch (e) {
+                statusEl.textContent = 'Error: ' + e.message;
+                statusEl.style.color = '#f44336';
+            }
+            
+            btnEl.disabled = false;
+        }
+        
+        // Store the generated cl-support file path
+        let clsupportFilePath = null;
+        let clsupportPollingInterval = null;
+        
+        // Load cl-support status when tab is opened
+        async function loadClSupportStatus() {
+            const statusEl = document.getElementById('clsupportStatus');
+            const progressEl = document.getElementById('clsupportProgress');
+            const resultEl = document.getElementById('clsupportResult');
+            const btnEl = document.getElementById('btnGenerateClsupport');
+            
+            statusEl.textContent = 'Checking...';
+            statusEl.style.color = '#888';
+            
+            try {
+                // Check if cl-support is running
+                const psResponse = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: 'pgrep -f cl-support'})
+                });
+                const psData = await psResponse.json();
+                const isRunning = psData.success && psData.output && psData.output.trim().length > 0;
+                
+                if (isRunning) {
+                    // cl-support is running
+                    progressEl.style.display = 'block';
+                    resultEl.style.display = 'none';
+                    btnEl.disabled = true;
+                    btnEl.style.opacity = '0.5';
+                    statusEl.textContent = 'Generating...';
+                    statusEl.style.color = '#ff9800';
+                    
+                    // Start polling
+                    startClSupportPolling();
+                    return;
+                }
+                
+                // Check for existing bundle
+                const lsResponse = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: 'ls -t /var/support/cl_support*.txz 2>/dev/null'})
+                });
+                const lsData = await lsResponse.json();
+                
+                if (lsData.success && lsData.output && lsData.output.trim()) {
+                    // Bundle exists - show it
+                    clsupportFilePath = lsData.output.trim().split('\n')[0]; // Get latest
+                    document.getElementById('clsupportFilePath').textContent = clsupportFilePath;
+                    progressEl.style.display = 'none';
+                    resultEl.style.display = 'block';
+                    btnEl.disabled = false;
+                    btnEl.style.opacity = '1';
+                    statusEl.textContent = 'Bundle ready';
+                    statusEl.style.color = '#76b900';
+                } else {
+                    // No bundle exists
+                    progressEl.style.display = 'none';
+                    resultEl.style.display = 'none';
+                    btnEl.disabled = false;
+                    btnEl.style.opacity = '1';
+                    statusEl.textContent = 'No bundle found';
+                    statusEl.style.color = '#888';
+                }
+            } catch (e) {
+                statusEl.textContent = 'Error: ' + e.message;
+                statusEl.style.color = '#f44336';
+            }
+        }
+        
+        // Warn user before leaving page if cl-support is running
+        window.addEventListener('beforeunload', function(e) {
+            if (clsupportPollingInterval) {
+                e.preventDefault();
+                e.returnValue = 'cl-support is still generating. Are you sure you want to leave?';
+                return e.returnValue;
+            }
+        });
+        
+        function startClSupportPolling() {
+            if (clsupportPollingInterval) return; // Already polling
+            
+            clsupportPollingInterval = setInterval(async () => {
+                const psResponse = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: 'pgrep -f cl-support'})
+                });
+                const psData = await psResponse.json();
+                const isRunning = psData.success && psData.output && psData.output.trim().length > 0;
+                
+                if (!isRunning) {
+                    // cl-support finished
+                    clearInterval(clsupportPollingInterval);
+                    clsupportPollingInterval = null;
+                    loadClSupportStatus(); // Reload status
+                }
+            }, 3000); // Check every 3 seconds
+        }
+        
+        async function generateClSupport() {
+            const statusEl = document.getElementById('clsupportStatus');
+            const progressEl = document.getElementById('clsupportProgress');
+            const resultEl = document.getElementById('clsupportResult');
+            const btnEl = document.getElementById('btnGenerateClsupport');
+            
+            // Disable generate button
+            btnEl.disabled = true;
+            btnEl.style.opacity = '0.5';
+            
+            statusEl.textContent = 'Cleaning old bundles...';
+            statusEl.style.color = '#ff9800';
+            resultEl.style.display = 'none';
+            
+            try {
+                // First, delete old bundles
+                await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: 'sudo rm -f /var/support/cl_support*.txz'})
+                });
+                
+                clsupportFilePath = null;
+                
+                statusEl.textContent = 'Starting cl-support...';
+                
+                // Run cl-support in background via dedicated action
+                const startResp = await fetch('/fabric-api.sh?action=start-clsupport', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName})
+                });
+                const startData = await startResp.json();
+                
+                if (!startData.success) {
+                    throw new Error(startData.error || 'Failed to start cl-support');
+                }
+                
+                // Show progress
+                progressEl.style.display = 'block';
+                statusEl.textContent = 'Generating... (2-5 minutes)';
+                statusEl.style.color = '#ff9800';
+                
+                showNotification('cl-support started. Will auto-update when ready.', 'info');
+                
+                // Start polling for completion
+                startClSupportPolling();
+                
+            } catch (e) {
+                statusEl.textContent = 'Error: ' + e.message;
+                statusEl.style.color = '#f44336';
+                btnEl.disabled = false;
+                btnEl.style.opacity = '1';
+            }
+        }
+        
+        async function checkClSupportStatus() {
+            // Just reload status
+            loadClSupportStatus();
+        }
+        
+        async function downloadClSupport() {
+            if (!clsupportFilePath) {
+                showNotification('No file to download', 'warning');
+                return;
+            }
+            
+            const statusEl = document.getElementById('clsupportStatus');
+            const btnEl = document.getElementById('clsupportDownloadBtn');
+            
+            btnEl.disabled = true;
+            statusEl.textContent = 'Preparing download...';
+            statusEl.style.color = '#ff9800';
+            
+            try {
+                // First, fetch file to web server
+                const response = await fetch(`/fabric-api.sh?action=download-file&device=${encodeURIComponent(deviceName)}&file=${encodeURIComponent(clsupportFilePath)}`);
+                const data = await response.json();
+                
+                if (data.success && data.download_url) {
+                    // Trigger download
+                    const a = document.createElement('a');
+                    a.href = data.download_url;
+                    a.download = data.filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    statusEl.textContent = 'Download started';
+                    statusEl.style.color = '#76b900';
+                    showNotification('Download started: ' + data.filename, 'info');
+                } else {
+                    statusEl.textContent = 'Download failed: ' + (data.error || 'Unknown error');
+                    statusEl.style.color = '#f44336';
+                    showNotification('Download failed', 'error');
+                }
+            } catch (e) {
+                statusEl.textContent = 'Error: ' + e.message;
+                statusEl.style.color = '#f44336';
+            }
+            
+            btnEl.disabled = false;
+        }
+        
+        function deleteClSupport() {
+            if (!clsupportFilePath) {
+                showNotification('No file to delete', 'warning');
+                return;
+            }
+            
+            showConfirmModal(
+                'Delete cl-support Bundle',
+                'Are you sure you want to delete this cl-support bundle?',
+                executeDeleteClSupport
+            );
+        }
+        
+        async function executeDeleteClSupport() {
+            const statusEl = document.getElementById('clsupportStatus');
+            statusEl.textContent = 'Deleting...';
+            statusEl.style.color = '#ff9800';
+            
+            try {
+                const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: `sudo rm -f "${clsupportFilePath}"`})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('clsupportResult').style.display = 'none';
+                    document.getElementById('clsupportProgress').style.display = 'none';
+                    clsupportFilePath = null;
+                    
+                    // Re-enable generate button
+                    const btnEl = document.getElementById('btnGenerateClsupport');
+                    btnEl.disabled = false;
+                    btnEl.style.opacity = '1';
+                    
+                    statusEl.textContent = 'Deleted';
+                    statusEl.style.color = '#888';
+                    showNotification('cl-support bundle deleted', 'info');
+                } else {
+                    statusEl.textContent = 'Delete failed: ' + data.error;
+                    statusEl.style.color = '#f44336';
+                }
+            } catch (e) {
+                statusEl.textContent = 'Error: ' + e.message;
+                statusEl.style.color = '#f44336';
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function showNotification(message, type = 'info') {
+            // Remove existing notification
+            const existing = document.querySelector('.notification');
+            if (existing) existing.remove();
+            
+            const notification = document.createElement('div');
+            notification.className = 'notification notification-' + type;
+            notification.textContent = message;
+            notification.style.cssText = 'position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 6px; z-index: 1000; font-size: 14px; animation: fadeIn 0.3s;';
+            
+            if (type === 'warning') {
+                notification.style.background = '#ff9800';
+                notification.style.color = '#000';
+            } else if (type === 'error') {
+                notification.style.background = '#f44336';
+                notification.style.color = '#fff';
+            } else {
+                notification.style.background = '#76b900';
+                notification.style.color = '#000';
+            }
+            
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 3000);
+        }
+        
+        async function loadBGPForVRF() {
+            const vrf = document.getElementById('vrfSelect').value || 'default';
+            document.getElementById('bgpContent').innerHTML = '<div class="loading">Loading BGP neighbors...</div>';
+            
+            try {
+                let cmd;
+                if (vrf === 'all') {
+                    cmd = 'sudo vtysh -c "show bgp vrf all summary"';
+                } else if (vrf === 'default') {
+                    cmd = 'sudo vtysh -c "show bgp summary"';
+                } else {
+                    cmd = `sudo vtysh -c "show bgp vrf ${vrf} summary"`;
+                }
+                    
+                const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: cmd})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('bgpContent').innerHTML = `<pre style="font-size: 12px; overflow-x: auto;">${data.output}</pre>`;
+                } else {
+                    document.getElementById('bgpContent').innerHTML = `<div class="error-message">${data.error}</div>`;
+                }
+                document.getElementById('bgpContent').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (e) {
+                document.getElementById('bgpContent').innerHTML = `<div class="error-message">${e.message}</div>`;
+            }
+        }
+        
+        function renderOverview(data) {
+            const optical = data.optical || [];
+            const logs = data.logs || {};
+            
+            // Count optical health
+            const opticalHealth = {excellent: 0, good: 0, warning: 0, critical: 0};
+            optical.forEach(o => {
+                if (opticalHealth[o.health] !== undefined) opticalHealth[o.health]++;
+            });
+            
+            document.getElementById('overviewCards').innerHTML = `
+                <div class="summary-card">
+                    <div class="value" style="color: #76b900">${optical.length}</div>
+                    <div class="label">Optical Ports</div>
+                </div>
+                <div class="summary-card">
+                    <div class="value" style="color: ${opticalHealth.warning + opticalHealth.critical > 0 ? '#ff9800' : '#4caf50'}">${opticalHealth.excellent + opticalHealth.good}</div>
+                    <div class="label">Optical OK</div>
+                </div>
+                <div class="summary-card">
+                    <div class="value" style="color: ${opticalHealth.warning > 0 ? '#ff9800' : '#808080'}">${opticalHealth.warning}</div>
+                    <div class="label">Optical Warning</div>
+                </div>
+                <div class="summary-card">
+                    <div class="value" style="color: ${logs.error > 0 ? '#f44336' : '#4caf50'}">${logs.error || 0}</div>
+                    <div class="label">Log Errors</div>
+                </div>
+                <div class="summary-card">
+                    <div class="value" style="color: #808080">${logs.info || 0}</div>
+                    <div class="label">Log Info</div>
+                </div>
+            `;
+        }
+        
+        async function renderOptical(optical) {
+            // First, get interface status to find down ports
+            let downPorts = [];
+            try {
+                const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: 'nv show interface --view=brief'})
+                });
+                const data = await response.json();
+                if (data.success) {
+                    const lines = data.output.split('\n');
+                    lines.forEach(line => {
+                        // Match swp interfaces that are down
+                        const match = line.match(/^(swp\S+)\s+\S+\s+down/i);
+                        if (match) {
+                            downPorts.push(match[1]);
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to get interface status:', e);
+            }
+            
+            // Create combined list - existing optical + down ports
+            const opticalPorts = new Set(optical.map(o => o.port));
+            downPorts.forEach(port => {
+                if (!opticalPorts.has(port)) {
+                    optical.push({
+                        port: port,
+                        health: 'down',
+                        rx_power_dbm: null,
+                        tx_power_dbm: null,
+                        temperature_c: null,
+                        link_margin_db: null
+                    });
+                }
+            });
+            
+            if (optical.length === 0) {
+                document.getElementById('opticalContent').innerHTML = '<p>No optical data available</p>';
+                return;
+            }
+            
+            let html = `<table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Port</th>
+                        <th>Health</th>
+                        <th>RX Power (dBm)</th>
+                        <th>TX Power (dBm)</th>
+                        <th>Temperature (C)</th>
+                        <th>Link Margin (dB)</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+            
+            // Sort by port name (natural sort)
+            optical.sort((a, b) => naturalSort(a.port, b.port));
+            
+            optical.forEach(o => {
+                const rowClass = o.health === 'down' ? 'clickable down-row' : 'clickable';
+                html += `<tr class="${rowClass}" onclick="showOpticalDetail('${o.port}')" id="optical-row-${o.port.replace(/[^a-zA-Z0-9]/g, '-')}">
+                    <td><strong>${o.port}</strong></td>
+                    <td class="status-${o.health}">${o.health}</td>
+                    <td>${o.rx_power_dbm?.toFixed(2) || 'N/A'}</td>
+                    <td>${o.tx_power_dbm?.toFixed(2) || 'N/A'}</td>
+                    <td>${o.temperature_c?.toFixed(1) || 'N/A'}</td>
+                    <td>${o.link_margin_db?.toFixed(2) || 'N/A'}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('opticalContent').innerHTML = html;
+            
+            // Port datalist is populated separately by loadPortList()
+        }
+        
+        async function showOpticalDetail(port) {
+            // Highlight selected row
+            document.querySelectorAll('#opticalContent tr').forEach(r => r.classList.remove('selected'));
+            const rowId = 'optical-row-' + port.replace(/[^a-zA-Z0-9]/g, '-');
+            document.getElementById(rowId)?.classList.add('selected');
+            
+            const detailDiv = document.getElementById('opticalDetail');
+            detailDiv.style.display = 'block';
+            detailDiv.innerHTML = `<div style="color: #76b900; margin-bottom: 10px;">Loading L1 diagnostics for ${port}...</div>`;
+            
+            try {
+                // Run l1-show for detailed info
+                const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: `sudo l1-show ${port}`})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    detailDiv.innerHTML = `<div style="color: #76b900; margin-bottom: 10px; font-weight: bold;">L1 Diagnostics: ${port}</div>${data.output}`;
+                } else {
+                    detailDiv.innerHTML = `<div style="color: #f44336;">Error: ${data.error}</div>`;
+                }
+                detailDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (e) {
+                detailDiv.innerHTML = `<div style="color: #f44336;">Failed: ${e.message}</div>`;
+                detailDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+        
+        function renderLogs(logs) {
+            document.getElementById('logCards').innerHTML = `
+                <div class="summary-card log-card" onclick="showLogs('critical')" id="logCardCritical">
+                    <div class="value" style="color: #f44336">${logs.critical || 0}</div>
+                    <div class="label">Critical</div>
+                </div>
+                <div class="summary-card log-card" onclick="showLogs('error')" id="logCardError">
+                    <div class="value" style="color: #ff5722">${logs.error || 0}</div>
+                    <div class="label">Error</div>
+                </div>
+                <div class="summary-card log-card" onclick="showLogs('warning')" id="logCardWarning">
+                    <div class="value" style="color: #ff9800">${logs.warning || 0}</div>
+                    <div class="label">Warning</div>
+                </div>
+                <div class="summary-card log-card" onclick="showLogs('info')" id="logCardInfo">
+                    <div class="value" style="color: #4caf50">${logs.info || 0}</div>
+                    <div class="label">Info</div>
+                </div>
+            `;
+        }
+        
+        async function showLogs(severity) {
+            // Highlight selected card
+            document.querySelectorAll('.log-card').forEach(c => c.classList.remove('selected'));
+            document.getElementById('logCard' + severity.charAt(0).toUpperCase() + severity.slice(1)).classList.add('selected');
+            
+            const logOutput = document.getElementById('logOutput');
+            logOutput.style.display = 'block';
+            logOutput.textContent = 'Loading logs...';
+            
+            // Map severity to journalctl priority
+            const priorityMap = {
+                'critical': '0..2',
+                'error': '3',
+                'warning': '4',
+                'info': '5..6'
+            };
+            
+            try {
+                const cmd = `sudo journalctl -p ${priorityMap[severity]} -n 100 --no-pager`;
+                const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: cmd})
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    logOutput.textContent = data.output || 'No logs found';
+                } else {
+                    logOutput.textContent = 'Error: ' + data.error;
+                }
+                logOutput.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (e) {
+                logOutput.textContent = 'Failed to load logs: ' + e.message;
+                logOutput.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('overviewCards').innerHTML = `<div class="error-message">${message}</div>`;
+        }
+        
+        async function runCommand(cmd) {
+            const outputDiv = document.getElementById('commandOutput');
+            const cmdHeader = document.getElementById('cmdHeader');
+            const cmdResult = document.getElementById('cmdResult');
+            
+            outputDiv.style.display = 'block';
+            cmdHeader.textContent = `$ ${cmd}`;
+            cmdResult.textContent = 'Running...';
+            
+            try {
+                const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: cmd})
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    cmdResult.textContent = data.output || '(no output)';
+                } else {
+                    cmdResult.innerHTML = `<span style="color: #f44336">Error: ${data.error}</span>`;
+                }
+                // Scroll to output
+                outputDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (e) {
+                cmdResult.innerHTML = `<span style="color: #f44336">Request failed: ${e.message}</span>`;
+                outputDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+        
+        function runVrfCommand(prefix, suffix) {
+            const vrf = document.getElementById('cmdVrfSelect').value;
+            let cmd;
+            if (vrf === 'all') {
+                // "all" not supported by nv show vrf - use nv show router bgp instead
+                if (suffix.includes('bgp neighbor')) {
+                    cmd = 'nv show router bgp neighbor';
+                } else {
+                    cmd = `${prefix} default ${suffix}`;
+                }
+            } else if (vrf) {
+                cmd = `${prefix} ${vrf} ${suffix}`;
+            } else {
+                cmd = `${prefix} default ${suffix}`;
+            }
+            runCommand(cmd);
+        }
+        
+        function runVtyshVrf(showCmd) {
+            const vrf = document.getElementById('cmdVrfSelect').value;
+            let cmd;
+            if (vrf === 'all') {
+                // Handle "all" VRF - different syntax for different commands
+                if (showCmd.includes('bgp summary')) {
+                    cmd = `sudo vtysh -c "show bgp vrf all summary"`;
+                } else if (showCmd.includes('ip route')) {
+                    cmd = `sudo vtysh -c "show ip route vrf all"`;
+                } else if (showCmd.includes('evpn')) {
+                    cmd = `sudo vtysh -c "${showCmd}"`;
+                } else {
+                    cmd = `sudo vtysh -c "${showCmd}"`;
+                }
+            } else if (vrf && vrf !== 'default') {
+                if (showCmd.includes('bgp summary')) {
+                    cmd = `sudo vtysh -c "show bgp vrf ${vrf} summary"`;
+                } else if (showCmd.includes('ip route')) {
+                    cmd = `sudo vtysh -c "show ip route vrf ${vrf}"`;
+                } else {
+                    cmd = `sudo vtysh -c "${showCmd}"`;
+                }
+            } else {
+                cmd = `sudo vtysh -c "${showCmd}"`;
+            }
+            runCommand(cmd);
+        }
+        
+        function runIpRouteVrf() {
+            const vrf = document.getElementById('cmdVrfSelect').value;
+            let cmd;
+            if (vrf === 'all') {
+                cmd = 'ip route show table all';
+            } else if (vrf && vrf !== 'default') {
+                cmd = `ip route show vrf ${vrf}`;
+            } else {
+                cmd = 'ip route show';
+            }
+            runCommand(cmd);
+        }
+        
+        function runCustomCommand() {
+            const cmd = document.getElementById('customCmd').value.trim();
+            if (cmd) {
+                runCommand(cmd);
+            }
+        }
+        
+        // Enter key for custom command
+        document.getElementById('customCmd').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') runCustomCommand();
+        });
+        
+        function refreshAllData() {
+            // Show loading state
+            document.getElementById('overviewCards').innerHTML = '<div class="loading">Refreshing...</div>';
+            document.getElementById('portsContent').innerHTML = '<div class="loading">Refreshing...</div>';
+            document.getElementById('opticalContent').innerHTML = '<div class="loading">Refreshing...</div>';
+            document.getElementById('bgpContent').innerHTML = '<div class="loading">Refreshing...</div>';
+            
+            // Reload all data
+            loadDeviceData();
+            loadPortStatus();
+            loadVRFList();
+        }
+        
+        // ===== Confirm Modal Functions =====
+        let confirmCallback = null;
+        
+        function showConfirmModal(title, message, callback) {
+            document.getElementById('confirm-modal-title').textContent = title;
+            document.getElementById('confirm-modal-message').textContent = message;
+            confirmCallback = callback;
+            document.getElementById('confirm-modal').classList.add('visible');
+        }
+        
+        function closeConfirmModal() {
+            document.getElementById('confirm-modal').classList.remove('visible');
+            confirmCallback = null;
+        }
+        
+        function executeConfirm() {
+            if (confirmCallback) {
+                confirmCallback();
+            }
+            closeConfirmModal();
+        }
+    </script>
+    
+    <!-- Confirm Modal -->
+    <div id="confirm-modal" class="confirm-modal" onclick="if(event.target === this) closeConfirmModal()">
+        <div class="confirm-modal-content">
+            <div class="confirm-modal-header">
+                <h3 id="confirm-modal-title">Confirm</h3>
+                <button class="confirm-modal-close" onclick="closeConfirmModal()">&times;</button>
+            </div>
+            <div class="confirm-modal-body">
+                <p id="confirm-modal-message"></p>
+            </div>
+            <div class="confirm-modal-footer">
+                <button type="button" class="btn-cancel" onclick="closeConfirmModal()">Cancel</button>
+                <button type="button" class="btn-danger" onclick="executeConfirm()">Delete</button>
+            </div>
+        </div>
+    </div>
+    
+    <style>
+        .confirm-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+        .confirm-modal.visible {
+            display: flex;
+        }
+        .confirm-modal-content {
+            background: #2d2d2d;
+            border-radius: 8px;
+            width: 400px;
+            max-width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+        .confirm-modal-header {
+            background: linear-gradient(135deg, #c53030 0%, #9b2c2c 100%);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .confirm-modal-header h3 {
+            margin: 0;
+            color: #fff;
+            font-size: 16px;
+        }
+        .confirm-modal-close {
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 24px;
+            cursor: pointer;
+            opacity: 0.8;
+        }
+        .confirm-modal-close:hover {
+            opacity: 1;
+        }
+        .confirm-modal-body {
+            padding: 25px 20px;
+        }
+        .confirm-modal-body p {
+            color: #ccc;
+            line-height: 1.6;
+            margin: 0;
+            text-align: center;
+        }
+        .confirm-modal-footer {
+            padding: 15px 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            background: #252526;
+            border-top: 1px solid #3c3c3c;
+        }
+        .confirm-modal-footer .btn-cancel {
+            background: #3c3c3c;
+            color: #d4d4d4;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .confirm-modal-footer .btn-cancel:hover {
+            background: #4a4a4a;
+        }
+        .confirm-modal-footer .btn-danger {
+            background: #c53030;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .confirm-modal-footer .btn-danger:hover {
+            background: #e53e3e;
+        }
+    </style>
+</body>
+</html>
