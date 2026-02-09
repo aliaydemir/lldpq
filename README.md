@@ -38,6 +38,7 @@ cd lldpq-src
 - shows network topology with lldp
 - web dashboard with real-time stats
 - live network tables (MAC, ARP, VTEP, Routes, LLDP neighbors)
+- tracepath: visual path tracing between any two IPs (intra-VRF, inter-VRF, external)
 - device details page with command runner
 
 ## [02] analysis coverage
@@ -83,6 +84,7 @@ access via web UI: `http://<server>/search.html`
 - search/filter support
 - CSV export for MAC/ARP tables
 - parallel queries for "All Devices" mode
+- **fast subnet search**: cached-only queries for subnet patterns (e.g. `192.168.64`)
 
 ## [02c] device details & command runner
 
@@ -134,6 +136,45 @@ access via web UI: `http://<server>/device.html`
 - commands are whitelisted (only safe monitoring commands allowed)
 - operators can use command runner for monitoring
 - no configuration changes possible via command runner
+
+## [02d] tracepath
+
+access via web UI: `http://<server>/tracepath.html`
+
+trace the network path between any two IPs across the fabric. uses cached fabric-scan data for instant results.
+
+### features
+- **source/dest IP input** with separate VRF selectors and auto-detect
+- **swap button** to reverse source ↔ destination
+- **3 scenarios**: intra-VRF, inter-VRF (border leaf + external gateway), external destination
+- **same-device detection**: local switching when source and dest are on the same leaf
+- **ECMP link health**: shows up/down link counts on spine/core layers from LLDP data
+- **VRF auto-correct**: if user selects wrong dest VRF, auto-corrects from ARP data
+- **summary header**: source/dest IP, device, VRF, VRF path, hop count
+
+### path visualization
+
+| Scenario | Path Shown |
+|----------|------------|
+| **same-pod intra-VRF** | Leaf → Spine (ECMP) → Leaf |
+| **cross-pod intra-VRF** | Leaf → Spine → Core → Spine → Leaf |
+| **inter-VRF** | Source → Spines → Border Leaf → External GW → Border Leaf → Spines → Dest |
+| **external dest** (8.8.8.8) | Source → Spines → Border Leaf → External Network → Dest |
+| **same device** | Source Host → Leaf (local switching) → Dest Host |
+
+### universal algorithms (no hardcoding)
+
+all path discovery is based on graph analysis — no hardcoded hostnames, IPs, or naming patterns:
+
+| Algorithm | Method |
+|-----------|--------|
+| **tier detection** | LLDP neighbor degree analysis + BFS from leaves |
+| **pod detection** | shared spine set intersection |
+| **border leaf detection** | default route nexthop signature majority analysis |
+| **core detection** | cross-pod spine tier-2 neighbor bridging |
+| **link health** | LLDP bidirectional link status counting |
+
+works with any Clos topology: 2-tier (leaf-spine), 3-tier (leaf-spine-core), or N-tier.
 
 ## [03] configuration files
 
