@@ -209,9 +209,10 @@ cp -r telemetry "$LLDPQ_INSTALL_DIR/telemetry"
 chmod +x "$LLDPQ_INSTALL_DIR/telemetry/start.sh"
 
 echo "   - Setting permissions on $LLDPQ_INSTALL_DIR for web access (search-api.sh)"
-# www-data needs read access to devices.yaml and monitor-results for search functionality
+# www-data needs read+write access to devices.yaml (web UI editor) and read to monitor-results
 chmod 750 "$LLDPQ_INSTALL_DIR"  # user=rwx, group=rx, other=none
-chmod 640 "$LLDPQ_INSTALL_DIR/devices.yaml"  # user=rw, group=r, other=none
+chown "$LLDPQ_USER":www-data "$LLDPQ_INSTALL_DIR/devices.yaml" 2>/dev/null || true
+chmod 664 "$LLDPQ_INSTALL_DIR/devices.yaml"  # user=rw, group=rw, other=r (web UI needs write)
 mkdir -p "$LLDPQ_INSTALL_DIR/monitor-results/fabric-tables"
 chmod 750 "$LLDPQ_INSTALL_DIR/monitor-results"
 chmod 750 "$LLDPQ_INSTALL_DIR/monitor-results/fabric-tables"
@@ -667,7 +668,7 @@ cat > .git/hooks/post-merge << 'HOOKEOF'
 #!/bin/bash
 # Fix permissions after git pull/merge (preserve group read access for www-data)
 chmod 750 "$(git rev-parse --show-toplevel)" 2>/dev/null || true
-chmod 640 "$(git rev-parse --show-toplevel)/devices.yaml" 2>/dev/null || true
+chmod 664 "$(git rev-parse --show-toplevel)/devices.yaml" 2>/dev/null || true
 if [ -d "$(git rev-parse --show-toplevel)/monitor-results" ]; then
     chmod -R 750 "$(git rev-parse --show-toplevel)/monitor-results" 2>/dev/null || true
 fi

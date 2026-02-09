@@ -5617,7 +5617,7 @@ for pattern in ALLOWED_PATTERNS:
 
 # If not in whitelist, reject
 if not command_allowed:
-    print(json.dumps({'success': False, 'error': 'Command not in whitelist. Allowed: nv show, net show, sudo vtysh -c "show...", journalctl, uptime'}))
+    print(json.dumps({'success': False, 'error': 'Command not in whitelist. Allowed: nv show, sudo vtysh -c "show...", ethtool, journalctl, uptime, dmesg'}))
     exit()
 
 # Even if whitelisted, check for shell injection attempts

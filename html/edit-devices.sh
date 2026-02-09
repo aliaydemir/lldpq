@@ -61,7 +61,7 @@ except Exception as e:
         if [ "$VALIDATION" = "valid" ]; then
             # Create backup before writing
             if [ -f "$DEVICES_FILE" ]; then
-                cp "$DEVICES_FILE" "${DEVICES_FILE}.bak"
+                cp "$DEVICES_FILE" "${DEVICES_FILE}.bak" 2>/dev/null
             fi
             
             # Write new content
