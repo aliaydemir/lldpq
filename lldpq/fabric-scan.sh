@@ -82,6 +82,10 @@ collect_device_data() {
         for b in /sys/class/net/*/bonding/slaves; do
             [ -f "$b" ] && echo "$(basename $(dirname $(dirname $b))):$(cat $b)"
         done 2>/dev/null
+        echo "===LOOPBACKS==="
+        /usr/sbin/ip -4 addr show lo 2>/dev/null | grep 'inet ' | awk '{print $2}'
+        echo "===NEXTHOPS==="
+        /usr/sbin/ip nexthop show 2>/dev/null | head -500
         echo "===ROUTES==="
         echo "VRF:default"
         /usr/sbin/ip route show 2>/dev/null | head -300
@@ -204,10 +208,51 @@ for entry in mac_entries:
     if iface in bond_members:
         entry['bond_ports'] = bond_members[iface]
 
+# Parse NEXTHOPS table (ip nexthop show)
+# Format: "id 18578 via 10.128.130.4 dev vlan4063_l3 scope link proto zebra onlink"
+# Format: "id 40050 group 18578/18635/18652 proto zebra"
+nexthop_table = {}  # nhid -> {'via': ip, 'dev': iface} or {'group': [nhid1, nhid2, ...]}
+for line in sections.get('NEXTHOPS', []):
+    line = line.strip()
+    if not line or not line.startswith('id '):
+        continue
+    parts = line.split()
+    nhid = ''
+    via = ''
+    dev = ''
+    group_ids = []
+    for i, p in enumerate(parts):
+        if p == 'id' and i+1 < len(parts): nhid = parts[i+1]
+        if p == 'via' and i+1 < len(parts): via = parts[i+1]
+        if p == 'dev' and i+1 < len(parts): dev = parts[i+1]
+        if p == 'group' and i+1 < len(parts): group_ids = parts[i+1].split('/')
+    if nhid:
+        if group_ids:
+            nexthop_table[nhid] = {'group': group_ids}
+        elif via:
+            nexthop_table[nhid] = {'via': via, 'dev': dev}
+
+def resolve_nhid(nhid):
+    """Resolve a nexthop ID to a list of (ip, dev) tuples."""
+    entry = nexthop_table.get(nhid, {})
+    if 'via' in entry:
+        return [{'ip': entry['via'], 'interface': entry.get('dev', '')}]
+    if 'group' in entry:
+        result = []
+        for gid in entry['group']:
+            sub = nexthop_table.get(gid, {})
+            if 'via' in sub:
+                result.append({'ip': sub['via'], 'interface': sub.get('dev', '')})
+        return result
+    return []
+
 # Parse ROUTES (per VRF)
 route_entries = {}  # vrf -> list of routes
 current_vrf = 'default'
+last_ecmp_entry = None  # Track last ECMP route for continuation lines
+
 for line in sections.get('ROUTES', []):
+    raw_line = line
     line = line.strip()
     if not line:
         continue
@@ -215,6 +260,24 @@ for line in sections.get('ROUTES', []):
         current_vrf = line[4:]
         if current_vrf not in route_entries:
             route_entries[current_vrf] = []
+        last_ecmp_entry = None
+        continue
+    
+    # ECMP continuation line: starts with whitespace + "nexthop"
+    # e.g. "        nexthop via 10.0.0.1 dev swp1 weight 1"
+    if raw_line.startswith(' ') and 'nexthop' in line and 'via' in line:
+        if last_ecmp_entry is not None:
+            # Parse individual ECMP nexthop
+            nh_parts = line.split()
+            nh_ip = ''
+            nh_iface = ''
+            for i, p in enumerate(nh_parts):
+                if p == 'via' and i+1 < len(nh_parts): nh_ip = nh_parts[i+1]
+                if p == 'dev' and i+1 < len(nh_parts): nh_iface = nh_parts[i+1]
+            if nh_ip:
+                if 'ecmp_nexthops' not in last_ecmp_entry:
+                    last_ecmp_entry['ecmp_nexthops'] = []
+                last_ecmp_entry['ecmp_nexthops'].append({'ip': nh_ip, 'interface': nh_iface})
         continue
     
     # Parse route line: prefix [via nexthop] [nhid X] [dev interface] [proto protocol] [metric X]
@@ -245,20 +308,49 @@ for line in sections.get('ROUTES', []):
     if not nexthop and nhid:
         nexthop = 'ECMP'
     
-    # Skip local routes, linkdown, unreachable
-    if protocol in ['kernel', 'redirect'] or 'linkdown' in line or 'unreachable' in line:
+    # Skip unusable routes (linkdown, unreachable, redirect)
+    # But KEEP kernel routes with dev (connected subnets - needed for nexthop resolution)
+    if 'linkdown' in line or 'unreachable' in line or protocol == 'redirect':
+        last_ecmp_entry = None
+        continue
+    # Skip kernel routes without interface (loopback, etc.) but keep ones with dev
+    if protocol == 'kernel' and not interface:
+        last_ecmp_entry = None
         continue
     
     if current_vrf not in route_entries:
         route_entries[current_vrf] = []
     
-    route_entries[current_vrf].append({
+    entry = {
         'prefix': prefix,
         'nexthop': nexthop,
         'interface': interface,
         'protocol': protocol,
         'metric': metric
-    })
+    }
+    
+    # Resolve ECMP nexthops from nexthop table
+    if nexthop == 'ECMP' and nhid:
+        resolved = resolve_nhid(nhid)
+        if resolved:
+            entry['ecmp_nexthops'] = resolved
+    
+    route_entries[current_vrf].append(entry)
+    
+    # Track ECMP entries for continuation lines
+    if nexthop == 'ECMP':
+        last_ecmp_entry = entry
+    else:
+        last_ecmp_entry = None
+
+# Parse LOOPBACK IPs
+loopback_ips = []
+for line in sections.get('LOOPBACKS', []):
+    line = line.strip()
+    if line and '/' in line:
+        ip_part = line.split('/')[0]
+        if ip_part != '127.0.0.1':
+            loopback_ips.append(ip_part)
 
 result = {
     'arp': arp_entries,
@@ -266,6 +358,7 @@ result = {
     'vtep': vtep_entries,
     'bonds': bond_members,
     'routes': route_entries,
+    'loopbacks': loopback_ips,
     'lldp': []  # Skip LLDP for now to keep it simple
 }
 

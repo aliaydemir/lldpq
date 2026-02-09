@@ -1159,31 +1159,19 @@
             resultsDiv.style.display = 'block';
             
             try {
-                // Try cached data first (fast), fallback to live query
+                // Always use cached data (fast) - no need for live SSH queries
                 let macData, arpData;
                 
-                // Check if cached data exists
-                const statusResp = await fetch('search-api.sh?action=scan-status');
-                const statusData = await statusResp.json();
+                // Detect search type: full IP vs partial/subnet
+                const isFullIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(searchTerm);
+                const isSubnetSearch = /^\d+\.\d+/.test(searchTerm) && !isFullIp;
                 
-                if (statusData.success && statusData.timestamp && statusData.age_minutes < 30) {
-                    // Use cached data (< 30 min old)
-                    const [macResponse, arpResponse] = await Promise.all([
-                        fetch('search-api.sh?action=search-cached-mac&search=' + encodeURIComponent(searchTerm)),
-                        fetch('search-api.sh?action=search-cached-arp&search=' + encodeURIComponent(searchTerm))
-                    ]);
-                    macData = await macResponse.json();
-                    arpData = await arpResponse.json();
-                } else {
-                    // Fallback to live query
-                    resultsDiv.innerHTML = '<div class="loading-message">Live searching all devices for "' + searchTerm + '"...</div>';
-                    const [macResponse, arpResponse] = await Promise.all([
-                        fetch('search-api.sh?action=get-all-mac&search=' + encodeURIComponent(searchTerm)),
-                        fetch('search-api.sh?action=get-all-arp&search=' + encodeURIComponent(searchTerm))
-                    ]);
-                    macData = await macResponse.json();
-                    arpData = await arpResponse.json();
-                }
+                const [macResponse, arpResponse] = await Promise.all([
+                    fetch('search-api.sh?action=search-cached-mac&search=' + encodeURIComponent(searchTerm)),
+                    fetch('search-api.sh?action=search-cached-arp&search=' + encodeURIComponent(searchTerm))
+                ]);
+                macData = await macResponse.json();
+                arpData = await arpResponse.json();
                 
                 // Filter interfaces - vxlan from MAC, VRR from ARP
                 const filterMac = (entries) => entries.filter(e => {
@@ -1207,6 +1195,7 @@
                 
                 // Cross-reference: If searching IP, also search for associated MAC
                 // If searching MAC, also search for associated IP
+                // SKIP for subnet searches (192.168.64) to avoid 100+ sequential API calls
                 let crossRefMacs = new Set();
                 let crossRefIps = new Set();
                 let crossRefInfo = [];
@@ -1216,7 +1205,7 @@
                 // Check if search term looks like a MAC
                 const isMacSearch = /^[0-9a-f]{2}[:-]?[0-9a-f]{2}/i.test(searchTerm);
                 
-                if (isIpSearch && arpData.success && arpData.entries) {
+                if (isIpSearch && !isSubnetSearch && arpData.success && arpData.entries) {
                     // Found IP in ARP, get the associated MAC
                     arpData.entries.forEach(e => {
                         if (e.mac && e.mac !== '00:00:00:00:00:00') {
@@ -1264,9 +1253,19 @@
                         }
                     });
                     
+                    // Sort cross-ref by IP (version sort)
+                    const sortedMappings = Array.from(uniqueMappings.values()).sort((a, b) => {
+                        const pa = (a.ip || '').split('.').map(Number);
+                        const pb = (b.ip || '').split('.').map(Number);
+                        for (let i = 0; i < 4; i++) {
+                            if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+                        }
+                        return 0;
+                    });
+                    
                     html += '<div style="margin-bottom: 12px; padding: 10px 15px; background: linear-gradient(90deg, #2d4a1c, #1e1e1e); border-left: 3px solid #76b900; border-radius: 4px;">';
                     html += '<div style="color: #76b900; font-weight: 600; margin-bottom: 8px;">Cross Reference</div>';
-                    uniqueMappings.forEach(info => {
+                    sortedMappings.forEach(info => {
                         if (info.type === 'ip-to-mac') {
                             html += '<div style="margin: 3px 0;"><span class="ip">' + info.ip + '</span> <span style="color: #888;">↔</span> <span class="mac">' + info.mac + '</span></div>';
                         } else {
@@ -1285,8 +1284,10 @@
                 });
                 
                 // Multihoming: Find same bond on ESI peer devices
+                // Skip for subnet searches to keep it fast
                 const bondInterfaces = new Set();
                 const foundMacs = new Set();
+                if (isSubnetSearch) { /* skip multihoming for subnet searches */ }
                 allMacEntries.forEach(e => {
                     if (e.interface && e.interface.startsWith('bond')) {
                         bondInterfaces.add(e.interface);
@@ -1295,8 +1296,9 @@
                 });
                 
                 // Search for multihoming peers (same bond on different devices)
+                // Skip for subnet searches to keep it fast
                 let multihomingPeers = [];
-                for (const bondName of bondInterfaces) {
+                for (const bondName of (isSubnetSearch ? [] : bondInterfaces)) {
                     try {
                         const resp = await fetch('search-api.sh?action=search-cached-mac&search=' + encodeURIComponent(bondName));
                         const data = await resp.json();
@@ -1374,6 +1376,16 @@
                 
                 // ARP Results
                 if (arpData.success && arpData.entries && arpData.entries.length > 0) {
+                    // Sort by IP address (version/natural sort: 10.1.1.2 before 10.1.1.11)
+                    arpData.entries.sort((a, b) => {
+                        const pa = (a.ip || '').split('.').map(Number);
+                        const pb = (b.ip || '').split('.').map(Number);
+                        for (let i = 0; i < 4; i++) {
+                            if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+                        }
+                        return 0;
+                    });
+                    
                     totalResults += arpData.entries.length;
                     html += '<div class="global-result-section">';
                     html += '<div class="global-result-header"><span>ARP Table Matches</span><span>' + arpData.entries.length + ' found</span></div>';

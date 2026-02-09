@@ -1,3 +1,4 @@
+.cursor/
 .vagrant/
 .DS_Store
 .ansible-test/
