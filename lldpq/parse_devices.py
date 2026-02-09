@@ -152,12 +152,16 @@ Examples:
 '''
     )
     parser.add_argument('-r', '--role', help='Filter devices by role')
+    parser.add_argument('-f', '--file', help='Path to custom devices.yaml (overrides default)')
     parser.add_argument('--list-roles', action='store_true', help='List available roles')
     args = parser.parse_args()
     
-    # Get script directory for relative paths
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    yaml_file = os.path.join(script_dir, "devices.yaml")
+    # Resolve devices.yaml path: -f flag > LLDPQ_DIR/devices.yaml > ~/lldpq/devices.yaml
+    if args.file:
+        yaml_file = args.file
+    else:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        yaml_file = os.path.join(script_dir, "devices.yaml")
     
     # Load configuration
     config = load_devices_yaml(yaml_file)

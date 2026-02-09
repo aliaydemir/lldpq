@@ -3033,6 +3033,9 @@ def ParseArgs():
     parser.add_argument('-r', '--role',
         help = 'limit displayed results to specified role')
 
+    parser.add_argument('-f', '--file',
+        help = 'use custom devices.yaml file (overrides default)')
+
     parser.add_argument('-v', '--version',
         help='show version and exit',
         action='store_true' )
@@ -3061,6 +3064,11 @@ def ParseArgs():
         GlobalConfig.ForceDebugLogging = True
         LogWrite.debug('Received command line arg --debug forcing nccm '
             'to run in debug mode')
+
+    if args.file:
+        # Override devices.yaml path with custom file
+        GlobalConfig.DevicesYamlPath = [args.file]
+        LogWrite.debug('Custom devices.yaml: {}'.format(args.file))
 
     if args.role:
         LogWrite.debug( {

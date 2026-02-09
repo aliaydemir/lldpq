@@ -48,13 +48,13 @@ show_usage() {
     echo ""
     echo -e "\e[96mOPTIONS:\e[0m"
     echo -e "  \e[33m-r <role>\e[0m     Filter by role (e.g., spine, leaf, border)"
-    echo -e "  \e[33m-f <file>\e[0m     Use custom IP list file instead of devices.yaml"
+    echo -e "  \e[33m-f <file>\e[0m     Use custom devices.yaml file (overrides default)"
     echo -e "  \e[33m-v <vrf>\e[0m      Use VRF for ping commands"
     echo -e "  \e[33m--roles\e[0m       List available roles from devices.yaml"
     echo -e "  \e[33m-h, --help\e[0m    Show this help message"
     echo ""
     echo -e "\e[96mDEFAULT:\e[0m"
-    echo -e "  Uses \e[33m$LLDPQ_DIR/devices.yaml\e[0m"
+    echo -e "  Uses \e[33m$LLDPQ_DIR/devices.yaml\e[0m (fallback: ~/lldpq/devices.yaml)"
     echo ""
     echo -e "\e[96mIP RANGE:\e[0m"
     echo -e "  Ping all IPs in a range:  \e[33mpping 192.168.58.10 192.168.58.240\e[0m"
@@ -137,13 +137,19 @@ generate_ip_range() {
 
 load_from_devices_yaml() {
     local role_filter="$1"
+    local custom_file="$2"
     find_lldpq_dir
     local parser="$LLDPQ_DIR/parse_devices.py"
-    local yaml_file="$LLDPQ_DIR/devices.yaml"
+    local yaml_file="${custom_file:-$LLDPQ_DIR/devices.yaml}"
+    
+    # Fallback: if not found, try ~/lldpq/devices.yaml
+    if [[ -z "$custom_file" && ! -f "$yaml_file" ]]; then
+        yaml_file="$HOME/lldpq/devices.yaml"
+    fi
     
     if [[ ! -f "$yaml_file" ]]; then
         echo -e "\e[91mError: devices.yaml not found at $yaml_file\e[0m"
-        echo -e "\e[91mUse: \e[32mpping -f <file>\e[0m to specify a custom file"
+        echo -e "\e[91mUse: \e[32mpping -f <file>\e[0m to specify a custom devices.yaml"
         exit 1
     fi
     
@@ -153,11 +159,14 @@ load_from_devices_yaml() {
     fi
     
     # Parse devices.yaml and convert to ip_list format
+    local file_arg=""
+    [[ -n "$custom_file" ]] && file_arg="-f $yaml_file"
+    
     if [[ -n "$role_filter" ]]; then
         echo -e "\e[35mFiltering by role: @$role_filter\e[0m"
-        eval "$(python3 "$parser" -r "$role_filter")" || exit 1
+        eval "$(python3 "$parser" -r "$role_filter" $file_arg)" || exit 1
     else
-        eval "$(python3 "$parser")"
+        eval "$(python3 "$parser" $file_arg)"
     fi
     
     if [[ ${#devices[@]} -eq 0 ]]; then
@@ -393,15 +402,8 @@ main() {
         fi
     fi
     
-    # Load hosts: custom file if specified, otherwise devices.yaml
-    if [[ -n "$file_path" ]]; then
-        if [[ -n "$role_filter" ]]; then
-            echo -e "\e[93mWarning: -r ignored when using -f (custom file)\e[0m"
-        fi
-        load_ip_list "$file_path"
-    else
-        load_from_devices_yaml "$role_filter"
-    fi
+    # Load from devices.yaml (with optional -f override)
+    load_from_devices_yaml "$role_filter" "$file_path"
     
     full_ping
 }

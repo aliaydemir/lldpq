@@ -13,6 +13,7 @@ Usage: send-cmd [options]
 Options:
   -c <cmd>   Execute command (can use multiple times)
   -r <role>  Filter devices by role (e.g., spine, leaf, border)
+  -f <file>  Use custom devices.yaml file (overrides default)
   -h         Show this help message
   -l         List available commands (from commands file)
   -e         Edit commands file
@@ -43,6 +44,7 @@ EOF
 # Parse arguments
 cli_commands=()
 role_filter=""
+devices_file=""
 
 # Check for --roles first
 if [[ "$1" == "--roles" ]]; then
@@ -50,11 +52,12 @@ if [[ "$1" == "--roles" ]]; then
     exit 0
 fi
 
-while getopts "hlec:r:" opt; do
+while getopts "hlec:r:f:" opt; do
     case $opt in
         h) show_help ;;
         c) cli_commands+=("$OPTARG") ;;
         r) role_filter="$OPTARG" ;;
+        f) devices_file="$OPTARG" ;;
         l) 
             echo "Commands file: $SCRIPT_DIR/commands"
             echo ""
@@ -70,11 +73,14 @@ while getopts "hlec:r:" opt; do
 done
 
 # Parse devices.yaml using Python parser (same as other lldpq scripts)
+file_arg=""
+[[ -n "$devices_file" ]] && file_arg="-f $devices_file"
+
 if [[ -n "$role_filter" ]]; then
     echo -e "\e[0;35mFiltering by role: @$role_filter\e[0m"
-    eval "$(python3 "$SCRIPT_DIR/parse_devices.py" -r "$role_filter")" || exit 1
+    eval "$(python3 "$SCRIPT_DIR/parse_devices.py" -r "$role_filter" $file_arg)" || exit 1
 else
-    eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
+    eval "$(python3 "$SCRIPT_DIR/parse_devices.py" $file_arg)"
 fi
 
 # Check if devices array is populated
