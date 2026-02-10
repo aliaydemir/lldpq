@@ -188,13 +188,16 @@ sudo chmod +x "$WEB_ROOT"/*.sh
 echo "   - Setting permissions on web directories"
 # Ensure /var/www is traversable (some systems restrict it)
 sudo chmod o+rx /var/www 2>/dev/null || true
-# Ensure all files/dirs in web root are readable/traversable by nginx (www-data)
-# X = adds execute to directories and already-executable files only
-sudo chmod -R o+rX "$WEB_ROOT/"
-# hstr, configs, monitor-results directories need write access for scripts
+# Set ownership: LLDPQ_USER owns files, www-data group for CGI write access
+sudo chown -R "$USER:www-data" "$WEB_ROOT/"
+# Directories: rwxrwxr-x (user+group can write, others can read/traverse)
+sudo find "$WEB_ROOT" -type d -exec chmod 775 {} \;
+# Files: rw-rw-r-- (user+group can write, others can read)
+sudo find "$WEB_ROOT" -type f -exec chmod 664 {} \;
+# Shell scripts need execute
+sudo chmod +x "$WEB_ROOT"/*.sh
+# Ensure writable directories for runtime data
 sudo mkdir -p "$WEB_ROOT/hstr" "$WEB_ROOT/configs" "$WEB_ROOT/monitor-results"
-sudo chown -R $USER:$USER "$WEB_ROOT/hstr" "$WEB_ROOT/configs" "$WEB_ROOT/monitor-results"
-sudo chmod -R o+rX "$WEB_ROOT/hstr" "$WEB_ROOT/configs" "$WEB_ROOT/monitor-results"
 
 echo "   - Copying bin/* to /usr/local/bin/"
 sudo cp bin/* /usr/local/bin/
