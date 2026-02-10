@@ -580,6 +580,15 @@
         .badge-state-DELAY, .badge-state-PROBE { background: #9c27b0; color: #fff; }
         .badge-state-FAILED { background: #f44336; color: #fff; }
         
+        /* Autofill dark theme fix */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px #1a1a1a inset !important;
+            -webkit-text-fill-color: #e0e0e0 !important;
+            border-color: #444 !important;
+        }
+        
         /* Scrollbar */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #1e1e1e; }
@@ -1386,13 +1395,31 @@
                         return 0;
                     });
                     
-                    totalResults += arpData.entries.length;
+                    // Subnet search: deduplicate by IP (show first device only)
+                    let arpToShow = arpData.entries;
+                    let dedupNote = '';
+                    if (isSubnetSearch) {
+                        const seen = new Map(); // ip -> entry
+                        arpToShow = [];
+                        for (const entry of arpData.entries) {
+                            const key = entry.ip + '|' + (entry.vrf || 'default');
+                            if (!seen.has(key)) {
+                                seen.set(key, entry);
+                                arpToShow.push(entry);
+                            }
+                        }
+                        if (arpToShow.length < arpData.entries.length) {
+                            dedupNote = ' <span style="color:#888;font-size:12px;">(' + arpData.entries.length + ' total, deduplicated)</span>';
+                        }
+                    }
+                    
+                    totalResults += arpToShow.length;
                     html += '<div class="global-result-section">';
-                    html += '<div class="global-result-header"><span>ARP Table Matches</span><span>' + arpData.entries.length + ' found</span></div>';
+                    html += '<div class="global-result-header"><span>ARP Table Matches</span><span>' + arpToShow.length + ' found' + dedupNote + '</span></div>';
                     html += '<table class="data-table" style="table-layout:fixed"><thead><tr>';
                     html += '<th style="width:120px">Device</th><th style="width:150px">MAC Address</th><th style="width:110px">Interface</th><th style="width:130px">IP Address</th><th style="width:70px" class="text-right">VRF</th></tr></thead><tbody>';
                     
-                    const arpEntriesToShow = arpData.entries.slice(0, 50);
+                    const arpEntriesToShow = arpToShow.slice(0, 100);
                     arpEntriesToShow.forEach(entry => {
                         html += '<tr>';
                         html += '<td class="device">' + (entry.device || '-') + '</td>';

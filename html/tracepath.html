@@ -252,6 +252,11 @@
             box-shadow: 0 0 6px rgba(255, 167, 38, 0.4);
         }
         
+        .hop-dot.core {
+            background: #42a5f5;
+            box-shadow: 0 0 6px rgba(66, 165, 245, 0.4);
+        }
+        
         .hop-dot.external {
             background: #ff7043;
             box-shadow: 0 0 8px rgba(255, 112, 67, 0.5);
@@ -319,6 +324,11 @@
             background: rgba(255, 167, 38, 0.08);
         }
         
+        .hop-card.core {
+            border-color: #42a5f5;
+            background: rgba(66, 165, 245, 0.08);
+        }
+        
         .hop-card.external {
             border-color: #ff7043;
             background: rgba(255, 112, 67, 0.1);
@@ -345,6 +355,10 @@
             font-size: 12px;
             color: #ffa726;
             font-family: 'Consolas', monospace;
+        }
+        
+        .core .ecmp-device-tag {
+            color: #42a5f5;
         }
         
         .hop-header {
@@ -836,6 +850,12 @@
                         <div class="summary-label">Hops</div>
                         <div class="summary-value hops">${hopCount}</div>
                     </div>
+                    ${data.route_leak ? `
+                    <div class="summary-item">
+                        <div class="summary-label">Route Leak</div>
+                        <div class="summary-value" style="color:#ffa726;font-size:14px;">${data.route_leak.from_vrf} → ${data.route_leak.to_vrf} <span style="color:#888;font-size:12px;">(${data.route_leak.prefix})</span></div>
+                    </div>
+                    ` : ''}
                 </div>
                 <div class="path-container">
             `;
@@ -845,6 +865,7 @@
                 const isSource = hop.role === 'source' || hop.role === 'source+destination';
                 const isDest = hop.role === 'destination' || hop.role === 'source+destination';
                 const isEcmp = hop.role === 'ecmp';
+                const isCore = isEcmp && hop.tier === 2;
                 const isExternal = hop.role === 'external';
                 const isBorder = hop.role === 'border';
                 const isLast = index === path.length - 1;
@@ -855,6 +876,7 @@
                 else if (isBorder) hopClass = 'border';
                 else if (isSource) hopClass = 'source';
                 else if (isDest) hopClass = 'destination';
+                else if (isCore) hopClass = 'core';
                 else if (isEcmp) hopClass = 'ecmp';
                 
                 const indent = (hop.indent || 0) * 60;
@@ -882,6 +904,10 @@
                 if (hop.role === 'source') roleLabel = `<span style="color:#4fc3f7;font-size:12px;margin-left:8px;">Source Leaf</span>`;
                 else if (hop.role === 'destination') roleLabel = `<span style="color:#26c6da;font-size:12px;margin-left:8px;">Destination Leaf</span>`;
                 else if (hop.role === 'source+destination') roleLabel = `<span style="color:#76b900;font-size:12px;margin-left:8px;">Source & Destination (same device)</span>`;
+                else if (isCore) {
+                    roleLabel = `<span style="color:#42a5f5;font-size:12px;margin-left:8px;">⇉ ECMP</span>`;
+                    roleLabel += linkHealthBadge(hop);
+                }
                 else if (hop.role === 'ecmp') {
                     roleLabel = `<span style="color:#ffa726;font-size:12px;margin-left:8px;">⇉ ECMP</span>`;
                     roleLabel += linkHealthBadge(hop);

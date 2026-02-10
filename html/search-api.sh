@@ -1490,20 +1490,40 @@ try:
             for arp in data.get('arp', []):
                 if arp.get('ip') == ip:
                     v = arp.get('vrf', 'default')
-                    candidates.append((hostname, v if v else 'default', get_tier(hostname)))
+                    # Check if this device has a CONNECTED route for the IP's subnet.
+                    # Connected route = IP is locally attached = real local leaf.
+                    # Remote EVPN-learned ARP entries exist on all leaves but
+                    # only the local leaf has the connected route.
+                    is_local = 0  # 0 = local (best), 1 = remote
+                    has_connected = False
+                    for route in data.get('routes', {}).get(v, []):
+                        if route.get('protocol') in ('connected', 'kernel', 'local'):
+                            if route.get('prefix') and prefix_match(ip, route['prefix']) >= 0:
+                                has_connected = True
+                                break
+                    is_local = 0 if has_connected else 1
+                    # Fabric degree: leaf has fewer fabric neighbors than spine.
+                    # Use this to prefer leaf over spine when both have connected routes.
+                    b = base(hostname)
+                    fab_degree = len([n for n in lldp_neighbors.get(b, set())
+                                     if n not in known_hosts])
+                    candidates.append((hostname, v if v else 'default', is_local, fab_degree))
         if not candidates:
             for hostname, data in all_data.items():
                 for v, vr in data.get('routes', {}).items():
                     for r in vr:
                         if r.get('protocol') in ['kernel', 'connected', 'local']:
                             if r.get('prefix') and prefix_match(ip, r['prefix']) >= 0:
-                                candidates.append((hostname, v, get_tier(hostname)))
+                                b = base(hostname)
+                                fab_degree = len([n for n in lldp_neighbors.get(b, set())
+                                                 if n not in known_hosts])
+                                candidates.append((hostname, v, 0, fab_degree))
         if not candidates:
             return None, None
-        # Sort: prefer matching VRF first, then lowest tier (leaf first)
+        # Sort: prefer matching VRF, then local (connected route), then lowest degree (leaf < spine)
         def sort_key(x):
             vrf_match = 0 if (prefer_vrf and x[1] == prefer_vrf) else 1
-            return (vrf_match, x[2])
+            return (vrf_match, x[2], x[3])  # vrf_match, is_local, fab_degree
         candidates.sort(key=sort_key)
         return candidates[0][0], candidates[0][1]
     
@@ -1534,13 +1554,31 @@ try:
     def find_on_path_layers(src_device, dst_device):
         """Find spine and core layers between source and dest using LLDP.
         Returns list of layers, each layer is a list of device names.
+        
+        Tier-independent approach: instead of relying on BFS tier numbers
+        (which can be wrong when not all leaves have hosts), we identify
+        spines as "LLDP neighbors of a leaf that are NOT hosts and NOT
+        other leaves". Cores are "spine neighbors that bridge to the
+        other pod's spines".
         """
         src_nbrs = get_lldp_neighbors(src_device)
         dst_nbrs = get_lldp_neighbors(dst_device)
         
-        # Spine layer: LLDP neighbors of source leaf that are tier 1
-        src_spines = sorted([d for d in src_nbrs if get_tier(d) == 1])
-        dst_spines = sorted([d for d in dst_nbrs if get_tier(d) == 1])
+        # Spine = LLDP neighbor of leaf that is:
+        #   - NOT a host (tier -1)
+        #   - NOT the other leaf
+        #   - EXISTS in fabric data (all_data) → excludes firewalls, routers, etc.
+        def is_fabric_device(d):
+            """Check if device exists in fabric-scan data (managed switch)."""
+            b = base(d)
+            return any(base(k) == b for k in all_data)
+        
+        src_spines = sorted([d for d in src_nbrs
+                            if d not in known_hosts and get_tier(d) != -1
+                            and d != dst_device and is_fabric_device(d)])
+        dst_spines = sorted([d for d in dst_nbrs
+                            if d not in known_hosts and get_tier(d) != -1
+                            and d != src_device and is_fabric_device(d)])
         
         # Shared spines (same pod)
         shared = sorted(set(src_spines) & set(dst_spines))
@@ -1548,22 +1586,25 @@ try:
         if shared:
             # Same pod: leaf → shared_spines → leaf (3-stage)
             # In Clos, same-pod traffic NEVER goes through cores.
-            # Cores are only for cross-pod routing (different spine groups).
             # Single spine layer — ascending and descending are the SAME devices.
             return [
                 {"tier": 1, "devices": shared, "label": "Spine"}
             ]
         else:
             # Cross-pod: leaf → src_spines → cores → dst_spines → leaf
-            # Find cores: tier-2 neighbors of src_spines that also connect to dst_spines
+            # Core = neighbor of src_spine that also connects to any dst_spine.
+            # Must NOT be a src_spine or dst_spine itself (avoid spine-to-spine).
+            all_spines = set(src_spines) | set(dst_spines)
             dst_spines_set = set(dst_spines)
             cores = set()
             for spine in src_spines:
                 for nbr in get_lldp_neighbors(spine):
-                    if get_tier(nbr) == 2:
-                        # Only include cores that bridge to dst pod
-                        if dst_spines_set & get_lldp_neighbors(nbr):
-                            cores.add(nbr)
+                    if nbr in all_spines or nbr in known_hosts:
+                        continue  # skip other spines and hosts
+                    # Check if this device bridges to dst pod
+                    nbr_neighbors = get_lldp_neighbors(nbr)
+                    if dst_spines_set & nbr_neighbors:
+                        cores.add(nbr)
             
             layers = []
             if src_spines:
@@ -1637,6 +1678,26 @@ try:
                 # Dest IP not in selected VRF → auto-correct
                 dst_vrf = dest_vrf
     
+    # ─── Route leak detection ───
+    # If src_vrf != dst_vrf, check if source device has a SPECIFIC route
+    # (not just default 0.0.0.0/0) to dest IP in src_vrf. If yes, the
+    # dest subnet is leaked into src_vrf → traffic stays in src_vrf,
+    # no firewall traversal needed. Treat as intra-VRF.
+    route_leak_info = None  # Track leak for UI display
+    if src_vrf != dst_vrf and source_leaf and dest_is_local:
+        src_data = all_data.get(source_leaf, {})
+        leaked_route, leaked_len = find_best_route(dest_ip, src_data.get('routes', {}), src_vrf)
+        if leaked_route and leaked_len > 0:
+            # Source has a specific route (not default) → leaked route exists
+            route_leak_info = {
+                "from_vrf": dst_vrf,
+                "to_vrf": src_vrf,
+                "prefix": leaked_route.get('prefix', ''),
+                "protocol": leaked_route.get('protocol', '')
+            }
+            # Traffic stays in src_vrf, override dst_vrf
+            dst_vrf = src_vrf
+    
     has_inter_vrf = (src_vrf != dst_vrf)
     
     # External = dest not in fabric ARP (same VRF, traffic exits via border leaf)
@@ -1680,19 +1741,19 @@ try:
             return path
         
         # ─── Helper functions ───
-        def make_layer_hop(devices, vrf, indent, label):
+        def make_layer_hop(devices, vrf, indent, label, tier=1):
             """Create a hop dict for a layer of devices."""
             if len(devices) == 1:
                 return {"device": devices[0], "vrf": vrf, "role": "transit",
-                        "indent": indent, "label": label}
+                        "indent": indent, "label": label, "tier": tier}
             return {"device": f'{label} ({len(devices)} devices)',
-                    "devices": devices, "vrf": vrf, "role": "ecmp", "indent": indent}
+                    "devices": devices, "vrf": vrf, "role": "ecmp", "indent": indent, "tier": tier}
         
         def add_ascending(path, layers, vrf, base_indent=2):
             """Add ascending layers (indent increases: 2, 3, 4, ...)."""
             for idx, layer in enumerate(layers):
                 devices = sorted(set(map_to_fabric_name(d) for d in layer["devices"]))
-                path.append(make_layer_hop(devices, vrf, base_indent + idx, layer["label"]))
+                path.append(make_layer_hop(devices, vrf, base_indent + idx, layer["label"], layer.get("tier", 1)))
         
         def add_descending(path, layers, vrf):
             """Add descending layers (indent decreases from peak)."""
@@ -1702,7 +1763,7 @@ try:
             for idx, layer in enumerate(layers):
                 devices = sorted(set(map_to_fabric_name(d) for d in layer["devices"]))
                 indent = max(2, peak - idx - 1)
-                path.append(make_layer_hop(devices, vrf, indent, layer["label"]))
+                path.append(make_layer_hop(devices, vrf, indent, layer["label"], layer.get("tier", 1)))
         
         # ─── Helper: make border hop (single or ECMP group) ───
         def make_border_hop(borders, vrf, indent):
@@ -1740,15 +1801,16 @@ try:
                 path.append({"device": "External Gateway", "role": "external",
                              "indent": ext_indent, "src_vrf": src_vrf, "dst_vrf": dst_vrf})
                 
-                # Border → fabric layers → Dest (symmetric descent: 3→2→1)
+                # Border → fabric layers → Dest (symmetric descent)
+                border_indent = ext_indent - 1
+                path.append(make_border_hop(borders, dst_vrf, border_indent))
+                
                 if border != dest_leaf:
-                    border_indent = ext_indent - 1
-                    path.append(make_border_hop(borders, dst_vrf, border_indent))
                     b2d = find_on_path_layers(border, dest_leaf)
                     for idx, layer in enumerate(b2d):
                         devices = sorted(set(map_to_fabric_name(d) for d in layer["devices"]))
                         layer_indent = max(2, border_indent - idx - 1)
-                        path.append(make_layer_hop(devices, dst_vrf, layer_indent, layer["label"]))
+                        path.append(make_layer_hop(devices, dst_vrf, layer_indent, layer["label"], layer.get("tier", 1)))
             else:
                 layers = find_on_path_layers(source_leaf, dest_leaf)
                 asc = layers[: (len(layers) + 1) // 2]
@@ -1760,9 +1822,13 @@ try:
                 add_descending(path, desc, dst_vrf)
             
             # Dest leaf + endpoint
-            path.append({"device": dest_leaf, "vrf": dst_vrf,
-                         "prefix": "local", "protocol": "connected",
-                         "role": "destination", "indent": 1})
+            dest_hop = {"device": dest_leaf, "vrf": dst_vrf,
+                        "prefix": "local", "protocol": "connected",
+                        "role": "destination", "indent": 1}
+            # Mark if dest leaf is also a border leaf
+            if borders and dest_leaf in [map_to_fabric_name(b) for b in borders]:
+                dest_hop["label"] = "Destination & Border Leaf"
+            path.append(dest_hop)
             path.append({"device": dest_ip, "role": "endpoint_dst", "indent": 0})
         
         elif dest_is_external:
@@ -1886,6 +1952,10 @@ try:
     # Only include dest_device for fabric-local destinations
     if dest_is_local and dest_leaf:
         result["dest_device"] = dest_leaf
+    
+    # Include route leak info if detected
+    if route_leak_info:
+        result["route_leak"] = route_leak_info
     
     print(json.dumps(result))
 
@@ -2194,6 +2264,9 @@ tables_dir = f"{lldpq_dir}/monitor-results/fabric-tables"
 table_type = "$table_type"
 search = "$search".lower()
 
+# Detect if search is a full IP (4 octets) → use exact match on IP/ip fields
+is_full_ip = bool(re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', search))
+
 entries = []
 
 try:
@@ -2219,13 +2292,19 @@ try:
                 
                 # Filter by search term
                 if search:
-                    match = False
-                    for val in entry.values():
-                        if search in str(val).lower():
-                            match = True
-                            break
-                    if not match:
-                        continue
+                    if is_full_ip and table_type == 'arp':
+                        # Full IP: exact match on IP field only (avoid 192.168.64.11 matching .111)
+                        if entry.get('ip', '') != search:
+                            continue
+                    else:
+                        # Substring match for partial IP, MAC, hostname searches
+                        match = False
+                        for val in entry.values():
+                            if search in str(val).lower():
+                                match = True
+                                break
+                        if not match:
+                            continue
                 
                 # Skip VRR interfaces for ARP
                 if table_type == 'arp':
