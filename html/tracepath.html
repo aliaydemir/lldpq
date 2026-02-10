@@ -584,7 +584,7 @@
         
         async function loadDeviceCount() {
             try {
-                const response = await fetch('/search-api.sh?action=get-devices');
+                const response = await fetch('/search-api.sh?action=list-devices');
                 const text = await response.text();
                 try {
                     const data = JSON.parse(text);
