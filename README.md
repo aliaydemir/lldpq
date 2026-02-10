@@ -26,13 +26,13 @@ No installation needed. Download the pre-built Docker image and run:
 curl -O https://aliaydemir.com/lldpq.tar.gz
 
 # Load image
-docker load < lldpq.tar.gz
+sudo docker load < lldpq.tar.gz
 
-# Run
-docker run -d --name lldpq -p 80:80 devices.yaml:/home/lldpq/lldpq/devices.yaml lldpq:latest
+# Run (mount your devices.yaml)
+sudo docker run -d --name lldpq -p 80:80 -v $(pwd)/devices.yaml:/home/lldpq/lldpq/devices.yaml lldpq:latest
 
 # Enter container and setup SSH keys (first time only, see [08] ssh setup)
-docker exec -it lldpq bash
+sudo docker exec -it lldpq bash
 ```
 
 Open `http://localhost` in your browser. That's it.
@@ -52,7 +52,7 @@ nv config apply -y
 
 **Persistent data** (optional — keeps monitoring data across restarts):
 ```bash
-docker run -d --name lldpq -p 80:80 -v devices.yaml:/home/lldpq/lldpq/devices.yaml -v lldpq-data:/home/lldpq/lldpq/monitor-results lldpq:latest
+sudo docker run -d --name lldpq -p 80:80 -v lldpq-data:/home/lldpq/lldpq/monitor-results lldpq:latest
 ```
 
 ## Requirements (non-Docker install)
