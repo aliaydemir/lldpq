@@ -8,6 +8,15 @@
     <script src="/css/chart.js"></script>
     <script src="/css/auth.js"></script>
     <style>
+        /* Prevent browser autofill from changing input background */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px #1a1a1a inset !important;
+            -webkit-text-fill-color: #fff !important;
+            caret-color: #fff !important;
+        }
+        
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -2272,7 +2281,7 @@
                     for (const [group, groupDevices] of Object.entries(devicesData.devices)) {
                         devicesByGroup[group] = groupDevices.map(device => ({
                             hostname: device.hostname || device,
-                            ip: device.ansible_host || device.ip || '',
+                            ip: device.ip || '',
                             status: 'unknown'
                         }));
                     }

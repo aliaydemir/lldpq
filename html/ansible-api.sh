@@ -13,9 +13,13 @@
 source /etc/lldpq.conf 2>/dev/null || true
 LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
 
-# Ansible directory (relative to lldpq-src parent)
-# Adjust this path based on your installation
-ANSIBLE_DIR="${ANSIBLE_DIR:-$(dirname "$LLDPQ_DIR")}"
+# Ansible directory - check if configured
+if [[ "$ANSIBLE_DIR" == "NoNe" ]] || [[ -z "$ANSIBLE_DIR" ]]; then
+    echo "Content-Type: application/json"
+    echo ""
+    echo '{"success": false, "error": "Ansible not configured"}'
+    exit 0
+fi
 
 # Setup ansible environment for www-data user
 export ANSIBLE_HOME="/tmp/ansible-www"

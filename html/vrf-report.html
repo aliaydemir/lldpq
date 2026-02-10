@@ -6,6 +6,15 @@
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <script src="css/auth.js"></script>
     <style>
+        /* Prevent browser autofill from changing input background */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px #1a1a1a inset !important;
+            -webkit-text-fill-color: #fff !important;
+            caret-color: #fff !important;
+        }
+        
         * {
             margin: 0;
             padding: 0;

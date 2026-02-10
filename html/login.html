@@ -6,6 +6,14 @@
     <title>..::LLDPQ::..</title>
     <link rel="shortcut icon" href="/png/favicon.ico">
     <style>
+        /* Prevent browser autofill from changing input background */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px #1e1e1e inset !important;
+            -webkit-text-fill-color: #fff !important;
+            caret-color: #fff !important;
+        }
         * {
             margin: 0;
             padding: 0;

@@ -8,6 +8,14 @@
     <link rel="stylesheet" type="text/css" href="/css/codemirror.min.css">
     <link rel="stylesheet" type="text/css" href="/css/codemirror-theme.min.css">
     <style>
+        /* Prevent browser autofill from changing input background */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px #1a1a1a inset !important;
+            -webkit-text-fill-color: #fff !important;
+            caret-color: #fff !important;
+        }
         * {
             margin: 0;
             padding: 0;
@@ -457,6 +465,12 @@
                     <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
                 </svg>
                 <span id="refresh-assets-text">Refresh Assets</span>
+            </button>
+            <button id="ssh-setup-btn" onclick="openSSHSetupModal()" class="btn" style="display: none; background: #ff9800; color: #000; font-weight: bold;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12.65,10C11.83,7.67 9.61,6 7,6A5,5 0 0,0 2,11A5,5 0 0,0 7,16C9.61,16 11.83,14.33 12.65,12H16V16H20V12H22V8H12.65M7,14A3,3 0 0,1 4,11A3,3 0 0,1 7,8A3,3 0 0,1 10,11A3,3 0 0,1 7,14Z"/>
+                </svg>
+                SSH Setup
             </button>
             <button id="edit-devices" onclick="openDevicesEditor()" class="btn btn-gray" style="display: none; background: #555; color: #d4d4d4;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -1420,8 +1434,276 @@
         await LLDPqAuth.check();
         if (LLDPqAuth.isAdmin()) {
             document.getElementById('edit-devices').style.display = 'flex';
+            document.getElementById('ssh-setup-btn').style.display = 'flex';
         }
     })();
+</script>
+
+<!-- SSH Setup Modal -->
+<div id="sshSetupModal" onclick="if(event.target===this)closeSSHSetupModal()" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center;">
+    <div onclick="event.stopPropagation()" style="background: #2d2d2d; border-radius: 8px; width: 85%; max-width: 700px; max-height: 90vh; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+        <!-- Header -->
+        <div style="padding: 15px 20px; background: #1a1a1a; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; color: #ff9800; font-size: 16px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="#ff9800" style="vertical-align: middle; margin-right: 8px;">
+                    <path d="M12.65,10C11.83,7.67 9.61,6 7,6A5,5 0 0,0 2,11A5,5 0 0,0 7,16C9.61,16 11.83,14.33 12.65,12H16V16H20V12H22V8H12.65M7,14A3,3 0 0,1 4,11A3,3 0 0,1 7,8A3,3 0 0,1 10,11A3,3 0 0,1 7,14Z"/>
+                </svg>
+                SSH Setup - Send Keys & Fix Sudo
+            </h3>
+            <button onclick="closeSSHSetupModal()" style="background: none; border: none; color: #888; font-size: 24px; cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+        </div>
+        <!-- Password Form -->
+        <div id="sshSetupForm" style="padding: 20px;">
+            <div style="margin-bottom: 15px;">
+                <label style="color: #ccc; font-size: 13px; display: block; margin-bottom: 5px;">Password</label>
+                <div style="position: relative;">
+                    <input type="password" id="sshPassword" placeholder="SSH password for devices" oninput="checkPasswordMatch()" autocomplete="off"
+                        style="width: 100%; padding: 10px 40px 10px 12px; background: #1a1a1a; border: 1px solid #555; border-radius: 4px; color: #fff; font-size: 14px; box-sizing: border-box;">
+                    <button onclick="togglePasswordVisibility('sshPassword', this)" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #888; cursor: pointer; font-size: 16px;" title="Show/Hide">&#128065;</button>
+                </div>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="color: #ccc; font-size: 13px; display: block; margin-bottom: 5px;">Confirm Password</label>
+                <div style="position: relative;">
+                    <input type="password" id="sshPasswordConfirm" placeholder="Confirm password" oninput="checkPasswordMatch()" autocomplete="off"
+                        style="width: 100%; padding: 10px 12px; background: #1a1a1a; border: 1px solid #555; border-radius: 4px; color: #fff; font-size: 14px; box-sizing: border-box;">
+                </div>
+                <div id="passwordMatchMsg" style="font-size: 12px; margin-top: 4px; color: #f44336; display: none;"></div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button id="sshRunBtn" onclick="runSSHSetup()" disabled
+                    style="background: #ff9800; color: #000; border: none; padding: 10px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; opacity: 0.5;">
+                    Run Setup
+                </button>
+                <button id="sshRetryBtn" onclick="retrySSHSetup()" style="display: none; background: #f44336; color: #fff; border: none; padding: 10px 24px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px;">
+                    Retry Failed
+                </button>
+                <span id="sshProgress" style="color: #888; font-size: 13px;"></span>
+            </div>
+        </div>
+        <!-- Info banner (key generated) -->
+        <div id="sshKeyGenBanner" style="display: none; padding: 10px 20px; background: #1b5e20; color: #a5d6a7; font-size: 13px; border-top: 1px solid #2e7d32;">
+            SSH key generated (ed25519) - new key will be distributed to all devices.
+        </div>
+        <!-- Results Table -->
+        <div id="sshResultsArea" style="display: none; max-height: 45vh; overflow-y: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                <thead>
+                    <tr style="background: #1a1a1a; color: #aaa; text-align: left;">
+                        <th style="padding: 8px 12px; border-bottom: 1px solid #444;">Device</th>
+                        <th style="padding: 8px 12px; border-bottom: 1px solid #444;">IP</th>
+                        <th style="padding: 8px 12px; border-bottom: 1px solid #444;">Send Key</th>
+                        <th style="padding: 8px 12px; border-bottom: 1px solid #444;">Sudo Fix</th>
+                    </tr>
+                </thead>
+                <tbody id="sshResultsBody"></tbody>
+            </table>
+        </div>
+        <!-- Summary -->
+        <div id="sshSummary" style="display: none; padding: 12px 20px; background: #1a1a1a; border-top: 1px solid #444; font-size: 13px; color: #aaa;"></div>
+    </div>
+</div>
+
+<script>
+// ─── SSH Setup Modal ───
+let sshSetupFailedDevices = [];
+
+function openSSHSetupModal() {
+    const modal = document.getElementById('sshSetupModal');
+    modal.style.display = 'flex';
+    // Reset state
+    document.getElementById('sshPassword').value = '';
+    document.getElementById('sshPasswordConfirm').value = '';
+    document.getElementById('sshRunBtn').disabled = true;
+    document.getElementById('sshRunBtn').style.opacity = '0.5';
+    document.getElementById('sshRetryBtn').style.display = 'none';
+    document.getElementById('sshProgress').textContent = '';
+    document.getElementById('sshResultsArea').style.display = 'none';
+    document.getElementById('sshResultsBody').innerHTML = '';
+    document.getElementById('sshSummary').style.display = 'none';
+    document.getElementById('sshKeyGenBanner').style.display = 'none';
+    document.getElementById('passwordMatchMsg').style.display = 'none';
+    sshSetupFailedDevices = [];
+    document.getElementById('sshPassword').focus();
+}
+
+function closeSSHSetupModal() {
+    document.getElementById('sshSetupModal').style.display = 'none';
+}
+
+function togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.style.color = '#ff9800';
+    } else {
+        input.type = 'password';
+        btn.style.color = '#888';
+    }
+}
+
+function checkPasswordMatch() {
+    const pw1 = document.getElementById('sshPassword').value;
+    const pw2 = document.getElementById('sshPasswordConfirm').value;
+    const btn = document.getElementById('sshRunBtn');
+    const msg = document.getElementById('passwordMatchMsg');
+    
+    if (!pw1 || !pw2) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        msg.style.display = 'none';
+        return;
+    }
+    
+    if (pw1 !== pw2) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        msg.style.display = 'block';
+        msg.textContent = 'Passwords do not match';
+        msg.style.color = '#f44336';
+        return;
+    }
+    
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    msg.style.display = 'block';
+    msg.textContent = 'Passwords match';
+    msg.style.color = '#4caf50';
+}
+
+function statusIcon(status) {
+    if (status === 'ok') return '<span style="color: #4caf50;" title="Success">&#10004;</span>';
+    if (status === 'already') return '<span style="color: #4fc3f7;" title="Already configured">&#10004;</span>';
+    if (status === 'fail') return '<span style="color: #f44336;" title="Failed">&#10008;</span>';
+    if (status === 'skipped') return '<span style="color: #888;" title="Skipped">&#8212;</span>';
+    return '<span style="color: #888;">?</span>';
+}
+
+function statusColor(status) {
+    if (status === 'ok' || status === 'already') return '#4caf50';
+    if (status === 'fail') return '#f44336';
+    return '#888';
+}
+
+async function runSSHSetup(retryDevices = null) {
+    const password = document.getElementById('sshPassword').value;
+    if (!password) return;
+    
+    const btn = document.getElementById('sshRunBtn');
+    const retryBtn = document.getElementById('sshRetryBtn');
+    const progress = document.getElementById('sshProgress');
+    
+    btn.disabled = true;
+    btn.style.opacity = '0.5';
+    btn.textContent = 'Running...';
+    retryBtn.style.display = 'none';
+    progress.textContent = 'Connecting to devices...';
+    
+    // Reset results if not retry
+    if (!retryDevices) {
+        document.getElementById('sshResultsArea').style.display = 'none';
+        document.getElementById('sshResultsBody').innerHTML = '';
+        document.getElementById('sshSummary').style.display = 'none';
+        document.getElementById('sshKeyGenBanner').style.display = 'none';
+    }
+    
+    try {
+        const body = { password: password };
+        if (retryDevices && retryDevices.length > 0) {
+            body.retry_devices = retryDevices;
+        }
+        
+        const response = await fetch('/setup-api.sh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+            progress.textContent = '';
+            btn.textContent = 'Run Setup';
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            alert('Error: ' + (data.error || 'Unknown error'));
+            return;
+        }
+        
+        // Show key generated banner
+        if (data.key_generated) {
+            document.getElementById('sshKeyGenBanner').style.display = 'block';
+        }
+        
+        // Build results table
+        const tbody = document.getElementById('sshResultsBody');
+        if (!retryDevices) {
+            tbody.innerHTML = '';
+        }
+        
+        sshSetupFailedDevices = [];
+        
+        // If retry, remove old rows for retried devices
+        if (retryDevices) {
+            retryDevices.forEach(ip => {
+                const oldRow = document.querySelector(`tr[data-ip="${ip}"]`);
+                if (oldRow) oldRow.remove();
+            });
+        }
+        
+        data.results.forEach(r => {
+            const row = document.createElement('tr');
+            row.setAttribute('data-ip', r.ip);
+            const isFailed = r.send_key === 'fail' || r.sudo_fix === 'fail';
+            if (isFailed) {
+                sshSetupFailedDevices.push(r.ip);
+                row.style.background = 'rgba(244, 67, 54, 0.08)';
+            }
+            row.innerHTML = `
+                <td style="padding: 8px 12px; border-bottom: 1px solid #333; color: #ddd;">${r.hostname}</td>
+                <td style="padding: 8px 12px; border-bottom: 1px solid #333; color: #999; font-family: monospace; font-size: 12px;">${r.ip}</td>
+                <td style="padding: 8px 12px; border-bottom: 1px solid #333;" title="${r.send_key_msg || ''}">${statusIcon(r.send_key)} <span style="color: ${statusColor(r.send_key)}; font-size: 12px;">${r.send_key_msg || r.send_key}</span></td>
+                <td style="padding: 8px 12px; border-bottom: 1px solid #333;" title="${r.sudo_fix_msg || ''}">${statusIcon(r.sudo_fix)} <span style="color: ${statusColor(r.sudo_fix)}; font-size: 12px;">${r.sudo_fix_msg || r.sudo_fix}</span></td>
+            `;
+            tbody.appendChild(row);
+        });
+        
+        document.getElementById('sshResultsArea').style.display = 'block';
+        
+        // Summary
+        const summary = document.getElementById('sshSummary');
+        const total = data.total;
+        const keyOk = data.send_key_ok;
+        const sudoOk = data.sudo_fix_ok;
+        summary.innerHTML = `<strong>Results:</strong> Send Key: <span style="color: #4caf50;">${keyOk}/${total}</span> | Sudo Fix: <span style="color: #4caf50;">${sudoOk}/${total}</span>`;
+        if (sshSetupFailedDevices.length > 0) {
+            summary.innerHTML += ` | <span style="color: #f44336;">${sshSetupFailedDevices.length} failed</span>`;
+        }
+        summary.style.display = 'block';
+        
+        // Show retry button if there are failures
+        if (sshSetupFailedDevices.length > 0) {
+            retryBtn.style.display = 'inline-block';
+        }
+        
+        progress.textContent = '';
+        btn.textContent = 'Run Setup';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        
+    } catch (err) {
+        progress.textContent = '';
+        btn.textContent = 'Run Setup';
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        alert('Request failed: ' + err.message);
+    }
+}
+
+function retrySSHSetup() {
+    if (sshSetupFailedDevices.length === 0) return;
+    runSSHSetup(sshSetupFailedDevices);
+}
 </script>
 
 <!-- Devices Editor Modal -->

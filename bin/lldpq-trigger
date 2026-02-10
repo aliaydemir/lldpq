@@ -27,9 +27,11 @@ fi
 # Create PID file for daemon
 echo $$ > "$DAEMON_PID_FILE"
 
-# Cleanup function
+# Cleanup function - only remove PID file if it belongs to us
 cleanup() {
-    rm -f "$DAEMON_PID_FILE"
+    if [ -f "$DAEMON_PID_FILE" ] && [ "$(cat "$DAEMON_PID_FILE" 2>/dev/null)" = "$$" ]; then
+        rm -f "$DAEMON_PID_FILE"
+    fi
     exit 0
 }
 

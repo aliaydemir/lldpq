@@ -11,20 +11,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install all dependencies in one layer
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    nginx \
-    fcgiwrap \
-    python3 \
-    python3-yaml \
-    python3-pip \
-    openssh-client \
-    sudo \
-    cron \
-    iproute2 \
-    iputils-ping \
-    dnsutils \
-    curl \
-    jq \
-    git \
+    nginx fcgiwrap \
+    python3 python3-yaml python3-pip \
+    openssh-client sshpass \
+    sudo cron \
+    iproute2 iputils-ping dnsutils tcpdump \
+    curl jq git \
     && rm -rf /var/lib/apt/lists/*
 
 # Create lldpq user (matches host user pattern)
@@ -69,7 +61,8 @@ RUN chown -R lldpq:www-data /var/www/html/ \
 RUN echo '# LLDPq Configuration (Docker)\n\
 LLDPQ_DIR=/home/lldpq/lldpq\n\
 LLDPQ_USER=lldpq\n\
-WEB_ROOT=/var/www/html' > /etc/lldpq.conf
+WEB_ROOT=/var/www/html\n\
+ANSIBLE_DIR=NoNe' > /etc/lldpq.conf
 
 # Copy entrypoint
 COPY docker/docker-entrypoint.sh /docker-entrypoint.sh

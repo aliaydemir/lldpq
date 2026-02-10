@@ -18,6 +18,16 @@ else
     echo "  Then: cd ~/lldpq && ./send-key.sh"
 fi
 
+# ─── Ansible Directory Setup ───
+# If ANSIBLE_DIR env var is set (via docker-compose or docker run -e), update lldpq.conf
+if [ -n "$ANSIBLE_DIR" ] && [ "$ANSIBLE_DIR" != "NoNe" ] && [ -d "$ANSIBLE_DIR" ]; then
+    sed -i "s|^ANSIBLE_DIR=.*|ANSIBLE_DIR=$ANSIBLE_DIR|" /etc/lldpq.conf
+    chown -R lldpq:www-data "$ANSIBLE_DIR" 2>/dev/null || true
+    echo "✓ Ansible directory: $ANSIBLE_DIR"
+else
+    echo "  Ansible: not configured (Ansible menu disabled)"
+fi
+
 # ─── devices.yaml Setup ───
 # If devices.yaml is mounted, symlink it
 if [ -f /home/lldpq/lldpq/devices.yaml ]; then

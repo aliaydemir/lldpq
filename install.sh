@@ -296,47 +296,45 @@ fi
 # Ask user for Ansible directory
 echo ""
 if [[ "$AUTO_YES" == "true" ]]; then
-    # In auto-yes mode, use detected dir or default
+    # In auto-yes mode, use detected dir or skip
     if [[ -n "$ANSIBLE_DIR" ]]; then
         echo "   Using detected Ansible directory: $ANSIBLE_DIR (auto-yes mode)"
     else
-        ANSIBLE_DIR="$HOME/ansible"
-        echo "   Using default Ansible directory: $ANSIBLE_DIR (auto-yes mode)"
+        ANSIBLE_DIR="NoNe"
+        echo "   No Ansible directory found, skipping (auto-yes mode)"
     fi
 else
     # Interactive mode
     if [[ -n "$ANSIBLE_DIR" ]]; then
-        read -p "   Use detected Ansible directory? [Y/n] or enter custom path: " response
+        echo "   Found: $ANSIBLE_DIR"
+        read -p "   Use this Ansible directory? [Y/n/skip]: " response
         if [[ "$response" =~ ^[Nn]$ ]]; then
-            read -p "   Enter Ansible directory path (or 'skip' to skip Ansible): " custom_path
-            if [[ "$custom_path" == "skip" ]] || [[ -z "$custom_path" ]]; then
-                ANSIBLE_DIR=""
-                echo "   Skipping Ansible configuration"
+            read -p "   Enter Ansible directory path (or press Enter to skip): " custom_path
+            if [[ -z "$custom_path" ]]; then
+                ANSIBLE_DIR="NoNe"
+                echo "   Skipping Ansible (LLDPq will use devices.yaml)"
             else
                 ANSIBLE_DIR="$custom_path"
             fi
-        elif [[ -n "$response" ]] && [[ ! "$response" =~ ^[Yy]$ ]]; then
-            # User entered a custom path
-            if [[ "$response" == "skip" ]]; then
-                ANSIBLE_DIR=""
-                echo "   Skipping Ansible configuration"
-            else
-                ANSIBLE_DIR="$response"
-            fi
+        elif [[ "$response" == "skip" ]]; then
+            ANSIBLE_DIR="NoNe"
+            echo "   Skipping Ansible (LLDPq will use devices.yaml)"
         fi
     else
-        read -p "   Enter Ansible directory path (or press Enter to use ~/ansible, or 'skip'): " response
-        if [[ "$response" == "skip" ]]; then
-            ANSIBLE_DIR=""
-            echo "   Skipping Ansible configuration"
+        read -p "   Enter Ansible directory path (or press Enter to skip): " response
+        if [[ -z "$response" ]] || [[ "$response" == "skip" ]]; then
+            ANSIBLE_DIR="NoNe"
+            echo "   Skipping Ansible configuration (LLDPq will use devices.yaml)"
         else
-            ANSIBLE_DIR="${response:-$HOME/ansible}"
+            ANSIBLE_DIR="$response"
         fi
     fi
 fi
 
-# Validate ansible directory
-if [[ -n "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR" ]]; then
+# Validate ansible directory (skip if NoNe)
+if [[ "$ANSIBLE_DIR" == "NoNe" ]]; then
+    : # Already handled above
+elif [[ -n "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR" ]]; then
     echo "   Using Ansible directory: $ANSIBLE_DIR"
     
     # Add www-data to current user's group for ansible file access
@@ -400,10 +398,10 @@ elif [[ -n "$ANSIBLE_DIR" ]]; then
     echo "   It will be created when needed or you can create it manually"
 fi
 
-# Set default if empty
+# If no Ansible dir configured, set NoNe flag
 if [[ -z "$ANSIBLE_DIR" ]]; then
-    ANSIBLE_DIR="$HOME/ansible"
-    echo "   Using default: $ANSIBLE_DIR (will be created when needed)"
+    ANSIBLE_DIR="NoNe"
+    echo "   No Ansible directory configured (LLDPq will use devices.yaml)"
 fi
 
 echo ""

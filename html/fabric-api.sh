@@ -2,11 +2,17 @@
 # Fabric Configuration API
 # Backend for fabric-config.html
 
-# Load config - explicitly read ANSIBLE_DIR from config file
+# Load config - read ANSIBLE_DIR from config file, but don't overwrite env var
 if [[ -f /etc/lldpq.conf ]]; then
-    ANSIBLE_DIR=$(grep "^ANSIBLE_DIR=" /etc/lldpq.conf | cut -d= -f2)
+    _conf_ansible_dir=$(grep "^ANSIBLE_DIR=" /etc/lldpq.conf 2>/dev/null | cut -d= -f2)
+    if [[ -n "$_conf_ansible_dir" ]]; then
+        ANSIBLE_DIR="$_conf_ansible_dir"
+    fi
 fi
-ANSIBLE_DIR="${ANSIBLE_DIR:-$HOME/ansible}"
+# NoNe = explicitly disabled, treat as empty
+if [[ "$ANSIBLE_DIR" == "NoNe" ]]; then
+    ANSIBLE_DIR=""
+fi
 
 # Export for Python scripts
 export ANSIBLE_DIR
@@ -24,91 +30,125 @@ parse_query() {
     HOSTNAME=$(echo "$query" | grep -oP 'hostname=\K[^&]*' | head -1 | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read().strip()))")
 }
 
-# List devices from inventory (fallback: inventory.ini -> hosts)
+# List devices from inventory
+# Priority: Ansible inventory -> devices.yaml fallback
 list_devices() {
-    # Fallback: try inventory.ini first, then hosts
+    # Try Ansible inventory first
     local hosts_file=""
-    if [[ -f "$ANSIBLE_DIR/inventory/inventory.ini" ]]; then
-        hosts_file="$ANSIBLE_DIR/inventory/inventory.ini"
-    elif [[ -f "$ANSIBLE_DIR/inventory/hosts" ]]; then
-        hosts_file="$ANSIBLE_DIR/inventory/hosts"
-    else
-        echo '{"success": false, "error": "Inventory file not found"}'
-        return
+    if [[ -n "$ANSIBLE_DIR" ]]; then
+        if [[ -f "$ANSIBLE_DIR/inventory/inventory.ini" ]]; then
+            hosts_file="$ANSIBLE_DIR/inventory/inventory.ini"
+        elif [[ -f "$ANSIBLE_DIR/inventory/hosts" ]]; then
+            hosts_file="$ANSIBLE_DIR/inventory/hosts"
+        fi
     fi
-    
+
+    # Fallback: devices.yaml
+    local lldpq_dir=""
+    if [[ -f /etc/lldpq.conf ]]; then
+        lldpq_dir=$(grep "^LLDPQ_DIR=" /etc/lldpq.conf | cut -d= -f2)
+    fi
+    lldpq_dir="${lldpq_dir:-/home/lldpq/lldpq}"
+    local devices_yaml="$lldpq_dir/devices.yaml"
+
     export INVENTORY_FILE="$hosts_file"
-    
-    # Python script to parse hosts file
+    export DEVICES_YAML="$devices_yaml"
+
     python3 << 'PYTHON'
 import sys
 import json
 import os
+import re
 
-ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
-# Use INVENTORY_FILE from environment, fallback to checking both files
-hosts_file = os.environ.get('INVENTORY_FILE')
-if not hosts_file:
-    for name in ['inventory.ini', 'hosts']:
-        path = f"{ansible_dir}/inventory/{name}"
-        if os.path.exists(path):
-            hosts_file = path
-            break
-
+hosts_file = os.environ.get('INVENTORY_FILE', '')
+devices_yaml = os.environ.get('DEVICES_YAML', '')
+source = None
 devices = {}
-current_group = None
 
-try:
-    with open(hosts_file, 'r') as f:
-        for line in f:
-            line = line.strip()
-            
-            # Skip empty lines and comments
-            if not line or line.startswith('#'):
-                continue
-            
-            # Skip [all:vars] and similar sections
-            if line.startswith('[') and ':' in line:
-                current_group = None
-                continue
-            
-            # Group header
-            if line.startswith('[') and line.endswith(']'):
-                current_group = line[1:-1]
-                # Skip children groups
-                if ':children' in current_group:
+# --- Try Ansible inventory first ---
+if hosts_file and os.path.isfile(hosts_file):
+    source = 'ansible'
+    current_group = None
+    try:
+        with open(hosts_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if line.startswith('[') and ':' in line:
                     current_group = None
+                    continue
+                if line.startswith('[') and line.endswith(']'):
+                    current_group = line[1:-1]
+                    if ':children' in current_group:
+                        current_group = None
+                    else:
+                        devices[current_group] = []
+                    continue
+                if current_group and '=' in line:
+                    parts = line.split()
+                    hostname = parts[0]
+                    ip = None
+                    for part in parts[1:]:
+                        if part.startswith('ansible_host='):
+                            ip = part.split('=')[1]
+                            break
+                    devices[current_group].append({
+                        'hostname': hostname,
+                        'ip': ip
+                    })
+    except Exception as e:
+        devices = {}
+        source = None
+
+# --- Fallback: devices.yaml ---
+if not devices and devices_yaml and os.path.isfile(devices_yaml):
+    source = 'devices.yaml'
+    try:
+        import yaml
+        with open(devices_yaml, 'r') as f:
+            config = yaml.safe_load(f)
+        devs = config.get('devices', {})
+        if devs:
+            for ip_addr, device_config in devs.items():
+                hostname = None
+                role = None
+                if isinstance(device_config, str):
+                    # Parse "Hostname @role" format
+                    match = re.match(r'^(.+?)\s+@(\w+)$', device_config.strip())
+                    if match:
+                        hostname = match.group(1).strip()
+                        role = match.group(2).lower()
+                    else:
+                        hostname = device_config.strip()
+                elif isinstance(device_config, dict):
+                    hostname = device_config.get('hostname', str(ip_addr))
+                    role = device_config.get('role', None)
+                    if role:
+                        role = role.lower()
                 else:
-                    devices[current_group] = []
-                continue
-            
-            # Device line
-            if current_group and '=' in line:
-                parts = line.split()
-                hostname = parts[0]
-                ip = None
-                
-                # Find ansible_host
-                for part in parts[1:]:
-                    if part.startswith('ansible_host='):
-                        ip = part.split('=')[1]
-                        break
-                
-                devices[current_group].append({
+                    continue
+                group = role if role else 'all'
+                if group not in devices:
+                    devices[group] = []
+                devices[group].append({
                     'hostname': hostname,
-                    'ip': ip
+                    'ip': str(ip_addr)
                 })
-    
+    except Exception as e:
+        print(json.dumps({'success': False, 'error': f'Failed to parse devices.yaml: {e}'}))
+        sys.exit(0)
+
+if devices:
     print(json.dumps({
         'success': True,
         'devices': devices,
-        'ansible_dir': ansible_dir
+        'source': source
     }))
-
-except Exception as e:
+else:
     print(json.dumps({
         'success': False,
-        'error': str(e)
+        'error': 'No device inventory found. Provide Ansible inventory or devices.yaml'
     }))
 PYTHON
 }
@@ -5732,6 +5772,14 @@ PYTHON_END
             echo '{"success": true, "message": "Assets refresh triggered. Please wait about 30 seconds."}'
         else
             echo '{"success": false, "error": "Failed to create trigger file"}'
+        fi
+        ;;
+    "ansible-status")
+        # Check if Ansible is configured and available
+        if [[ -n "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR" ]]; then
+            echo '{"success": true, "configured": true, "ansible_dir": "'"$ANSIBLE_DIR"'"}'
+        else
+            echo '{"success": true, "configured": false}'
         fi
         ;;
     *)

@@ -6,6 +6,10 @@
 source /etc/lldpq.conf 2>/dev/null || true
 WEB_ROOT="${WEB_ROOT:-/var/www/html}"
 LLDPQ_DIR="${LLDPQ_DIR:-/opt/lldpq}"
+# NoNe = explicitly disabled, treat as empty
+if [[ "$ANSIBLE_DIR" == "NoNe" ]]; then
+    ANSIBLE_DIR=""
+fi
 
 # topology_config.yaml is in web root
 CONFIG_FILE="$WEB_ROOT/topology_config.yaml"
@@ -24,75 +28,109 @@ fi
 echo "Content-Type: application/json"
 echo ""
 
-# Handle get-inventory action - return device groups from Ansible inventory
+# Handle get-inventory action - return device groups
+# Priority: Ansible inventory -> devices.yaml fallback
 if [ "$ACTION" = "get-inventory" ]; then
-    # Fallback: try inventory.ini first, then hosts
-    if [ -f "$ANSIBLE_DIR/inventory/inventory.ini" ]; then
-        INVENTORY_FILE="$ANSIBLE_DIR/inventory/inventory.ini"
-    elif [ -f "$ANSIBLE_DIR/inventory/hosts" ]; then
-        INVENTORY_FILE="$ANSIBLE_DIR/inventory/hosts"
-    else
-        echo '{"success": false, "error": "Inventory file not found"}'
-        exit 0
+    # Try Ansible inventory first
+    INVENTORY_FILE=""
+    if [ -n "$ANSIBLE_DIR" ]; then
+        if [ -f "$ANSIBLE_DIR/inventory/inventory.ini" ]; then
+            INVENTORY_FILE="$ANSIBLE_DIR/inventory/inventory.ini"
+        elif [ -f "$ANSIBLE_DIR/inventory/hosts" ]; then
+            INVENTORY_FILE="$ANSIBLE_DIR/inventory/hosts"
+        fi
     fi
-    
-    # Parse inventory file and output as JSON
+
+    # Fallback: devices.yaml
+    DEVICES_YAML="$LLDPQ_DIR/devices.yaml"
+
     export INVENTORY_FILE
+    export DEVICES_YAML
     python3 << 'PYEOF'
 import json
 import re
 import os
 
-# Use INVENTORY_FILE from environment, fallback to checking both files
-inventory_file = os.environ.get('INVENTORY_FILE')
-if not inventory_file:
-    ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
-    for name in ['inventory.ini', 'hosts']:
-        path = f"{ansible_dir}/inventory/{name}"
-        if os.path.exists(path):
-            inventory_file = path
-            break
-
+inventory_file = os.environ.get('INVENTORY_FILE', '')
+devices_yaml = os.environ.get('DEVICES_YAML', '')
 groups = {}
-current_group = None
 
-try:
-    with open(inventory_file, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            
-            # Check for group header
-            group_match = re.match(r'^\[([^\]:]+)\]', line)
-            if group_match:
-                group_name = group_match.group(1)
-                # Skip :children and :vars groups
-                if ':' not in group_name:
-                    current_group = group_name
-                    if current_group not in groups:
-                        groups[current_group] = []
+# --- Try Ansible inventory first ---
+if inventory_file and os.path.isfile(inventory_file):
+    current_group = None
+    try:
+        with open(inventory_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                group_match = re.match(r'^\[([^\]:]+)\]', line)
+                if group_match:
+                    group_name = group_match.group(1)
+                    if ':' not in group_name:
+                        current_group = group_name
+                        if current_group not in groups:
+                            groups[current_group] = []
+                    else:
+                        current_group = None
+                    continue
+                if current_group:
+                    host_match = re.match(r'^(\S+)', line)
+                    if host_match:
+                        hostname = host_match.group(1)
+                        if hostname not in groups[current_group]:
+                            groups[current_group].append(hostname)
+    except Exception:
+        groups = {}
+
+# --- Fallback: devices.yaml ---
+if not groups and devices_yaml and os.path.isfile(devices_yaml):
+    try:
+        import yaml
+        with open(devices_yaml, 'r') as f:
+            config = yaml.safe_load(f)
+        devs = config.get('devices', {})
+        if devs:
+            for ip_addr, device_config in devs.items():
+                hostname = None
+                role = None
+                if isinstance(device_config, str):
+                    match = re.match(r'^(.+?)\s+@(\w+)$', device_config.strip())
+                    if match:
+                        hostname = match.group(1).strip()
+                        role = match.group(2).lower()
+                    else:
+                        hostname = device_config.strip()
+                elif isinstance(device_config, dict):
+                    hostname = device_config.get('hostname', str(ip_addr))
+                    role = device_config.get('role', None)
+                    if role:
+                        role = role.lower()
                 else:
-                    current_group = None
-                continue
-            
-            # Parse host entry
-            if current_group:
-                host_match = re.match(r'^(\S+)', line)
-                if host_match:
-                    hostname = host_match.group(1)
-                    if hostname not in groups[current_group]:
-                        groups[current_group].append(hostname)
-    
+                    continue
+                group = role if role else 'all'
+                if group not in groups:
+                    groups[group] = []
+                if hostname not in groups[group]:
+                    groups[group].append(hostname)
+    except Exception as e:
+        print(json.dumps({'success': False, 'error': f'Failed to parse devices.yaml: {e}'}))
+        raise SystemExit(0)
+
+if groups:
     print(json.dumps({'success': True, 'groups': groups}))
-except Exception as e:
-    print(json.dumps({'success': False, 'error': str(e)}))
+else:
+    print(json.dumps({'success': False, 'error': 'No device inventory found. Provide Ansible inventory or devices.yaml'}))
 PYEOF
     exit 0
 fi
 
-# Handle validate action
+# Handle validate action (requires Ansible)
 if [ "$ACTION" = "validate" ]; then
+    if [ -z "$ANSIBLE_DIR" ] || [ ! -d "$ANSIBLE_DIR" ]; then
+        echo '{"success": false, "error": "Ansible not configured. Validation requires Ansible inventory."}'
+        exit 0
+    fi
     VALIDATE_SCRIPT="$LLDPQ_DIR/nv-validate.py"
     CONFIG_DIR="$ANSIBLE_DIR/files/generated_config_folder"
     

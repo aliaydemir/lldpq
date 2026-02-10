@@ -608,6 +608,18 @@
                 document.getElementById('ansible-menu').style.display = 'none';
             }
             
+            // Hide Ansible menu if Ansible is not configured
+            try {
+                const resp = await fetch('/fabric-api.sh?action=ansible-status');
+                const data = await resp.json();
+                if (!data.configured) {
+                    document.getElementById('ansible-menu').style.display = 'none';
+                }
+            } catch (e) {
+                // If check fails, hide Ansible menu (safe default)
+                document.getElementById('ansible-menu').style.display = 'none';
+            }
+            
             // Check for updates after auth is ready (admin only)
             checkForUpdates();
         }

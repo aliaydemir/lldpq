@@ -1,8 +1,10 @@
 # LLDPq Docker Compose
 # Usage: docker compose up -d
 #
-# Required: Mount your SSH keys and devices.yaml
-# Optional: Mount data directories for persistence
+# Required: devices.yaml (device inventory)
+# Optional: SSH keys (needed for switch monitoring - can also be configured after start)
+# Optional: Ansible directory (enables VLAN/BGP reports, Fabric Config/Editor/Deploy)
+# Optional: Data directories for persistence
 
 services:
   lldpq:
@@ -17,6 +19,9 @@ services:
       # Required: Device inventory
       - ../lldpq/devices.yaml:/home/lldpq/lldpq/devices.yaml
       
+      # Optional: Ansible directory (enables VLAN/BGP reports, Fabric Config/Editor/Deploy)
+      # - ~/ansible:/home/lldpq/ansible:rw
+      
       # Optional: Topology files (editable from web UI)
       - ../lldpq/topology.dot:/var/www/html/topology.dot
       - ../lldpq/topology_config.yaml:/var/www/html/topology_config.yaml
@@ -28,6 +33,8 @@ services:
     restart: unless-stopped
     environment:
       - TZ=${TZ:-UTC}
+      # Uncomment if mounting Ansible directory:
+      # - ANSIBLE_DIR=/home/lldpq/ansible
 
 volumes:
   lldpq-data:

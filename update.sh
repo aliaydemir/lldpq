@@ -338,8 +338,12 @@ if [[ -f /etc/lldpq.conf ]]; then
     ANSIBLE_DIR_EXISTING=$(grep "^ANSIBLE_DIR=" /etc/lldpq.conf 2>/dev/null | cut -d= -f2)
 fi
 
+# Respect explicit NoNe flag (user chose to skip Ansible)
+if [[ "$ANSIBLE_DIR_EXISTING" == "NoNe" ]]; then
+    ANSIBLE_DIR="NoNe"
+    echo "     Ansible not configured (NoNe). Skipping."
 # Verify if existing ANSIBLE_DIR still exists
-if [[ -n "$ANSIBLE_DIR_EXISTING" ]] && [[ -d "$ANSIBLE_DIR_EXISTING" ]]; then
+elif [[ -n "$ANSIBLE_DIR_EXISTING" ]] && [[ -d "$ANSIBLE_DIR_EXISTING" ]]; then
     echo "     Existing ANSIBLE_DIR still valid: $ANSIBLE_DIR_EXISTING"
     ANSIBLE_DIR="$ANSIBLE_DIR_EXISTING"
     
@@ -440,8 +444,8 @@ HOOKEOF
         
         echo "     Ansible directory configured: $ANSIBLE_DIR"
     else
-        ANSIBLE_DIR="$HOME/ansible"
-        echo "     No Ansible directory detected, using default: $ANSIBLE_DIR"
+        ANSIBLE_DIR="NoNe"
+        echo "     No Ansible directory detected (LLDPq will use devices.yaml)"
     fi
 fi
 

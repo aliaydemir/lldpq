@@ -161,4 +161,17 @@ server {
             # Longer timeout for parallel device queries
             fastcgi_read_timeout 120;
         }
+        
+        # SSH Setup API endpoint (send-key + sudo-fix)
+        location = /setup-api.sh {
+            fastcgi_pass unix:/var/run/fcgiwrap.socket;
+            fastcgi_param SCRIPT_FILENAME /var/www/html/setup-api.sh;
+            fastcgi_param QUERY_STRING $query_string;
+            fastcgi_param REQUEST_METHOD $request_method;
+            fastcgi_param CONTENT_TYPE $content_type;
+            fastcgi_param CONTENT_LENGTH $content_length;
+            
+            # Longer timeout for parallel SSH operations across all devices
+            fastcgi_read_timeout 120;
+        }
 }
