@@ -48,6 +48,7 @@ echo ""
 
 echo -e "${YELLOW}[3/4]${NC} Exporting to ${OUTPUT_FILE}..."
 sudo docker save ${IMAGE_NAME}:${IMAGE_TAG} | gzip > "${OUTPUT_FILE}"
+chmod 644 "${OUTPUT_FILE}"
 SIZE=$(ls -lh "${OUTPUT_FILE}" | awk '{print $5}')
 echo -e "${GREEN}  ✓ Exported (${SIZE})${NC}"
 echo ""

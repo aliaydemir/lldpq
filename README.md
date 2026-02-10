@@ -43,6 +43,13 @@ Open `http://localhost` in your browser. That's it.
 
 **Works on:** Ubuntu, CentOS, RHEL, Debian, NVIDIA Cumulus Linux 5.x, any x86_64 with Docker.
 
+**Cumulus switch only** — open port 80 in the ACL before accessing the web UI:
+```bash
+nv set acl acl-default-whitelist rule 200 match ip tcp dest-port 80
+nv set acl acl-default-whitelist type ipv4
+nv config apply -y
+```
+
 **Persistent data** (optional — keeps monitoring data across restarts):
 ```bash
 docker run -d --name lldpq -p 80:80 -v devices.yaml:/home/lldpq/lldpq/devices.yaml -v lldpq-data:/home/lldpq/lldpq/monitor-results lldpq:latest
