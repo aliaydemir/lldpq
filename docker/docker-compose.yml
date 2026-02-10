@@ -1,0 +1,35 @@
+# LLDPq Docker Compose
+# Usage: docker compose up -d
+#
+# Required: Mount your SSH keys and devices.yaml
+# Optional: Mount data directories for persistence
+
+services:
+  lldpq:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: lldpq:latest
+    container_name: lldpq
+    ports:
+      - "${LLDPQ_PORT:-80}:80"
+    volumes:
+      # Required: Device inventory
+      - ../lldpq/devices.yaml:/home/lldpq/lldpq/devices.yaml
+      
+      # Optional: Topology files (editable from web UI)
+      - ../lldpq/topology.dot:/var/www/html/topology.dot
+      - ../lldpq/topology_config.yaml:/var/www/html/topology_config.yaml
+      
+      # Optional: Persistent monitoring data (survives container restart)
+      - lldpq-data:/home/lldpq/lldpq/monitor-results
+      - lldpq-configs:/var/www/html/configs
+      - lldpq-hstr:/var/www/html/hstr
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ:-UTC}
+
+volumes:
+  lldpq-data:
+  lldpq-configs:
+  lldpq-hstr:
