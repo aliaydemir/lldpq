@@ -233,13 +233,13 @@ if [[ -L "$LLDPQ_INSTALL_DIR/topology.dot" ]]; then
     # Already a symlink - just ensure web root file has correct permissions
     echo "     topology.dot symlink already exists"
     if [[ -f "$WEB_ROOT/topology.dot" ]]; then
-        sudo chown "www-data:$USER" "$WEB_ROOT/topology.dot"
+        sudo chown "$USER:www-data" "$WEB_ROOT/topology.dot"
         sudo chmod 664 "$WEB_ROOT/topology.dot"
     fi
 elif [[ -f "$LLDPQ_INSTALL_DIR/topology.dot" ]]; then
     # Regular file - move to web root and create symlink
     sudo mv "$LLDPQ_INSTALL_DIR/topology.dot" "$WEB_ROOT/topology.dot"
-    sudo chown "www-data:$USER" "$WEB_ROOT/topology.dot"
+    sudo chown "$USER:www-data" "$WEB_ROOT/topology.dot"
     sudo chmod 664 "$WEB_ROOT/topology.dot"
     ln -sf "$WEB_ROOT/topology.dot" "$LLDPQ_INSTALL_DIR/topology.dot"
 else
@@ -248,7 +248,7 @@ else
     if [[ ! -f "$WEB_ROOT/topology.dot" ]]; then
         echo "# LLDPq Topology Definition" | sudo tee "$WEB_ROOT/topology.dot" > /dev/null
     fi
-    sudo chown "www-data:$USER" "$WEB_ROOT/topology.dot"
+    sudo chown "$USER:www-data" "$WEB_ROOT/topology.dot"
     sudo chmod 664 "$WEB_ROOT/topology.dot"
     ln -sf "$WEB_ROOT/topology.dot" "$LLDPQ_INSTALL_DIR/topology.dot"
 fi
@@ -259,13 +259,13 @@ if [[ -L "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]]; then
     # Already a symlink - just ensure web root file has correct permissions
     echo "     topology_config.yaml symlink already exists"
     if [[ -f "$WEB_ROOT/topology_config.yaml" ]]; then
-        sudo chown "www-data:$USER" "$WEB_ROOT/topology_config.yaml"
+        sudo chown "$USER:www-data" "$WEB_ROOT/topology_config.yaml"
         sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
     fi
 elif [[ -f "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]]; then
     # Regular file - move to web root and create symlink
     sudo mv "$LLDPQ_INSTALL_DIR/topology_config.yaml" "$WEB_ROOT/topology_config.yaml"
-    sudo chown "www-data:$USER" "$WEB_ROOT/topology_config.yaml"
+    sudo chown "$USER:www-data" "$WEB_ROOT/topology_config.yaml"
     sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
     ln -sf "$WEB_ROOT/topology_config.yaml" "$LLDPQ_INSTALL_DIR/topology_config.yaml"
 fi

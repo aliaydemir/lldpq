@@ -307,7 +307,7 @@ else
     if [[ -f "$LLDPQ_INSTALL_DIR/topology.dot" ]] && [[ ! -L "$LLDPQ_INSTALL_DIR/topology.dot" ]]; then
         sudo mv "$LLDPQ_INSTALL_DIR/topology.dot" "$WEB_ROOT/topology.dot"
         # www-data owns it (for web editing), user's group has access too
-        sudo chown "www-data:$USER" "$WEB_ROOT/topology.dot"
+        sudo chown "$USER:www-data" "$WEB_ROOT/topology.dot"
         sudo chmod 664 "$WEB_ROOT/topology.dot"
         ln -sf "$WEB_ROOT/topology.dot" "$LLDPQ_INSTALL_DIR/topology.dot"
     fi
@@ -325,7 +325,7 @@ else
     # First time setup: move topology_config.yaml to web root
     if [[ -f "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]] && [[ ! -L "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]]; then
         sudo mv "$LLDPQ_INSTALL_DIR/topology_config.yaml" "$WEB_ROOT/topology_config.yaml"
-        sudo chown "www-data:$USER" "$WEB_ROOT/topology_config.yaml"
+        sudo chown "$USER:www-data" "$WEB_ROOT/topology_config.yaml"
         sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
         ln -sf "$WEB_ROOT/topology_config.yaml" "$LLDPQ_INSTALL_DIR/topology_config.yaml"
     fi
@@ -533,7 +533,7 @@ if [[ -d "$LLDPQ_INSTALL_DIR" ]]; then
     elif [[ -f "$LLDPQ_INSTALL_DIR/topology.dot" ]]; then
         echo "     • topology.dot (migrating to $WEB_ROOT)"
         sudo cp "$LLDPQ_INSTALL_DIR/topology.dot" "$WEB_ROOT/topology.dot"
-        sudo chown "www-data:$USER" "$WEB_ROOT/topology.dot"
+        sudo chown "$USER:www-data" "$WEB_ROOT/topology.dot"
         sudo chmod 664 "$WEB_ROOT/topology.dot"
     fi
     
@@ -544,7 +544,7 @@ if [[ -d "$LLDPQ_INSTALL_DIR" ]]; then
     elif [[ -f "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]]; then
         echo "     • topology_config.yaml (migrating to $WEB_ROOT)"
         sudo cp "$LLDPQ_INSTALL_DIR/topology_config.yaml" "$WEB_ROOT/topology_config.yaml"
-        sudo chown "www-data:$USER" "$WEB_ROOT/topology_config.yaml"
+        sudo chown "$USER:www-data" "$WEB_ROOT/topology_config.yaml"
         sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
     fi
     
