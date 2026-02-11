@@ -138,6 +138,17 @@ touch /var/lib/dhcp/dhcpd.leases
 chown lldpq:www-data /etc/dhcp/dhcpd.hosts
 chmod 664 /etc/dhcp/dhcpd.hosts
 
+# Discovery cache file
+touch /var/www/html/discovery-cache.json
+chown lldpq:www-data /var/www/html/discovery-cache.json
+chmod 664 /var/www/html/discovery-cache.json
+
+# Default post-provision settings in lldpq.conf (if not present)
+for key_val in "AUTO_BASE_CONFIG=true" "AUTO_ZTP_DISABLE=true" "AUTO_SET_HOSTNAME=true"; do
+    key="${key_val%%=*}"
+    grep -q "^${key}=" /etc/lldpq.conf 2>/dev/null || echo "$key_val" >> /etc/lldpq.conf
+done
+
 # Default dhcpd.conf if not configured yet (Ubuntu sample is useless)
 if ! grep -q 'cumulus-provision-url\|LLDPq' /etc/dhcp/dhcpd.conf 2>/dev/null; then
     # Detect our IP for default config

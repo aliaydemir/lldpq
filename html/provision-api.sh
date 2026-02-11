@@ -32,9 +32,16 @@ if [ "$REQUEST_METHOD" = "POST" ] && [ -n "$CONTENT_LENGTH" ] && [ "$CONTENT_LEN
     POST_DATA=$(dd bs=1 count="$CONTENT_LENGTH" 2>/dev/null)
 fi
 
+# Discovery config
+DISCOVERY_RANGE="${DISCOVERY_RANGE:-}"
+AUTO_BASE_CONFIG="${AUTO_BASE_CONFIG:-true}"
+AUTO_ZTP_DISABLE="${AUTO_ZTP_DISABLE:-true}"
+AUTO_SET_HOSTNAME="${AUTO_SET_HOSTNAME:-true}"
+
 # Export for Python
 export LLDPQ_DIR LLDPQ_USER WEB_ROOT
 export DHCP_HOSTS_FILE DHCP_CONF_FILE DHCP_LEASES_FILE ZTP_SCRIPT_FILE BASE_CONFIG_DIR
+export DISCOVERY_RANGE AUTO_BASE_CONFIG AUTO_ZTP_DISABLE AUTO_SET_HOSTNAME
 export POST_DATA ACTION
 
 python3 << 'PYTHON_SCRIPT'
@@ -45,6 +52,8 @@ import re
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import time
+
 ACTION = os.environ.get('ACTION', '')
 POST_DATA = os.environ.get('POST_DATA', '')
 LLDPQ_DIR = os.environ.get('LLDPQ_DIR', '/home/lldpq/lldpq')
@@ -54,6 +63,73 @@ DHCP_HOSTS_FILE = os.environ.get('DHCP_HOSTS_FILE', '/etc/dhcp/dhcpd.hosts')
 DHCP_LEASES_FILE = os.environ.get('DHCP_LEASES_FILE', '/var/lib/dhcp/dhcpd.leases')
 ZTP_SCRIPT_FILE = os.environ.get('ZTP_SCRIPT_FILE', f'{WEB_ROOT}/cumulus-ztp.sh')
 BASE_CONFIG_DIR = os.environ.get('BASE_CONFIG_DIR', f'{LLDPQ_DIR}/sw-base')
+DISCOVERY_RANGE = os.environ.get('DISCOVERY_RANGE', '')
+AUTO_BASE_CONFIG = os.environ.get('AUTO_BASE_CONFIG', 'true') == 'true'
+AUTO_ZTP_DISABLE = os.environ.get('AUTO_ZTP_DISABLE', 'true') == 'true'
+AUTO_SET_HOSTNAME = os.environ.get('AUTO_SET_HOSTNAME', 'true') == 'true'
+DISCOVERY_CACHE_FILE = f'{WEB_ROOT}/discovery-cache.json'
+
+def update_lldpq_conf(key, value):
+    """Update or add a key=value in /etc/lldpq.conf."""
+    conf = '/etc/lldpq.conf'
+    try:
+        with open(conf, 'r') as f:
+            lines = f.readlines()
+    except Exception:
+        lines = []
+    found = False
+    for i, line in enumerate(lines):
+        if line.startswith(f'{key}='):
+            lines[i] = f'{key}={value}\n'
+            found = True
+            break
+    if not found:
+        lines.append(f'{key}={value}\n')
+    content = ''.join(lines)
+    try:
+        with open(conf, 'w') as f:
+            f.write(content)
+    except PermissionError:
+        subprocess.run(['sudo', 'tee', conf], input=content, capture_output=True, text=True, timeout=5)
+
+def read_lldpq_conf_key(key, default=''):
+    """Read a single key from /etc/lldpq.conf."""
+    try:
+        with open('/etc/lldpq.conf', 'r') as f:
+            for line in f:
+                if line.startswith(f'{key}='):
+                    return line.strip().split('=', 1)[1]
+    except Exception:
+        pass
+    return default
+
+def ip_range_to_list(range_str):
+    """Parse comma-separated IP ranges to list of IPs.
+    Supports: '192.168.58.10-192.168.58.249'
+              '192.168.58.11-192.168.58.199,192.168.58.201-192.168.58.252'
+    """
+    if not range_str:
+        return []
+    result = []
+    for segment in range_str.split(','):
+        segment = segment.strip()
+        if not segment or '-' not in segment:
+            continue
+        try:
+            start_s, end_s = segment.split('-', 1)
+            start_parts = list(map(int, start_s.strip().split('.')))
+            end_parts = list(map(int, end_s.strip().split('.')))
+            if start_parts[:3] == end_parts[:3]:
+                prefix = '.'.join(map(str, start_parts[:3]))
+                result.extend(f'{prefix}.{i}' for i in range(start_parts[3], end_parts[3] + 1))
+            else:
+                import ipaddress
+                start = int(ipaddress.IPv4Address(start_s.strip()))
+                end = int(ipaddress.IPv4Address(end_s.strip()))
+                result.extend(str(ipaddress.IPv4Address(i)) for i in range(start, end + 1))
+        except Exception:
+            continue
+    return result
 
 # Also check alternate path for dhcpd.hosts (some setups use dhcpd.host)
 DHCP_HOSTS_ALT = DHCP_HOSTS_FILE.replace('dhcpd.hosts', 'dhcpd.host')
@@ -494,6 +570,320 @@ def action_ping_scan():
     
     result_json({"success": True, "entries": entries, "scan_type": "ping"})
 
+def action_subnet_scan():
+    """Full subnet discovery: ping all IPs in range, ARP for MACs, SSH probe for classification,
+    post-provision actions (sw-base, ztp disable, hostname set) for newly provisioned devices."""
+    
+    # Get discovery range
+    disc_range = read_lldpq_conf_key('DISCOVERY_RANGE', DISCOVERY_RANGE)
+    if not disc_range:
+        # Auto-detect from dhcpd.conf subnet
+        conf_path = os.environ.get('DHCP_CONF_FILE', '/etc/dhcp/dhcpd.conf')
+        try:
+            with open(conf_path, 'r') as f:
+                content = f.read()
+            m = re.search(r'subnet\s+([\d.]+)', content)
+            if m:
+                prefix = '.'.join(m.group(1).split('.')[:3])
+                disc_range = f'{prefix}.10-{prefix}.249'
+        except Exception:
+            pass
+    
+    if not disc_range:
+        error_json("No discovery range configured. Set it in DHCP Server Configuration.")
+    
+    all_ips = ip_range_to_list(disc_range)
+    if not all_ips:
+        error_json(f"Invalid discovery range: {disc_range}")
+    
+    # Load bindings for cross-reference
+    bindings = parse_dhcp_hosts(get_dhcp_hosts_path())
+    binding_by_ip = {b['ip']: b for b in bindings}
+    binding_by_hostname = {b['hostname']: b for b in bindings}
+    
+    # Load devices.yaml for hostname resolution
+    devices_yaml = {}
+    try:
+        devices_path = os.path.join(LLDPQ_DIR, 'devices.yaml')
+        if os.path.exists(devices_path):
+            import yaml
+            with open(devices_path, 'r') as f:
+                data = yaml.safe_load(f) or {}
+            for section in data.values():
+                if isinstance(section, dict):
+                    for host, info in section.items():
+                        if isinstance(info, dict) and 'ip' in info:
+                            devices_yaml[info['ip']] = host
+    except Exception:
+        pass
+    
+    # Step 1: Parallel ping all IPs in discovery range
+    def ping_one(ip):
+        try:
+            r = subprocess.run(['ping', '-c', '1', '-W', '1', '-i', '0.2', ip],
+                             capture_output=True, text=True, timeout=3)
+            return ip, r.returncode == 0
+        except Exception:
+            return ip, False
+    
+    ping_results = {}
+    with ThreadPoolExecutor(max_workers=250) as executor:
+        futures = {executor.submit(ping_one, ip): ip for ip in all_ips}
+        for future in as_completed(futures):
+            ip, alive = future.result()
+            ping_results[ip] = alive
+    
+    # Step 2: Read local ARP table
+    local_arp = {}
+    try:
+        r = subprocess.run(['ip', 'neigh', 'show'], capture_output=True, text=True, timeout=5)
+        if r.returncode == 0:
+            for line in r.stdout.strip().split('\n'):
+                parts = line.split()
+                if 'lladdr' in parts:
+                    ip = parts[0]
+                    mac_idx = parts.index('lladdr') + 1
+                    if mac_idx < len(parts):
+                        local_arp[ip] = parts[mac_idx].lower()
+    except Exception:
+        pass
+    
+    reachable_ips = [ip for ip, alive in ping_results.items() if alive]
+    
+    # Step 3: SSH probe reachable IPs for device classification
+    def ssh_probe(ip):
+        """Try SSH with key auth as cumulus user (runs as LLDPQ_USER to use correct SSH keys).
+        Returns: 'provisioned', 'not_provisioned', 'other'"""
+        try:
+            r = subprocess.run(
+                ['sudo', '-u', LLDPQ_USER, 'ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=3',
+                 '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
+                 '-o', 'LogLevel=ERROR', f'cumulus@{ip}', 'echo OK'],
+                capture_output=True, text=True, timeout=8
+            )
+            if r.returncode == 0 and 'OK' in r.stdout:
+                return ip, 'provisioned'
+            stderr = r.stderr.lower()
+            if 'permission denied' in stderr:
+                return ip, 'not_provisioned'
+            if 'connection refused' in stderr:
+                return ip, 'other'
+            return ip, 'not_provisioned'
+        except subprocess.TimeoutExpired:
+            return ip, 'other'
+        except Exception:
+            return ip, 'other'
+    
+    ssh_results = {}
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        futures = {executor.submit(ssh_probe, ip): ip for ip in reachable_ips}
+        for future in as_completed(futures):
+            ip, device_type = future.result()
+            ssh_results[ip] = device_type
+    
+    # Step 4: Build entries with cross-reference
+    entries = []
+    for ip in all_ips:
+        alive = ping_results.get(ip, False)
+        disc_mac = local_arp.get(ip, '')
+        binding = binding_by_ip.get(ip)
+        
+        hostname = ''
+        binding_mac = ''
+        binding_ip = ip
+        mac_status = ''
+        
+        if binding:
+            hostname = binding['hostname']
+            binding_mac = binding['mac']
+            if alive and disc_mac:
+                mac_status = 'match' if disc_mac == binding_mac.lower() else 'mismatch'
+            elif alive:
+                mac_status = 'match'
+            else:
+                mac_status = 'unreachable'
+        else:
+            hostname = devices_yaml.get(ip, '')
+            mac_status = 'no_binding'
+        
+        if not alive:
+            device_type = 'unreachable'
+        else:
+            device_type = ssh_results.get(ip, 'other')
+        
+        entry = {
+            'ip': ip,
+            'hostname': hostname,
+            'binding_mac': binding_mac,
+            'discovered_mac': disc_mac,
+            'device_type': device_type,
+            'mac_status': mac_status,
+            'source': 'Ping+ARP' if disc_mac else ('Ping' if alive else ''),
+            'has_binding': binding is not None,
+            'post_provision': None,
+        }
+        entries.append(entry)
+    
+    # Step 5: Post-provision actions for newly provisioned devices
+    auto_base = read_lldpq_conf_key('AUTO_BASE_CONFIG', 'true') == 'true'
+    auto_ztp = read_lldpq_conf_key('AUTO_ZTP_DISABLE', 'true') == 'true'
+    auto_host = read_lldpq_conf_key('AUTO_SET_HOSTNAME', 'true') == 'true'
+    
+    if auto_base or auto_ztp or auto_host:
+        provisioned_entries = [e for e in entries if e['device_type'] == 'provisioned' and e['has_binding']]
+        
+        def post_provision_one(entry):
+            ip = entry['ip']
+            hostname = entry['hostname']
+            
+            # Check marker
+            try:
+                r = subprocess.run(
+                    ['sudo', '-u', LLDPQ_USER, 'ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=3',
+                     '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
+                     '-o', 'LogLevel=ERROR', f'cumulus@{ip}',
+                     'test -f /etc/lldpq-base-deployed && echo DONE || echo NEW'],
+                    capture_output=True, text=True, timeout=8
+                )
+                if 'DONE' in r.stdout:
+                    return ip, 'already'
+            except Exception:
+                return ip, None
+            
+            # Execute post-provision actions
+            cmds = []
+            
+            # sw-base deploy via SCP + SSH
+            if auto_base and os.path.isdir(BASE_CONFIG_DIR):
+                files_map = {
+                    'bash.bashrc': '/etc/bash.bashrc',
+                    'motd.sh': '/etc/profile.d/motd.sh',
+                    'tmux.conf': '/home/cumulus/.tmux.conf',
+                    'nanorc': '/home/cumulus/.nanorc',
+                    'cmd': '/usr/local/bin/cmd',
+                    'nvc': '/usr/local/bin/nvc',
+                    'nvt': '/usr/local/bin/nvt',
+                    'exa': '/usr/bin/exa',
+                }
+                scp_files = []
+                copy_cmds = []
+                for fname, dest in files_map.items():
+                    src = os.path.join(BASE_CONFIG_DIR, fname)
+                    if os.path.exists(src):
+                        scp_files.append(src)
+                        copy_cmds.append(f'sudo cp /tmp/{fname} {dest}')
+                        if dest.startswith('/usr/') or fname in ('cmd', 'nvc', 'nvt', 'exa', 'motd.sh'):
+                            copy_cmds.append(f'sudo chmod 755 {dest}')
+                
+                if scp_files:
+                    try:
+                        subprocess.run(
+                            ['sudo', '-u', LLDPQ_USER, 'scp', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=3',
+                             '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
+                             '-o', 'LogLevel=ERROR'] + scp_files + [f'cumulus@{ip}:/tmp/'],
+                            capture_output=True, text=True, timeout=15
+                        )
+                        cmds.extend(copy_cmds)
+                    except Exception:
+                        pass
+            
+            # ZTP disable
+            if auto_ztp:
+                cmds.append('sudo ztp -d 2>/dev/null || true')
+            
+            # Hostname set
+            if auto_host and hostname:
+                cmds.append(f'sudo nv set system hostname {hostname} 2>/dev/null && sudo nv config apply -y 2>/dev/null || true')
+            
+            # Write marker
+            cmds.append('sudo touch /etc/lldpq-base-deployed')
+            
+            if cmds:
+                cmd_str = ' && '.join(cmds)
+                try:
+                    subprocess.run(
+                        ['sudo', '-u', LLDPQ_USER, 'ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5',
+                         '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
+                         '-o', 'LogLevel=ERROR', f'cumulus@{ip}', cmd_str],
+                        capture_output=True, text=True, timeout=30
+                    )
+                    return ip, 'deployed'
+                except Exception:
+                    return ip, None
+            
+            return ip, None
+        
+        # Run post-provision in parallel (limited workers since these are heavier)
+        post_results = {}
+        if provisioned_entries:
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = {executor.submit(post_provision_one, e): e['ip'] for e in provisioned_entries}
+                for future in as_completed(futures):
+                    ip, status = future.result()
+                    post_results[ip] = status
+            
+            # Update entries with post-provision results
+            for entry in entries:
+                if entry['ip'] in post_results:
+                    entry['post_provision'] = post_results[entry['ip']]
+    
+    # Step 6: Write cache
+    cache_data = {
+        'timestamp': time.time(),
+        'discovery_range': disc_range,
+        'entries': entries,
+    }
+    try:
+        with open(DISCOVERY_CACHE_FILE, 'w') as f:
+            json.dump(cache_data, f)
+    except PermissionError:
+        subprocess.run(['sudo', 'tee', DISCOVERY_CACHE_FILE],
+                      input=json.dumps(cache_data), capture_output=True, text=True, timeout=5)
+    
+    result_json({
+        "success": True,
+        "entries": entries,
+        "scan_type": "subnet",
+        "discovery_range": disc_range,
+        "total_ips": len(all_ips),
+        "reachable": len(reachable_ips),
+        "post_provision_results": {ip: s for ip, s in post_results.items()} if 'post_results' in dir() else {},
+    })
+
+def action_get_discovery_cache():
+    """Read cached discovery results."""
+    if not os.path.exists(DISCOVERY_CACHE_FILE):
+        result_json({"success": True, "entries": [], "stale": True, "timestamp": 0})
+    
+    try:
+        with open(DISCOVERY_CACHE_FILE, 'r') as f:
+            data = json.load(f)
+        age = time.time() - data.get('timestamp', 0)
+        data['success'] = True
+        data['stale'] = age > 300  # stale if > 5 minutes
+        data['age_seconds'] = int(age)
+        result_json(data)
+    except Exception as e:
+        result_json({"success": True, "entries": [], "stale": True, "timestamp": 0, "error": str(e)})
+
+def action_save_post_provision():
+    """Save post-provision toggle settings."""
+    try:
+        data = json.loads(POST_DATA)
+    except Exception:
+        error_json("Invalid JSON")
+    
+    if 'auto_base_config' in data:
+        update_lldpq_conf('AUTO_BASE_CONFIG', 'true' if data['auto_base_config'] else 'false')
+    if 'auto_ztp_disable' in data:
+        update_lldpq_conf('AUTO_ZTP_DISABLE', 'true' if data['auto_ztp_disable'] else 'false')
+    if 'auto_set_hostname' in data:
+        update_lldpq_conf('AUTO_SET_HOSTNAME', 'true' if data['auto_set_hostname'] else 'false')
+    if 'discovery_range' in data:
+        update_lldpq_conf('DISCOVERY_RANGE', data['discovery_range'])
+    
+    result_json({"success": True, "message": "Settings saved"})
+
 # ======================== ZTP SCRIPT ========================
 
 def action_get_ztp_script():
@@ -701,7 +1091,22 @@ def action_get_dhcp_config():
     except Exception:
         pass
     
-    result_json({"success": True, "interfaces": interfaces, **config})
+    # Read discovery range and post-provision settings from lldpq.conf
+    discovery_range = read_lldpq_conf_key('DISCOVERY_RANGE', '')
+    # Auto-generate default from subnet if empty
+    if not discovery_range and config['subnet']:
+        prefix = '.'.join(config['subnet'].split('.')[:3])
+        discovery_range = f'{prefix}.10-{prefix}.249'
+    
+    result_json({
+        "success": True,
+        "interfaces": interfaces,
+        "discovery_range": discovery_range,
+        "auto_base_config": read_lldpq_conf_key('AUTO_BASE_CONFIG', 'true') == 'true',
+        "auto_ztp_disable": read_lldpq_conf_key('AUTO_ZTP_DISABLE', 'true') == 'true',
+        "auto_set_hostname": read_lldpq_conf_key('AUTO_SET_HOSTNAME', 'true') == 'true',
+        **config
+    })
 
 def action_save_dhcp_config():
     """Write dhcpd.conf from settings and restart DHCP."""
@@ -791,6 +1196,19 @@ include "{hosts_path}";
             f.write(isc_content)
     except PermissionError:
         subprocess.run(['sudo', 'tee', isc_default], input=isc_content, capture_output=True, text=True, timeout=5)
+    
+    # Save discovery range to lldpq.conf
+    discovery_range = data.get('discovery_range', '')
+    if discovery_range:
+        update_lldpq_conf('DISCOVERY_RANGE', discovery_range)
+    
+    # Save post-provision toggles
+    if 'auto_base_config' in data:
+        update_lldpq_conf('AUTO_BASE_CONFIG', 'true' if data['auto_base_config'] else 'false')
+    if 'auto_ztp_disable' in data:
+        update_lldpq_conf('AUTO_ZTP_DISABLE', 'true' if data['auto_ztp_disable'] else 'false')
+    if 'auto_set_hostname' in data:
+        update_lldpq_conf('AUTO_SET_HOSTNAME', 'true' if data['auto_set_hostname'] else 'false')
     
     # Restart DHCP
     ok, msg = restart_dhcp()
@@ -1357,6 +1775,12 @@ elif ACTION == 'deploy-base-config':
     action_deploy_base_config()
 elif ACTION == 'ping-scan':
     action_ping_scan()
+elif ACTION == 'subnet-scan':
+    action_subnet_scan()
+elif ACTION == 'discovery-cache':
+    action_get_discovery_cache()
+elif ACTION == 'save-post-provision':
+    action_save_post_provision()
 elif ACTION == 'get-ssh-key':
     action_get_ssh_key()
 elif ACTION == 'generate-ssh-key':

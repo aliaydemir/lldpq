@@ -766,7 +766,7 @@
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;">
             <div>
                 <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">SUBNET</label>
-                <input type="text" class="form-input" id="dhcpSubnet" style="width: 100%;" placeholder="192.168.58.0">
+                <input type="text" class="form-input" id="dhcpSubnet" style="width: 100%;" placeholder="192.168.100.0">
             </div>
             <div>
                 <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">NETMASK</label>
@@ -774,19 +774,19 @@
             </div>
             <div>
                 <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">DYNAMIC RANGE START</label>
-                <input type="text" class="form-input" id="dhcpRangeStart" style="width: 100%;" placeholder="192.168.58.210">
+                <input type="text" class="form-input" id="dhcpRangeStart" style="width: 100%;" placeholder="192.168.100.210">
             </div>
             <div>
                 <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">DYNAMIC RANGE END</label>
-                <input type="text" class="form-input" id="dhcpRangeEnd" style="width: 100%;" placeholder="192.168.58.249">
+                <input type="text" class="form-input" id="dhcpRangeEnd" style="width: 100%;" placeholder="192.168.100.249">
             </div>
             <div>
                 <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">GATEWAY (ROUTER)</label>
-                <input type="text" class="form-input" id="dhcpGateway" style="width: 100%;" placeholder="192.168.58.1">
+                <input type="text" class="form-input" id="dhcpGateway" style="width: 100%;" placeholder="192.168.100.1">
             </div>
             <div>
                 <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">DNS SERVER</label>
-                <input type="text" class="form-input" id="dhcpDNS" style="width: 100%;" placeholder="192.168.58.1">
+                <input type="text" class="form-input" id="dhcpDNS" style="width: 100%;" placeholder="192.168.100.1">
             </div>
             <div>
                 <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">DOMAIN NAME</label>
@@ -794,7 +794,7 @@
             </div>
             <div>
                 <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">ZTP PROVISION URL</label>
-                <input type="text" class="form-input" id="dhcpProvisionURL" style="width: 100%;" placeholder="http://192.168.58.200/cumulus-ztp.sh">
+                <input type="text" class="form-input" id="dhcpProvisionURL" style="width: 100%;" placeholder="http://192.168.100.200/cumulus-ztp.sh">
             </div>
             <div>
                 <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">LISTEN INTERFACE</label>
@@ -814,14 +814,45 @@
         </div>
     </div>
 
+    <!-- Discovery & Post-Provision Settings -->
+    <div style="padding: 15px; background: #1e1e1e; border-radius: 6px; border: 1px solid #3c3c3c; margin-bottom: 20px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <div class="section-title" style="font-size: 13px; margin-bottom: 8px;">Discovery Range</div>
+                <div class="section-desc" style="margin-bottom: 8px; font-size: 11px;">IP range to scan for device discovery. Only IPs in this range will be pinged and probed.</div>
+                <input type="text" class="form-input" id="discoveryRange" style="width: 100%; font-family: 'Cascadia Code','Consolas',monospace;" placeholder="192.168.100.10-192.168.100.249">
+            </div>
+            <div>
+                <div class="section-title" style="font-size: 13px; margin-bottom: 8px;">Post-Provision Actions</div>
+                <div class="section-desc" style="margin-bottom: 8px; font-size: 11px;">Automatically run on newly provisioned devices (SSH key auth OK + no marker).</div>
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: #ccc;">
+                        <input type="checkbox" id="autoBaseConfig" checked> Deploy Base Config (sw-base files)
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: #ccc;">
+                        <input type="checkbox" id="autoZtpDisable" checked> Disable ZTP (sudo ztp -d)
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: #ccc;">
+                        <input type="checkbox" id="autoSetHostname" checked> Set hostname from binding (nv set)
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div style="margin-top: 10px;">
+            <button class="btn btn-secondary btn-sm" onclick="saveDiscoverySettings()">Save Discovery Settings</button>
+        </div>
+    </div>
+
     <!-- Discovered Section (inside DHCP Server tab) -->
     <div class="section-title" style="margin-top: 10px;">Discovered Devices</div>
-    <div class="section-desc">Cross-reference LLDP/ARP data with DHCP bindings. Click stats to filter.</div>
+    <div class="section-desc">Subnet-wide discovery with SSH classification. Provisioned devices get auto-configured.</div>
     <div class="stats-row" id="discoveredStats">
-        <div class="stat-card" style="cursor:pointer;" onclick="setDiscoveredFilter('match')"><div class="stat-value" id="statMatched">-</div><div class="stat-label">Matched</div></div>
-        <div class="stat-card" style="border-left-color:#ff9800; cursor:pointer;" onclick="setDiscoveredFilter('mismatch')"><div class="stat-value" id="statMismatch">-</div><div class="stat-label">Mismatch</div></div>
-        <div class="stat-card" style="border-left-color:#42a5f5; cursor:pointer;" onclick="setDiscoveredFilter('unbound')"><div class="stat-value" id="statUnbound">-</div><div class="stat-label">No Binding</div></div>
-        <div class="stat-card" style="border-left-color:#f44336; cursor:pointer;" onclick="setDiscoveredFilter(document.getElementById('statMissing').closest('.stat-card').querySelector('.stat-label').textContent === 'Unreachable' ? 'unreachable' : 'missing')"><div class="stat-value" id="statMissing">-</div><div class="stat-label">Not Discovered</div></div>
+        <div class="stat-card" style="cursor:pointer;" onclick="setDiscoveredFilter('provisioned')"><div class="stat-value" id="statProvisioned">-</div><div class="stat-label">Provisioned</div></div>
+        <div class="stat-card" style="border-left-color:#ff9800; cursor:pointer;" onclick="setDiscoveredFilter('not_provisioned')"><div class="stat-value" id="statNotProv">-</div><div class="stat-label">Not Provisioned</div></div>
+        <div class="stat-card" style="border-left-color:#78909c; cursor:pointer;" onclick="setDiscoveredFilter('other')"><div class="stat-value" id="statOther">-</div><div class="stat-label">Other</div></div>
+        <div class="stat-card" style="border-left-color:#f44336; cursor:pointer;" onclick="setDiscoveredFilter('unreachable')"><div class="stat-value" id="statUnreachable">-</div><div class="stat-label">Unreachable</div></div>
+        <div class="stat-card" style="border-left-color:#e53935; cursor:pointer;" onclick="setDiscoveredFilter('mismatch')"><div class="stat-value" id="statMismatch">-</div><div class="stat-label">MAC Mismatch</div></div>
+        <div class="stat-card" style="border-left-color:#42a5f5; cursor:pointer;" onclick="setDiscoveredFilter('no_binding')"><div class="stat-value" id="statNoBinding">-</div><div class="stat-label">No Binding</div></div>
         <div class="stat-card" style="border-left-color:#888; cursor:pointer;" onclick="setDiscoveredFilter('all')"><div class="stat-value" id="statAll">-</div><div class="stat-label">All</div></div>
     </div>
     <div class="toolbar">
@@ -829,15 +860,18 @@
             <input type="text" class="search-filter" id="discoveredSearch" placeholder="Filter..." oninput="filterDiscovered()">
             <select class="form-input" id="discoveredFilter" onchange="filterDiscovered()" style="width:180px;">
                 <option value="all">All</option>
-                <option value="match">Matched</option>
-                <option value="mismatch">Mismatch Only</option>
-                <option value="unbound">No Binding</option>
-                <option value="missing">Not Discovered</option>
+                <option value="provisioned">Provisioned</option>
+                <option value="not_provisioned">Not Provisioned</option>
+                <option value="other">Other Device</option>
                 <option value="unreachable">Unreachable</option>
+                <option value="has_binding">Has Binding</option>
+                <option value="no_binding">No Binding</option>
+                <option value="mismatch">MAC Mismatch</option>
             </select>
+            <span id="discoveredInfo" style="font-size: 11px; color: #666;"></span>
         </div>
         <div class="toolbar-right">
-            <button class="btn btn-primary btn-sm" onclick="runPingScan()" id="btnScan">
+            <button class="btn btn-primary btn-sm" onclick="runSubnetScan()" id="btnScan">
                 <svg viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
                 Scan
             </button>
@@ -848,11 +882,11 @@
             <thead>
                 <tr>
                     <th style="cursor:pointer;" onclick="sortDiscovered('hostname')">Hostname <span id="sort-hostname" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="cursor:pointer;" onclick="sortDiscovered('ip')">IP <span id="sort-ip" style="opacity:0.4;">&#9650;</span></th>
                     <th style="cursor:pointer;" onclick="sortDiscovered('binding_mac')">Binding MAC <span id="sort-binding_mac" style="opacity:0.4;">&#9650;</span></th>
                     <th style="cursor:pointer;" onclick="sortDiscovered('discovered_mac')">Discovered MAC <span id="sort-discovered_mac" style="opacity:0.4;">&#9650;</span></th>
-                    <th style="cursor:pointer;" onclick="sortDiscovered('binding_ip')">Binding IP <span id="sort-binding_ip" style="opacity:0.4;">&#9650;</span></th>
-                    <th style="cursor:pointer;" onclick="sortDiscovered('source')">Source <span id="sort-source" style="opacity:0.4;">&#9650;</span></th>
-                    <th style="cursor:pointer;" onclick="sortDiscovered('status')">Status <span id="sort-status" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="cursor:pointer;" onclick="sortDiscovered('device_type')">Device Type <span id="sort-device_type" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="cursor:pointer;" onclick="sortDiscovered('mac_status')">Status <span id="sort-mac_status" style="opacity:0.4;">&#9650;</span></th>
                 </tr>
             </thead>
             <tbody id="discoveredBody">
@@ -896,12 +930,14 @@
                     <th style="cursor:pointer;" onclick="sortBindings('hostname')">Hostname <span id="bsort-hostname" style="opacity:0.4;">&#9650;</span></th>
                     <th style="cursor:pointer;" onclick="sortBindings('mac')">MAC Address <span id="bsort-mac" style="opacity:0.4;">&#9650;</span></th>
                     <th style="cursor:pointer;" onclick="sortBindings('ip')">IP Address <span id="bsort-ip" style="opacity:1;">&#9650;</span></th>
+                    <th>Discovered MAC</th>
                     <th style="cursor:pointer;" onclick="sortBindings('status')">Status <span id="bsort-status" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="width:50px; text-align:center;">Live</th>
                     <th style="width:120px;">Actions</th>
                 </tr>
             </thead>
             <tbody id="bindingsBody">
-                <tr><td colspan="6" class="loading">Loading bindings...</td></tr>
+                <tr><td colspan="8" class="loading">Loading bindings...</td></tr>
             </tbody>
         </table>
     </div>
@@ -962,7 +998,7 @@
             </div>
             <div>
                 <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">IMAGE SERVER IP</label>
-                <input type="text" class="form-input input-ip" id="ztpImageServer" style="width: 100%;" placeholder="e.g. 192.168.58.200">
+                <input type="text" class="form-input input-ip" id="ztpImageServer" style="width: 100%;" placeholder="e.g. 192.168.100.200">
             </div>
         </div>
         <button class="btn btn-secondary btn-sm" style="margin-top: 10px;" onclick="applyQuickSettings()">Apply to Script</button>
@@ -1075,7 +1111,7 @@
         </div>
         <div class="modal-field">
             <label>IP Address</label>
-            <input type="text" id="modalIP" class="mono" placeholder="e.g. 192.168.58.11">
+            <input type="text" id="modalIP" class="mono" placeholder="e.g. 192.168.100.11">
         </div>
         <input type="hidden" id="modalOrigHostname">
         <div class="modal-actions">
@@ -1094,9 +1130,9 @@
         </div>
         <div style="margin-bottom: 10px; padding: 10px; background: #1e1e1e; border-radius: 4px; font-size: 12px; color: #888; font-family: 'Cascadia Code','Consolas',monospace;">
             Example:<br>
-            leaf-01&nbsp;&nbsp;54:9b:24:aa:68:16&nbsp;&nbsp;192.168.58.11<br>
-            leaf-02&nbsp;&nbsp;54:9b:24:8d:35:44&nbsp;&nbsp;192.168.58.12<br>
-            spine-01&nbsp;8c:91:3a:b4:aa:60&nbsp;&nbsp;192.168.58.17
+            leaf-01&nbsp;&nbsp;54:9b:24:aa:68:16&nbsp;&nbsp;192.168.100.11<br>
+            leaf-02&nbsp;&nbsp;54:9b:24:8d:35:44&nbsp;&nbsp;192.168.100.12<br>
+            spine-01&nbsp;8c:91:3a:b4:aa:60&nbsp;&nbsp;192.168.100.17
         </div>
         <textarea id="bulkImportText" style="width:100%; min-height:250px; padding:12px; background:#1a1a1a; color:#d4d4d4; border:1px solid #555; border-radius:4px; font-family:'Cascadia Code','Consolas',monospace; font-size:13px; line-height:1.6; resize:vertical;" spellcheck="false" placeholder="hostname  MAC  IP&#10;hostname  MAC  IP&#10;..."></textarea>
         <div id="bulkImportPreview" style="margin-top: 10px; font-size: 12px; color: #888;"></div>
@@ -1143,13 +1179,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load initial data
     loadDHCPConfig();
-    runPingScan();
+    loadDiscoveryCache();
     loadDeviceList();
     checkDHCPStatus();
 });
 
 function onTabSwitch(tab) {
-    if (tab === 'dhcpd') { loadDHCPConfig(); runPingScan(); }
+    if (tab === 'dhcpd') { loadDHCPConfig(); loadDiscoveryCache(); }
     if (tab === 'bindings' && allBindings.length === 0) loadBindings();
     if (tab === 'ztp-script') loadZTPScript();
 }
@@ -1204,7 +1240,13 @@ async function checkDHCPStatus() {
 
 // ===================== DHCP SERVICE CONTROL =====================
 async function dhcpServiceAction(action) {
-    if (action === 'stop' && !confirm('Stop DHCP server? New devices will not get IP addresses.')) return;
+    if (action === 'stop') {
+        showConfirmModal('Stop DHCP Server', 'Stop DHCP server? New devices will not get IP addresses.', () => _dhcpServiceAction(action));
+        return;
+    }
+    _dhcpServiceAction(action);
+}
+async function _dhcpServiceAction(action) {
     showToast(`DHCP: ${action}...`, 'info');
     const data = await apiCall('dhcp-service-control', { action });
     if (data.success) {
@@ -1228,6 +1270,12 @@ async function loadDHCPConfig() {
         document.getElementById('dhcpDomain').value = data.domain || '';
         document.getElementById('dhcpProvisionURL').value = data.provision_url || '';
         document.getElementById('dhcpLeaseTime').value = data.lease_time || '';
+        
+        // Discovery range and post-provision settings
+        document.getElementById('discoveryRange').value = data.discovery_range || '';
+        document.getElementById('autoBaseConfig').checked = data.auto_base_config !== false;
+        document.getElementById('autoZtpDisable').checked = data.auto_ztp_disable !== false;
+        document.getElementById('autoSetHostname').checked = data.auto_set_hostname !== false;
         
         // Populate interface dropdown
         const sel = document.getElementById('dhcpInterface');
@@ -1256,7 +1304,11 @@ async function saveDHCPConfig() {
         domain: document.getElementById('dhcpDomain').value.trim(),
         provision_url: document.getElementById('dhcpProvisionURL').value.trim(),
         interface: document.getElementById('dhcpInterface').value.trim(),
-        lease_time: document.getElementById('dhcpLeaseTime').value.trim()
+        lease_time: document.getElementById('dhcpLeaseTime').value.trim(),
+        discovery_range: document.getElementById('discoveryRange').value.trim(),
+        auto_base_config: document.getElementById('autoBaseConfig').checked,
+        auto_ztp_disable: document.getElementById('autoZtpDisable').checked,
+        auto_set_hostname: document.getElementById('autoSetHostname').checked,
     };
 
     if (!config.subnet || !config.netmask || !config.gateway) {
@@ -1270,6 +1322,21 @@ async function saveDHCPConfig() {
         checkDHCPStatus();
     } else {
         showToast('Save failed: ' + (data.error || 'Unknown error'), 'error');
+    }
+}
+
+async function saveDiscoverySettings() {
+    const settings = {
+        discovery_range: document.getElementById('discoveryRange').value.trim(),
+        auto_base_config: document.getElementById('autoBaseConfig').checked,
+        auto_ztp_disable: document.getElementById('autoZtpDisable').checked,
+        auto_set_hostname: document.getElementById('autoSetHostname').checked,
+    };
+    const data = await apiCall('save-post-provision', settings);
+    if (data.success) {
+        showToast('Discovery settings saved', 'success');
+    } else {
+        showToast('Save failed: ' + (data.error || ''), 'error');
     }
 }
 
@@ -1358,7 +1425,7 @@ function applyBulkImport() {
 
 // ===================== TAB 1: BINDINGS =====================
 async function loadBindings() {
-    document.getElementById('bindingsBody').innerHTML = '<tr><td colspan="6" class="loading">Loading bindings...</td></tr>';
+    document.getElementById('bindingsBody').innerHTML = '<tr><td colspan="8" class="loading">Loading bindings...</td></tr>';
     const data = await apiCall('list-bindings');
     if (data.success) {
         allBindings = data.bindings || [];
@@ -1366,7 +1433,7 @@ async function loadBindings() {
         document.getElementById('btnSaveBindings').style.display = 'none';
         renderBindings();
     } else {
-        document.getElementById('bindingsBody').innerHTML = `<tr><td colspan="6" style="color:#f44336;padding:20px;">Error: ${data.error}</td></tr>`;
+        document.getElementById('bindingsBody').innerHTML = `<tr><td colspan="8" style="color:#f44336;padding:20px;">Error: ${data.error}</td></tr>`;
     }
 }
 
@@ -1410,25 +1477,53 @@ function renderBindings() {
 
     if (filtered.length === 0) {
         document.getElementById('bindingsBody').innerHTML = `
-            <tr><td colspan="6" style="text-align:center; padding:40px; color:#666;">
+            <tr><td colspan="8" style="text-align:center; padding:40px; color:#666;">
                 ${allBindings.length === 0 ? 'No bindings configured. Click "Add Binding" to create one.' : 'No matches found.'}
             </td></tr>`;
         return;
     }
 
-    document.getElementById('bindingsBody').innerHTML = filtered.map((b, i) => `
-        <tr data-idx="${i}">
+    // Build discovery lookup from cache (allDiscovered from subnet scan)
+    const discByIp = {};
+    (allDiscovered || []).forEach(d => { if (d.ip) discByIp[d.ip] = d; });
+
+    document.getElementById('bindingsBody').innerHTML = filtered.map((b, i) => {
+        const disc = discByIp[b.ip] || {};
+        const dmac = disc.discovered_mac || '';
+        const isAlive = disc.device_type && disc.device_type !== 'unreachable';
+        const macMatch = dmac && b.mac && dmac === b.mac.toLowerCase();
+        const macMismatch = dmac && b.mac && !b.mac.toLowerCase().includes('x') && dmac !== b.mac.toLowerCase();
+        
+        let dmacHtml = '-';
+        if (dmac) {
+            if (macMismatch) dmacHtml = `<span style="color:#ff6b6b;" title="Mismatch!">${escHtml(dmac)}</span>`;
+            else if (macMatch) dmacHtml = `<span style="color:#4caf50;">${escHtml(dmac)}</span>`;
+            else dmacHtml = escHtml(dmac);
+        }
+        
+        let liveIcon;
+        if (!disc.device_type) {
+            liveIcon = '<span style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:4px;background:rgba(100,100,100,0.2);color:#555;font-size:13px;" title="Not scanned">-</span>';
+        } else if (isAlive) {
+            liveIcon = '<span style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:4px;background:rgba(76,175,80,0.2);color:#81c784;font-size:13px;" title="Reachable">&#10003;</span>';
+        } else {
+            liveIcon = '<span style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:4px;background:rgba(244,67,54,0.2);color:#e57373;font-size:13px;" title="Unreachable">&#10007;</span>';
+        }
+
+        return `<tr data-idx="${i}">
             <td><input type="checkbox" class="binding-cb" data-hostname="${b.hostname}"></td>
             <td><strong>${escHtml(b.hostname)}</strong></td>
             <td style="font-family:'Cascadia Code','Consolas',monospace; font-size:12px;">${escHtml(b.mac)}</td>
             <td style="font-family:'Cascadia Code','Consolas',monospace; font-size:12px;">${escHtml(b.ip)}</td>
+            <td style="font-family:'Cascadia Code','Consolas',monospace; font-size:12px;">${dmacHtml}</td>
             <td>${b.mac.toLowerCase().includes('x') ? '<span class="badge badge-warning">Pending MAC</span>' : b.commented ? '<span class="badge badge-pending">Disabled</span>' : '<span class="badge badge-active">Active</span>'}</td>
+            <td style="text-align:center;">${liveIcon}</td>
             <td class="row-actions">
                 <button class="btn btn-secondary btn-sm" onclick="editBinding('${escAttr(b.hostname)}')">Edit</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteBinding('${escAttr(b.hostname)}')">Del</button>
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 }
 
 function filterBindings() { renderBindings(); }
@@ -1507,12 +1602,13 @@ function saveBinding() {
 }
 
 function deleteBinding(hostname) {
-    if (!confirm(`Delete binding for "${hostname}"?`)) return;
-    allBindings = allBindings.filter(x => x.hostname !== hostname);
-    bindingsModified = true;
-    document.getElementById('btnSaveBindings').style.display = '';
-    renderBindings();
-    showToast(`Binding "${hostname}" deleted (unsaved)`, 'info');
+    showConfirmModal('Delete Binding', `Delete binding for <strong>${hostname}</strong>?`, () => {
+        allBindings = allBindings.filter(x => x.hostname !== hostname);
+        bindingsModified = true;
+        document.getElementById('btnSaveBindings').style.display = '';
+        renderBindings();
+        showToast(`Binding "${hostname}" deleted (unsaved)`, 'info');
+    });
 }
 
 async function saveBindings() {
@@ -1548,48 +1644,81 @@ function formatMAC(input) {
 }
 
 // ===================== TAB 2: DISCOVERED =====================
-async function loadDiscovered() {
-    document.getElementById('discoveredBody').innerHTML = '<tr><td colspan="6" class="loading">Loading...</td></tr>';
-    const data = await apiCall('discovered');
-    if (data.success) {
-        allDiscovered = data.entries || [];
+async function loadDiscoveryCache() {
+    const data = await apiCall('discovery-cache');
+    if (data.success && data.entries && data.entries.length > 0) {
+        allDiscovered = data.entries;
         renderDiscoveredStats();
         renderDiscovered();
+        updateDiscoveryInfo(data.age_seconds || 0);
+        // If stale, silent background scan (no loading indicators)
+        if (data.stale) silentSubnetScan();
     } else {
-        document.getElementById('discoveredBody').innerHTML = `<tr><td colspan="6" style="color:#f44336;padding:20px;">Error: ${data.error}</td></tr>`;
+        // No cache — silent scan
+        document.getElementById('discoveredBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#666;">No scan data yet. Click Scan or wait...</td></tr>';
+        silentSubnetScan();
     }
 }
 
-function renderDiscoveredStats() {
-    const matched = allDiscovered.filter(d => d.status === 'match').length;
-    const mismatch = allDiscovered.filter(d => d.status === 'mismatch').length;
-    const unbound = allDiscovered.filter(d => d.status === 'unbound').length;
-    const missing = allDiscovered.filter(d => d.status === 'missing').length;
-    const unreachable = allDiscovered.filter(d => d.status === 'unreachable').length;
-    document.getElementById('statMatched').textContent = matched;
-    document.getElementById('statMismatch').textContent = mismatch;
-    document.getElementById('statUnbound').textContent = unbound;
-    document.getElementById('statMissing').textContent = unreachable > 0 ? unreachable : missing;
-    // Update label based on scan type
-    document.getElementById('statMissing').closest('.stat-card').querySelector('.stat-label').textContent =
-        unreachable > 0 ? 'Unreachable' : 'Not Discovered';
-    document.getElementById('statAll').textContent = allDiscovered.length;
+function updateDiscoveryInfo(ageSec) {
+    const info = document.getElementById('discoveredInfo');
+    if (ageSec < 60) info.textContent = `${ageSec}s ago`;
+    else if (ageSec < 3600) info.textContent = `${Math.round(ageSec/60)}m ago`;
+    else info.textContent = `${Math.round(ageSec/3600)}h ago`;
 }
 
-async function runPingScan() {
-    const btn = document.getElementById('btnScan');
-    btn.disabled = true;
-    btn.textContent = 'Scanning...';
-    document.getElementById('discoveredBody').innerHTML = '<tr><td colspan="6" class="loading">Ping scanning all bindings...</td></tr>';
-    
-    const data = await apiCall('ping-scan');
+// Silent background scan — no loading indicators, just updates data
+async function silentSubnetScan() {
+    const data = await apiCall('subnet-scan');
     if (data.success) {
         allDiscovered = data.entries || [];
         renderDiscoveredStats();
         renderDiscovered();
-        const match = allDiscovered.filter(d => d.status === 'match').length;
-        const unreach = allDiscovered.filter(d => d.status === 'unreachable').length;
-        showToast(`Scan complete: ${match} match, ${unreach} unreachable`, 'success');
+        updateDiscoveryInfo(0);
+        // Refresh bindings table if loaded (uses discovery cache for MAC/Live columns)
+        if (allBindings.length > 0) renderBindings();
+    }
+}
+
+// Start periodic background scan (every 5 minutes)
+setInterval(silentSubnetScan, 300000);
+
+function renderDiscoveredStats() {
+    const provisioned = allDiscovered.filter(d => d.device_type === 'provisioned').length;
+    const notProv = allDiscovered.filter(d => d.device_type === 'not_provisioned').length;
+    const other = allDiscovered.filter(d => d.device_type === 'other').length;
+    const unreachable = allDiscovered.filter(d => d.device_type === 'unreachable').length;
+    const mismatch = allDiscovered.filter(d => d.mac_status === 'mismatch').length;
+    const noBinding = allDiscovered.filter(d => !d.has_binding).length;
+    document.getElementById('statProvisioned').textContent = provisioned;
+    document.getElementById('statNotProv').textContent = notProv;
+    document.getElementById('statOther').textContent = other;
+    document.getElementById('statUnreachable').textContent = unreachable;
+    document.getElementById('statMismatch').textContent = mismatch;
+    document.getElementById('statNoBinding').textContent = noBinding;
+    document.getElementById('statAll').textContent = allDiscovered.length;
+}
+
+async function runSubnetScan() {
+    // Manual scan — shows loading indicator
+    const btn = document.getElementById('btnScan');
+    btn.disabled = true;
+    btn.textContent = 'Scanning...';
+    document.getElementById('discoveredBody').innerHTML = '<tr><td colspan="6" class="loading">Scanning subnet: ping + SSH probe + post-provision...</td></tr>';
+    
+    const data = await apiCall('subnet-scan');
+    if (data.success) {
+        allDiscovered = data.entries || [];
+        renderDiscoveredStats();
+        renderDiscovered();
+        const prov = allDiscovered.filter(d => d.device_type === 'provisioned').length;
+        const unreach = allDiscovered.filter(d => d.device_type === 'unreachable').length;
+        const deployed = Object.values(data.post_provision_results || {}).filter(s => s === 'deployed').length;
+        let msg = `Scan: ${data.reachable || 0}/${data.total_ips || 0} reachable, ${prov} provisioned`;
+        if (deployed > 0) msg += `, ${deployed} newly configured`;
+        showToast(msg, 'success');
+        updateDiscoveryInfo(0);
+        if (allBindings.length > 0) renderBindings();
     } else {
         document.getElementById('discoveredBody').innerHTML = `<tr><td colspan="6" style="color:#f44336;padding:20px;">Scan failed: ${data.error}</td></tr>`;
         showToast('Scan failed: ' + (data.error || ''), 'error');
@@ -1604,14 +1733,17 @@ function renderDiscovered() {
 
     let filtered = allDiscovered;
     if (typeFilter !== 'all') {
-        filtered = filtered.filter(d => d.status === typeFilter);
+        if (typeFilter === 'has_binding') filtered = filtered.filter(d => d.has_binding);
+        else if (typeFilter === 'no_binding') filtered = filtered.filter(d => !d.has_binding);
+        else if (typeFilter === 'mismatch') filtered = filtered.filter(d => d.mac_status === 'mismatch');
+        else filtered = filtered.filter(d => d.device_type === typeFilter);
     }
     if (filter) {
         filtered = filtered.filter(d =>
             (d.hostname || '').toLowerCase().includes(filter) ||
             (d.binding_mac || '').toLowerCase().includes(filter) ||
             (d.discovered_mac || '').toLowerCase().includes(filter) ||
-            (d.binding_ip || '').includes(filter)
+            (d.ip || '').includes(filter)
         );
     }
 
@@ -1619,10 +1751,10 @@ function renderDiscovered() {
     filtered.sort((a, b) => {
         let va = a[discSortCol] || '';
         let vb = b[discSortCol] || '';
-        if (discSortCol === 'binding_ip') {
+        if (discSortCol === 'ip') {
             return discSortAsc ? ipToNum(va) - ipToNum(vb) : ipToNum(vb) - ipToNum(va);
         }
-        va = va.toLowerCase(); vb = vb.toLowerCase();
+        va = String(va).toLowerCase(); vb = String(vb).toLowerCase();
         const cmp = va < vb ? -1 : va > vb ? 1 : 0;
         return discSortAsc ? cmp : -cmp;
     });
@@ -1633,26 +1765,42 @@ function renderDiscovered() {
     }
 
     document.getElementById('discoveredBody').innerHTML = filtered.map(d => {
-        const statusBadge = {
-            'match': '<span class="badge badge-match">Match</span>',
-            'mismatch': '<span class="badge badge-mismatch">Mismatch</span>',
-            'unbound': '<span class="badge badge-info">No Binding</span>',
-            'missing': '<span class="badge badge-warning">Not Discovered</span>',
+        // Device type badge
+        const dtBadge = {
+            'provisioned': '<span class="badge badge-match">Provisioned</span>',
+            'not_provisioned': '<span class="badge badge-warning">Not Provisioned</span>',
+            'other': '<span class="badge" style="background:rgba(120,144,156,0.15);color:#78909c;">Other</span>',
             'unreachable': '<span class="badge badge-unreachable">Unreachable</span>'
-        }[d.status] || '';
+        }[d.device_type] || '';
+        
+        // Post-provision indicator
+        let ppIcon = '';
+        if (d.post_provision === 'deployed') ppIcon = ' <span title="Just configured" style="color:#4caf50;">&#10004;</span>';
+        else if (d.post_provision === 'already') ppIcon = ' <span title="Already configured" style="color:#888;">&#10003;</span>';
+        
+        // MAC status badge
+        let macBadge = '';
+        if (d.mac_status === 'match') macBadge = '<span class="badge badge-match" style="font-size:10px;">Match</span>';
+        else if (d.mac_status === 'mismatch') macBadge = '<span class="badge badge-mismatch" style="font-size:10px;">Mismatch</span>';
+        else if (d.mac_status === 'no_binding') macBadge = '<span class="badge badge-info" style="font-size:10px;">No Binding</span>';
+        else if (d.mac_status === 'unreachable' && d.has_binding) macBadge = '<span class="badge badge-unreachable" style="font-size:10px;">Unreachable</span>';
+
+        // Discovered MAC color
+        const dmac = d.discovered_mac || '-';
+        const dmacHtml = d.mac_status === 'mismatch' ? `<span style="color:#ff6b6b;">${escHtml(dmac)}</span>` : escHtml(dmac);
 
         return `<tr>
             <td><strong>${escHtml(d.hostname || '-')}</strong></td>
+            <td style="font-family:monospace;font-size:12px;">${escHtml(d.ip || '-')}</td>
             <td style="font-family:monospace;font-size:12px;">${escHtml(d.binding_mac || '-')}</td>
-            <td style="font-family:monospace;font-size:12px;">${d.status === 'mismatch' ? `<span style="color:#ff6b6b;">${escHtml(d.discovered_mac)}</span>` : escHtml(d.discovered_mac || '-')}</td>
-            <td style="font-family:monospace;font-size:12px;">${escHtml(d.binding_ip || '-')}</td>
-            <td>${escHtml(d.source || '-')}</td>
-            <td>${statusBadge}</td>
+            <td style="font-family:monospace;font-size:12px;">${dmacHtml}</td>
+            <td>${dtBadge}${ppIcon}</td>
+            <td>${macBadge}</td>
         </tr>`;
     }).join('');
 }
 
-let discSortCol = 'binding_ip';
+let discSortCol = 'ip';
 let discSortAsc = true;
 
 function sortDiscovered(col) {
@@ -1662,7 +1810,6 @@ function sortDiscovered(col) {
         discSortCol = col;
         discSortAsc = true;
     }
-    // Update sort indicators
     document.querySelectorAll('[id^="sort-"]').forEach(el => { el.style.opacity = '0.4'; el.innerHTML = '&#9650;'; });
     const indicator = document.getElementById('sort-' + col);
     if (indicator) { indicator.style.opacity = '1'; indicator.innerHTML = discSortAsc ? '&#9650;' : '&#9660;'; }
@@ -1710,17 +1857,18 @@ async function loadSSHKey() {
     }
 }
 
-async function generateSSHKey() {
-    if (!confirm('Generate a new SSH key pair? This will be used for ZTP and device management.')) return;
-    showToast('Generating SSH key...', 'info');
-    const data = await apiCall('generate-ssh-key', {});
-    if (data.success) {
-        document.getElementById('ztpSSHKey').value = data.public_key || '';
-        document.getElementById('sshKeyStatus').innerHTML = `<span style="color:#4caf50;">New key generated!</span> ${data.key_type || ''} (${data.key_file || ''})`;
-        showToast('SSH key generated. Apply to ZTP script with "Apply to Script".', 'success');
-    } else {
-        showToast('Key generation failed: ' + (data.error || 'Unknown error'), 'error');
-    }
+function generateSSHKey() {
+    showConfirmModal('Generate SSH Key', 'Generate a new SSH key pair?<br>This will be used for ZTP and device management.', async () => {
+        showToast('Generating SSH key...', 'info');
+        const data = await apiCall('generate-ssh-key', {});
+        if (data.success) {
+            document.getElementById('ztpSSHKey').value = data.public_key || '';
+            document.getElementById('sshKeyStatus').innerHTML = `<span style="color:#4caf50;">New key generated!</span> ${data.key_type || ''} (${data.key_file || ''})`;
+            showToast('SSH key generated. Apply to ZTP script with "Apply to Script".', 'success');
+        } else {
+            showToast('Key generation failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    });
 }
 
 function copySSHKey() {
@@ -1809,11 +1957,12 @@ async function uploadImage(input) {
     input.value = '';
 }
 
-async function deleteOSImage(name) {
-    if (!confirm(`Delete image "${name}"?`)) return;
-    const data = await apiCall('delete-os-image', { name });
-    if (data.success) { showToast('Image deleted', 'success'); loadOSImages(); }
-    else { showToast('Delete failed: ' + (data.error || ''), 'error'); }
+function deleteOSImage(name) {
+    showConfirmModal('Delete OS Image', `Delete image <strong>${name}</strong>?`, async () => {
+        const data = await apiCall('delete-os-image', { name });
+        if (data.success) { showToast('Image deleted', 'success'); loadOSImages(); }
+        else { showToast('Delete failed: ' + (data.error || ''), 'error'); }
+    });
 }
 
 // --- Script Editor Toggle ---
@@ -1841,7 +1990,7 @@ function applyQuickSettings() {
     let content = document.getElementById('ztpEditor').value;
     const os = document.getElementById('ztpTargetOS').value.trim() || '5.14.0';
     const pw = document.getElementById('ztpPassword').value.trim() || 'CumulusLinux!';
-    const ip = document.getElementById('ztpImageServer').value.trim() || '192.168.58.200';
+    const ip = document.getElementById('ztpImageServer').value.trim() || '192.168.100.200';
     const key = document.getElementById('ztpSSHKey').value.trim();
 
     // If script is placeholder/empty, generate full template
@@ -2113,6 +2262,64 @@ function escAttr(s) {
     if (!s) return '';
     return s.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
+
+// ===================== CUSTOM CONFIRM MODAL =====================
+let _confirmCallback = null;
+function showConfirmModal(title, message, callback, btnText) {
+    document.getElementById('confirm-modal-title').textContent = title;
+    document.getElementById('confirm-modal-message').innerHTML = message;
+    // Set button text based on context
+    const btn = document.querySelector('.btn-confirm-action');
+    if (btnText) btn.textContent = btnText;
+    else if (title.toLowerCase().includes('delete')) btn.textContent = 'Delete';
+    else if (title.toLowerCase().includes('stop')) btn.textContent = 'Stop';
+    else if (title.toLowerCase().includes('generate')) btn.textContent = 'Generate';
+    else btn.textContent = 'Confirm';
+    _confirmCallback = callback;
+    document.getElementById('confirm-modal').classList.add('visible');
+}
+function closeConfirmModal() {
+    document.getElementById('confirm-modal').classList.remove('visible');
+    _confirmCallback = null;
+}
+function executeConfirmModal() {
+    if (_confirmCallback) _confirmCallback();
+    closeConfirmModal();
+}
 </script>
+
+<!-- Confirm Modal -->
+<div id="confirm-modal" class="confirm-modal" onclick="if(event.target===this)closeConfirmModal()">
+    <div class="confirm-modal-content">
+        <div class="confirm-modal-header">
+            <h3 id="confirm-modal-title">Confirm</h3>
+            <button class="confirm-modal-close" onclick="closeConfirmModal()">&times;</button>
+        </div>
+        <div class="confirm-modal-body">
+            <p id="confirm-modal-message"></p>
+        </div>
+        <div class="confirm-modal-footer">
+            <button type="button" class="btn-cancel" onclick="closeConfirmModal()">Cancel</button>
+            <button type="button" class="btn-confirm-action" onclick="executeConfirmModal()">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .confirm-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:10000; justify-content:center; align-items:center; }
+    .confirm-modal.visible { display:flex; }
+    .confirm-modal-content { background:#2d2d2d; border-radius:8px; width:420px; max-width:90%; box-shadow:0 10px 40px rgba(0,0,0,0.5); overflow:hidden; }
+    .confirm-modal-header { background:linear-gradient(135deg,#c53030 0%,#9b2c2c 100%); padding:15px 20px; display:flex; justify-content:space-between; align-items:center; }
+    .confirm-modal-header h3 { margin:0; color:#fff; font-size:16px; }
+    .confirm-modal-close { background:none; border:none; color:#fff; font-size:24px; cursor:pointer; opacity:0.8; }
+    .confirm-modal-close:hover { opacity:1; }
+    .confirm-modal-body { padding:25px 20px; }
+    .confirm-modal-body p { color:#ccc; line-height:1.6; margin:0; text-align:center; }
+    .confirm-modal-footer { padding:15px 20px; display:flex; justify-content:flex-end; gap:10px; background:#252526; border-top:1px solid #3c3c3c; }
+    .confirm-modal-footer .btn-cancel { background:#3c3c3c; color:#d4d4d4; border:none; padding:10px 20px; border-radius:4px; cursor:pointer; }
+    .confirm-modal-footer .btn-cancel:hover { background:#4a4a4a; }
+    .confirm-modal-footer .btn-confirm-action { background:#c53030; color:#fff; border:none; padding:10px 20px; border-radius:4px; cursor:pointer; }
+    .confirm-modal-footer .btn-confirm-action:hover { background:#e53e3e; }
+</style>
 </body>
 </html>
