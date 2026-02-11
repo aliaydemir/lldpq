@@ -12,6 +12,67 @@
 #   -y                  Auto-yes to all prompts (non-interactive mode, uses defaults)
 #   --enable-telemetry  Enable streaming telemetry support (installs Docker)
 #   --disable-telemetry Disable streaming telemetry support
+#
+# ALGORITHM:
+# ┌─────────────────────────────────────────────────────────┐
+# │ 1. Parse arguments (-y, --help, --enable/disable-tele.) │
+# │ 2. Telemetry-only mode? → handle Docker and exit        │
+# │ 3. Initial checks (no sudo wrapper, in lldpq-src dir)   │
+# │ 4. Detect LLDPQ_INSTALL_DIR from /etc/lldpq.conf        │
+# │    or default (~/lldpq for user, /opt/lldpq for root)   │
+# ├──────────────────────────────────────────────────────────┤
+# │ MODE DETECTION:                                          │
+# │ /etc/lldpq.conf exists? ───┬── YES → UPDATE MODE        │
+# │                            └── NO  → FRESH MODE         │
+# │ (User can force clean install → switches to FRESH)       │
+# ├──────────────────────────────────────────────────────────┤
+# │ FRESH MODE ONLY:                                         │
+# │   • Check/stop Apache2 (port 80 conflict)                │
+# │   • apt install (nginx, fcgiwrap, python3, sshpass, etc) │
+# │   • Download Monaco Editor (offline code editor)         │
+# │   • pip install (requests, ruamel.yaml)                  │
+# ├──────────────────────────────────────────────────────────┤
+# │ UPDATE MODE ONLY:                                        │
+# │   • source /etc/lldpq.conf → save existing settings      │
+# │   • Full backup → ~/lldpq-backup-YYYY-MM-DD_HH-MM/      │
+# │     (devices.yaml, topology, configs, DHCP, SSH keys,    │
+# │      monitoring data, .git history)                      │
+# │   • Stop running LLDPq processes                         │
+# │   • Preserve user configs + .git to temp dir             │
+# │   • Remove old lldpq directory                           │
+# ├──────────────────────────────────────────────────────────┤
+# │ COMMON (both modes):                                     │
+# │   • Copy etc/* → /etc/        (nginx config)             │
+# │   • Copy html/* → /var/www/html/  (web UI)               │
+# │   • Monaco + js-yaml check (download if missing)         │
+# │   • Copy bin/* → /usr/local/bin/  (CLI tools)            │
+# │   • Copy lldpq/* → $LLDPQ_INSTALL_DIR (core scripts)    │
+# │   • Restore preserved configs + .git (update only)       │
+# │   • Copy telemetry stack                                 │
+# │   • Set permissions:                                     │
+# │     - Web: $LLDPQ_USER:www-data, 775/664, .sh +x        │
+# │     - LLDPq dir: 750, devices.yaml 664                  │
+# │     - ACL for group read inheritance                     │
+# │   • Topology symlinks (lldpq/ → /var/www/html/)          │
+# │   • Ansible directory detection + permissions            │
+# │   • Write /etc/lldpq.conf (all vars + telemetry)         │
+# │   • Sudoers: www-data → SSH/SCP + DHCP/Provision         │
+# │   • DHCP directories + ZTP script placeholder            │
+# │   • Authentication (sessions dir, users file)            │
+# │   • Python packages verify (update only)                 │
+# │   • nginx config + restart + fcgiwrap restart            │
+# │   • Cron jobs (lldpq, get-conf, triggers, git commit)    │
+# ├──────────────────────────────────────────────────────────┤
+# │ UPDATE MODE POST:                                        │
+# │   • Restore monitoring data from backup                  │
+# │   • Print preserved files summary                        │
+# ├──────────────────────────────────────────────────────────┤
+# │ FRESH MODE POST:                                         │
+# │   • Print config file edit instructions                  │
+# │   • Telemetry prompt → Docker install if yes             │
+# │   • SSH key setup instructions                           │
+# │   • Initialize git repository + hooks                    │
+# └──────────────────────────────────────────────────────────┘
 
 set -e
 
@@ -411,6 +472,12 @@ if [[ "$INSTALL_MODE" == "update" ]]; then
         cp -r "$LLDPQ_INSTALL_DIR/telemetry/config" "$_preserved_dir/telemetry-config" 2>/dev/null || true
     fi
 
+    # Preserve git history (tracks config changes over time)
+    if [[ -d "$LLDPQ_INSTALL_DIR/.git" ]]; then
+        cp -r "$LLDPQ_INSTALL_DIR/.git" "$_preserved_dir/dot-git" 2>/dev/null || true
+        echo "  Git history preserved"
+    fi
+
     # Remove old lldpq directory (will be recreated in common section)
     echo "  Removing old lldpq directory..."
     rm -rf "$LLDPQ_INSTALL_DIR"
@@ -502,6 +569,12 @@ chmod +x "$LLDPQ_INSTALL_DIR/telemetry/start.sh"
 if [[ -n "$_preserved_dir" ]] && [[ -d "$_preserved_dir/telemetry-config" ]]; then
     cp -r "$_preserved_dir/telemetry-config"/* "$LLDPQ_INSTALL_DIR/telemetry/config/" 2>/dev/null || true
     echo "    • telemetry config preserved"
+fi
+
+# Restore git history (update mode)
+if [[ -n "$_preserved_dir" ]] && [[ -d "$_preserved_dir/dot-git" ]]; then
+    cp -r "$_preserved_dir/dot-git" "$LLDPQ_INSTALL_DIR/.git"
+    echo "    • .git history restored"
 fi
 
 # Clean up preserved temp dir
