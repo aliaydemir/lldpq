@@ -1,0 +1,48 @@
+#!/bin/bash
+rm -rf $HOME/.local/share/tmux/*
+if tmux list-sessions | grep -q NVIDIA; then
+    echo -e "\nSession Will Connect ...."
+    tmux -u attach-session -t NVIDIA
+    exit
+else
+    echo -e "\nSession Will Start ...."
+fi
+session="NVIDIA"
+[ ! -d "$HOME/.local/share/tmux" ] && mkdir -p "$HOME/.local/share/tmux"
+cd $HOME/.local/share/tmux/
+
+# set up tmux
+tmux start-server
+
+# create a new session and window called CMD
+tmux -vv new-session -d -s $session -n CMD -c $HOME
+tmux send-keys "for run in {1..99}; do echo ""; done" C-m
+tmux send-keys '# INFO Press Ctrl+F4 for Killing Session ' C-m
+tmux send-keys '# INFO Press Ctrl+F12 for Detaching Session ' C-m
+
+# create a new window called VTY
+tmux new-window -t $session:2 -n VTY -c $HOME
+tmux send-keys "clear" C-m
+tmux send-keys "sudo vtysh" C-m
+
+# create a new window called LOG
+tmux new-window -t $session:3 -n LOG -c $HOME
+# Select pane 1 on LOG
+tmux select-pane -t 1
+tmux send-keys "clear" C-m
+# Split pane 2 vertiacally by 50% on LOG
+tmux split-window -h -p 50
+# select pane 2 on LOG
+tmux select-pane -t 3
+tmux send-keys "cd" C-m
+tmux send-keys "sudo su" C-m
+tmux send-keys "clear" C-m
+tmux send-keys "cd /var/log" C-m
+tmux send-keys "ls" C-m
+
+# return to main window CMD
+tmux select-window -t $session:1
+
+# Finished setup, attach to the tmux session!
+sleep 1
+tmux -u attach-session -t $session -c $HOME/.local/share/tmux

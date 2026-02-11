@@ -1,0 +1,270 @@
+#!/usr/bin/env bash
+LC_ALL=C
+CGRN=$'\e[32m'; CRED=$'\e[31m'; CYEL=$'\e[33m'; CBLU=$'\e[34m'; CMAG=$'\e[35m'; CCYAN=$'\e[36m'; CWHT=$'\e[1;37m'; CRES=$'\e[0m'
+W_IF=19; W_AD=6; W_OP=6; W_SP=6; W_MTU=6; W_TY=9; W_VL=12; W_VRF=9; W_RH=20; W_RP=16; W_DS=26
+
+# Cache all interface data in single calls
+declare -A IF_LINK IF_ADDR IF_SPEED IF_VLAN IF_VRF
+declare -A LLDP_HOST LLDP_PORT VLAN_VRF
+
+# Single ip link call for all interfaces
+while IFS= read -r line; do
+  if [[ "$line" =~ ^[0-9]+:\ ([^:@]+)[@:]?[^\ ]*\ (.*)$ ]]; then
+    iface="${BASH_REMATCH[1]}"
+    data="${BASH_REMATCH[2]}"
+    IF_LINK["$iface"]="$data"
+  fi
+done < <(ip -o link show 2>/dev/null)
+
+# Single ip addr call for all interfaces  
+while IFS= read -r line; do
+  if [[ "$line" =~ ^[0-9]+:\ ([^\ ]+)\ +inet\ +([^\ ]+) ]]; then
+    iface="${BASH_REMATCH[1]}"
+    ip="${BASH_REMATCH[2]}"
+    IF_ADDR["$iface"]+="${IF_ADDR["$iface"]:+,}$ip"
+  fi
+done < <(ip -o addr show 2>/dev/null)
+
+# VLAN data collection - single bridge vlan call
+_bridge_vlan="$(bridge vlan 2>/dev/null)"
+if [[ -n "$_bridge_vlan" ]]; then
+  current_iface=""
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^([a-zA-Z0-9_-]+)[[:space:]]+([0-9]+) ]]; then
+      # New interface with vlan
+      current_iface="${BASH_REMATCH[1]}"
+      vlan="${BASH_REMATCH[2]}"
+      [[ "$line" == *"PVID"* ]] && vlan="${vlan}*"
+      IF_VLAN["$current_iface"]="$vlan"
+    elif [[ -n "$current_iface" && "$line" =~ ^[[:space:]]+([0-9]+) ]]; then
+      # Additional vlan for same interface
+      vlan="${BASH_REMATCH[1]}"
+      IF_VLAN["$current_iface"]+=",$vlan"
+    fi
+  done <<< "$_bridge_vlan"
+fi
+
+# VRF data collection - use vtysh for accurate VRF information
+_vrf_dump="$(sudo vtysh -c "show interface brief" 2>/dev/null)"
+if [[ -n "$_vrf_dump" ]]; then
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^([a-zA-Z0-9_.-]+)[[:space:]]+(up|down)[[:space:]]+([a-zA-Z0-9_-]+) ]]; then
+      iface="${BASH_REMATCH[1]}"
+      vrf="${BASH_REMATCH[3]}"
+      IF_VRF["$iface"]="$vrf"
+      
+      # Build VLAN→VRF mapping from SVI interfaces
+      if [[ "$iface" =~ ^vlan([0-9]+)$ ]]; then
+        vlan_num="${BASH_REMATCH[1]}"
+        VLAN_VRF["$vlan_num"]="$vrf"
+      fi
+    fi
+  done <<< "$_vrf_dump"
+fi
+
+# Additional VRF collection for sub-interfaces using ip route show table all
+_ip_route_vrf="$(ip route show table all 2>/dev/null | grep -E "dev [a-zA-Z0-9_.-]+\.[0-9]+" | grep -E "table [a-zA-Z0-9_-]+")"
+if [[ -n "$_ip_route_vrf" ]]; then
+  while IFS= read -r line; do
+    if [[ "$line" =~ dev\ ([a-zA-Z0-9_.-]+\.[0-9]+).*table\ ([a-zA-Z0-9_-]+) ]]; then
+      iface="${BASH_REMATCH[1]}"
+      vrf="${BASH_REMATCH[2]}"
+      # Only set if not already found via vtysh
+      [[ -z "${IF_VRF["$iface"]}" ]] && IF_VRF["$iface"]="$vrf"
+    fi
+  done <<< "$_ip_route_vrf"
+fi
+
+# LLDP data collection - keep original logic
+if ((${#LLDP_HOST[@]}==0)); then
+  _lldp_dump="$(lldpcli show neighbor 2>/dev/null)"
+  [[ -z "$_lldp_dump" ]] && _lldp_dump="$(sudo lldpcli show neighbor 2>/dev/null)"
+  if [[ -n "$_lldp_dump" ]]; then
+    iface=""; host=""; port=""
+    while IFS= read -r line; do
+      case "$line" in
+        Interface:*)
+          # flush previous
+          if [[ -n "$iface" && -n "$host" && -n "$port" ]]; then
+            LLDP_HOST["$iface"]="$host"; LLDP_PORT["$iface"]="$port"
+          fi
+          iface="${line#Interface:}"; iface="${iface#,}"; iface="${iface%%,*}"
+          iface="$(echo "$iface" | xargs)"
+          host=""; port=""
+          ;;
+        *SysName:*)
+          host="${line#*SysName:}"; host="$(echo "$host" | xargs)"
+          ;;
+        *PortID:*)
+          tmp="${line#*PortID:}"; tmp="$(echo "$tmp" | xargs)"
+          if [[ "$tmp" == ifname* ]]; then
+            port="${tmp#ifname }"; port="$(echo "$port" | xargs)"
+          elif [[ -z "$port" ]]; then
+            port="$tmp"
+          fi
+          ;;
+        *PortDescr:*)
+          if [[ -z "$port" ]]; then
+            port="${line#*PortDescr:}"; port="$(echo "$port" | xargs)"
+          fi
+          ;;
+        "-------------------------------------------------------------------------------")
+          if [[ -n "$iface" && -n "$host" && -n "$port" ]]; then
+            LLDP_HOST["$iface"]="$host"; LLDP_PORT["$iface"]="$port"
+          fi
+          iface=""; host=""; port=""
+          ;;
+      esac
+    done <<< "$_lldp_dump"
+    # final flush
+    if [[ -n "$iface" && -n "$host" && -n "$port" ]]; then
+      LLDP_HOST["$iface"]="$host"; LLDP_PORT["$iface"]="$port"
+    fi
+  fi
+fi
+
+clip(){ local w=$1 t="$2"; ((w<=0)) && printf "%s" "$t" || ((${#t}>w && w>3)) && printf "%s" "${t:0:w-3}..." || printf "%s" "$t"; }
+
+pp(){
+  local w=$1 kind="$2" val="$3" clipped pad
+  clipped="$(clip "$w" "$val")"
+  pad=$((w-${#clipped})); ((pad<0)) && pad=0
+  case "$kind" in
+    if) printf "${CBLU}%s${CRES}%*s" "$clipped" "$pad" "" ;;
+    adm|opr) [[ "$val" == up ]] && printf "${CGRN}%s${CRES}%*s" "$clipped" "$pad" "" || printf "${CRED}%s${CRES}%*s" "$clipped" "$pad" "" ;;
+    ip) printf "${CYEL}%s${CRES}%*s" "$clipped" "$pad" "" ;;
+    vrf) case "$val" in
+           default) printf "${CWHT}%s${CRES}%*s" "$clipped" "$pad" "" ;;
+           mgmt) printf "${CCYAN}%s${CRES}%*s" "$clipped" "$pad" "" ;;
+           *) printf "${CMAG}%s${CRES}%*s" "$clipped" "$pad" "" ;;
+         esac ;;
+    *) printf "%s%*s" "$clipped" "$pad" "" ;;
+  esac
+}
+
+hdr(){
+  pp $W_IF plain "Interface"; pp $W_AD plain "Admin"; pp $W_OP plain "Oper"
+  pp $W_SP plain "Speed"; pp $W_MTU plain "MTU"; pp $W_TY plain "Type"
+  pp $W_VL plain "VLANs"; pp $W_VRF plain "VRF"; pp $W_RH plain "Remote-Host"
+  pp $W_RP plain "Remote-Port"; pp $W_DS plain "Description"
+  printf " %s\n" "IPs"
+}
+
+get_type(){
+  local i="$1" d
+  d="${IF_LINK["$i"]:-}"
+  case "$i" in
+    lo) echo loopback ;;
+    vxlan*) echo vxlan ;;
+    swp*) echo swp ;;
+    eth*) echo eth ;;
+    vlan*|*-v0) echo svi ;;
+    br_*) echo bridge ;;
+    *) [[ "$d" == *"bridge"* ]] && echo bridge || [[ "$d" == *"vrf table"* ]] && echo vrf || echo other ;;
+  esac
+}
+
+get_admin_oper(){
+  local data adm="down" opr="down"
+  data="${IF_LINK["$1"]:-}"
+  # Admin state: UP flag in brackets means interface is administratively up
+  [[ "$data" == *"<"*"UP"*">"* ]] && adm="up"
+  # Oper state: LOWER_UP flag means operationally up
+  [[ "$data" == *"LOWER_UP"* ]] && opr="up"
+  printf "%s %s" "$adm" "$opr"
+}
+
+get_mtu(){ 
+  local data="${IF_LINK["$1"]:-}"
+  [[ "$data" =~ mtu\ ([0-9]+) ]] && echo "${BASH_REMATCH[1]}"
+}
+
+get_speed(){
+  local iface="$1" speed
+  # Only for physical interfaces, use fastest method
+  [[ "$iface" =~ ^(swp|eth)[0-9] ]] || return
+  # Try /sys first (fastest), fallback to ethtool
+  if [[ -r "/sys/class/net/$iface/speed" ]]; then
+    speed=$(cat "/sys/class/net/$iface/speed" 2>/dev/null)
+  else
+    speed=$(ethtool "$iface" 2>/dev/null | awk -F': ' '/Speed:/{gsub(/[^0-9]/,"",$2); print $2; exit}')
+  fi
+  [[ -z "$speed" || "$speed" == "0" || "$speed" == "-1" ]] && return
+  case "$speed" in
+    10) echo 10M ;; 100) echo 100M ;; 1000) echo 1G ;; 2500) echo 2.5G ;; 5000) echo 5G ;;
+    10000) echo 10G ;; 25000) echo 25G ;; 40000) echo 40G ;; 50000) echo 50G ;;
+    100000) echo 100G ;; 200000) echo 200G ;; 400000) echo 400G ;;
+    *) echo "${speed}M" ;;
+  esac
+}
+
+get_desc(){
+  local data="${IF_LINK["$1"]:-}"
+  [[ "$data" =~ alias\ (.+)$ ]] && echo "${BASH_REMATCH[1]}"
+}
+
+get_effective_vrf(){
+  local iface="$1"
+  
+  # First check direct VRF assignment (L3 interfaces including sub-interfaces)
+  if [[ -n "${IF_VRF["$iface"]}" ]]; then
+    echo "${IF_VRF["$iface"]}"
+    return
+  fi
+  
+  # For sub-interfaces, try to get VRF from parent interface if sub-interface VRF not found
+  if [[ "$iface" =~ ^([a-zA-Z0-9_-]+)\.([0-9]+)$ ]]; then
+    local parent="${BASH_REMATCH[1]}"
+    local vlan_id="${BASH_REMATCH[2]}"
+    
+    # Check if this VLAN ID has a VRF mapping
+    if [[ -n "${VLAN_VRF["$vlan_id"]}" ]]; then
+      echo "${VLAN_VRF["$vlan_id"]}"
+      return
+    fi
+    
+    # Fallback to parent interface VRF
+    if [[ -n "${IF_VRF["$parent"]}" && "${IF_VRF["$parent"]}" != "default" ]]; then
+      echo "${IF_VRF["$parent"]}"
+      return
+    fi
+  fi
+  
+  # For L2 interfaces, find VRF from VLAN assignment
+  local vlan="${IF_VLAN["$iface"]}"
+  if [[ -n "$vlan" ]]; then
+    # Extract VLAN number (remove * and take first VLAN if multiple)
+    vlan="${vlan%\*}"      # Remove PVID marker
+    vlan="${vlan%%,*}"     # Take first VLAN if comma-separated
+    
+    # Lookup VLAN's VRF
+    if [[ -n "${VLAN_VRF["$vlan"]}" ]]; then
+      echo "${VLAN_VRF["$vlan"]}"
+      return
+    fi
+  fi
+  
+  # Fallback to default
+  echo "default"
+}
+
+# Main output
+hdr
+for iface in $(printf '%s\n' "${!IF_LINK[@]}" | sort -V); do
+  [[ -z "$iface" || "$iface" == veth* || "$iface" == docker* ]] && continue
+  
+  read -r adm opr <<< "$(get_admin_oper "$iface")"
+  
+  pp $W_IF if "$iface"
+  pp $W_AD adm "$adm" 
+  pp $W_OP opr "$opr"
+  pp $W_SP plain "$(get_speed "$iface")"
+  pp $W_MTU plain "$(get_mtu "$iface")"
+  pp $W_TY plain "$(get_type "$iface")"
+  pp $W_VL plain "${IF_VLAN["$iface"]:-}"
+  pp $W_VRF vrf "$(get_effective_vrf "$iface")"
+  pp $W_RH plain "${LLDP_HOST["$iface"]:-}"
+  pp $W_RP plain "${LLDP_PORT["$iface"]:-}"
+  pp $W_DS plain "$(get_desc "$iface")"
+  printf " %s\n" "${CYEL}${IF_ADDR["$iface"]:-}${CRES}"
+done

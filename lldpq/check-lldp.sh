@@ -34,10 +34,14 @@ TOTAL_DEVICES=${#devices[@]}
 # SSH options with multiplexing
 SSH_OPTS="-o StrictHostKeyChecking=no -o ControlMaster=auto -o ControlPath=~/.ssh/cm-%r@%h:%p -o ControlPersist=60 -o BatchMode=yes -o ConnectTimeout=$SSH_TIMEOUT"
 
+# Ping command - on Cumulus switches with Docker --privileged, the entrypoint
+# adds 'ip rule' for mgmt VRF so plain ping works. No ip vrf exec needed.
+PING="ping"
+
 ping_test() {
     local device=$1
     local hostname=$2
-    ping -c 1 -W 0.5 "$device" > /dev/null 2>&1
+    $PING -c 1 -W 0.5 "$device" > /dev/null 2>&1
     if [ $? -ne 0 ]; then
         echo "$device $hostname" >> "$unreachable_hosts_file"
         return 1

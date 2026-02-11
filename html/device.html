@@ -1337,24 +1337,46 @@
         
         async function loadDeviceList() {
             try {
-                // Use fabric-api.sh to get devices from inventory (path from lldpq.conf)
-                const response = await fetch('/fabric-api.sh?action=list-devices');
-                const data = await response.json();
+                // Load device list and reachability status in parallel
+                const [devResponse, assetsResponse] = await Promise.all([
+                    fetch('/fabric-api.sh?action=list-devices'),
+                    fetch('/assets.ini').then(r => r.ok ? r.text() : '').catch(() => '')
+                ]);
+                
+                const data = await devResponse.json();
                 
                 if (!data.success || !data.devices) {
                     throw new Error(data.error || 'Failed to load devices');
                 }
                 
+                // Parse assets.ini to get reachable devices (STATUS=OK or SSH-FAILED)
+                const reachableDevices = new Set();
+                if (assetsResponse) {
+                    assetsResponse.split('\n').forEach(line => {
+                        const parts = line.trim().split(/\s+/);
+                        if (parts.length >= 8 && (parts[parts.length - 2] === 'OK' || parts[parts.length - 2] === 'SSH-FAILED')) {
+                            reachableDevices.add(parts[0]);
+                        }
+                    });
+                }
+                const hasAssets = reachableDevices.size > 0;
+                
                 allDevices = [];
                 devicesByGroup = {};
-                groupOrder = Object.keys(data.devices); // Preserve order from API
+                groupOrder = Object.keys(data.devices);
                 
-                // Use Set to track unique devices
                 const uniqueDevices = new Set();
+                let totalDevices = 0;
                 
                 for (const [group, groupDevices] of Object.entries(data.devices)) {
-                    const hostnames = groupDevices.map(d => d.hostname);
-                    // Sort devices naturally within each group
+                    // Filter to reachable devices only (if assets data available)
+                    const hostnames = groupDevices
+                        .map(d => d.hostname)
+                        .filter(name => !hasAssets || reachableDevices.has(name));
+                    totalDevices += groupDevices.length;
+                    
+                    if (hostnames.length === 0) continue;
+                    
                     hostnames.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
                     devicesByGroup[group] = hostnames;
                     hostnames.forEach(name => {
@@ -1364,7 +1386,10 @@
                 }
                 
                 renderDeviceList();
-                document.getElementById('deviceCount').textContent = `${uniqueDevices.size} devices`;
+                const reachableCount = uniqueDevices.size;
+                document.getElementById('deviceCount').textContent = hasAssets 
+                    ? `${reachableCount}/${totalDevices} devices`
+                    : `${totalDevices} devices`;
                 
             } catch (e) {
                 console.error('Failed to load device list:', e);

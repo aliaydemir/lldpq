@@ -689,22 +689,40 @@ fi
 
 echo ""
 echo "[06] Checking permissions and sudoers..."
-# Ensure sudoers is configured for www-data to run SSH as LLDPQ user
-if [[ ! -f /etc/sudoers.d/www-data-lldpq ]]; then
-    LLDPQ_USER="${LLDPQ_USER:-$(whoami)}"
-    echo "   Configuring sudoers for network device access..."
-    echo "www-data ALL=($LLDPQ_USER) NOPASSWD: /usr/bin/timeout, /usr/bin/ssh" | sudo tee /etc/sudoers.d/www-data-lldpq > /dev/null
-    sudo chmod 440 /etc/sudoers.d/www-data-lldpq
-    echo "   Sudoers configured for MAC/ARP table access"
-else
-    echo "   Sudoers already configured"
-fi
+LLDPQ_USER="${LLDPQ_USER:-$(whoami)}"
+
+# SSH/SCP sudoers (always update to ensure scp is included)
+echo "   Configuring sudoers for SSH/SCP access..."
+echo "www-data ALL=($LLDPQ_USER) NOPASSWD: /usr/bin/timeout, /usr/bin/ssh, /usr/bin/scp" | sudo tee /etc/sudoers.d/www-data-lldpq > /dev/null
+sudo chmod 440 /etc/sudoers.d/www-data-lldpq
+
+# DHCP/Provision sudoers
+echo "   Configuring sudoers for DHCP/Provision access..."
+echo "www-data ALL=(root) NOPASSWD: /usr/bin/systemctl start isc-dhcp-server, /usr/bin/systemctl stop isc-dhcp-server, /usr/bin/systemctl restart isc-dhcp-server, /usr/bin/systemctl disable isc-dhcp-server, /usr/bin/systemctl enable isc-dhcp-server, /usr/bin/tee /etc/dhcp/dhcpd.conf, /usr/bin/tee /etc/dhcp/dhcpd.hosts, /usr/bin/tee /etc/default/isc-dhcp-server, /usr/bin/pkill -x dhcpd, /usr/sbin/dhcpd, /usr/bin/cat /etc/dhcp/dhcpd.conf, /usr/bin/chmod 755 *" | sudo tee /etc/sudoers.d/www-data-provision > /dev/null
+sudo chmod 440 /etc/sudoers.d/www-data-provision
+echo "   Sudoers configured (SSH/SCP + DHCP/Provision)"
+
+# Prepare DHCP directories
+sudo mkdir -p /etc/dhcp /var/lib/dhcp
+sudo touch /var/lib/dhcp/dhcpd.leases
+[ ! -f /etc/dhcp/dhcpd.hosts ] && sudo touch /etc/dhcp/dhcpd.hosts
+sudo chown "$LLDPQ_USER:www-data" /etc/dhcp/dhcpd.hosts
+sudo chmod 664 /etc/dhcp/dhcpd.hosts
 
 # Ensure LLDPQ_USER is in config
 if ! grep -q "^LLDPQ_USER=" /etc/lldpq.conf 2>/dev/null; then
-    echo "LLDPQ_USER=$(whoami)" | sudo tee -a /etc/lldpq.conf > /dev/null
+    echo "LLDPQ_USER=$LLDPQ_USER" | sudo tee -a /etc/lldpq.conf > /dev/null
     echo "   Added LLDPQ_USER to /etc/lldpq.conf"
 fi
+
+# Ensure provision config vars exist
+for var in "DHCP_HOSTS_FILE=/etc/dhcp/dhcpd.hosts" "DHCP_CONF_FILE=/etc/dhcp/dhcpd.conf" "DHCP_LEASES_FILE=/var/lib/dhcp/dhcpd.leases" "ZTP_SCRIPT_FILE=/var/www/html/cumulus-ztp.sh" "BASE_CONFIG_DIR=$(grep '^LLDPQ_DIR=' /etc/lldpq.conf 2>/dev/null | cut -d= -f2)/sw-base"; do
+    key="${var%%=*}"
+    if ! grep -q "^${key}=" /etc/lldpq.conf 2>/dev/null; then
+        echo "$var" | sudo tee -a /etc/lldpq.conf > /dev/null
+        echo "   Added $key to /etc/lldpq.conf"
+    fi
+done
 
 echo ""
 echo "[07] Restarting web services..."

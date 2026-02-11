@@ -120,12 +120,16 @@ echo ""
 echo -e "\e[1;34mExecuting ${#commands[@]} command(s) on ${#devices[@]} device(s)...\e[0m"
 echo ""
 
+# Ping command - on Cumulus switches with Docker --privileged, the entrypoint
+# adds 'ip rule' for mgmt VRF so plain ping works. No ip vrf exec needed.
+PING="ping"
+
 unreachable_hosts=()
 
 ping_test() {
     local device=$1
     local hostname=$2
-    ping -c 1 -W 1 "$device" >/dev/null 2>&1 || { unreachable_hosts+=("$device $hostname"); return 1; }
+    $PING -c 1 -W 1 "$device" >/dev/null 2>&1 || { unreachable_hosts+=("$device $hostname"); return 1; }
     return 0
 }
 

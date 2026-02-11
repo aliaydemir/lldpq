@@ -433,6 +433,12 @@
                         </svg>
                         Validate
                     </button>
+                    <button class="btn" onclick="collectConfigs()" id="btn-collect" style="background: #ff9800; color: #000; font-weight: bold;">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19.35,10.04C18.67,6.59 15.64,4 12,4C9.11,4 6.6,5.64 5.35,8.04C2.34,8.36 0,10.91 0,14A6,6 0 0,0 6,20H19A5,5 0 0,0 24,15C24,12.36 21.95,10.22 19.35,10.04M19,18H6A4,4 0 0,1 2,14C2,11.95 3.53,10.24 5.56,10.03L6.63,9.92L7.13,8.97C8.08,7.14 9.94,6 12,6C14.62,6 16.88,7.86 17.39,10.43L17.69,11.93L19.22,12.04C20.78,12.14 22,13.45 22,15A3,3 0 0,1 19,18M8,13H10.55V16H13.45V13H16L12,9L8,13Z"/>
+                        </svg>
+                        <span id="collect-text">Collect Configs</span>
+                    </button>
                     <button class="btn btn-primary" onclick="downloadAllConfigs('txt')" id="download-nvset">
                         <svg viewBox="0 0 24 24" fill="currentColor">
                             <path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/>
@@ -543,6 +549,7 @@
         let devices = [];
         let deviceGroups = {};
         let groupOrder = [];
+        let totalDeviceCount = 0;
         let selectedDevice = null;
         let selectedFormat = 'txt';
         let currentConfigContent = '';
@@ -595,19 +602,21 @@
                     // Use same groups as fabric-config.html - preserve API order
                     deviceGroups = {};
                     groupOrder = Object.keys(data.devices); // Preserve order from API
+                    totalDeviceCount = 0;
                     
                     for (const [group, groupDevices] of Object.entries(data.devices)) {
-                        // Include all groups (even empty ones) like fabric-config
+                        totalDeviceCount += groupDevices.length;
                         const hostnames = groupDevices.map(d => d.hostname);
                         const validHosts = hostnames.filter(h => devices.includes(h));
                         deviceGroups[group] = validHosts.sort();
                     }
                 } else {
-                    // Fallback to name-based grouping
+                    totalDeviceCount = 0;
                     groupDevicesByName();
                 }
             } catch (e) {
                 console.error('Failed to fetch device groups:', e);
+                totalDeviceCount = 0;
                 groupDevicesByName();
             }
             
@@ -671,7 +680,9 @@
                 container.appendChild(groupDiv);
             });
             
-            document.getElementById('deviceCount').textContent = `${devices.length} devices`;
+            document.getElementById('deviceCount').textContent = totalDeviceCount > 0 
+                ? `${devices.length}/${totalDeviceCount} devices`
+                : `${devices.length} devices`;
         }
         
         function toggleGroup(header) {
@@ -978,6 +989,51 @@
             });
         }
         
+        async function collectConfigs() {
+            const btn = document.getElementById('btn-collect');
+            const text = document.getElementById('collect-text');
+            
+            btn.disabled = true;
+            btn.style.opacity = '0.6';
+            text.textContent = 'Collecting...';
+            
+            try {
+                const response = await fetch('/trigger-configs', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.status === 'started') {
+                    text.textContent = 'Collecting... (1-2 min)';
+                    
+                    // Poll for completion every 10 seconds
+                    let attempts = 0;
+                    const poll = setInterval(async () => {
+                        attempts++;
+                        try {
+                            const r = await fetch('/configs/');
+                            const html = await r.text();
+                            const parser = new DOMParser();
+                            const doc = parser.parseFromString(html, 'text/html');
+                            const newCount = Array.from(doc.querySelectorAll('a'))
+                                .filter(a => a.getAttribute('href') !== '../').length;
+                            
+                            if (newCount > files.length || attempts >= 18) {
+                                clearInterval(poll);
+                                text.textContent = 'Collect Configs';
+                                btn.disabled = false;
+                                btn.style.opacity = '1';
+                                listFiles(); // Reload device list
+                            }
+                        } catch (e) { /* keep polling */ }
+                    }, 10000);
+                }
+            } catch (e) {
+                text.textContent = 'Collect Configs';
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                alert('Error: ' + e.message);
+            }
+        }
+
         // Initialize
         window.onload = listFiles;
     </script>

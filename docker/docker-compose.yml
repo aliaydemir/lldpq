@@ -1,10 +1,10 @@
 # LLDPq Docker Compose
 # Usage: docker compose up -d
 #
-# Required: devices.yaml (device inventory)
-# Optional: SSH keys (needed for switch monitoring - can also be configured after start)
-# Optional: Ansible directory (enables VLAN/BGP reports, Fabric Config/Editor/Deploy)
-# Optional: Data directories for persistence
+# All 3 config files (devices.yaml, topology.dot, topology_config.yaml) come with
+# example data baked into the image. Override with volume mounts if needed.
+#
+# SSH keys persist in a named volume across container recreation.
 
 services:
   lldpq:
@@ -16,17 +16,15 @@ services:
     ports:
       - "${LLDPQ_PORT:-80}:80"
     volumes:
-      # Required: Device inventory
-      - ../lldpq/devices.yaml:/home/lldpq/lldpq/devices.yaml
-      
+      # Optional: Override baked-in example files with your own
+      # - ./devices.yaml:/home/lldpq/lldpq/devices.yaml
+      # - ./topology.dot:/var/www/html/topology.dot
+      # - ./topology_config.yaml:/var/www/html/topology_config.yaml
+
       # Optional: Ansible directory (enables VLAN/BGP reports, Fabric Config/Editor/Deploy)
       # - ~/ansible:/home/lldpq/ansible:rw
-      
-      # Optional: Topology files (editable from web UI)
-      - ../lldpq/topology.dot:/var/www/html/topology.dot
-      - ../lldpq/topology_config.yaml:/var/www/html/topology_config.yaml
-      
-      # Optional: Persistent monitoring data (survives container restart)
+
+      # Persistent monitoring data (survives container restart/recreation)
       - lldpq-data:/home/lldpq/lldpq/monitor-results
       - lldpq-configs:/var/www/html/configs
       - lldpq-hstr:/var/www/html/hstr
@@ -37,6 +35,6 @@ services:
       # - ANSIBLE_DIR=/home/lldpq/ansible
 
 volumes:
-  lldpq-data:
-  lldpq-configs:
-  lldpq-hstr:
+  lldpq-data:      # Monitoring results
+  lldpq-configs:   # Device configurations
+  lldpq-hstr:      # Historical data
