@@ -1,40 +1,217 @@
 #!/usr/bin/env bash
-# LLDPq Installation Script
-# 
-# Copyright (c) 2024-2026 LLDPq Project  
+# LLDPq Installation & Update Script
+#
+# Copyright (c) 2024-2026 LLDPq Project
 # Licensed under MIT License - see LICENSE file for details
 #
-# Usage: ./install.sh [-y]
-#   -y  Auto-yes to all prompts (non-interactive mode, uses defaults)
+# Automatically detects existing installation:
+#   No existing install → Fresh install (packages, configs, everything)
+#   Existing install    → Update mode (backup, preserve configs, update files)
+#
+# Usage: ./install.sh [-y] [--enable-telemetry] [--disable-telemetry]
+#   -y                  Auto-yes to all prompts (non-interactive mode, uses defaults)
+#   --enable-telemetry  Enable streaming telemetry support (installs Docker)
+#   --disable-telemetry Disable streaming telemetry support
 
 set -e
 
-# Parse arguments
+# Step counter for progress display
+STEP=0
+step() { STEP=$((STEP + 1)); printf "\n[%02d] %s\n" "$STEP" "$1"; }
+
+# ============================================================================
+# ARGUMENT PARSING
+# ============================================================================
 AUTO_YES=false
-while getopts "y" opt; do
-    case $opt in
-        y) AUTO_YES=true ;;
-        *) ;;
+ENABLE_TELEMETRY=false
+DISABLE_TELEMETRY=false
+
+for arg in "$@"; do
+    case $arg in
+        -y) AUTO_YES=true ;;
+        --enable-telemetry) ENABLE_TELEMETRY=true ;;
+        --disable-telemetry) DISABLE_TELEMETRY=true ;;
+        -h|--help)
+            echo "Usage: ./install.sh [-y] [--enable-telemetry] [--disable-telemetry]"
+            echo ""
+            echo "Automatically detects existing installation:"
+            echo "  No existing install → Fresh install (packages, configs, everything)"
+            echo "  Existing install    → Update mode (backup, preserve configs, update files)"
+            echo ""
+            echo "Options:"
+            echo "  -y                  Auto-yes to all prompts"
+            echo "  --enable-telemetry  Enable streaming telemetry (requires Docker)"
+            echo "  --disable-telemetry Disable streaming telemetry"
+            exit 0
+            ;;
     esac
 done
 
-echo "LLDPq Installation Script"
-echo "=================================="
-if [[ "$AUTO_YES" == "true" ]]; then
-    echo "   Running in non-interactive mode (-y)"
+# ============================================================================
+# TELEMETRY-ONLY MODE (early exit — no other changes needed)
+# ============================================================================
+if [[ "$ENABLE_TELEMETRY" == "true" ]] || [[ "$DISABLE_TELEMETRY" == "true" ]]; then
+    # Read LLDPQ_INSTALL_DIR from config
+    if [[ -f /etc/lldpq.conf ]]; then
+        LLDPQ_INSTALL_DIR=$(grep "^LLDPQ_DIR=" /etc/lldpq.conf 2>/dev/null | cut -d'=' -f2 || echo "")
+    fi
+    if [[ -z "$LLDPQ_INSTALL_DIR" ]]; then
+        if [[ $EUID -eq 0 ]]; then
+            LLDPQ_INSTALL_DIR="/opt/lldpq"
+        else
+            LLDPQ_INSTALL_DIR="$HOME/lldpq"
+        fi
+    fi
+
+    if [[ "$ENABLE_TELEMETRY" == "true" ]]; then
+        echo "Enabling Streaming Telemetry..."
+        echo ""
+
+        if ! command -v docker &> /dev/null; then
+            echo "Docker not found. Installing Docker..."
+            curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+            sudo sh /tmp/get-docker.sh
+            sudo usermod -aG docker "$(whoami)"
+            rm /tmp/get-docker.sh
+            echo "Docker installed successfully"
+            echo "[!] NOTE: You may need to logout/login for Docker group to take effect"
+        else
+            echo "Docker found: $(docker --version)"
+        fi
+
+        if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+            echo "Installing docker-compose..."
+            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+            echo "docker-compose installed"
+        fi
+
+        if grep -q "^TELEMETRY_ENABLED=" /etc/lldpq.conf 2>/dev/null; then
+            sudo sed -i 's/^TELEMETRY_ENABLED=.*/TELEMETRY_ENABLED=true/' /etc/lldpq.conf
+        else
+            echo "TELEMETRY_ENABLED=true" | sudo tee -a /etc/lldpq.conf > /dev/null
+        fi
+
+        if ! grep -q "^PROMETHEUS_URL=" /etc/lldpq.conf 2>/dev/null; then
+            echo "PROMETHEUS_URL=http://localhost:9090" | sudo tee -a /etc/lldpq.conf > /dev/null
+        fi
+
+        echo ""
+        echo "Telemetry support enabled!"
+        echo ""
+
+        if [[ ! -f /etc/docker/daemon.json ]]; then
+            echo "Configuring Docker storage driver..."
+            sudo mkdir -p /etc/docker
+            echo '{"storage-driver": "vfs"}' | sudo tee /etc/docker/daemon.json > /dev/null
+            sudo systemctl restart docker
+        fi
+
+        if [[ -f "$LLDPQ_INSTALL_DIR/telemetry/docker-compose.yaml" ]]; then
+            echo ""
+            echo "Starting telemetry stack..."
+            cd "$LLDPQ_INSTALL_DIR/telemetry"
+            if docker compose up -d 2>&1; then
+                :
+            elif docker-compose up -d 2>&1; then
+                :
+            elif sudo docker compose up -d 2>&1; then
+                :
+            elif sudo docker-compose up -d 2>&1; then
+                :
+            else
+                echo "[!] Could not start stack. Try manually:"
+                echo "    cd $LLDPQ_INSTALL_DIR/telemetry && sudo docker compose up -d"
+            fi
+            cd - > /dev/null
+
+            sleep 3
+            if docker ps --filter "name=lldpq-prometheus" --format "{{.Status}}" 2>/dev/null | grep -q "Up"; then
+                echo ""
+                echo "Telemetry stack is running:"
+                echo "  - OTEL Collector: http://localhost:4317"
+                echo "  - Prometheus:     http://localhost:9090"
+                echo "  - Alertmanager:   http://localhost:9093"
+            fi
+        else
+            echo "[!] Telemetry files not found. Run ./install.sh first."
+        fi
+
+        echo ""
+        echo "Next step: Enable telemetry on switches from web UI:"
+        echo "  Telemetry → Configuration → Enable Telemetry"
+
+    elif [[ "$DISABLE_TELEMETRY" == "true" ]]; then
+        echo "Disabling Streaming Telemetry..."
+        echo ""
+        echo "This will completely remove the telemetry stack and all stored metrics."
+
+        if [[ -f "$LLDPQ_INSTALL_DIR/telemetry/docker-compose.yaml" ]]; then
+            cd "$LLDPQ_INSTALL_DIR/telemetry"
+            echo "Stopping and removing containers..."
+            docker-compose down -v 2>/dev/null || docker compose down -v 2>/dev/null || true
+            cd - > /dev/null
+            echo "Telemetry stack removed (containers + volumes)"
+        fi
+
+        sudo sed -i '/^TELEMETRY_COLLECTOR_IP=/d' /etc/lldpq.conf 2>/dev/null || true
+        sudo sed -i '/^TELEMETRY_COLLECTOR_PORT=/d' /etc/lldpq.conf 2>/dev/null || true
+        sudo sed -i '/^TELEMETRY_COLLECTOR_VRF=/d' /etc/lldpq.conf 2>/dev/null || true
+
+        if grep -q "^TELEMETRY_ENABLED=" /etc/lldpq.conf 2>/dev/null; then
+            sudo sed -i 's/^TELEMETRY_ENABLED=.*/TELEMETRY_ENABLED=false/' /etc/lldpq.conf
+        else
+            echo "TELEMETRY_ENABLED=false" | sudo tee -a /etc/lldpq.conf > /dev/null
+        fi
+
+        echo "Telemetry support disabled"
+    fi
+
+    exit 0
 fi
+
+# ============================================================================
+# INITIAL CHECKS
+# ============================================================================
 
 # Check if running via sudo from non-root user (causes $HOME issues)
 if [[ $EUID -eq 0 ]] && [[ -n "$SUDO_USER" ]] && [[ "$SUDO_USER" != "root" ]]; then
     echo "[!] Please run without sudo: ./install.sh"
-    echo "   The script will ask for sudo when needed"
+    echo "    The script will ask for sudo when needed"
     exit 1
 fi
 
-# Running as root is OK (for dedicated servers)
-# Use /opt/lldpq for root to allow www-data access
+# Check if we're in the lldpq-src directory
+if [[ ! -f "README.md" ]] || [[ ! -d "lldpq" ]]; then
+    echo "[!] Please run this script from the lldpq-src directory"
+    echo "    Make sure you're in the directory containing README.md and lldpq/"
+    exit 1
+fi
+
+# ============================================================================
+# DIRECTORY SETUP
+# ============================================================================
+
+# Read LLDPQ_INSTALL_DIR from existing config (if available)
+LLDPQ_INSTALL_DIR=""
+if [[ -f /etc/lldpq.conf ]]; then
+    LLDPQ_INSTALL_DIR=$(grep "^LLDPQ_DIR=" /etc/lldpq.conf 2>/dev/null | cut -d'=' -f2 || echo "")
+fi
+
+# Default based on user
+if [[ -z "$LLDPQ_INSTALL_DIR" ]]; then
+    if [[ $EUID -eq 0 ]]; then
+        LLDPQ_INSTALL_DIR="/opt/lldpq"
+    else
+        LLDPQ_INSTALL_DIR="$HOME/lldpq"
+    fi
+fi
+
+LLDPQ_USER="$(whoami)"
+WEB_ROOT="/var/www/html"
+
+# Running as root advisory
 if [[ $EUID -eq 0 ]]; then
-    LLDPQ_INSTALL_DIR="/opt/lldpq"
     echo ""
     echo "[!] Running as root"
     echo "    Files will be installed in $LLDPQ_INSTALL_DIR"
@@ -42,368 +219,506 @@ if [[ $EUID -eq 0 ]]; then
     echo "    This allows better SSH key management and security."
     echo ""
     sleep 2
-else
-    LLDPQ_INSTALL_DIR="$HOME/lldpq"
 fi
 
-# Check if we're in the lldpq-src directory
-if [[ ! -f "README.md" ]] || [[ ! -d "lldpq" ]]; then
-    echo "[!] Please run this script from the lldpq-src directory"
-    echo "   Make sure you're in the directory containing README.md and lldpq/"
-    exit 1
-fi
+# ============================================================================
+# MODE DETECTION
+# ============================================================================
+INSTALL_MODE="fresh"
+BACKUP_DIR=""
 
-# Web root directory (default for Linux, can be changed in /etc/lldpq.conf for macOS etc.)
-WEB_ROOT="/var/www/html"
-
-echo ""
-echo "[00] Checking for existing installation..."
-
-# Detect existing LLDPq installation
-EXISTING_INSTALL=false
 if [[ -f /etc/lldpq.conf ]] || [[ -f /etc/lldpq-users.conf ]] || [[ -d /var/lib/lldpq ]]; then
-    EXISTING_INSTALL=true
-    echo "   [!] Existing LLDPq installation detected:"
-    [[ -f /etc/lldpq.conf ]] && echo "     • /etc/lldpq.conf"
-    [[ -f /etc/lldpq-users.conf ]] && echo "     • /etc/lldpq-users.conf (user credentials)"
-    [[ -d /var/lib/lldpq ]] && echo "     • /var/lib/lldpq/ (sessions)"
-    [[ -d "$LLDPQ_INSTALL_DIR" ]] && echo "     • $LLDPQ_INSTALL_DIR/ (scripts and configs)"
     echo ""
-    echo "   Options:"
-    echo "   1. Clean install - remove old files and start fresh (recommended if broken)"
-    echo "   2. Keep existing - preserve user credentials and continue"
+    echo "Existing LLDPq installation detected:"
+    [[ -f /etc/lldpq.conf ]] && echo "  • /etc/lldpq.conf"
+    [[ -f /etc/lldpq-users.conf ]] && echo "  • /etc/lldpq-users.conf (user credentials)"
+    [[ -d /var/lib/lldpq ]] && echo "  • /var/lib/lldpq/ (sessions)"
+    [[ -d "$LLDPQ_INSTALL_DIR" ]] && echo "  • $LLDPQ_INSTALL_DIR/ (scripts and configs)"
+    echo ""
+    echo "  Options:"
+    echo "  1. Update — preserve configs, backup existing data (default)"
+    echo "  2. Clean install — remove everything and start fresh"
     echo ""
     if [[ "$AUTO_YES" == "true" ]]; then
-        clean_response="n"
-        echo "   Keeping existing files (auto-yes mode)"
+        echo "  Using update mode (auto-yes)"
+        INSTALL_MODE="update"
     else
-        read -p "   Clean install? [y/N]: " clean_response
+        read -p "  Clean install? [y/N]: " clean_response
+        if [[ "$clean_response" =~ ^[Yy]$ ]]; then
+            echo "  Cleaning existing installation..."
+            sudo rm -f /etc/lldpq.conf
+            sudo rm -f /etc/lldpq-users.conf
+            sudo rm -rf /var/lib/lldpq
+            echo "  Old installation files removed"
+            INSTALL_MODE="fresh"
+        else
+            INSTALL_MODE="update"
+        fi
     fi
-    if [[ "$clean_response" =~ ^[Yy]$ ]]; then
-        echo "   Cleaning existing installation..."
-        sudo rm -f /etc/lldpq.conf
-        sudo rm -f /etc/lldpq-users.conf
-        sudo rm -rf /var/lib/lldpq
-        # Don't remove ~/lldpq here - it has user configs like devices.yaml
-        echo "   Old installation files removed"
-    else
-        echo "   Keeping existing files"
-    fi
+fi
+
+# Banner
+echo ""
+if [[ "$INSTALL_MODE" == "update" ]]; then
+    echo "LLDPq Update"
+    echo "============"
 else
-    echo "   No existing installation found - fresh install"
+    echo "LLDPq Fresh Installation"
+    echo "========================"
+fi
+if [[ "$AUTO_YES" == "true" ]]; then
+    echo "  Running in non-interactive mode (-y)"
 fi
 
-echo ""
-echo "[01] Checking for conflicting services..."
+# ============================================================================
+# FRESH-ONLY: Package installation
+# ============================================================================
+if [[ "$INSTALL_MODE" == "fresh" ]]; then
 
-# Check if Apache2 is running (would conflict with nginx on port 80)
-if systemctl is-active --quiet apache2 2>/dev/null; then
-    echo "[!] Apache2 is running on port 80!"
-    echo "   LLDPq uses nginx as web server."
-    echo ""
-    echo "   Options:"
-    echo "   1. Stop Apache2 (recommended for LLDPq)"
-    echo "   2. Exit and resolve manually"
-    echo ""
-    if [[ "$AUTO_YES" == "true" ]]; then
-        response="y"
-        echo "   Stopping Apache2 (auto-yes mode)"
-    else
-        read -p "   Stop and disable Apache2? [Y/n]: " response
+    step "Checking for conflicting services..."
+    if systemctl is-active --quiet apache2 2>/dev/null; then
+        echo "  [!] Apache2 is running on port 80!"
+        echo "  LLDPq uses nginx as web server."
+        echo ""
+        echo "  Options:"
+        echo "  1. Stop Apache2 (recommended for LLDPq)"
+        echo "  2. Exit and resolve manually"
+        echo ""
+        if [[ "$AUTO_YES" == "true" ]]; then
+            response="y"
+            echo "  Stopping Apache2 (auto-yes mode)"
+        else
+            read -p "  Stop and disable Apache2? [Y/n]: " response
+        fi
+        if [[ ! "$response" =~ ^[Nn]$ ]]; then
+            sudo systemctl stop apache2
+            sudo systemctl disable apache2
+            echo "  Apache2 stopped and disabled"
+        else
+            echo "  [!] Please stop Apache2 or configure nginx to use a different port"
+            echo "  Edit /etc/nginx/sites-available/lldpq to change the port"
+            exit 1
+        fi
     fi
-    if [[ ! "$response" =~ ^[Nn]$ ]]; then
-        sudo systemctl stop apache2
-        sudo systemctl disable apache2
-        echo "   Apache2 stopped and disabled"
-    else
-        echo "   [!] Please stop Apache2 or configure nginx to use a different port"
-        echo "   Edit /etc/nginx/sites-available/lldpq to change the port"
+
+    step "Installing required packages..."
+    sudo apt update || { echo "[!] apt update failed"; exit 1; }
+    sudo apt install -y nginx fcgiwrap python3 python3-pip python3-yaml util-linux bsdextrautils sshpass unzip acl || {
+        echo "[!] Package installation failed"
+        echo "    Try running: sudo apt --fix-broken install"
         exit 1
+    }
+    sudo systemctl enable --now nginx
+    sudo systemctl enable --now fcgiwrap
+
+    step "Downloading Monaco Editor for offline use..."
+    MONACO_VERSION="0.45.0"
+    MONACO_DIR="$WEB_ROOT/monaco"
+    if [[ ! -d "$MONACO_DIR" ]]; then
+        echo "  Downloading Monaco Editor v${MONACO_VERSION}..."
+        TMP_DIR=$(mktemp -d)
+        if curl -sL "https://registry.npmjs.org/monaco-editor/-/monaco-editor-${MONACO_VERSION}.tgz" -o "$TMP_DIR/monaco.tgz"; then
+            mkdir -p "$TMP_DIR/monaco"
+            tar -xzf "$TMP_DIR/monaco.tgz" -C "$TMP_DIR/monaco" --strip-components=1
+            sudo mkdir -p "$MONACO_DIR"
+            sudo cp -r "$TMP_DIR/monaco/min/vs" "$MONACO_DIR/"
+            echo "  Monaco Editor installed to $MONACO_DIR"
+        else
+            echo "  [!] Monaco Editor download failed (editor will use CDN fallback)"
+        fi
+        rm -rf "$TMP_DIR"
+    else
+        echo "  Monaco Editor already exists, skipping download"
     fi
+
+    echo "  Installing Python packages..."
+    pip3 install --user requests ruamel.yaml >/dev/null 2>&1 || \
+        pip3 install requests ruamel.yaml >/dev/null 2>&1 || \
+        echo "  [!] Some Python packages may need manual installation"
+    echo "  Python packages installed (requests, ruamel.yaml)"
 fi
 
-echo ""
-echo "[02] Installing required packages..."
-sudo apt update || { echo "[!] apt update failed"; exit 1; }
-sudo apt install -y nginx fcgiwrap python3 python3-pip python3-yaml util-linux bsdextrautils sshpass unzip acl || {
-    echo "[!] Package installation failed"
-    echo "   Try running: sudo apt --fix-broken install"
-    exit 1
-}
-sudo systemctl enable --now nginx
-sudo systemctl enable --now fcgiwrap
+# ============================================================================
+# UPDATE-ONLY: Backup & prepare
+# ============================================================================
+_preserved_dir=""
 
-echo ""
-echo "[02b] Downloading Monaco Editor for offline use..."
-MONACO_VERSION="0.45.0"
+if [[ "$INSTALL_MODE" == "update" ]]; then
+    # Load existing config (sets ANSIBLE_DIR, TELEMETRY_ENABLED, PROMETHEUS_URL, etc.)
+    source /etc/lldpq.conf 2>/dev/null || true
+    WEB_ROOT="${WEB_ROOT:-/var/www/html}"
+    LLDPQ_USER="${LLDPQ_USER:-$(whoami)}"
+
+    # -- Full backup ----------------------------------------------------------
+    step "Creating backup..."
+    BACKUP_DIR="$HOME/lldpq-backup-$(date +%Y-%m-%d_%H-%M)"
+    mkdir -p "$BACKUP_DIR"
+    echo "  Backup directory: $BACKUP_DIR"
+
+    # Configuration files
+    [[ -f "$LLDPQ_INSTALL_DIR/devices.yaml" ]] && \
+        cp "$LLDPQ_INSTALL_DIR/devices.yaml" "$BACKUP_DIR/" && echo "  • devices.yaml"
+    [[ -f "$LLDPQ_INSTALL_DIR/notifications.yaml" ]] && \
+        cp "$LLDPQ_INSTALL_DIR/notifications.yaml" "$BACKUP_DIR/" && echo "  • notifications.yaml"
+    [[ -f "$WEB_ROOT/topology.dot" ]] && \
+        sudo cp "$WEB_ROOT/topology.dot" "$BACKUP_DIR/" && echo "  • topology.dot"
+    [[ -f "$WEB_ROOT/topology_config.yaml" ]] && \
+        sudo cp "$WEB_ROOT/topology_config.yaml" "$BACKUP_DIR/" && echo "  • topology_config.yaml"
+    [[ -f /etc/lldpq.conf ]] && \
+        sudo cp /etc/lldpq.conf "$BACKUP_DIR/" && echo "  • /etc/lldpq.conf"
+    [[ -f /etc/lldpq-users.conf ]] && \
+        sudo cp /etc/lldpq-users.conf "$BACKUP_DIR/" && echo "  • /etc/lldpq-users.conf"
+    [[ -f /etc/dhcp/dhcpd.conf ]] && \
+        sudo cp /etc/dhcp/dhcpd.conf "$BACKUP_DIR/" && echo "  • /etc/dhcp/dhcpd.conf"
+    [[ -f /etc/dhcp/dhcpd.hosts ]] && \
+        sudo cp /etc/dhcp/dhcpd.hosts "$BACKUP_DIR/" && echo "  • /etc/dhcp/dhcpd.hosts"
+
+    # SSH keys
+    if ls ~/.ssh/id_* >/dev/null 2>&1; then
+        mkdir -p "$BACKUP_DIR/ssh-keys"
+        cp ~/.ssh/id_* "$BACKUP_DIR/ssh-keys/" 2>/dev/null || true
+        echo "  • SSH keys (~/.ssh/id_*)"
+    fi
+
+    # Monitoring data
+    [[ -d "$LLDPQ_INSTALL_DIR/monitor-results" ]] && \
+        cp -r "$LLDPQ_INSTALL_DIR/monitor-results" "$BACKUP_DIR/" && echo "  • monitor-results/"
+    [[ -d "$LLDPQ_INSTALL_DIR/lldp-results" ]] && \
+        cp -r "$LLDPQ_INSTALL_DIR/lldp-results" "$BACKUP_DIR/" && echo "  • lldp-results/"
+    [[ -d "$LLDPQ_INSTALL_DIR/alert-states" ]] && \
+        cp -r "$LLDPQ_INSTALL_DIR/alert-states" "$BACKUP_DIR/" && echo "  • alert-states/"
+
+    echo "  Backup complete"
+
+    # -- Stop processes -------------------------------------------------------
+    step "Preparing update..."
+    if pgrep -f "$LLDPQ_INSTALL_DIR/monitor.sh" >/dev/null 2>&1 || \
+       pgrep -f "/usr/local/bin/lldpq-trigger" >/dev/null 2>&1; then
+        echo "  Stopping LLDPq processes..."
+        pkill -f "$LLDPQ_INSTALL_DIR/monitor.sh" 2>/dev/null || true
+        pkill -f "/usr/local/bin/lldpq-trigger" 2>/dev/null || true
+        sleep 2
+        echo "  Processes stopped"
+    fi
+
+    # -- Preserve user configs for restore after copy -------------------------
+    _preserved_dir=$(mktemp -d)
+    [[ -f "$LLDPQ_INSTALL_DIR/devices.yaml" ]] && cp "$LLDPQ_INSTALL_DIR/devices.yaml" "$_preserved_dir/"
+    [[ -f "$LLDPQ_INSTALL_DIR/notifications.yaml" ]] && cp "$LLDPQ_INSTALL_DIR/notifications.yaml" "$_preserved_dir/"
+
+    # Preserve telemetry user config
+    if [[ -d "$LLDPQ_INSTALL_DIR/telemetry/config" ]]; then
+        cp -r "$LLDPQ_INSTALL_DIR/telemetry/config" "$_preserved_dir/telemetry-config" 2>/dev/null || true
+    fi
+
+    # Remove old lldpq directory (will be recreated in common section)
+    echo "  Removing old lldpq directory..."
+    rm -rf "$LLDPQ_INSTALL_DIR"
+    echo "  Ready for update"
+
+    # Save telemetry vars from sourced config (before /etc/lldpq.conf is overwritten)
+    _SAVE_TELEMETRY_ENABLED="${TELEMETRY_ENABLED:-}"
+    _SAVE_PROMETHEUS_URL="${PROMETHEUS_URL:-}"
+    _SAVE_TELEMETRY_COLLECTOR_IP="${TELEMETRY_COLLECTOR_IP:-}"
+    _SAVE_TELEMETRY_COLLECTOR_PORT="${TELEMETRY_COLLECTOR_PORT:-}"
+    _SAVE_TELEMETRY_COLLECTOR_VRF="${TELEMETRY_COLLECTOR_VRF:-}"
+    # Save Ansible dir from sourced config
+    _SAVE_ANSIBLE_DIR="${ANSIBLE_DIR:-}"
+fi
+
+# ============================================================================
+# COMMON: Copy files to system directories
+# ============================================================================
+step "Copying files to system directories..."
+
+echo "  - Copying etc/* to /etc/"
+sudo cp -r etc/* /etc/
+
+echo "  - Copying html/* to $WEB_ROOT/"
+sudo cp -r html/* "$WEB_ROOT/"
+
+# Ensure Monaco Editor exists (may have been deleted or never downloaded)
 MONACO_DIR="$WEB_ROOT/monaco"
 if [[ ! -d "$MONACO_DIR" ]]; then
-    echo "   - Downloading Monaco Editor v${MONACO_VERSION}..."
+    echo "  - Downloading Monaco Editor..."
+    MONACO_VERSION="0.45.0"
     TMP_DIR=$(mktemp -d)
     if curl -sL "https://registry.npmjs.org/monaco-editor/-/monaco-editor-${MONACO_VERSION}.tgz" -o "$TMP_DIR/monaco.tgz"; then
         mkdir -p "$TMP_DIR/monaco"
         tar -xzf "$TMP_DIR/monaco.tgz" -C "$TMP_DIR/monaco" --strip-components=1
         sudo mkdir -p "$MONACO_DIR"
         sudo cp -r "$TMP_DIR/monaco/min/vs" "$MONACO_DIR/"
-        echo "   Monaco Editor installed to $MONACO_DIR"
+        echo "    Monaco Editor installed"
     else
-        echo "   [!] Monaco Editor download failed (editor will use CDN fallback)"
+        echo "    [!] Monaco Editor download failed (editor will use CDN fallback)"
     fi
     rm -rf "$TMP_DIR"
-else
-    echo "   Monaco Editor already exists, skipping download"
 fi
 
-# Install Python packages for LLDPq
-echo "   - Installing Python packages..."
-pip3 install --user requests ruamel.yaml >/dev/null 2>&1 || \
-    pip3 install requests ruamel.yaml >/dev/null 2>&1 || \
-    echo "   [!] Some Python packages may need manual installation"
-echo "   Python packages installed (requests, ruamel.yaml)"
-
-echo ""
-echo "[03] Copying files to system directories..."
-echo "   - Copying etc/* to /etc/"
-sudo cp -r etc/* /etc/
-
-echo "   - Copying html/* to $WEB_ROOT/"
-sudo cp -r html/* "$WEB_ROOT/"
-
-echo "   - Downloading js-yaml for YAML validation..."
+echo "  - Verifying js-yaml..."
 JSYAML_VERSION="4.1.0"
 if [[ ! -f "$WEB_ROOT/css/js-yaml.min.js" ]]; then
-    sudo curl -sL "https://cdn.jsdelivr.net/npm/js-yaml@${JSYAML_VERSION}/dist/js-yaml.min.js" -o "$WEB_ROOT/css/js-yaml.min.js" || \
-        echo "   [!] js-yaml download failed (will work without offline validation)"
-    echo "   js-yaml installed"
-else
-    echo "   js-yaml already exists, skipping download"
+    sudo curl -sL "https://cdn.jsdelivr.net/npm/js-yaml@${JSYAML_VERSION}/dist/js-yaml.min.js" \
+        -o "$WEB_ROOT/css/js-yaml.min.js" || \
+        echo "    [!] js-yaml download failed (will work without offline validation)"
+    echo "    js-yaml installed"
 fi
 
-echo "   - Copying VERSION to $WEB_ROOT/"
+echo "  - Copying VERSION to $WEB_ROOT/"
 sudo cp VERSION "$WEB_ROOT/"
 sudo chmod 644 "$WEB_ROOT/VERSION"
-# Make all shell scripts executable
 sudo chmod +x "$WEB_ROOT"/*.sh
 
-echo "   - Setting permissions on web directories"
-# Ensure /var/www is traversable (some systems restrict it)
+echo "  - Setting permissions on web directories"
 sudo chmod o+rx /var/www 2>/dev/null || true
-# Set ownership: LLDPQ_USER owns files, www-data group for CGI write access
-sudo chown -R "$USER:www-data" "$WEB_ROOT/"
-# Directories: rwxrwxr-x (user+group can write, others can read/traverse)
+sudo chown -R "$LLDPQ_USER:www-data" "$WEB_ROOT/"
 sudo find "$WEB_ROOT" -type d -exec chmod 775 {} \;
-# Files: rw-rw-r-- (user+group can write, others can read)
 sudo find "$WEB_ROOT" -type f -exec chmod 664 {} \;
-# Shell scripts need execute
 sudo chmod +x "$WEB_ROOT"/*.sh
-# Ensure writable directories for runtime data
 sudo mkdir -p "$WEB_ROOT/hstr" "$WEB_ROOT/configs" "$WEB_ROOT/monitor-results"
 
-echo "   - Copying bin/* to /usr/local/bin/"
+echo "  - Copying bin/* to /usr/local/bin/"
 sudo cp bin/* /usr/local/bin/
 sudo chmod +x /usr/local/bin/*
 
-echo "   - Copying lldpq to $LLDPQ_INSTALL_DIR"
+echo "  - Copying lldpq to $LLDPQ_INSTALL_DIR"
 mkdir -p "$LLDPQ_INSTALL_DIR"
 cp -r lldpq/* "$LLDPQ_INSTALL_DIR/"
 
-echo "   - Copying telemetry stack to $LLDPQ_INSTALL_DIR/telemetry"
+# Restore preserved configs (update mode)
+if [[ -n "$_preserved_dir" ]] && [[ -d "$_preserved_dir" ]]; then
+    echo "  - Restoring preserved configuration files..."
+    [[ -f "$_preserved_dir/devices.yaml" ]] && \
+        cp "$_preserved_dir/devices.yaml" "$LLDPQ_INSTALL_DIR/" && echo "    • devices.yaml"
+    [[ -f "$_preserved_dir/notifications.yaml" ]] && \
+        cp "$_preserved_dir/notifications.yaml" "$LLDPQ_INSTALL_DIR/" && echo "    • notifications.yaml"
+fi
+
+echo "  - Copying telemetry stack to $LLDPQ_INSTALL_DIR/telemetry"
 cp -r telemetry "$LLDPQ_INSTALL_DIR/telemetry"
 chmod +x "$LLDPQ_INSTALL_DIR/telemetry/start.sh"
 
-echo "   - Setting permissions on $LLDPQ_INSTALL_DIR for web access (search-api.sh)"
-# www-data needs read+write access to devices.yaml (web UI editor) and read to monitor-results
-chmod 750 "$LLDPQ_INSTALL_DIR"  # user=rwx, group=rx, other=none
-chown "$LLDPQ_USER":www-data "$LLDPQ_INSTALL_DIR/devices.yaml" 2>/dev/null || true
-chmod 664 "$LLDPQ_INSTALL_DIR/devices.yaml"  # user=rw, group=rw, other=r (web UI needs write)
+# Restore telemetry user config (update mode)
+if [[ -n "$_preserved_dir" ]] && [[ -d "$_preserved_dir/telemetry-config" ]]; then
+    cp -r "$_preserved_dir/telemetry-config"/* "$LLDPQ_INSTALL_DIR/telemetry/config/" 2>/dev/null || true
+    echo "    • telemetry config preserved"
+fi
+
+# Clean up preserved temp dir
+[[ -n "$_preserved_dir" ]] && rm -rf "$_preserved_dir"
+
+echo "  - Setting permissions on $LLDPQ_INSTALL_DIR"
+chmod 750 "$LLDPQ_INSTALL_DIR"
+chown "$LLDPQ_USER:www-data" "$LLDPQ_INSTALL_DIR/devices.yaml" 2>/dev/null || true
+chmod 664 "$LLDPQ_INSTALL_DIR/devices.yaml" 2>/dev/null || true
 mkdir -p "$LLDPQ_INSTALL_DIR/monitor-results/fabric-tables"
 chmod 750 "$LLDPQ_INSTALL_DIR/monitor-results"
 chmod 750 "$LLDPQ_INSTALL_DIR/monitor-results/fabric-tables"
 
-# Set default ACL so new files/directories also get group read permission (survives git operations)
+# Set default ACL so new files/directories also get group read permission
 if command -v setfacl &> /dev/null; then
     setfacl -R -d -m g::rX "$LLDPQ_INSTALL_DIR" 2>/dev/null || true
-    echo "   Default ACL set (new files will inherit group read permission)"
+    echo "    Default ACL set (new files will inherit group read permission)"
 fi
-echo "   Group read permissions set (www-data can access via group)"
 
-echo "   - Setting up topology.dot for web editing"
-# Handle topology.dot - may be symlink from previous install, regular file, or not exist
+# Update git hooks if .git exists (update mode preserves .git from backup restore later)
+if [[ -d "$LLDPQ_INSTALL_DIR/.git" ]]; then
+    echo "  - Updating git hooks..."
+    cat > "$LLDPQ_INSTALL_DIR/.git/hooks/post-merge" << 'HOOKEOF'
+#!/bin/bash
+# Fix permissions after git pull/merge (preserve group read access for www-data)
+chmod 750 "$(git rev-parse --show-toplevel)" 2>/dev/null || true
+chmod 664 "$(git rev-parse --show-toplevel)/devices.yaml" 2>/dev/null || true
+if [ -d "$(git rev-parse --show-toplevel)/monitor-results" ]; then
+    chmod -R 750 "$(git rev-parse --show-toplevel)/monitor-results" 2>/dev/null || true
+fi
+HOOKEOF
+    chmod +x "$LLDPQ_INSTALL_DIR/.git/hooks/post-merge"
+    cp "$LLDPQ_INSTALL_DIR/.git/hooks/post-merge" "$LLDPQ_INSTALL_DIR/.git/hooks/post-checkout"
+    git -C "$LLDPQ_INSTALL_DIR" config core.sharedRepository group 2>/dev/null || true
+    echo "    Git hooks updated"
+fi
+
+echo "  Files copied successfully"
+
+# ============================================================================
+# COMMON: Topology symlinks
+# ============================================================================
+step "Setting up topology symlinks..."
+
+echo "  - topology.dot"
 if [[ -L "$LLDPQ_INSTALL_DIR/topology.dot" ]]; then
-    # Already a symlink - just ensure web root file has correct permissions
-    echo "     topology.dot symlink already exists"
+    echo "    Symlink already exists"
     if [[ -f "$WEB_ROOT/topology.dot" ]]; then
-        sudo chown "$USER:www-data" "$WEB_ROOT/topology.dot"
+        sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/topology.dot"
         sudo chmod 664 "$WEB_ROOT/topology.dot"
     fi
 elif [[ -f "$LLDPQ_INSTALL_DIR/topology.dot" ]]; then
-    # Regular file - move to web root and create symlink
     sudo mv "$LLDPQ_INSTALL_DIR/topology.dot" "$WEB_ROOT/topology.dot"
-    sudo chown "$USER:www-data" "$WEB_ROOT/topology.dot"
+    sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/topology.dot"
     sudo chmod 664 "$WEB_ROOT/topology.dot"
     ln -sf "$WEB_ROOT/topology.dot" "$LLDPQ_INSTALL_DIR/topology.dot"
 else
-    # No file exists - create empty one in web root
-    echo "     topology.dot not found, creating empty file"
     if [[ ! -f "$WEB_ROOT/topology.dot" ]]; then
+        echo "    Creating empty topology.dot"
         echo "# LLDPq Topology Definition" | sudo tee "$WEB_ROOT/topology.dot" > /dev/null
     fi
-    sudo chown "$USER:www-data" "$WEB_ROOT/topology.dot"
+    sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/topology.dot"
     sudo chmod 664 "$WEB_ROOT/topology.dot"
     ln -sf "$WEB_ROOT/topology.dot" "$LLDPQ_INSTALL_DIR/topology.dot"
 fi
 
-echo "   - Setting up topology_config.yaml for web editing"
-# Handle topology_config.yaml - may be symlink from previous install, regular file, or not exist
+echo "  - topology_config.yaml"
 if [[ -L "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]]; then
-    # Already a symlink - just ensure web root file has correct permissions
-    echo "     topology_config.yaml symlink already exists"
+    echo "    Symlink already exists"
     if [[ -f "$WEB_ROOT/topology_config.yaml" ]]; then
-        sudo chown "$USER:www-data" "$WEB_ROOT/topology_config.yaml"
+        sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/topology_config.yaml"
         sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
     fi
 elif [[ -f "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]]; then
-    # Regular file - move to web root and create symlink
     sudo mv "$LLDPQ_INSTALL_DIR/topology_config.yaml" "$WEB_ROOT/topology_config.yaml"
-    sudo chown "$USER:www-data" "$WEB_ROOT/topology_config.yaml"
+    sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/topology_config.yaml"
     sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
     ln -sf "$WEB_ROOT/topology_config.yaml" "$LLDPQ_INSTALL_DIR/topology_config.yaml"
 fi
 
-echo "   - Detecting Ansible directory..."
-# Try to detect ansible directory by searching for directories with inventory/ and playbooks/
-ANSIBLE_DIR=""
+# ============================================================================
+# COMMON: Ansible directory
+# ============================================================================
+step "Configuring Ansible directory..."
 
-# Search all directories in home for ones containing inventory/ and playbooks/
-for dir in "$HOME"/*; do
-    if [[ -d "$dir" ]] && [[ -d "$dir/inventory" ]] && [[ -d "$dir/playbooks" ]]; then
-        ANSIBLE_DIR="$dir"
-        echo ""
-        echo "   Found Ansible directory: $ANSIBLE_DIR"
-        break
-    fi
-done
+if [[ "$INSTALL_MODE" == "update" ]]; then
+    # Update mode: use ANSIBLE_DIR from sourced config (saved before overwrite)
+    ANSIBLE_DIR="${_SAVE_ANSIBLE_DIR:-}"
 
-if [[ -z "$ANSIBLE_DIR" ]]; then
-    echo "   Ansible directory not detected automatically"
-    echo ""
-    echo "   Looking for a directory containing:"
-    echo "     - inventory/ (Ansible inventory files)"
-    echo "     - playbooks/ (Ansible playbooks)"
-    echo "     - roles/ (optional, Ansible roles)"
-fi
-
-# Ask user for Ansible directory
-echo ""
-if [[ "$AUTO_YES" == "true" ]]; then
-    # In auto-yes mode, use detected dir or skip
-    if [[ -n "$ANSIBLE_DIR" ]]; then
-        echo "   Using detected Ansible directory: $ANSIBLE_DIR (auto-yes mode)"
+    if [[ "$ANSIBLE_DIR" == "NoNe" ]]; then
+        echo "  Ansible not configured. Skipping."
+    elif [[ -n "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR" ]]; then
+        echo "  Using existing: $ANSIBLE_DIR"
     else
-        ANSIBLE_DIR="NoNe"
-        echo "   No Ansible directory found, skipping (auto-yes mode)"
+        if [[ -n "$ANSIBLE_DIR" ]] && [[ "$ANSIBLE_DIR" != "NoNe" ]]; then
+            echo "  [!] Previous ANSIBLE_DIR no longer exists: $ANSIBLE_DIR"
+        fi
+        # Try auto-detect
+        echo "  Searching for Ansible directory..."
+        ANSIBLE_DIR=""
+        for dir in "$HOME"/*; do
+            if [[ -d "$dir" ]] && [[ -d "$dir/inventory" ]] && [[ -d "$dir/playbooks" ]]; then
+                ANSIBLE_DIR="$dir"
+                echo "  Auto-detected: $ANSIBLE_DIR"
+                break
+            fi
+        done
+        [[ -z "$ANSIBLE_DIR" ]] && ANSIBLE_DIR="NoNe" && echo "  No Ansible directory detected"
     fi
 else
-    # Interactive mode
-    if [[ -n "$ANSIBLE_DIR" ]]; then
-        echo "   Found: $ANSIBLE_DIR"
-        read -p "   Use this Ansible directory? [Y/n/skip]: " response
-        if [[ "$response" =~ ^[Nn]$ ]]; then
-            read -p "   Enter Ansible directory path (or press Enter to skip): " custom_path
-            if [[ -z "$custom_path" ]]; then
-                ANSIBLE_DIR="NoNe"
-                echo "   Skipping Ansible (LLDPq will use devices.yaml)"
-            else
-                ANSIBLE_DIR="$custom_path"
-            fi
-        elif [[ "$response" == "skip" ]]; then
+    # Fresh mode: interactive prompt
+    echo "  Detecting Ansible directory..."
+    ANSIBLE_DIR=""
+
+    for dir in "$HOME"/*; do
+        if [[ -d "$dir" ]] && [[ -d "$dir/inventory" ]] && [[ -d "$dir/playbooks" ]]; then
+            ANSIBLE_DIR="$dir"
+            echo "  Found Ansible directory: $ANSIBLE_DIR"
+            break
+        fi
+    done
+
+    if [[ -z "$ANSIBLE_DIR" ]]; then
+        echo "  Ansible directory not detected automatically"
+        echo "  Looking for a directory containing inventory/ and playbooks/"
+    fi
+
+    echo ""
+    if [[ "$AUTO_YES" == "true" ]]; then
+        if [[ -n "$ANSIBLE_DIR" ]]; then
+            echo "  Using detected Ansible directory: $ANSIBLE_DIR (auto-yes mode)"
+        else
             ANSIBLE_DIR="NoNe"
-            echo "   Skipping Ansible (LLDPq will use devices.yaml)"
+            echo "  No Ansible directory found, skipping (auto-yes mode)"
         fi
     else
-        read -p "   Enter Ansible directory path (or press Enter to skip): " response
-        if [[ -z "$response" ]] || [[ "$response" == "skip" ]]; then
-            ANSIBLE_DIR="NoNe"
-            echo "   Skipping Ansible configuration (LLDPq will use devices.yaml)"
+        if [[ -n "$ANSIBLE_DIR" ]]; then
+            echo "  Found: $ANSIBLE_DIR"
+            read -p "  Use this Ansible directory? [Y/n/skip]: " response
+            if [[ "$response" =~ ^[Nn]$ ]]; then
+                read -p "  Enter Ansible directory path (or press Enter to skip): " custom_path
+                if [[ -z "$custom_path" ]]; then
+                    ANSIBLE_DIR="NoNe"
+                    echo "  Skipping Ansible (LLDPq will use devices.yaml)"
+                else
+                    ANSIBLE_DIR="$custom_path"
+                fi
+            elif [[ "$response" == "skip" ]]; then
+                ANSIBLE_DIR="NoNe"
+                echo "  Skipping Ansible (LLDPq will use devices.yaml)"
+            fi
         else
-            ANSIBLE_DIR="$response"
+            read -p "  Enter Ansible directory path (or press Enter to skip): " response
+            if [[ -z "$response" ]] || [[ "$response" == "skip" ]]; then
+                ANSIBLE_DIR="NoNe"
+                echo "  Skipping Ansible configuration (LLDPq will use devices.yaml)"
+            else
+                ANSIBLE_DIR="$response"
+            fi
         fi
     fi
 fi
 
-# Validate ansible directory (skip if NoNe)
-if [[ "$ANSIBLE_DIR" == "NoNe" ]]; then
-    : # Already handled above
-elif [[ -n "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR" ]]; then
-    echo "   Using Ansible directory: $ANSIBLE_DIR"
-    
-    # Add www-data to current user's group for ansible file access
-    echo "   Configuring web access permissions..."
-    sudo usermod -a -G "$(whoami)" www-data
-    echo "   www-data user added to $(whoami) group"
-    
-    # Ensure ansible directory has group write permission (for file editing/delete)
+# Configure Ansible directory permissions (if not NoNe and exists)
+if [[ "$ANSIBLE_DIR" != "NoNe" ]] && [[ -n "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR" ]]; then
+    echo "  Configuring web access permissions..."
+    sudo usermod -a -G "$LLDPQ_USER" www-data 2>/dev/null || true
+    echo "  www-data user added to $LLDPQ_USER group"
+
     chmod -R g+rw "$ANSIBLE_DIR" 2>/dev/null || true
-    echo "   Group write permission set on ansible directory"
-    
-    # Set default ACL so new files also get group write permission (survives git operations)
+    echo "  Group write permission set on ansible directory"
+
     if command -v setfacl &> /dev/null; then
         setfacl -R -d -m g::rwX "$ANSIBLE_DIR" 2>/dev/null || true
-        echo "   Default ACL set (new files will inherit group write permission)"
+        echo "  Default ACL set (new files will inherit group write permission)"
     fi
-    
-    # If git repo exists, add hooks to fix permissions after git operations
+
     if [[ -d "$ANSIBLE_DIR/.git" ]]; then
-        echo "   Setting up git hooks for permission management..."
-        
-        # Create post-merge hook
+        echo "  Setting up git hooks for permission management..."
+
         cat > "$ANSIBLE_DIR/.git/hooks/post-merge" << 'HOOKEOF'
 #!/bin/bash
 # Fix permissions after git pull/merge
 chmod -R g+rw "$(git rev-parse --show-toplevel)" 2>/dev/null || true
 HOOKEOF
         chmod +x "$ANSIBLE_DIR/.git/hooks/post-merge"
-        
-        # Create post-checkout hook (for git checkout, git reset)
         cp "$ANSIBLE_DIR/.git/hooks/post-merge" "$ANSIBLE_DIR/.git/hooks/post-checkout"
-        
-        echo "   Git hooks created (post-merge, post-checkout)"
+        echo "  Git hooks created (post-merge, post-checkout)"
     fi
-    
-    # Add git safe.directory for www-data user (for git operations from web)
-    # First ensure www-data can write to /var/www for .gitconfig
+
+    # Add git safe.directory for www-data user
     sudo chmod 775 /var/www 2>/dev/null || true
     sudo chown root:www-data /var/www 2>/dev/null || true
     sudo touch /var/www/.gitconfig 2>/dev/null || true
     sudo chown www-data:www-data /var/www/.gitconfig 2>/dev/null || true
     sudo -u www-data git config --global --add safe.directory "$ANSIBLE_DIR" 2>/dev/null || true
-    
-    # Configure git sharedRepository for proper group permissions
+
     git -C "$ANSIBLE_DIR" config core.sharedRepository group 2>/dev/null || true
-    
-    # Fix existing .git directory permissions
-    sudo chown -R "$(whoami):www-data" "$ANSIBLE_DIR/.git" 2>/dev/null || true
+    sudo chown -R "$LLDPQ_USER:www-data" "$ANSIBLE_DIR/.git" 2>/dev/null || true
     sudo chmod -R g+rwX "$ANSIBLE_DIR/.git" 2>/dev/null || true
-    
-    echo "   Git safe.directory and sharedRepository configured for web access"
-    
-elif [[ -n "$ANSIBLE_DIR" ]]; then
-    # User specified a path but it doesn't exist
-    echo "   [!] Warning: Ansible directory '$ANSIBLE_DIR' does not exist"
-    echo "   It will be created when needed or you can create it manually"
+
+    echo "  Ansible directory configured"
+elif [[ "$ANSIBLE_DIR" != "NoNe" ]] && [[ -n "$ANSIBLE_DIR" ]]; then
+    echo "  [!] Warning: Ansible directory '$ANSIBLE_DIR' does not exist"
+    echo "  It will be created when needed or you can create it manually"
 fi
 
-# If no Ansible dir configured, set NoNe flag
-if [[ -z "$ANSIBLE_DIR" ]]; then
-    ANSIBLE_DIR="NoNe"
-    echo "   No Ansible directory configured (LLDPq will use devices.yaml)"
-fi
+[[ -z "$ANSIBLE_DIR" ]] && ANSIBLE_DIR="NoNe"
 
-echo ""
-echo "   - Creating /etc/lldpq.conf"
+# ============================================================================
+# COMMON: Write /etc/lldpq.conf
+# ============================================================================
+step "Writing /etc/lldpq.conf..."
+
 echo "# LLDPq Configuration" | sudo tee /etc/lldpq.conf > /dev/null
 echo "LLDPQ_DIR=$LLDPQ_INSTALL_DIR" | sudo tee -a /etc/lldpq.conf > /dev/null
-echo "LLDPQ_USER=$(whoami)" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "LLDPQ_USER=$LLDPQ_USER" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "WEB_ROOT=$WEB_ROOT" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "ANSIBLE_DIR=$ANSIBLE_DIR" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "DHCP_HOSTS_FILE=/etc/dhcp/dhcpd.hosts" | sudo tee -a /etc/lldpq.conf > /dev/null
@@ -411,252 +726,326 @@ echo "DHCP_CONF_FILE=/etc/dhcp/dhcpd.conf" | sudo tee -a /etc/lldpq.conf > /dev/
 echo "DHCP_LEASES_FILE=/var/lib/dhcp/dhcpd.leases" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "ZTP_SCRIPT_FILE=$WEB_ROOT/cumulus-ztp.sh" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "BASE_CONFIG_DIR=$LLDPQ_INSTALL_DIR/sw-base" | sudo tee -a /etc/lldpq.conf > /dev/null
+
+# Preserve telemetry settings (update mode)
+if [[ "$INSTALL_MODE" == "update" ]]; then
+    [[ -n "$_SAVE_TELEMETRY_ENABLED" ]] && \
+        echo "TELEMETRY_ENABLED=$_SAVE_TELEMETRY_ENABLED" | sudo tee -a /etc/lldpq.conf > /dev/null
+    [[ -n "$_SAVE_PROMETHEUS_URL" ]] && \
+        echo "PROMETHEUS_URL=$_SAVE_PROMETHEUS_URL" | sudo tee -a /etc/lldpq.conf > /dev/null
+    [[ -n "$_SAVE_TELEMETRY_COLLECTOR_IP" ]] && \
+        echo "TELEMETRY_COLLECTOR_IP=$_SAVE_TELEMETRY_COLLECTOR_IP" | sudo tee -a /etc/lldpq.conf > /dev/null
+    [[ -n "$_SAVE_TELEMETRY_COLLECTOR_PORT" ]] && \
+        echo "TELEMETRY_COLLECTOR_PORT=$_SAVE_TELEMETRY_COLLECTOR_PORT" | sudo tee -a /etc/lldpq.conf > /dev/null
+    [[ -n "$_SAVE_TELEMETRY_COLLECTOR_VRF" ]] && \
+        echo "TELEMETRY_COLLECTOR_VRF=$_SAVE_TELEMETRY_COLLECTOR_VRF" | sudo tee -a /etc/lldpq.conf > /dev/null
+fi
+
 # Set permissions so web server can update telemetry config
 USER_GROUP=$(id -gn)
 sudo chown root:$USER_GROUP /etc/lldpq.conf
 sudo chmod 664 /etc/lldpq.conf
-# Add www-data to user's group for web access
 sudo usermod -a -G $USER_GROUP www-data 2>/dev/null || true
-echo "   Configuration saved to /etc/lldpq.conf"
+echo "  Configuration saved to /etc/lldpq.conf"
 
-# Configure sudoers for www-data (web API needs SSH/SCP and DHCP control)
-echo "   - Configuring sudoers for web API access..."
-echo "www-data ALL=($(whoami)) NOPASSWD: /usr/bin/timeout, /usr/bin/ssh, /usr/bin/scp" | sudo tee /etc/sudoers.d/www-data-lldpq > /dev/null
+# ============================================================================
+# COMMON: Sudoers
+# ============================================================================
+step "Configuring sudoers..."
+
+echo "www-data ALL=($LLDPQ_USER) NOPASSWD: /usr/bin/timeout, /usr/bin/ssh, /usr/bin/scp" | \
+    sudo tee /etc/sudoers.d/www-data-lldpq > /dev/null
 sudo chmod 440 /etc/sudoers.d/www-data-lldpq
-echo "www-data ALL=(root) NOPASSWD: /usr/bin/systemctl start isc-dhcp-server, /usr/bin/systemctl stop isc-dhcp-server, /usr/bin/systemctl restart isc-dhcp-server, /usr/bin/systemctl disable isc-dhcp-server, /usr/bin/systemctl enable isc-dhcp-server, /usr/bin/tee /etc/dhcp/dhcpd.conf, /usr/bin/tee /etc/dhcp/dhcpd.hosts, /usr/bin/tee /etc/default/isc-dhcp-server, /usr/bin/pkill -x dhcpd, /usr/sbin/dhcpd, /usr/bin/cat /etc/dhcp/dhcpd.conf, /usr/bin/chmod 755 *" | sudo tee /etc/sudoers.d/www-data-provision > /dev/null
-sudo chmod 440 /etc/sudoers.d/www-data-provision
-echo "   Sudoers configured (SSH/SCP + DHCP/Provision)"
 
-# Prepare DHCP and provision directories
-echo "   - Preparing DHCP/Provision directories..."
+echo "www-data ALL=(root) NOPASSWD: /usr/bin/systemctl start isc-dhcp-server, /usr/bin/systemctl stop isc-dhcp-server, /usr/bin/systemctl restart isc-dhcp-server, /usr/bin/systemctl disable isc-dhcp-server, /usr/bin/systemctl enable isc-dhcp-server, /usr/bin/tee /etc/dhcp/dhcpd.conf, /usr/bin/tee /etc/dhcp/dhcpd.hosts, /usr/bin/tee /etc/default/isc-dhcp-server, /usr/bin/pkill -x dhcpd, /usr/sbin/dhcpd, /usr/bin/cat /etc/dhcp/dhcpd.conf, /usr/bin/chmod 755 *" | \
+    sudo tee /etc/sudoers.d/www-data-provision > /dev/null
+sudo chmod 440 /etc/sudoers.d/www-data-provision
+echo "  Sudoers configured (SSH/SCP + DHCP/Provision)"
+
+# ============================================================================
+# COMMON: DHCP & ZTP directories
+# ============================================================================
+step "Preparing DHCP/Provision directories..."
+
 sudo mkdir -p /etc/dhcp /var/lib/dhcp
 sudo touch /var/lib/dhcp/dhcpd.leases
 [ ! -f /etc/dhcp/dhcpd.hosts ] && sudo touch /etc/dhcp/dhcpd.hosts
-sudo chown "$(whoami):www-data" /etc/dhcp/dhcpd.hosts
+sudo chown "$LLDPQ_USER:www-data" /etc/dhcp/dhcpd.hosts
 sudo chmod 664 /etc/dhcp/dhcpd.hosts
+
 # ZTP script placeholder (if not exists)
 if [ ! -f "$WEB_ROOT/cumulus-ztp.sh" ]; then
     echo '#!/bin/bash' | sudo tee "$WEB_ROOT/cumulus-ztp.sh" > /dev/null
     echo '# CUMULUS-AUTOPROVISIONING' | sudo tee -a "$WEB_ROOT/cumulus-ztp.sh" > /dev/null
     echo '# Edit this script from the Provision page' | sudo tee -a "$WEB_ROOT/cumulus-ztp.sh" > /dev/null
 fi
-sudo chown "$(whoami):www-data" "$WEB_ROOT/cumulus-ztp.sh"
+sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/cumulus-ztp.sh"
 sudo chmod 775 "$WEB_ROOT/cumulus-ztp.sh"
-echo "   DHCP/Provision directories ready"
-echo "Files copied successfully"
+echo "  DHCP/Provision directories ready"
 
-echo ""
-echo "[04] Configuration files to edit:"
-echo "   You need to manually edit these files with your network details:"
-echo ""
-echo "   1. nano $LLDPQ_INSTALL_DIR/devices.yaml           # Define your network devices (required)"
-echo "   2. nano $LLDPQ_INSTALL_DIR/topology.dot           # Define your network topology"
-echo "   Note: zzh (SSH manager) automatically loads devices from devices.yaml"
-echo ""
-echo "   See README.md for examples of each file format"
+# ============================================================================
+# COMMON: Authentication
+# ============================================================================
+step "Setting up authentication..."
 
-echo ""
-echo "[05] Configuring nginx..."
-
-# Enable LLDPq site
-sudo ln -sf /etc/nginx/sites-available/lldpq /etc/nginx/sites-enabled/lldpq
-
-# Disable Default site (if exists)
-[ -L /etc/nginx/sites-enabled/default ] && sudo unlink /etc/nginx/sites-enabled/default || true
-
-# Test and restart nginx and fcgiwrap
-sudo nginx -t
-sudo systemctl restart nginx
-sudo systemctl restart fcgiwrap
-echo "nginx and fcgiwrap configured and restarted"
-
-echo ""
-echo "[05b] Setting up authentication..."
-
-# Create sessions directory (parent dir must also be accessible by www-data)
 sudo mkdir -p /var/lib/lldpq/sessions
 sudo chown www-data:www-data /var/lib/lldpq
 sudo chown www-data:www-data /var/lib/lldpq/sessions
 sudo chmod 755 /var/lib/lldpq
 sudo chmod 700 /var/lib/lldpq/sessions
-echo "   - Sessions directory created"
+echo "  Sessions directory configured"
 
-# Create users file with default passwords
 if [[ ! -f /etc/lldpq-users.conf ]]; then
-    # Hash passwords: admin/admin, operator/operator
     ADMIN_HASH=$(echo -n "admin" | openssl dgst -sha256 | awk '{print $2}')
     OPERATOR_HASH=$(echo -n "operator" | openssl dgst -sha256 | awk '{print $2}')
-    
     echo "admin:$ADMIN_HASH:admin" | sudo tee /etc/lldpq-users.conf > /dev/null
     echo "operator:$OPERATOR_HASH:operator" | sudo tee -a /etc/lldpq-users.conf > /dev/null
-    sudo chmod 600 /etc/lldpq-users.conf
-    sudo chown www-data:www-data /etc/lldpq-users.conf
-    echo "   - Users file created with default credentials:"
-    echo "     admin / admin"
-    echo "     operator / operator"
-    echo "   [!] IMPORTANT: Change default passwords after first login!"
+    echo "  Users file created with default credentials:"
+    echo "    admin / admin"
+    echo "    operator / operator"
+    echo "  [!] IMPORTANT: Change default passwords after first login!"
 else
-    echo "   - Users file already exists, keeping existing credentials"
+    echo "  Users file already exists, keeping existing credentials"
+fi
+sudo chmod 600 /etc/lldpq-users.conf
+sudo chown www-data:www-data /etc/lldpq-users.conf
+
+# ============================================================================
+# COMMON: Verify Python packages (update mode — fresh already installed them)
+# ============================================================================
+if [[ "$INSTALL_MODE" == "update" ]]; then
+    step "Verifying Python packages..."
+    if ! python3 -c "import ruamel.yaml" 2>/dev/null; then
+        echo "  Installing ruamel.yaml..."
+        pip3 install --user ruamel.yaml >/dev/null 2>&1 || \
+            pip3 install ruamel.yaml >/dev/null 2>&1 || \
+            echo "  [!] ruamel.yaml installation failed — YAML comment preservation may not work"
+    fi
+    if ! python3 -c "import requests" 2>/dev/null; then
+        echo "  Installing requests..."
+        pip3 install --user requests >/dev/null 2>&1 || \
+            pip3 install requests >/dev/null 2>&1 || true
+    fi
+    echo "  Python packages verified"
 fi
 
-echo "   - Authentication API configured"
+# ============================================================================
+# COMMON: Nginx configuration
+# ============================================================================
+step "Configuring nginx..."
 
-echo ""
-echo "[06] Adding cron jobs..."
-# Remove existing LLDPq cron jobs if they exist
+sudo ln -sf /etc/nginx/sites-available/lldpq /etc/nginx/sites-enabled/lldpq
+[ -L /etc/nginx/sites-enabled/default ] && sudo unlink /etc/nginx/sites-enabled/default || true
+
+# Fix IPv6 listen directive if IPv6 is not supported on this system
+if ! cat /proc/net/if_inet6 >/dev/null 2>&1; then
+    echo "  IPv6 not available — removing [::] listen directives from nginx config"
+    sudo sed -i '/listen \[::]/d' /etc/nginx/sites-available/lldpq
+fi
+
+if sudo nginx -t 2>&1; then
+    echo "  nginx config OK"
+else
+    echo "  [!] nginx -t reported warnings — check /etc/nginx/sites-available/lldpq"
+fi
+sudo systemctl restart nginx
+sudo systemctl restart fcgiwrap
+echo "  nginx and fcgiwrap configured and restarted"
+
+# ============================================================================
+# COMMON: Cron jobs
+# ============================================================================
+step "Configuring cron jobs..."
+
+# Remove existing LLDPq cron jobs and re-add (ensures latest)
 sudo sed -i '/lldpq\|monitor\|get-conf\|fabric-scan/d' /etc/crontab
 
-# Add new cron jobs
-echo "*/5 * * * * $(whoami) /usr/local/bin/lldpq" | sudo tee -a /etc/crontab > /dev/null
-echo "0 */12 * * * $(whoami) /usr/local/bin/get-conf" | sudo tee -a /etc/crontab > /dev/null
-echo "* * * * * $(whoami) /usr/local/bin/lldpq-trigger" | sudo tee -a /etc/crontab > /dev/null
-echo "* * * * * $(whoami) cd $LLDPQ_INSTALL_DIR && ./fabric-scan.sh >/dev/null 2>&1" | sudo tee -a /etc/crontab > /dev/null
-echo "0 0 * * * $(whoami) cd $LLDPQ_INSTALL_DIR && cp /var/www/html/topology.dot topology.dot.bkp 2>/dev/null; cp /var/www/html/topology_config.yaml topology_config.yaml.bkp 2>/dev/null; git add -A; git diff --cached --quiet || git commit -m 'auto: \$(date +\\%Y-\\%m-\\%d)'" | sudo tee -a /etc/crontab > /dev/null
+echo "*/5 * * * * $LLDPQ_USER /usr/local/bin/lldpq" | sudo tee -a /etc/crontab > /dev/null
+echo "0 */12 * * * $LLDPQ_USER /usr/local/bin/get-conf" | sudo tee -a /etc/crontab > /dev/null
+echo "* * * * * $LLDPQ_USER /usr/local/bin/lldpq-trigger" | sudo tee -a /etc/crontab > /dev/null
+echo "* * * * * $LLDPQ_USER cd $LLDPQ_INSTALL_DIR && ./fabric-scan.sh >/dev/null 2>&1" | sudo tee -a /etc/crontab > /dev/null
+echo "0 0 * * * $LLDPQ_USER cd $LLDPQ_INSTALL_DIR && cp /var/www/html/topology.dot topology.dot.bkp 2>/dev/null; cp /var/www/html/topology_config.yaml topology_config.yaml.bkp 2>/dev/null; git add -A; git diff --cached --quiet || git commit -m 'auto: \$(date +\\%Y-\\%m-\\%d)'" | sudo tee -a /etc/crontab > /dev/null
 
-# Add Fabric Scan cron job if Ansible directory exists
-if [[ -d "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR/playbooks" ]]; then
-    echo "33 3 * * * $(whoami) $LLDPQ_INSTALL_DIR/fabric-scan-cron.sh" | sudo tee -a /etc/crontab > /dev/null
-    chmod +x "$LLDPQ_INSTALL_DIR/fabric-scan-cron.sh"
-    # Create cache file with user write permission
+if [[ "$ANSIBLE_DIR" != "NoNe" ]] && [[ -d "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR/playbooks" ]]; then
+    echo "33 3 * * * $LLDPQ_USER $LLDPQ_INSTALL_DIR/fabric-scan-cron.sh" | sudo tee -a /etc/crontab > /dev/null
+    chmod +x "$LLDPQ_INSTALL_DIR/fabric-scan-cron.sh" 2>/dev/null || true
     sudo touch "$WEB_ROOT/fabric-scan-cache.json"
-    sudo chown "$(whoami):www-data" "$WEB_ROOT/fabric-scan-cache.json"
+    sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/fabric-scan-cache.json"
     sudo chmod 664 "$WEB_ROOT/fabric-scan-cache.json"
-    echo "   - fabric-scan:     daily at 03:33 (Ansible diff check)"
+    echo "  - fabric-scan: daily at 03:33 (Ansible diff check)"
 fi
 
-echo "Cron jobs added:"
-echo "   - lldpq:           every 5 minutes (system monitoring)"  
-echo "   - get-conf:        every 12 hours"
-echo "   - web triggers:    daemon (checks every 5 seconds, enables Run LLDP Check button)"
-echo "   - git auto-commit: daily at midnight (tracks config changes)"
+echo "  Cron jobs configured:"
+echo "    - lldpq:           every 5 minutes"
+echo "    - get-conf:        every 12 hours"
+echo "    - web triggers:    every minute (enables Run LLDP Check button)"
+echo "    - git auto-commit: daily at midnight"
 
-echo ""
-echo "[07] Streaming Telemetry (Optional)"
-echo "   Telemetry provides real-time metrics dashboard with:"
-echo "   - Interface throughput, errors, drops charts"
-echo "   - Platform temperature monitoring"
-echo "   - Active alerts from Prometheus"
-echo "   - Requires Docker to run OTEL Collector + Prometheus"
-echo ""
+# ============================================================================
+# UPDATE-ONLY: Restore monitoring data & summary
+# ============================================================================
+if [[ "$INSTALL_MODE" == "update" ]]; then
 
-TELEMETRY_ENABLED=false
-if [[ "$AUTO_YES" == "true" ]]; then
-    echo "   Skipping telemetry (auto-yes mode, run './update.sh --enable-telemetry' later)"
-else
-    read -p "   Enable streaming telemetry support? [y/N]: " telemetry_response
-    if [[ "$telemetry_response" =~ ^[Yy]$ ]]; then
-        TELEMETRY_ENABLED=true
+    if [[ -n "$BACKUP_DIR" ]]; then
+        step "Restoring monitoring data..."
+        [[ -d "$BACKUP_DIR/monitor-results" ]] && \
+            cp -r "$BACKUP_DIR/monitor-results" "$LLDPQ_INSTALL_DIR/" && echo "  • monitor-results/"
+        [[ -d "$BACKUP_DIR/lldp-results" ]] && \
+            cp -r "$BACKUP_DIR/lldp-results" "$LLDPQ_INSTALL_DIR/" && echo "  • lldp-results/"
+        [[ -d "$BACKUP_DIR/alert-states" ]] && \
+            cp -r "$BACKUP_DIR/alert-states" "$LLDPQ_INSTALL_DIR/" && echo "  • alert-states/"
+        # Fix permissions on restored data
+        chmod 750 "$LLDPQ_INSTALL_DIR/monitor-results" 2>/dev/null || true
+        chmod 750 "$LLDPQ_INSTALL_DIR/monitor-results/fabric-tables" 2>/dev/null || true
+        echo "  Monitoring data restored"
     fi
+
+    step "Update summary"
+    echo "  Preserved:"
+    echo "    • $LLDPQ_INSTALL_DIR/devices.yaml"
+    echo "    • $WEB_ROOT/topology.dot"
+    echo "    • $WEB_ROOT/topology_config.yaml"
+    [[ -f "$LLDPQ_INSTALL_DIR/notifications.yaml" ]] && echo "    • $LLDPQ_INSTALL_DIR/notifications.yaml"
+    [[ -d "$LLDPQ_INSTALL_DIR/monitor-results" ]] && echo "    • monitor-results/"
+    [[ -d "$LLDPQ_INSTALL_DIR/lldp-results" ]] && echo "    • lldp-results/"
+    [[ -d "$LLDPQ_INSTALL_DIR/alert-states" ]] && echo "    • alert-states/"
+    echo ""
+    echo "  Full backup: $BACKUP_DIR"
 fi
 
-if [[ "$TELEMETRY_ENABLED" == "true" ]]; then
+# ============================================================================
+# FRESH-ONLY: Post-install setup
+# ============================================================================
+if [[ "$INSTALL_MODE" == "fresh" ]]; then
+
+    step "Configuration files to edit"
+    echo "  You need to manually edit these files with your network details:"
     echo ""
-    echo "   Checking Docker installation..."
-    
-    if ! command -v docker &> /dev/null; then
-        echo "   Docker not found. Installing Docker..."
-        curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
-        sudo sh /tmp/get-docker.sh
-        sudo usermod -aG docker "$(whoami)"
-        rm /tmp/get-docker.sh
-        echo "   Docker installed successfully"
-        echo "   [!] NOTE: You may need to logout/login for Docker group to take effect"
+    echo "  1. nano $LLDPQ_INSTALL_DIR/devices.yaml           # Define your network devices (required)"
+    echo "  2. nano $LLDPQ_INSTALL_DIR/topology.dot           # Define your network topology"
+    echo "  Note: zzh (SSH manager) automatically loads devices from devices.yaml"
+    echo ""
+    echo "  See README.md for examples of each file format"
+
+    step "Streaming Telemetry (Optional)"
+    echo "  Telemetry provides real-time metrics dashboard with:"
+    echo "  - Interface throughput, errors, drops charts"
+    echo "  - Platform temperature monitoring"
+    echo "  - Active alerts from Prometheus"
+    echo "  - Requires Docker to run OTEL Collector + Prometheus"
+    echo ""
+
+    TELEMETRY_ENABLED=false
+    if [[ "$AUTO_YES" == "true" ]]; then
+        echo "  Skipping telemetry (auto-yes mode, run './install.sh --enable-telemetry' later)"
     else
-        echo "   Docker found: $(docker --version)"
+        read -p "  Enable streaming telemetry support? [y/N]: " telemetry_response
+        if [[ "$telemetry_response" =~ ^[Yy]$ ]]; then
+            TELEMETRY_ENABLED=true
+        fi
     fi
-    
-    if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-        echo "   Installing docker-compose..."
-        sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-        sudo chmod +x /usr/local/bin/docker-compose
-        echo "   docker-compose installed"
-    fi
-    
-    # Mark telemetry as enabled in config
-    if grep -q "^TELEMETRY_ENABLED=" /etc/lldpq.conf 2>/dev/null; then
-        sudo sed -i 's/^TELEMETRY_ENABLED=.*/TELEMETRY_ENABLED=true/' /etc/lldpq.conf
-    else
-        echo "TELEMETRY_ENABLED=true" | sudo tee -a /etc/lldpq.conf > /dev/null
-    fi
-    
-    # Add default Prometheus URL if not present
-    if ! grep -q "^PROMETHEUS_URL=" /etc/lldpq.conf 2>/dev/null; then
-        echo "PROMETHEUS_URL=http://localhost:9090" | sudo tee -a /etc/lldpq.conf > /dev/null
-    fi
-    
-    echo ""
-    echo "   Telemetry support enabled!"
-    echo ""
-    
-    # Configure Docker storage driver if needed (for VMs without overlay support)
-    if [[ ! -f /etc/docker/daemon.json ]]; then
-        echo "   Configuring Docker storage driver..."
-        sudo mkdir -p /etc/docker
-        echo '{"storage-driver": "vfs"}' | sudo tee /etc/docker/daemon.json > /dev/null
-        sudo systemctl restart docker
-    fi
-    
-    # Start the telemetry stack automatically
-    if [[ -f "$LLDPQ_INSTALL_DIR/telemetry/docker-compose.yaml" ]]; then
+
+    if [[ "$TELEMETRY_ENABLED" == "true" ]]; then
         echo ""
-        echo "   Starting telemetry stack..."
-        cd "$LLDPQ_INSTALL_DIR/telemetry"
-        # Use sudo for docker if user not yet in docker group (fresh install)
-        if docker compose up -d 2>&1; then
-            : # success without sudo
-        elif docker-compose up -d 2>&1; then
-            : # success with old docker-compose
-        elif sudo docker compose up -d 2>&1; then
-            : # success with sudo
-        elif sudo docker-compose up -d 2>&1; then
-            : # success with sudo + old docker-compose
+        echo "  Checking Docker installation..."
+
+        if ! command -v docker &> /dev/null; then
+            echo "  Docker not found. Installing Docker..."
+            curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+            sudo sh /tmp/get-docker.sh
+            sudo usermod -aG docker "$LLDPQ_USER"
+            rm /tmp/get-docker.sh
+            echo "  Docker installed successfully"
+            echo "  [!] NOTE: You may need to logout/login for Docker group to take effect"
         else
-            echo "   [!] Could not start stack. Try manually:"
-            echo "       cd $LLDPQ_INSTALL_DIR/telemetry && sudo docker compose up -d"
+            echo "  Docker found: $(docker --version)"
         fi
-        cd - > /dev/null
-        
-        # Wait a moment and check status
-        sleep 3
-        if docker ps --filter "name=lldpq-prometheus" --format "{{.Status}}" 2>/dev/null | grep -q "Up"; then
+
+        if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
+            echo "  Installing docker-compose..."
+            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+            echo "  docker-compose installed"
+        fi
+
+        if grep -q "^TELEMETRY_ENABLED=" /etc/lldpq.conf 2>/dev/null; then
+            sudo sed -i 's/^TELEMETRY_ENABLED=.*/TELEMETRY_ENABLED=true/' /etc/lldpq.conf
+        else
+            echo "TELEMETRY_ENABLED=true" | sudo tee -a /etc/lldpq.conf > /dev/null
+        fi
+
+        if ! grep -q "^PROMETHEUS_URL=" /etc/lldpq.conf 2>/dev/null; then
+            echo "PROMETHEUS_URL=http://localhost:9090" | sudo tee -a /etc/lldpq.conf > /dev/null
+        fi
+
+        echo ""
+        echo "  Telemetry support enabled!"
+        echo ""
+
+        # Configure Docker storage driver if needed (for VMs without overlay support)
+        if [[ ! -f /etc/docker/daemon.json ]]; then
+            echo "  Configuring Docker storage driver..."
+            sudo mkdir -p /etc/docker
+            echo '{"storage-driver": "vfs"}' | sudo tee /etc/docker/daemon.json > /dev/null
+            sudo systemctl restart docker
+        fi
+
+        # Start the telemetry stack automatically
+        if [[ -f "$LLDPQ_INSTALL_DIR/telemetry/docker-compose.yaml" ]]; then
             echo ""
-            echo "   Telemetry stack is running:"
-            echo "     - OTEL Collector: http://localhost:4317"
-            echo "     - Prometheus:     http://localhost:9090"
-            echo "     - Alertmanager:   http://localhost:9093"
+            echo "  Starting telemetry stack..."
+            cd "$LLDPQ_INSTALL_DIR/telemetry"
+            if docker compose up -d 2>&1; then
+                :
+            elif docker-compose up -d 2>&1; then
+                :
+            elif sudo docker compose up -d 2>&1; then
+                :
+            elif sudo docker-compose up -d 2>&1; then
+                :
+            else
+                echo "  [!] Could not start stack. Try manually:"
+                echo "      cd $LLDPQ_INSTALL_DIR/telemetry && sudo docker compose up -d"
+            fi
+            cd - > /dev/null
+
+            sleep 3
+            if docker ps --filter "name=lldpq-prometheus" --format "{{.Status}}" 2>/dev/null | grep -q "Up"; then
+                echo ""
+                echo "  Telemetry stack is running:"
+                echo "    - OTEL Collector: http://localhost:4317"
+                echo "    - Prometheus:     http://localhost:9090"
+                echo "    - Alertmanager:   http://localhost:9093"
+            fi
+        fi
+
+        echo ""
+        echo "  Next step: Enable telemetry on switches from web UI:"
+        echo "    Telemetry → Configuration → Enable Telemetry"
+    else
+        echo "  Telemetry skipped. Enable later with: ./install.sh --enable-telemetry"
+
+        if grep -q "^TELEMETRY_ENABLED=" /etc/lldpq.conf 2>/dev/null; then
+            sudo sed -i 's/^TELEMETRY_ENABLED=.*/TELEMETRY_ENABLED=false/' /etc/lldpq.conf
+        else
+            echo "TELEMETRY_ENABLED=false" | sudo tee -a /etc/lldpq.conf > /dev/null
         fi
     fi
-    
+
+    step "SSH Key Setup Required"
+    echo "  Before using LLDPq, you must setup SSH key authentication:"
     echo ""
-    echo "   Next step: Enable telemetry on switches from web UI:"
-    echo "     Telemetry → Configuration → Enable Telemetry"
-else
-    echo "   Telemetry skipped. Enable later with: ./update.sh --enable-telemetry"
-    
-    # Mark telemetry as disabled in config
-    if grep -q "^TELEMETRY_ENABLED=" /etc/lldpq.conf 2>/dev/null; then
-        sudo sed -i 's/^TELEMETRY_ENABLED=.*/TELEMETRY_ENABLED=false/' /etc/lldpq.conf
-    else
-        echo "TELEMETRY_ENABLED=false" | sudo tee -a /etc/lldpq.conf > /dev/null
-    fi
-fi
+    echo "  For each device in your network:"
+    echo "    ssh-copy-id username@device_ip"
+    echo ""
+    echo "  And ensure sudo works without password on each device:"
+    echo "    sudo visudo  # Add: username ALL=(ALL) NOPASSWD:ALL"
 
-echo ""
-echo "[08] SSH Key Setup Required"
-echo "   Before using LLDPq, you must setup SSH key authentication:"
-echo ""
-echo "   For each device in your network:"
-echo "   ssh-copy-id username@device_ip"
-echo ""
-echo "   And ensure sudo works without password on each device:"
-echo "   sudo visudo  # Add: username ALL=(ALL) NOPASSWD:ALL"
+    step "Initializing git repository in $LLDPQ_INSTALL_DIR..."
+    cd "$LLDPQ_INSTALL_DIR"
 
-echo ""
-echo "[09] Initializing local git repository in $LLDPQ_INSTALL_DIR..."
-cd "$LLDPQ_INSTALL_DIR"
-
-# Create .gitignore
-cat > .gitignore << 'EOF'
+    # Create .gitignore
+    cat > .gitignore << 'EOF'
 # Output directories (dynamic, changes frequently)
 lldp-results/
 monitor-results/
@@ -672,25 +1061,25 @@ __pycache__/
 *.pyc
 EOF
 
-# Configure git user if not set (required for commits)
-if ! git config --global user.name >/dev/null 2>&1; then
-    git config --global user.name "$(whoami)"
-fi
-if ! git config --global user.email >/dev/null 2>&1; then
-    git config --global user.email "$(whoami)@$(hostname)"
-fi
+    # Configure git user if not set (required for commits)
+    if ! git config --global user.name >/dev/null 2>&1; then
+        git config --global user.name "$LLDPQ_USER"
+    fi
+    if ! git config --global user.email >/dev/null 2>&1; then
+        git config --global user.email "$LLDPQ_USER@$(hostname)"
+    fi
 
-# Initialize git repo with main branch (modern Git convention)
-git init -q -b main
-git add -A
-git commit -q -m "Initial LLDPq configuration"
+    # Initialize git repo with main branch (modern Git convention)
+    git init -q -b main
+    git add -A
+    git commit -q -m "Initial LLDPq configuration"
 
-# Configure git for group permissions
-git config core.sharedRepository group
+    # Configure git for group permissions
+    git config core.sharedRepository group
 
-# Add git hooks to preserve permissions after git operations (pull, checkout, etc)
-echo "   - Setting up git hooks for permission preservation..."
-cat > .git/hooks/post-merge << 'HOOKEOF'
+    # Add git hooks to preserve permissions after git operations
+    echo "  Setting up git hooks for permission preservation..."
+    cat > .git/hooks/post-merge << 'HOOKEOF'
 #!/bin/bash
 # Fix permissions after git pull/merge (preserve group read access for www-data)
 chmod 750 "$(git rev-parse --show-toplevel)" 2>/dev/null || true
@@ -699,35 +1088,47 @@ if [ -d "$(git rev-parse --show-toplevel)/monitor-results" ]; then
     chmod -R 750 "$(git rev-parse --show-toplevel)/monitor-results" 2>/dev/null || true
 fi
 HOOKEOF
-chmod +x .git/hooks/post-merge
+    chmod +x .git/hooks/post-merge
+    cp .git/hooks/post-merge .git/hooks/post-checkout
 
-# Create post-checkout hook (for git checkout, git reset)
-cp .git/hooks/post-merge .git/hooks/post-checkout
+    echo "  Git repository initialized with initial commit"
+    echo "  Git hooks created (permissions preserved after git operations)"
+fi
 
-echo "Git repository initialized with initial commit"
-echo "   - Git hooks created (permissions preserved after git operations)"
-echo "   - Use 'cd $LLDPQ_INSTALL_DIR && git diff' to see changes"
-echo "   - Use 'cd $LLDPQ_INSTALL_DIR && git log' to see history"
+# ============================================================================
+# COMPLETE
+# ============================================================================
+echo ""
+echo "=================================="
+if [[ "$INSTALL_MODE" == "update" ]]; then
+    echo "LLDPq Update Complete!"
+else
+    echo "LLDPq Installation Complete!"
+fi
+echo "=================================="
+echo ""
+echo "  Web interface: http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo 'localhost')"
+echo ""
+
+if [[ "$INSTALL_MODE" == "fresh" ]]; then
+    echo "  Default login credentials:"
+    echo "    admin / admin       (full access)"
+    echo "    operator / operator (no Ansible access)"
+    echo "  [!] Change these passwords after first login!"
+    echo ""
+    echo "  Next steps:"
+    echo "    1. Edit devices.yaml with your network devices"
+    echo "    2. Setup SSH keys for all devices"
+    echo "    3. Test: lldpq, get-conf, zzh, pping"
+    echo ""
+    echo "  For detailed configuration examples, see README.md"
+fi
+
+if [[ -n "$BACKUP_DIR" ]] && [[ -d "$BACKUP_DIR" ]]; then
+    echo "  Backup location: $BACKUP_DIR"
+    echo "  (Delete when no longer needed: rm -rf $BACKUP_DIR)"
+fi
 
 echo ""
-echo "[10] Installation Complete!"
-echo "   Next steps:"
-echo "   1. Edit the 4 configuration files mentioned above"
-echo "   2. Setup SSH keys for all devices"
-echo "   3. Test the tools manually:"
-echo "      - lldpq"
-echo "      - get-conf"
-echo "      - zzh"
-echo "      - pping"
-echo ""
-echo "   Web interface will be available at: http://$(hostname -I | awk '{print $1}')"
-echo ""
-echo "   Default login credentials:"
-echo "     admin / admin       (full access)"
-echo "     operator / operator (no Ansible access)"
-echo "   [!] Change these passwords after first login!"
-echo ""
-echo "   For detailed configuration examples, see README.md"
-echo ""
-echo "LLDPq installation completed successfully!"
+echo "LLDPq $(if [[ "$INSTALL_MODE" == "update" ]]; then echo "update"; else echo "installation"; fi) completed successfully!"
 echo ""
