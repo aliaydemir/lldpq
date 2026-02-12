@@ -15,6 +15,7 @@ TMPFILE="$SCRIPT_DIR/assets.tmp"
 UNREACH="$SCRIPT_DIR/unreachable.tmp"
 FINAL="$SCRIPT_DIR/assets.ini"
 CACHE_FILE="$WEB_ROOT/device-cache.json"
+export WEB_ROOT FINAL
 
 rm -f "$TMPFILE" "$UNREACH"
 
@@ -144,9 +145,6 @@ collect() {
       "$host" "$r_ip" "$r_mac" "$r_serial" "$r_model" "$r_release" "$r_uptime" "OK" "$now" \
       >> "$TMPFILE"
     
-    # Update cache with devices.yaml hostname for consistent lookup
-    update_cache "$host" "$r_ip" "$r_mac" "$r_serial" "$r_model" "$r_release" "$r_uptime"
-    
     return 0
   else
     # SSH failed - add device with SSH-FAILED status
@@ -218,5 +216,72 @@ sudo cp "$FINAL" "$WEB_ROOT/"
 sudo chmod o+r "$WEB_ROOT/$(basename $FINAL)"
 rm -f "$TMPFILE" "$UNREACH"
 rm -rf "$SCRIPT_DIR/assets.sorted2"
+
+#### REBUILD CACHE FROM ASSETS FILE (race-condition-free)
+# All parallel processes have finished; build cache once from the final assets file
+python3 << 'REBUILD_CACHE'
+import json
+import os
+import sys
+
+cache_file = os.environ.get('WEB_ROOT', '/var/www/html') + '/device-cache.json'
+assets_file = os.environ.get('FINAL', '')
+
+if not assets_file or not os.path.exists(assets_file):
+    sys.exit(0)
+
+cache = {}
+try:
+    with open(assets_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('Created on') or line.startswith('DEVICE-NAME'):
+                continue
+            parts = line.split()
+            if len(parts) < 9:
+                continue
+            hostname = parts[0]
+            ip = parts[1]
+            mac = parts[2]
+            serial = parts[3]
+            model = parts[4]
+            release = parts[5]
+            uptime = parts[6]
+            status = parts[7]
+            last_seen = parts[8] if len(parts) > 8 else ''
+
+            if status == 'OK':
+                cache[hostname] = {
+                    "hostname": hostname,
+                    "ip": ip,
+                    "mac": mac,
+                    "serial": serial,
+                    "model": model,
+                    "release": release,
+                    "uptime": uptime,
+                    "last_seen": last_seen.replace('_', ' '),
+                    "status": "ok"
+                }
+            elif status == 'UNREACHABLE' and ip != 'No-Info':
+                # Keep cached data for unreachable devices
+                cache[hostname] = {
+                    "hostname": hostname,
+                    "ip": ip,
+                    "mac": mac,
+                    "serial": serial,
+                    "model": model,
+                    "release": release,
+                    "uptime": uptime,
+                    "last_seen": last_seen.replace('_', ' '),
+                    "status": "unreachable"
+                }
+
+    with open(cache_file, 'w') as f:
+        json.dump(cache, f, indent=2)
+except Exception as e:
+    print(f"Cache rebuild error: {e}", file=sys.stderr)
+REBUILD_CACHE
+
+sudo chmod o+r "$CACHE_FILE" 2>/dev/null
 
 exit 0
