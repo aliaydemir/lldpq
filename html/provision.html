@@ -1358,9 +1358,10 @@ function downloadBindingsCSV() {
             const pb = b.ip.split('.').map(n => n.padStart(3, '0')).join('.');
             return pa.localeCompare(pb);
         })
-        .map(b => `${b.hostname}\t${b.mac}\t${b.ip}`);
-    const content = lines.join('\n') + '\n';
-    const blob = new Blob([content], { type: 'text/plain' });
+        .map(b => `${b.hostname},${b.mac},${b.ip}`);
+    const header = 'Hostname,MAC,IP';
+    const content = header + '\n' + lines.join('\n') + '\n';
+    const blob = new Blob([content], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -1388,8 +1389,10 @@ function parseBulkText(text) {
     const errors = [];
 
     lines.forEach((line, idx) => {
-        // Split by whitespace (spaces or tabs)
-        const parts = line.trim().split(/\s+/);
+        // Skip CSV header row
+        if (idx === 0 && /^hostname/i.test(line.trim())) return;
+        // Split by comma, tab, or whitespace
+        const parts = line.trim().split(/[,\t]\s*|\s+/);
         if (parts.length < 3) {
             errors.push(`Line ${idx + 1}: Need 3 columns (hostname MAC IP), got ${parts.length}`);
             return;
