@@ -4417,31 +4417,52 @@ ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
 lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
 web_root = '/var/www/html'
 
-# Get device IP from inventory (same path as run-device-command)
+# Get device IP and username
+# Priority: devices.yaml (always available) -> Ansible inventory (optional)
 device_ip = None
-inventory_paths = [
-    f"{ansible_dir}/inventory/inventory.ini",
-    f"{ansible_dir}/inventory/hosts",
-]
+ssh_user = 'cumulus'
 
-for inv_file in inventory_paths:
-    if os.path.exists(inv_file):
+lldpq_dir = lldpq_conf.get('LLDPQ_DIR', os.path.expanduser('~/lldpq'))
+import yaml
+for devices_path in [f"{lldpq_dir}/devices.yaml"]:
+    if os.path.exists(devices_path):
         try:
-            with open(inv_file, 'r') as f:
-                for line in f:
-                    line_stripped = line.strip()
-                    if line_stripped.startswith(device + ' ') or line_stripped.startswith(device + '\t'):
-                        match = re.search(r'ansible_host=(\S+)', line)
-                        if match:
-                            device_ip = match.group(1)
-                            break
+            with open(devices_path, 'r') as f:
+                ddata = yaml.safe_load(f)
+            defaults = ddata.get('defaults', {})
+            default_user = defaults.get('username', 'cumulus')
+            for ip, info in ddata.get('devices', {}).items():
+                if isinstance(info, dict):
+                    hname = info.get('hostname', '')
+                    uname = info.get('username', default_user)
+                else:
+                    hname = str(info).split()[0] if info else ''
+                    uname = default_user
+                if hname == device:
+                    device_ip = str(ip)
+                    ssh_user = uname
+                    break
         except:
             pass
-    if device_ip:
-        break
 
 if not device_ip:
-    print(json.dumps({'success': False, 'error': f'Device {device} not found in inventory'}))
+    for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+        if os.path.exists(inv_file):
+            try:
+                with open(inv_file, 'r') as f:
+                    for line in f:
+                        if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                            match = re.search(r'ansible_host=(\S+)', line)
+                            if match:
+                                device_ip = match.group(1)
+                                break
+            except:
+                pass
+        if device_ip:
+            break
+
+if not device_ip:
+    print(json.dumps({'success': False, 'error': f'Device {device} not found in inventory or devices.yaml'}))
     exit()
 
 # Create downloads directory
@@ -4458,7 +4479,7 @@ try:
     ssh_command = [
         'sudo', '-u', lldpq_user,
         'ssh', '-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=30', '-o', 'BatchMode=yes',
-        device_ip,
+        f'{ssh_user}@{device_ip}',
         f'cat {file_path}'
     ]
     
@@ -4520,22 +4541,51 @@ lldpq_conf = read_lldpq_conf()
 ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
 lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
 
-# Get device IP from inventory
+# Get device IP and username from devices.yaml -> Ansible inventory fallback
 device_ip = None
-for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
-    if os.path.exists(inv_file):
-        with open(inv_file, 'r') as f:
-            for line in f:
-                if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
-                    match = re.search(r'ansible_host=(\S+)', line)
-                    if match:
-                        device_ip = match.group(1)
-                        break
-    if device_ip:
-        break
+ssh_user = 'cumulus'
+
+lldpq_dir = lldpq_conf.get('LLDPQ_DIR', os.path.expanduser('~/lldpq'))
+import yaml
+for devices_path in [f"{lldpq_dir}/devices.yaml"]:
+    if os.path.exists(devices_path):
+        try:
+            with open(devices_path, 'r') as f:
+                ddata = yaml.safe_load(f)
+            defaults = ddata.get('defaults', {})
+            default_user = defaults.get('username', 'cumulus')
+            for ip, info in ddata.get('devices', {}).items():
+                if isinstance(info, dict):
+                    hname = info.get('hostname', '')
+                    uname = info.get('username', default_user)
+                else:
+                    hname = str(info).split()[0] if info else ''
+                    uname = default_user
+                if hname == device:
+                    device_ip = str(ip)
+                    ssh_user = uname
+                    break
+        except:
+            pass
 
 if not device_ip:
-    print(json.dumps({'success': False, 'error': 'Device not found in inventory'}))
+    for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+        if os.path.exists(inv_file):
+            try:
+                with open(inv_file, 'r') as f:
+                    for line in f:
+                        if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                            match = re.search(r'ansible_host=(\S+)', line)
+                            if match:
+                                device_ip = match.group(1)
+                                break
+            except:
+                pass
+        if device_ip:
+            break
+
+if not device_ip:
+    print(json.dumps({'success': False, 'error': f'Device {device} not found in devices.yaml or inventory'}))
     exit()
 
 # Start cl-support in background
@@ -4544,7 +4594,7 @@ remote_cmd = "nohup sudo cl-support -M -T0 > /tmp/clsupport.log 2>&1 &"
 ssh_command = [
     'sudo', '-u', lldpq_user,
     'ssh', '-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=10', '-o', 'BatchMode=yes',
-    device_ip,
+    f'{ssh_user}@{device_ip}',
     remote_cmd
 ]
 
@@ -5470,22 +5520,51 @@ lldpq_conf = read_lldpq_conf()
 ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
 lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
 
-# Get device IP from inventory
+# Get device IP and username from devices.yaml -> Ansible inventory fallback
 device_ip = None
-for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
-    if os.path.exists(inv_file):
-        with open(inv_file, 'r') as f:
-            for line in f:
-                if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
-                    match = re.search(r'ansible_host=(\S+)', line)
-                    if match:
-                        device_ip = match.group(1)
-                        break
-    if device_ip:
-        break
+ssh_user = 'cumulus'
+
+lldpq_dir = lldpq_conf.get('LLDPQ_DIR', os.path.expanduser('~/lldpq'))
+import yaml
+for devices_path in [f"{lldpq_dir}/devices.yaml"]:
+    if os.path.exists(devices_path):
+        try:
+            with open(devices_path, 'r') as f:
+                ddata = yaml.safe_load(f)
+            defaults = ddata.get('defaults', {})
+            default_user = defaults.get('username', 'cumulus')
+            for ip, info in ddata.get('devices', {}).items():
+                if isinstance(info, dict):
+                    hname = info.get('hostname', '')
+                    uname = info.get('username', default_user)
+                else:
+                    hname = str(info).split()[0] if info else ''
+                    uname = default_user
+                if hname == device:
+                    device_ip = str(ip)
+                    ssh_user = uname
+                    break
+        except:
+            pass
 
 if not device_ip:
-    print(json.dumps({'success': False, 'error': 'Device not found in inventory'}))
+    for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+        if os.path.exists(inv_file):
+            try:
+                with open(inv_file, 'r') as f:
+                    for line in f:
+                        if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                            match = re.search(r'ansible_host=(\S+)', line)
+                            if match:
+                                device_ip = match.group(1)
+                                break
+            except:
+                pass
+        if device_ip:
+            break
+
+if not device_ip:
+    print(json.dumps({'success': False, 'error': f'Device {device} not found in devices.yaml or inventory'}))
     exit()
 
 # Generate unique output file
@@ -5506,7 +5585,7 @@ remote_cmd = f"nohup sh -c '{tcpdump_cmd} > {output_file} 2>&1' > /dev/null 2>&1
 ssh_command = [
     'sudo', '-u', lldpq_user,
     'ssh', '-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=10', '-o', 'BatchMode=yes',
-    device_ip,
+    f'{ssh_user}@{device_ip}',
     remote_cmd
 ]
 
@@ -5691,27 +5770,54 @@ lldpq_conf = read_lldpq_conf()
 ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
 lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
 
-# Get device management IP from ansible inventory
-inventory_paths = [
-    f"{ansible_dir}/inventory/inventory.ini",
-    f"{ansible_dir}/inventory/hosts",
-]
-
+# Get device management IP and username
+# Priority: devices.yaml (always available) -> Ansible inventory (optional)
 device_ip = None
-for inv_file in inventory_paths:
-    if os.path.exists(inv_file):
-        with open(inv_file, 'r') as f:
-            for line in f:
-                if line.strip().startswith(device):
-                    match = re.search(r'ansible_host=(\S+)', line)
-                    if match:
-                        device_ip = match.group(1)
-                        break
-    if device_ip:
-        break
+ssh_user = 'cumulus'
+
+# Try devices.yaml first
+lldpq_dir = lldpq_conf.get('LLDPQ_DIR', os.path.expanduser('~/lldpq'))
+import yaml
+for devices_path in [f"{lldpq_dir}/devices.yaml"]:
+    if os.path.exists(devices_path):
+        try:
+            with open(devices_path, 'r') as f:
+                ddata = yaml.safe_load(f)
+            defaults = ddata.get('defaults', {})
+            default_user = defaults.get('username', 'cumulus')
+            for ip, info in ddata.get('devices', {}).items():
+                if isinstance(info, dict):
+                    hname = info.get('hostname', '')
+                    uname = info.get('username', default_user)
+                else:
+                    hname = str(info).split()[0] if info else ''
+                    uname = default_user
+                if hname == device:
+                    device_ip = str(ip)
+                    ssh_user = uname
+                    break
+        except:
+            pass
+
+# Fallback to Ansible inventory
+if not device_ip:
+    for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+        if os.path.exists(inv_file):
+            try:
+                with open(inv_file, 'r') as f:
+                    for line in f:
+                        if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                            match = re.search(r'ansible_host=(\S+)', line)
+                            if match:
+                                device_ip = match.group(1)
+                                break
+            except:
+                pass
+        if device_ip:
+            break
 
 if not device_ip:
-    print(json.dumps({'success': False, 'error': f'Device {device} not found in inventory'}))
+    print(json.dumps({'success': False, 'error': f'Device {device} not found in inventory or devices.yaml'}))
     exit()
 
 # Execute command via SSH using management IP
@@ -5733,7 +5839,7 @@ try:
         '-o', 'ConnectTimeout=10',
         '-o', 'BatchMode=yes',
         '-o', 'LogLevel=ERROR',  # Suppress warnings
-        device_ip,  # Use management IP from inventory
+        f'{ssh_user}@{device_ip}',  # Use username@IP from devices.yaml/inventory
         command
     ]
     

@@ -936,12 +936,25 @@
                             data.devices.forEach(device => {
                                 select.add(new Option(device.hostname, device.ip));
                             });
+                            // Sync device selection across all tabs
+                            select.addEventListener('change', () => syncDeviceSelect(selectId));
                         }
                     });
                 }
             } catch (error) {
                 console.error('Failed to load device list:', error);
             }
+        }
+        
+        // Keep device selection in sync across all 5 tabs
+        function syncDeviceSelect(sourceId) {
+            const selects = ['macDeviceSelect', 'arpDeviceSelect', 'vtepDeviceSelect', 'routeDeviceSelect', 'lldpDeviceSelect'];
+            const value = document.getElementById(sourceId).value;
+            selects.forEach(id => {
+                if (id !== sourceId) {
+                    document.getElementById(id).value = value;
+                }
+            });
         }
         
         // ============ MAC TABLE ============
