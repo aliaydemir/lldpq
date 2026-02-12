@@ -105,8 +105,8 @@ def read_lldpq_conf_key(key, default=''):
 
 def ip_range_to_list(range_str):
     """Parse comma-separated IP ranges to list of IPs.
-    Supports: '192.168.58.10-192.168.58.249'
-              '192.168.58.11-192.168.58.199,192.168.58.201-192.168.58.252'
+    Supports: '192.168.100.10-192.168.100.249'
+              '192.168.100.11-192.168.100.199,192.168.100.201-192.168.100.252'
     """
     if not range_str:
         return []
@@ -205,12 +205,14 @@ def generate_dhcp_hosts(bindings, orig_filepath):
             header = orig[:first_host.start()]
     
     if not header.strip():
-        # Default header
-        header = """group {
+        # Default header — use gateway from dhcpd.conf if available
+        server_ip = get_server_ip()
+        gw = server_ip.rsplit('.', 1)[0] + '.1' if '.' in server_ip else server_ip
+        header = f"""group {{
 
   option domain-name "nvidia";
-  option domain-name-servers 192.168.58.1;
-  option routers 192.168.58.1;
+  option domain-name-servers {gw};
+  option routers {gw};
 
 """
     
@@ -269,7 +271,7 @@ def get_server_ip():
     except Exception:
         pass
     
-    return '192.168.58.200'
+    return '127.0.0.1'
 
 def action_list_bindings():
     filepath = get_dhcp_hosts_path()
@@ -379,7 +381,7 @@ def action_discovered():
     
     # --- Source 1: fabric-tables ARP data ---
     # Each fabric-table JSON has "arp" list with entries like:
-    # {"ip": "192.168.58.11", "mac": "54:9b:24:aa:68:16", "interface": "eth0", "vrf": "mgmt"}
+    # {"ip": "192.168.100.11", "mac": "54:9b:24:aa:68:16", "interface": "eth0", "vrf": "mgmt"}
     fabric_tables_dir = os.path.join(LLDPQ_DIR, 'monitor-results', 'fabric-tables')
     if os.path.isdir(fabric_tables_dir):
         for fpath in glob.glob(os.path.join(fabric_tables_dir, '*.json')):
@@ -472,8 +474,15 @@ def action_discovered():
         entries.append(entry)
     
     # Discovered IPs not in bindings (devices seen in ARP but no DHCP binding)
+    # Determine subnet from bindings to filter relevant IPs
+    binding_subnets = set()
+    for b in bindings:
+        parts = b['ip'].split('.')
+        if len(parts) == 4:
+            binding_subnets.add('.'.join(parts[:3]) + '.')
+    
     for ip, mac in discovered_ips.items():
-        if ip not in binding_ip_map and ip.startswith('192.168.58.'):
+        if ip not in binding_ip_map and any(ip.startswith(s) for s in binding_subnets):
             # Try to find hostname from devices.yaml
             hostname = ''
             for h, h_ip in hostname_to_ip.items():
@@ -1083,7 +1092,7 @@ def action_get_dhcp_config():
                 parts = line.split()
                 if len(parts) >= 4:
                     iface_name = parts[1]
-                    ip_cidr = parts[3]  # e.g. 192.168.58.200/24
+                    ip_cidr = parts[3]  # e.g. 192.168.100.200/24
                     ip_addr = ip_cidr.split('/')[0]
                     if iface_name not in seen and iface_name != 'lo':
                         interfaces.append({'name': iface_name, 'ip': ip_addr})
@@ -1115,11 +1124,11 @@ def action_save_dhcp_config():
     except Exception:
         error_json("Invalid JSON data")
     
-    subnet = data.get('subnet', '192.168.58.0')
+    subnet = data.get('subnet', '')
     netmask = data.get('netmask', '255.255.255.0')
     range_start = data.get('range_start', '')
     range_end = data.get('range_end', '')
-    gateway = data.get('gateway', '192.168.58.1')
+    gateway = data.get('gateway', '')
     dns = data.get('dns', gateway)
     domain = data.get('domain', 'nvidia')
     provision_url = data.get('provision_url', '')

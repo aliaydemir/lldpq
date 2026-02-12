@@ -5084,7 +5084,7 @@ def get_device_mgmt_ips(conf):
             try:
                 with open(path, 'r') as f:
                     data = yaml.safe_load(f) or {}
-                    # Format: devices: { "192.168.58.11": "hostname", ... }
+                    # Format: devices: { "192.168.100.11": "hostname", ... }
                     devices = data.get('devices', {})
                     for ip_key in devices.keys():
                         # Keys are IP addresses

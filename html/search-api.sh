@@ -562,7 +562,7 @@ for line in output.strip().split('\n'):
     
     # New route line: starts with route code (B, C, S, K, L, etc.)
     # Format with metric: B>* 10.128.128.1/32 [20/0] via fe80::..., swp33s0, weight 1, 01w6d20h
-    # Format without metric: C>* 192.168.58.0/24 is directly connected, eth0, 01w6d20h
+    # Format without metric: C>* 192.168.100.0/24 is directly connected, eth0, 01w6d20h
     
     # First try: route with [AD/metric]
     route_match = re.match(r'^([BCSKORIEALT])([>*\s]+)\s*(\d+\.\d+\.\d+\.\d+(?:/\d+)?)\s+\[(\d+)/(\d+)\]', line)

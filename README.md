@@ -34,15 +34,16 @@ sudo docker run -d --name lldpq --network host --privileged lldpq:latest
 
 Open `http://<host-ip>` in your browser. That's it.
 
-**First time SSH setup** — no need to enter the container:
+**First time setup:**
 1. Login as admin → go to **Assets** page
-2. Click the orange **SSH Setup** button
-3. Enter device password (twice to confirm)
-4. Click **Run Setup** → SSH keys are generated and distributed to all devices automatically
-5. Failed devices can be retried with a different password
+2. Click **Edit Devices** → add your switch hostnames and IPs (see `devices.yaml` format below)
+3. Click the orange **SSH Setup** button
+4. Enter device password (twice to confirm)
+5. Click **Run Setup** → SSH keys are generated and distributed to all devices automatically
+6. Failed devices can be retried with a different password
 
 **What you need:**
-- `devices.yaml` — your switch inventory (see format below)
+- Your switch hostnames and management IPs — entered via the web UI
 - That's it. SSH keys are generated and distributed from the web UI.
 
 **Works on:** Ubuntu, CentOS, RHEL, Debian, NVIDIA Cumulus Linux 5.x, any x86_64 with Docker.
@@ -62,12 +63,17 @@ sudo docker run -d --name lldpq --network host \
 ```
 
 **Ansible support** (optional — enables VLAN/BGP reports, Fabric Config/Editor):
+
+If your Ansible project is at `~/my_ansible_project`, mount it into the container:
 ```bash
 sudo docker run -d --name lldpq --network host \
-  -v ~/ansible:/home/lldpq/ansible:rw \
+  -v ~/my_ansible_project:/home/lldpq/ansible:rw \
   -e ANSIBLE_DIR=/home/lldpq/ansible \
   lldpq:latest
 ```
+- Replace `~/my_ansible_project` with the path to your Ansible directory on the host.
+- The container path (`/home/lldpq/ansible`) stays the same.
+- See [Ansible Integration](#ansible-integration) section below for structure requirements.
 
 **Update/Rebuild Docker:**
 ```bash
@@ -88,10 +94,10 @@ rm -f ~/lldpq.tar.gz
 
 **Useful Docker commands:**
 ```bash
-sudo docker logs lldpq                    # Container logs
-sudo docker exec -it lldpq bash           # Shell into container
-sudo docker restart lldpq                 # Restart (keeps data + SSH keys)
-sudo docker ps -a --filter name=lldpq     # Container status
+sudo docker logs lldpq                        # Container logs
+sudo docker exec -it lldpq bash               # Shell into container
+sudo docker restart lldpq                     # Restart (keeps data + SSH keys)
+sudo docker ps -a --filter name=lldpq          # Container status
 ```
 
 ## Requirements (non-Docker install)
@@ -260,8 +266,8 @@ edit these files:
 ```
 ~/lldpq/devices.yaml             # add your switches (required) - used by pping, zzh, send-cmd, get-conf
 ~/lldpq/topology.dot             # expected cable connections
-~/lldpq/topology_config.yaml     # optional: customize device layers/icons (supports regex patterns)
-~/lldpq/notifications.yaml       # optional: slack alerts + thresholds
+~/lldpq/topology_config.yaml      # optional: customize device layers/icons (supports regex patterns)
+~/lldpq/notifications.yaml        # optional: slack alerts + thresholds
 ~/lldpq/commands                 # optional: commands for send-cmd
 ```
 
@@ -280,10 +286,11 @@ devices:
     role: leaf
 ```
 
-roles are optional tags for grouping. filter by role:
-- **zzh**: type `@spine` to filter interactively
-- **send-cmd**: `send-cmd -r spine -c "uptime"` to target specific roles
-- **send-cmd**: `send-cmd --roles` to list available roles
+roles are optional tags for grouping. They are used for:
+- **CLI filtering**: `zzh @spine`, `send-cmd -r leaf -c "uptime"`
+- **Web UI grouping**: Device Details, Base Config deploy, and other pages group devices by role. Without roles, all devices appear in a single flat list which makes navigation harder on large fabrics.
+
+Recommended roles: `leaf`, `spine`, `core`, `border`, `oob` (or any naming that fits your topology).
 
 ### endpoint_hosts (optional)
 
@@ -303,8 +310,11 @@ patterns are matched against devices found in LLDP neighbor data.
 
 ```
 */5 * * * * lldpq                       # system monitoring every 5 minutes
-0 */12 * * * get-conf                   # configs every 12 hours
-* * * * * lldpq-trigger                 # web triggers daemon (LLDP, Monitor, Assets)
+0 */12 * * * get-conf                   # config backup every 12 hours
+* * * * * lldpq-trigger                 # web UI refresh buttons daemon
+* * * * * fabric-scan.sh                # fabric topology scan (search data)
+0 0 * * * git auto-commit               # daily config backup to git
+33 3 * * * fabric-scan-cron.sh          # Ansible diff check (only if Ansible configured)
 ```
 
 the `lldpq-trigger` daemon handles web UI buttons:
@@ -314,31 +324,43 @@ the `lldpq-trigger` daemon handles web UI buttons:
 
 ## [05] update
 
-when lldpq gets new features via git:
+`install.sh` handles both fresh install and updates automatically. It detects existing installations and runs in update mode:
 
 ```
 cd lldpq-src
 git pull                    # get latest code
-./update.sh                 # smart update with data preservation
+./install.sh                # auto-detects: fresh install or update
 ```
 
-### what gets preserved:
-- **config files**: devices.yaml, topology.dot, topology_config.yaml
-- **monitoring data**: monitor-results/, lldp-results/ (optional backup)
-- **system configs**: /etc/lldpq.conf  
+In update mode, a full backup is created automatically at `~/lldpq-backup-YYYY-MM-DD_HH-MM/` before any changes:
 
-update.sh will ask if you want to backup existing monitoring data before updating. choose 'y' to keep all your historical analysis results, hardware health data, and network topology information.
+### what gets backed up & preserved:
+- **config files**: devices.yaml, notifications.yaml, topology.dot, topology_config.yaml
+- **monitoring data**: monitor-results/, lldp-results/, alert-states/
+- **system configs**: /etc/lldpq.conf, /etc/lldpq-users.conf
+- **DHCP configs**: /etc/dhcp/dhcpd.conf, /etc/dhcp/dhcpd.hosts
+- **SSH keys**: ~/.ssh/id_*
+- **git history**: .git/ (config change tracking)
+
+Use `./install.sh --help` for all options. Use `./install.sh -y` for non-interactive mode (CI/scripts).
 
 ## [06] requirements
 
-- linux based server
-- ssh key auth to all switches  
-- cumulus linux switches
-- nginx web server
+- **Linux server** (Ubuntu 20.04+ recommended, tested on 22.04 and 24.04)
+- **NVIDIA Cumulus Linux 5.x switches** with management IP access
+- **SSH key auth** to all switches (setup via web UI — see [SSH Setup](#08-ssh-setup))
+- All other dependencies (nginx, fcgiwrap, python3, etc.) are installed automatically by `install.sh`
 
-## [07] file sizes
+## [07] disk usage
 
-monitor data grows ~50MB/day. history cleanup after 24h automatically.
+Monitor data grows ~50MB/day per fabric. Automatic cleanup keeps last 24 hours.
+
+```
+~/lldpq/monitor-results/     # ~50MB   analysis results (HTML reports)
+~/lldpq/lldp-results/        # ~10MB   LLDP topology data
+/var/www/html/configs/        # varies  device config backups (get-conf)
+/var/www/html/hstr/          # ~5MB    historical data
+```
 
 ## [08] ssh setup
 
@@ -354,7 +376,7 @@ monitor data grows ~50MB/day. history cleanup after 24h automatically.
 
 ```
 cd ~/lldpq && ./send-key.sh   # auto-installs deps, generates key, prompts password
-cd ~/lldpq && ./sudo-fix.sh   # configures passwordless sudo for cumulus user
+cd ~/lldpq && ./sudo-fix.sh    # configures passwordless sudo for cumulus user
 ```
 
 ## [09] cli tools
@@ -367,8 +389,8 @@ pping                              # ping all devices from devices.yaml
 pping -r spine                     # ping only @spine devices
 pping -r leaf -v mgmt              # ping @leaf via mgmt VRF
 pping --roles                      # list available roles
-pping -f hosts.txt                 # ping custom host list
-pping -h                           # show help with file format
+pping -f /path/to/devices.yaml     # use custom devices.yaml
+pping -h                           # show help
 
 # send commands to devices
 send-cmd                           # run commands from ~/lldpq/commands file
@@ -385,21 +407,18 @@ send-cmd -h                        # show help
 zzh                                # interactive ssh manager
 zzh spine                          # filter: show only "spine" in name
 zzh @leaf                          # filter by role (from devices.yaml)
+zzh -f /path/to/devices.yaml       # use custom devices.yaml
 zzh -h                             # show help
 
 # config backup
 get-conf                           # backup configs from all devices
+get-conf -                         # backup from single device (interactive select)
+
+# monitoring (usually runs via cron, but can be run manually)
+lldpq                              # full run: assets + lldp check + monitor + alerts
 ```
 
-## [10] ssh commands reference
-
-see all commands executed on devices:
-
-```
-cat COMMANDS.md     # complete list of ssh commands, sudo requirements, security notes
-```
-
-## [11] authentication
+## [10] authentication
 
 web interface is protected with session-based authentication:
 
@@ -426,7 +445,8 @@ operator / operator   # limited access
 
 **Operator restrictions:**
 - Cannot edit `topology.dot` or `topology_config.yaml`
-- Cannot access SSH Setup or Ansible Config Editor
+- Cannot access SSH Setup
+- Cannot access any Ansible features (entire Ansible menu is hidden)
 - Cannot manage users
 
 ### user management (admin only):
@@ -453,13 +473,13 @@ operator / operator   # limited access
 
 **important**: change default passwords after installation!
 
-## [12] alerts & notifications
+## [11] alerts & notifications
 
 get real-time alerts for network issues via Slack:
 
 ```
 cd ~/lldpq
-nano notifications.yaml                              # add webhook URLs + enable alerts
+nano notifications.yaml                               # add webhook URLs + enable alerts
 python3 test_alerts.py                               # test configuration
 ```
 
@@ -483,7 +503,7 @@ python3 test_alerts.py                               # test configuration
 
 alerts automatically start working once webhooks are configured. check `~/lldpq/alert-states/` for alert history.
 
-## [13] streaming telemetry
+## [12] streaming telemetry
 
 real-time telemetry dashboard with OTEL Collector + Prometheus (optional feature):
 
@@ -495,25 +515,71 @@ real-time telemetry dashboard with OTEL Collector + Prometheus (optional feature
 # Answer "y" to "Enable streaming telemetry support?"
 ```
 
-**option 2: enable later**
+**option 2: enable later (native install)**
 ```bash
-./update.sh --enable-telemetry    # installs Docker, starts stack automatically
+./install.sh --enable-telemetry    # installs Docker, starts stack automatically
 ```
 
-**disable completely**
+**option 3: Docker deployment**
+
+Telemetry stack consists of 3 separate containers (OTEL Collector, Prometheus, Alertmanager).
+These run on the **host** alongside the LLDPq container — not inside it.
+
 ```bash
-./update.sh --disable-telemetry   # removes containers + volumes
+# Step 1: Start LLDPq with telemetry enabled
+sudo docker run -d --name lldpq --network host --privileged \
+  -e TELEMETRY_ENABLED=true \
+  lldpq:latest
+
+# Step 2: Extract telemetry stack from container and start on host
+sudo docker cp lldpq:/home/lldpq/lldpq/telemetry ./telemetry
+cd telemetry
+sudo docker compose up -d       # starts OTEL Collector, Prometheus, Alertmanager
+```
+
+To enable telemetry on an already running container, recreate it:
+```bash
+sudo docker stop lldpq && sudo docker rm lldpq
+sudo docker run -d --name lldpq --network host --privileged \
+  -e TELEMETRY_ENABLED=true \
+  lldpq:latest
+```
+
+> **Note:** `./install.sh --enable-telemetry` cannot be run inside a container. It is for native installs only.
+
+Docker CLI for troubleshooting:
+```bash
+sudo docker exec -it lldpq bash                                       # enter container shell
+sudo docker exec lldpq cat /etc/lldpq.conf                            # check config
+sudo docker logs lldpq                                                # view startup logs
+sudo docker exec lldpq curl -s localhost:9090/api/v1/query?query=up   # test prometheus
+```
+
+**disable — native install:**
+```bash
+./install.sh --disable-telemetry   # stops containers, removes volumes, updates config
+```
+
+**disable — Docker deployment:**
+```bash
+# Stop telemetry stack on host
+cd telemetry
+sudo docker compose down -v         # stops containers + removes stored metrics
+
+# Recreate LLDPq container without telemetry
+sudo docker stop lldpq && sudo docker rm lldpq
+sudo docker run -d --name lldpq --network host --privileged lldpq:latest
 ```
 
 ### workflow
 
 | Action | Tool | What Happens |
 |--------|------|--------------|
-| Install stack | CLI: `./update.sh --enable-telemetry` | Docker installed, stack started |
+| Install stack | CLI: `./install.sh --enable-telemetry` | Docker installed, stack started |
 | Enable on switches | Web UI: Enable Telemetry | Selected switches configured, metrics flow |
 | Disable on switches | Web UI: Disable Telemetry | Selected switches unconfigured |
-| Stop stack | CLI: `./update.sh --disable-telemetry` | Containers stopped |
-| Remove everything | CLI: `./update.sh --disable-telemetry` | Containers + data deleted |
+| Stop stack | CLI: `./install.sh --disable-telemetry` | Containers stopped |
+| Remove everything | CLI: `./install.sh --disable-telemetry` | Containers + data deleted |
 
 ### enable on switches
 
@@ -545,7 +611,7 @@ from the web UI (admin only):
 ~/lldpq/telemetry/
 ├── docker-compose.yaml           # container orchestration
 ├── config/
-│   ├── otel-config.yaml          # OTEL Collector config
+│   ├── otel-config.yaml           # OTEL Collector config
 │   ├── prometheus.yaml           # Prometheus scrape config
 │   ├── alertmanager.yaml         # notification config (edit for Slack/email)
 │   └── alert_rules.yaml          # alert definitions
@@ -593,7 +659,7 @@ when disabling via CLI (`--disable-telemetry`):
 - all metrics history is deleted
 - feature is marked as disabled
 
-## [14] troubleshooting
+## [13] troubleshooting
 
 ```bash
 # check if cron is running
@@ -618,7 +684,204 @@ cd telemetry && ./start.sh status
 curl 'http://localhost:9090/api/v1/query?query=up'
 ```
 
-## [15] license
+## [14] Provision (ZTP & Device Management)
+
+Web-based Zero Touch Provisioning and device lifecycle management. Access via **Provision** in the sidebar.
+
+### DHCP Server Tab
+
+Manage the DHCP server for automated IP assignment to new switches:
+
+- **DHCP Configuration**: subnet, range, gateway, DNS, lease time, ZTP URL — all editable from web UI
+- **Interface Selection**: dropdown with detected interfaces and their IPs
+- **Discovery Range**: configurable IP range for subnet scanning (e.g. `192.168.100.11-192.168.100.199,192.168.100.201-192.168.100.252`)
+- **Post-Provision Actions**: automatic actions on newly provisioned devices (toggles):
+  - Deploy Base Config (sw-base files)
+  - Disable ZTP (`sudo ztp -d`)
+  - Set hostname from binding (`nv set system hostname`)
+- **Service Control**: Start / Restart / Stop buttons with live status indicator
+
+### Discovered Devices (Subnet Scanner)
+
+Scans the entire discovery range with ping + SSH probe for device classification:
+
+| Device Type | How Detected | Color |
+|-------------|-------------|-------|
+| **Provisioned** | SSH key auth works (`cumulus` user) | Green |
+| **Not Provisioned** | SSH connects but key rejected (needs ZTP) | Orange |
+| **Other** | SSH refused or different device | Gray |
+| **Unreachable** | No ping response | Red |
+
+Additional stat cards: **MAC Mismatch** (binding MAC vs discovered MAC differ) and **No Binding** (IP alive but not in DHCP bindings).
+
+- Auto-scans every 5 minutes in background (silent, no loading indicator)
+- Manual **Scan** button for immediate full scan with results
+- Cache-based loading for instant page display
+
+### Post-Provision Automation
+
+When a device is detected as **Provisioned** (SSH key works) and has no marker file:
+
+```
+Provisioned device found → check /etc/lldpq-base-deployed marker
+  → marker exists → skip (already configured)
+  → marker missing → run post-provision actions:
+      1. SCP sw-base files (bashrc, motd, tmux, nanorc, cmd, nvc, nvt, exa)
+      2. sudo ztp -d (disable ZTP)
+      3. nv set system hostname <binding-hostname> && nv config apply
+      4. touch /etc/lldpq-base-deployed (write marker)
+```
+
+### Bindings Tab
+
+DHCP static bindings (MAC → IP → Hostname):
+
+- **Add/Edit/Delete** bindings with hostname, MAC, IP
+- **Bulk Import**: paste `hostname MAC IP` format (one per line)
+- **Placeholder MAC**: use `xx:xx:xx:xx:xx:xx` for devices where MAC is not yet known
+- **Discovered MAC** column: shows actual MAC from last scan (green=match, red=mismatch)
+- **Live** column: reachability indicator from last scan
+- **Save & Restart DHCP**: writes `dhcpd.hosts` and restarts service
+
+### ZTP Script Tab
+
+Manage the Zero Touch Provisioning script (`cumulus-ztp.sh`):
+
+- **SSH Key**: generate, import, or copy the public key used for provisioning
+- **Quick Settings**: target OS version, default password, image server IP
+- **Apply to Script**: auto-generates full ZTP template or updates existing script via regex
+- **OS Image**: upload/delete Cumulus Linux `.bin` images for ZTP OS upgrades
+- **Script Editor**: collapsible Monaco-style editor with Reload/Save
+
+The ZTP script handles: OS version check + upgrade, password change, sudo fix, SSH key installation.
+
+### Base Config Tab
+
+Deploy standard switch tools and configs to selected devices:
+
+- **Device Selector**: grouped by role, with checkboxes, search, All/None
+- **Files deployed**: `bash.bashrc`, `motd.sh`, `tmux.conf`, `nanorc`, `cmd`, `nvc`, `nvt`, `exa`
+- **Parallel deploy**: 20 concurrent SSH/SCP workers
+- **Progress table**: per-device OK/FAIL status
+- **ZTP disable** option after deploy
+
+### Full ZTP Workflow
+
+```
+New switch powers on
+  → DHCP assigns IP (from dhcpd.conf + dhcpd.hosts bindings)
+  → ZTP script runs automatically (cumulus-ztp.sh):
+      - Check/upgrade OS version (onie-install if needed)
+      - Change default password
+      - Configure passwordless sudo
+      - Install SSH public key
+  → Discovery scan detects device:
+      - Ping OK → reachable
+      - SSH key auth OK → Provisioned
+      - No marker → auto post-provision:
+          - Deploy sw-base (bashrc, motd, tmux, tools)
+          - Disable ZTP
+          - Set hostname from DHCP binding
+          - Write marker
+  → Device fully configured, zero manual intervention
+```
+
+## [15] Ansible Integration
+
+LLDPq's Ansible features (Fabric Editor, Fabric Config, Fabric Deploy) are designed for a
+specific **Cumulus Linux NVUE automation structure**. They are not a generic Ansible UI.
+The Ansible menu is automatically hidden when `$ANSIBLE_DIR` is not configured.
+
+**Core LLDPq features (LLDP, monitoring, search, tracepath, telemetry, provisioning) work without Ansible.**
+
+### Required Directory Structure
+
+```
+$ANSIBLE_DIR/
+├── inventory/
+│   ├── inventory.ini              # or hosts (INI format, standard Ansible)
+│   ├── host_vars/                 # per-device YAML configs (standard Ansible)
+│   │   ├── leaf-01.yaml
+│   │   └── spine-01.yaml
+│   └── group_vars/
+│       └── all/
+│           ├── sw_port_profiles.yaml   # port profile definitions
+│           ├── vlan_profiles.yaml      # VLAN profile definitions
+│           └── bgp_profiles.yaml       # BGP profile definitions
+├── playbooks/
+│   ├── diff_switch_configs.yaml                # compare running vs intended config
+│   ├── deploy_switch_configs.yaml              # push config to devices
+│   └── generate_switch_nvue_yaml_configs.yaml  # generate host_vars from templates
+├── roles/       # optional (variable extraction for editor autocomplete)
+└── templates/   # optional (Jinja2 template scanning)
+```
+
+### Feature Dependencies
+
+| Feature | Required Files | Notes |
+|---------|---------------|-------|
+| Fabric Editor (file browser + git) | `$ANSIBLE_DIR` set | Works with any directory structure |
+| Fabric Config (edit device configs) | `inventory/host_vars/{device}.yaml` | Standard Ansible layout |
+| VLAN/Port profile management | `group_vars/all/vlan_profiles.yaml`, `sw_port_profiles.yaml` | See YAML key requirements below |
+| BGP profile management + route leaking | `group_vars/all/bgp_profiles.yaml` | See YAML key requirements below |
+| Diff (compare running vs intended) | `playbooks/diff_switch_configs.yaml` | Playbook name is hardcoded |
+| Deploy (push config to device) | `playbooks/deploy_switch_configs.yaml` | Playbook name is hardcoded |
+| Generate (create host_vars from templates) | `playbooks/generate_switch_nvue_yaml_configs.yaml` | Playbook name is hardcoded |
+| VLAN/VRF/BGP reports | `group_vars/all/*.yaml` + `host_vars/` | Read-only analysis |
+
+### YAML Key Requirements
+
+The profile YAML files must use specific top-level keys and structures:
+
+**`sw_port_profiles.yaml`** — top-level key: `sw_port_profiles`
+```yaml
+sw_port_profiles:
+  SERVER_1G:
+    speed: 1000
+    mtu: 9216
+    ...
+```
+
+**`vlan_profiles.yaml`** — top-level key: `vlan_profiles`
+```yaml
+vlan_profiles:
+  TENANT_A:
+    vlans:
+      100:
+        name: "Production"
+        vrf: "VRF_A"
+        ...
+```
+
+**`bgp_profiles.yaml`** — top-level key: `bgp_profiles`
+```yaml
+bgp_profiles:
+  TENANT_A:
+    enable_evpn: true
+    peer_groups:
+      External:                    # "External" peer group name is hardcoded
+        description: "External-Connections"
+        peers:
+          10.0.0.1:
+            description: "ISP-1"
+            remote_as: 65000
+    ipv4_unicast_af:
+      route_import:
+        from_vrf:                  # route leaking structure
+          - VRF_SHARED
+  VxLAN_UNDERLAY_LEAF:             # profiles starting with "VxLAN_UNDERLAY" are filtered out
+    ...
+```
+
+Key conventions used by LLDPq:
+- BGP peer group named `External` — used for external BGP peer management UI
+- Profiles prefixed with `VxLAN_UNDERLAY` — automatically excluded from user-facing lists
+- `ipv4_unicast_af.route_import.from_vrf` — used for inter-VRF route leaking management
+- `peer_groups.External.peers` — used for external BGP neighbor CRUD operations
+
+If these keys or structures differ in your Ansible repo, the corresponding UI features will not work correctly.
+
+## [16] license
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 

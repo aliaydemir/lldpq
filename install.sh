@@ -868,7 +868,7 @@ sudo chmod 664 /etc/dhcp/dhcpd.hosts
 # Default dhcpd.conf if not configured yet (same template as Docker entrypoint)
 if ! grep -q 'cumulus-provision-url\|LLDPq' /etc/dhcp/dhcpd.conf 2>/dev/null; then
     OUR_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-    OUR_IP="${OUR_IP:-192.168.58.200}"
+    OUR_IP="${OUR_IP:-127.0.0.1}"
     OUR_SUBNET=$(echo "$OUR_IP" | sed 's/\.[0-9]*$/.0/')
     OUR_GW=$(echo "$OUR_IP" | sed 's/\.[0-9]*$/.1/')
 
