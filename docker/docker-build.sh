@@ -18,7 +18,15 @@ NC='\033[0m'
 
 IMAGE_NAME="lldpq"
 IMAGE_TAG="latest"
-OUTPUT_FILE="$HOME/lldpq.tar.gz"
+
+# Detect architecture: amd64 or arm64
+ARCH=$(uname -m)
+case "$ARCH" in
+    x86_64)  ARCH_LABEL="amd64" ;;
+    aarch64) ARCH_LABEL="arm64" ;;
+    *)       ARCH_LABEL="$ARCH" ;;
+esac
+OUTPUT_FILE="$HOME/lldpq-${ARCH_LABEL}.tar.gz"
 
 # Find repo root (script is in docker/ subfolder)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -63,8 +71,9 @@ echo -e "${GREEN}║    Build Complete!                   ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════╝${NC}"
 echo ""
 echo -e "Image:  ${CYAN}${IMAGE_NAME}:${VERSION}${NC} (${SIZE})"
+echo -e "Arch:   ${CYAN}${ARCH_LABEL}${NC}"
 echo -e "File:   ${CYAN}${OUTPUT_FILE}${NC}"
 echo ""
-echo -e "Run:    ${YELLOW}docker run -d -p 80:80 -v devices.yaml:/home/lldpq/lldpq/devices.yaml lldpq:latest${NC}"
-echo -e "Upload: ${YELLOW}scp ~/lldpq.tar.gz user@host:~/${NC}"
-echo -e "Load:   ${YELLOW}docker load < lldpq.tar.gz${NC}"
+echo -e "Run:    ${YELLOW}docker run -d -p 80:80 lldpq:latest${NC}"
+echo -e "Upload: ${YELLOW}scp ~/lldpq-${ARCH_LABEL}.tar.gz user@host:~/${NC}"
+echo -e "Load:   ${YELLOW}docker load < lldpq-${ARCH_LABEL}.tar.gz${NC}"

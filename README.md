@@ -17,16 +17,17 @@
 
 simple network monitoring tool for nvidia cumulus switches
 
-## Docker (run anywhere — even on a Cumulus switch)
+## Docker (run anywhere — Linux, macOS, even on a Cumulus switch)
 
 No installation needed. Download the pre-built Docker image and run:
 
 ```bash
-# Download (100MB)
-curl -O https://aliaydemir.com/lldpq.tar.gz
+# Download — pick the right architecture
+curl -O https://aliaydemir.com/lldpq-amd64.tar.gz   # x86_64 (Linux servers, Cumulus switches)
+curl -O https://aliaydemir.com/lldpq-arm64.tar.gz   # ARM64  (Apple Silicon Mac, Ampere, RPi)
 
 # Load image
-sudo docker load < lldpq.tar.gz
+sudo docker load < lldpq-amd64.tar.gz   # or lldpq-arm64.tar.gz
 
 # Run (example data included, ready to use)
 sudo docker run -d --name lldpq --network host --privileged lldpq:latest
@@ -46,7 +47,7 @@ Open `http://<host-ip>` in your browser. That's it.
 - Your switch hostnames and management IPs — entered via the web UI
 - That's it. SSH keys are generated and distributed from the web UI.
 
-**Works on:** Ubuntu, CentOS, RHEL, Debian, NVIDIA Cumulus Linux 5.x, any x86_64 with Docker.
+**Works on:** Ubuntu, CentOS, RHEL, Debian, NVIDIA Cumulus Linux 5.x, macOS (Apple Silicon & Intel), any system with Docker.
 
 **Cumulus switch only** — open port 80 in the ACL before accessing the web UI:
 ```bash
@@ -81,7 +82,7 @@ sudo docker run -d --name lldpq --network host \
 sudo docker stop lldpq && sudo docker rm lldpq && sudo docker rmi lldpq:latest
 
 # Load new image and run
-sudo docker load < lldpq.tar.gz
+sudo docker load < lldpq-amd64.tar.gz   # or lldpq-arm64.tar.gz
 sudo docker run -d --name lldpq --network host lldpq:latest
 ```
 
@@ -89,7 +90,7 @@ sudo docker run -d --name lldpq --network host lldpq:latest
 ```bash
 sudo docker stop lldpq && sudo docker rm lldpq && sudo docker rmi lldpq:latest
 sudo docker volume rm lldpq-data lldpq-configs lldpq-hstr 2>/dev/null
-rm -f ~/lldpq.tar.gz
+rm -f ~/lldpq-*.tar.gz
 ```
 
 **Useful Docker commands:**
