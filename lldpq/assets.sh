@@ -95,16 +95,20 @@ remote_info() {
   ip4=$(ip -4 -o addr show eth0 | awk '{print $4}' | cut -d/ -f1)
   # 3) MAC
   mac=$(cat /sys/class/net/eth0/address 2>/dev/null)
-  # 4) SERIAL (fast alternative)
-  serial=$(sudo dmidecode -s system-serial-number 2>/dev/null | head -1)
+  # 4) SERIAL (fast alternative) — strip whitespace, replace spaces with dashes
+  serial=$(sudo dmidecode -s system-serial-number 2>/dev/null | head -1 | xargs)
   [[ -z "$serial" ]] && serial="NA"
-  # 5) MODEL (fast alternative)
-  model=$(sudo dmidecode -s system-product-name 2>/dev/null | head -1)
+  serial="${serial// /-}"
+  # 5) MODEL (fast alternative) — strip whitespace, replace spaces with dashes
+  model=$(sudo dmidecode -s system-product-name 2>/dev/null | head -1 | xargs)
   [[ -z "$model" ]] && model="NA"
+  model="${model// /-}"
   # 6) RELEASE
-  rel=$(grep RELEASE /etc/lsb-release | cut -d "=" -f2)
+  rel=$(grep RELEASE /etc/lsb-release 2>/dev/null | cut -d "=" -f2)
+  [[ -z "$rel" ]] && rel="NA"
   # 7) UPTIME
-  up=$(uptime -p | sed 's/,//g; s/ /-/g')
+  up=$(uptime -p 2>/dev/null | sed 's/,//g; s/ /-/g')
+  [[ -z "$up" ]] && up="NA"
 
   # Print 7 columns (STATUS and LAST-SEEN will be added by collect function)
   printf '%s %s %s %s %s %s %s\n' \
@@ -139,6 +143,14 @@ collect() {
     # SSH successful - parse and write with STATUS=OK and LAST-SEEN=now
     local r_host r_ip r_mac r_serial r_model r_release r_uptime
     read -r r_host r_ip r_mac r_serial r_model r_release r_uptime <<< "$ssh_output"
+    
+    # Ensure all fields have values (some platforms return empty fields)
+    [[ -z "$r_ip" ]] && r_ip="$ip"
+    [[ -z "$r_mac" ]] && r_mac="NA"
+    [[ -z "$r_serial" ]] && r_serial="NA"
+    [[ -z "$r_model" ]] && r_model="NA"
+    [[ -z "$r_release" ]] && r_release="NA"
+    [[ -z "$r_uptime" ]] && r_uptime="NA"
     
     # Use devices.yaml hostname ($host) for consistency, not remote hostname
     printf '%-20s %-15s %-17s %-12s %-20s %-10s %-15s %-12s %s\n' \
