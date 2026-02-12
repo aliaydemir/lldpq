@@ -413,7 +413,7 @@
             </svg>
         </button>
         
-        <div class="logo-section">
+        <div class="logo-section" onclick="showAboutModal()" style="cursor:pointer;" title="About LLDPq">
             <img src="/png/lldpq-logo.png" alt="LLDPq" class="logo-full">
             <img src="/png/lldpq-logo.png" alt="LLDPq" class="logo-icon">
         </div>
@@ -550,12 +550,11 @@
         <div class="footer-wrapper">
             <div class="footer">
             <h3>
-                <span id="version-display">LLDPq</span>
+                <span id="version-display" onclick="showAboutModal()" style="cursor:pointer;" title="About LLDPq">LLDPq</span>
                 <a href="#" id="update-badge" onclick="showUpdateInfo(); return false;" style="display: none; background: linear-gradient(0deg, #ff6b00 0%, #ff8c00 100%); color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; text-decoration: none; margin-left: 8px; vertical-align: middle;">
                     <span id="update-text">v1.3.1</span>
                 </a>
             </h3>
-            <h3 style="margin-top: 5px;">Network Monitoring</h3>
             </div>
             <!-- Bottom Toggle Button -->
             <button class="sidebar-toggle sidebar-toggle-bottom" onclick="toggleSidebar()" title="Toggle Sidebar">
@@ -778,6 +777,37 @@ git pull
             `;
             
             document.body.appendChild(modal);
+        }
+    </script>
+
+    <!-- About Modal -->
+    <div id="about-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:10000; justify-content:center; align-items:center;" onclick="if(event.target===this)closeAboutModal()">
+        <div style="background:#2d2d2d; border-radius:12px; width:380px; max-width:90%; box-shadow:0 10px 40px rgba(0,0,0,0.5); overflow:hidden;">
+            <div style="padding:30px 30px 20px; text-align:center;">
+                <img src="/png/lldpq-banner.png" alt="LLDPq" style="width:100%; border-radius:8px; margin-bottom:20px;">
+                <div style="font-size:28px; font-weight:700; color:#fff; letter-spacing:-0.5px;">LLDPq</div>
+                <div id="about-version" style="font-size:13px; color:#76b900; margin-top:4px;"></div>
+                <div style="font-size:13px; color:#888; margin-top:8px;">Network Monitoring for Cumulus Linux Switches</div>
+            </div>
+            <div style="padding:15px 30px; border-top:1px solid #3c3c3c;">
+                <div style="display:flex; justify-content:space-between; margin:6px 0;"><span style="color:#888;">Author</span><span style="color:#d4d4d4;">Ali Aydemir</span></div>
+                <div style="display:flex; justify-content:space-between; margin:6px 0;"><span style="color:#888;">License</span><span style="color:#d4d4d4;">MIT</span></div>
+                <div style="display:flex; justify-content:space-between; margin:6px 0;"><span style="color:#888;">Contact</span><a href="mailto:ali@ipcompro.net" style="color:#4fc3f7; text-decoration:none;">ali@ipcompro.net</a></div>
+            </div>
+            <div style="padding:15px 30px 20px; background:#252526; border-top:1px solid #3c3c3c; text-align:right;">
+                <button onclick="closeAboutModal()" style="background:#404040; color:white; border:none; padding:8px 24px; border-radius:4px; cursor:pointer; font-size:13px;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showAboutModal() {
+            const v = document.getElementById('version-display').textContent;
+            document.getElementById('about-version').textContent = v;
+            document.getElementById('about-modal').style.display = 'flex';
+        }
+        function closeAboutModal() {
+            document.getElementById('about-modal').style.display = 'none';
         }
     </script>
 </body>
