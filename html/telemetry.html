@@ -856,7 +856,7 @@
         <div class="placeholder-steps">
             <h4>To enable telemetry:</h4>
             <ol>
-                <li>Run <code>./update.sh --enable-telemetry</code> in lldpq-src directory</li>
+                <li>Run <code>./install.sh --enable-telemetry</code> in lldpq-src directory</li>
                 <li>Refresh this page</li>
                 <li>Click <strong>Enable Telemetry</strong> to configure switches</li>
             </ol>
@@ -866,8 +866,8 @@
         </div>
     </div>
     
-    <!-- Main Content (hidden if not configured) -->
-    <div class="main-content" id="mainContent">
+    <!-- Main Content (hidden until telemetry check completes) -->
+    <div class="main-content hidden" id="mainContent">
         <div class="page-header">
             <div class="page-title">Streaming Telemetry</div>
             <div class="action-buttons" id="configButtons" style="display: none;">

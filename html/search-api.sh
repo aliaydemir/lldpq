@@ -27,6 +27,29 @@ parse_query() {
     SEARCH=$(echo "$query" | grep -oP 'search=\K[^&]*' | head -1 | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read().strip()))" 2>/dev/null)
 }
 
+# Resolve SSH target (username@ip) from devices.yaml
+# Usage: ssh_target=$(get_ssh_target "$DEVICE")
+get_ssh_target() {
+    local ip="$1"
+    local username
+    username=$(python3 -c "
+import yaml, os
+try:
+    with open(os.environ.get('LLDPQ_DIR','$HOME/lldpq') + '/devices.yaml') as f:
+        d = yaml.safe_load(f)
+    default_user = d.get('defaults', {}).get('username', 'cumulus')
+    devs = d.get('devices', d)
+    info = devs.get('$ip', {})
+    if isinstance(info, dict):
+        print(info.get('username', default_user))
+    else:
+        print(default_user)
+except:
+    print('cumulus')
+" 2>/dev/null)
+    echo "${username:-cumulus}@${ip}"
+}
+
 # List available devices from devices.yaml
 list_devices() {
     python3 << 'PYTHON'
@@ -86,8 +109,9 @@ get_mac_table() {
     fi
     
     # SSH to device using LLDPQ user's SSH keys
+    local ssh_target=$(get_ssh_target "$device")
     local ssh_output
-    ssh_output=$(sudo -u "$LLDPQ_USER" timeout 30 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes "$device" '
+    ssh_output=$(sudo -u "$LLDPQ_USER" timeout 30 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes "$ssh_target" '
         # Get bridge FDB (MAC table)
         /usr/sbin/bridge fdb show 2>/dev/null | grep -v "permanent\|self" | head -500
     ' 2>/dev/null)
@@ -151,8 +175,9 @@ get_arp_table() {
     fi
     
     # SSH to device - get ARP entries and interface VRF mappings
+    local ssh_target=$(get_ssh_target "$device")
     local ssh_output
-    ssh_output=$(sudo -u "$LLDPQ_USER" timeout 30 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes "$device" '
+    ssh_output=$(sudo -u "$LLDPQ_USER" timeout 30 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes "$ssh_target" '
         # Get ARP table (single query, no duplicates)
         /usr/sbin/ip neigh show 2>/dev/null | head -300
         echo "---VRF_MAP---"
@@ -402,8 +427,9 @@ get_vtep_table() {
         return
     fi
     
+    local ssh_target=$(get_ssh_target "$device")
     local ssh_output
-    ssh_output=$(sudo -u "$LLDPQ_USER" timeout 30 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes "$device" '
+    ssh_output=$(sudo -u "$LLDPQ_USER" timeout 30 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes "$ssh_target" '
         /usr/sbin/bridge fdb show 2>/dev/null | grep "dst " | head -1000
     ' 2>/dev/null)
     
@@ -501,8 +527,9 @@ get_route_table() {
         return
     fi
     
+    local ssh_target=$(get_ssh_target "$device")
     local ssh_output
-    ssh_output=$(sudo -u "$LLDPQ_USER" timeout 45 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes "$device" '
+    ssh_output=$(sudo -u "$LLDPQ_USER" timeout 45 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes "$ssh_target" '
         sudo vtysh -c "show ip route vrf all" 2>/dev/null | head -5000
     ' 2>/dev/null)
     
@@ -725,8 +752,9 @@ get_bond_members() {
         return
     fi
     
+    local ssh_target=$(get_ssh_target "$device")
     local ssh_output
-    ssh_output=$(sudo -u "$LLDPQ_USER" timeout 10 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes "$device" "
+    ssh_output=$(sudo -u "$LLDPQ_USER" timeout 10 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes "$ssh_target" "
         cat /sys/class/net/$bond/bonding/slaves 2>/dev/null || echo ''
     " 2>/dev/null)
     
@@ -750,8 +778,9 @@ get_lldp_neighbors() {
         return
     fi
     
+    local ssh_target=$(get_ssh_target "$device")
     local ssh_output
-    ssh_output=$(sudo -u "$LLDPQ_USER" timeout 30 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes "$device" '
+    ssh_output=$(sudo -u "$LLDPQ_USER" timeout 30 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o BatchMode=yes "$ssh_target" '
         sudo lldpctl -f json 2>/dev/null || echo "{}"
     ' 2>/dev/null)
     
