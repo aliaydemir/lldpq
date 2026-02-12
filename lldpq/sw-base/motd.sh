@@ -58,7 +58,7 @@ else
 fi
 OS=$(grep -E '^VERSION=' /etc/os-release | cut -d "\"" -f 2)
 MODEL=$(/usr/bin/platform-detect | awk -F, '{print $2}' | tr '[:lower:]' '[:upper:]')
-LCTN="NVIDIA"
+LCTN="LLDPq"
 echo -e "
 \e[1;32m╔════════════════════════════════════════════════════╗ --------------------------------------------------------------\e[0m
 \e[1;32m║....................................................║\e[0m \e[0;33mWelcome to\e[0m \e[1;35m$(hostname)\e[0m \e[0;33m\uE0B6\e[0;30;43m $OS \e[0m\e[0;33m\uE0B4\e[0m

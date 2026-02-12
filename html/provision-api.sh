@@ -210,7 +210,7 @@ def generate_dhcp_hosts(bindings, orig_filepath):
         gw = server_ip.rsplit('.', 1)[0] + '.1' if '.' in server_ip else server_ip
         header = f"""group {{
 
-  option domain-name "nvidia";
+  option domain-name "example.com";
   option domain-name-servers {gw};
   option routers {gw};
 
@@ -1130,7 +1130,7 @@ def action_save_dhcp_config():
     range_end = data.get('range_end', '')
     gateway = data.get('gateway', '')
     dns = data.get('dns', gateway)
-    domain = data.get('domain', 'nvidia')
+    domain = data.get('domain', 'example.com')
     provision_url = data.get('provision_url', '')
     iface = data.get('interface', 'eth0')
     lease_time = data.get('lease_time', '172800')

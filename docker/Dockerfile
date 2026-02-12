@@ -2,7 +2,7 @@
 # Single container: nginx + fcgiwrap + python3 + ssh + cron
 FROM ubuntu:22.04
 
-LABEL maintainer="aaydemir@nvidia.com"
+LABEL maintainer="ali@lldpq.dev"
 LABEL description="LLDPq Network Monitoring"
 LABEL version="2.2.3"
 

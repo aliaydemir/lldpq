@@ -1,13 +1,13 @@
 #!/bin/bash
 rm -rf $HOME/.local/share/tmux/*
-if tmux list-sessions | grep -q NVIDIA; then
+if tmux list-sessions | grep -q LLDPq; then
     echo -e "\nSession Will Connect ...."
-    tmux -u attach-session -t NVIDIA
+    tmux -u attach-session -t LLDPq
     exit
 else
     echo -e "\nSession Will Start ...."
 fi
-session="NVIDIA"
+session="LLDPq"
 [ ! -d "$HOME/.local/share/tmux" ] && mkdir -p "$HOME/.local/share/tmux"
 cd $HOME/.local/share/tmux/
 

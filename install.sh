@@ -276,7 +276,7 @@ if [[ $EUID -eq 0 ]]; then
     echo ""
     echo "[!] Running as root"
     echo "    Files will be installed in $LLDPQ_INSTALL_DIR"
-    echo "    Recommended: Install as a regular user (e.g., 'nvidia' or 'cumulus')"
+    echo "    Recommended: Install as a regular user (e.g., 'cumulus' or 'lldpq')"
     echo "    This allows better SSH key management and security."
     echo ""
     sleep 2
@@ -909,7 +909,7 @@ shared-network OOB {
   subnet ${OUR_SUBNET} netmask 255.255.255.0 {
     range ${OUR_SUBNET%.*}.210 ${OUR_SUBNET%.*}.249;
     option routers ${OUR_GW};
-    option domain-name "nvidia";
+    option domain-name "example.com";
     option domain-name-servers ${OUR_GW};
     option www-server ${OUR_IP};
     option default-url "http://${OUR_IP}/";

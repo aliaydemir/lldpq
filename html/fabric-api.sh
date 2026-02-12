@@ -5867,7 +5867,7 @@ PYTHON_END
         ;;
     refresh-assets)
         # Trigger assets.sh to refresh device inventory using trigger file mechanism
-        # A cron job running as nvidia user watches this file and runs assets.sh
+        # A cron job running as lldpq user watches this file and runs assets.sh
         TRIGGER_FILE="/tmp/.assets_refresh_trigger"
         
         # Create trigger file with timestamp
