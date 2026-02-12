@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>..::LLDPQ::..</title>
+    <link rel="shortcut icon" href="/png/favicon.ico">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        /* Page Header */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #76b900;
+        }
+        
+        .last-updated {
+            font-size: 13px;
+            color: #888;
+        }
+        
+        /* Dashboard Section */
+        .dashboard-section {
+            background: #2d2d2d;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .section-header {
+            padding: 12px 16px;
+            background: #333;
+            font-weight: 600;
+            font-size: 14px;
+            color: #76b900;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .section-content {
+            padding: 20px;
+        }
+        
+        /* File Selector */
+        .file-selector {
+            display: flex;
+            justify-content: center;
+        }
+        
+        .file-dropdown {
+            padding: 10px 14px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #3c3c3c;
+            color: #d4d4d4;
+            font-size: 13px;
+            min-width: 350px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .file-dropdown:focus {
+            outline: none;
+            border-color: #76b900;
+        }
+        
+        .file-dropdown:hover {
+            border-color: #76b900;
+        }
+        
+        /* Results Container */
+        .results-container {
+            background: #2d2d2d;
+            border-radius: 8px;
+            margin-top: 20px;
+            max-height: 600px;
+            overflow: hidden;
+            display: none;
+        }
+        
+        .results-container.show {
+            display: block;
+        }
+        
+        .results-header {
+            padding: 12px 16px;
+            background: #333;
+            border-bottom: 1px solid #404040;
+            font-weight: 600;
+            font-size: 14px;
+            color: #76b900;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .results-content {
+            padding: 16px;
+            white-space: pre-wrap;
+            font-family: 'Fira Code', 'Courier New', Courier, monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            max-height: 520px;
+            overflow-y: auto;
+        }
+        
+        /* Syntax Colors */
+        .steelBlue { color: #4fc3f7; font-weight: bold; }
+        .tomato { color: #ff6347; font-weight: bold; }
+        .red { color: #f44336; font-weight: bold; }
+        .green { color: #76b900; }
+        .lime { color: #8bd400; }
+        
+        /* Messages */
+        .loading-text {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+        
+        .error-text {
+            text-align: center;
+            padding: 20px;
+            color: #ff6b6b;
+            background: rgba(244, 67, 54, 0.1);
+            border: 1px solid rgba(244, 67, 54, 0.3);
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e1e1e; }
+        ::-webkit-scrollbar-thumb { background: #404040; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+    </style>
+</head>
+<body>
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <div class="page-title">LLDP Result Archive</div>
+            <div class="last-updated">Last Updated: <span id="last-updated"></span></div>
+        </div>
+    </div>
+    
+    <!-- Archive Section -->
+    <div class="dashboard-section">
+        <div class="section-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3,3H21V7H3V3M4,8H20V21H4V8M9.5,11A0.5,0.5 0 0,0 9,11.5V13H15V11.5A0.5,0.5 0 0,0 14.5,11H9.5Z"/>
+            </svg>
+            Historical LLDP Results
+        </div>
+        <div class="section-content">
+            <div class="file-selector">
+                <select id="fileDropdown" class="file-dropdown" onchange="handleFileSelection()">
+                    <option value="">-- Select a historical result file --</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Results Display -->
+    <div id="resultsContainer" class="results-container">
+        <div class="results-header">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+            </svg>
+            <span id="fileName">Selected File</span>
+        </div>
+        <div id="metinAlani" class="results-content"></div>
+    </div>
+    
+    <div id="loadingText" class="loading-text" style="display: none;">
+        Loading file content...
+    </div>
+
+    <script>
+        function setLastUpdated() {
+            const now = new Date();
+            const options = { 
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit', 
+                hour: '2-digit', 
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+            };
+            const formattedDate = now.toLocaleString('en-US', options);
+            document.getElementById('last-updated').textContent = formattedDate;
+        }
+
+        function listFiles() {
+            fetch('/hstr/')
+                .then(response => response.text())
+                .then(data => {
+                    const parser = new DOMParser();
+                    const htmlDoc = parser.parseFromString(data, 'text/html');
+                    const files = Array.from(htmlDoc.querySelectorAll('a')).map(a => a.href).filter(href => href.includes('Problems'));
+                    const fileDropdown = document.getElementById('fileDropdown');
+
+                    files.forEach(file => {
+                        const fileName = file.split('/').pop();
+                        const option = document.createElement('option');
+                        option.value = fileName;
+                        option.textContent = fileName;
+                        fileDropdown.appendChild(option);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error fetching file list:', error);
+                    showError('Error loading file list: ' + error.message);
+                });
+        }
+
+        function handleFileSelection() {
+            const fileDropdown = document.getElementById('fileDropdown');
+            const selectedFile = fileDropdown.value;
+            if (selectedFile) {
+                fetchFileContent(selectedFile);
+            } else {
+                hideResults();
+            }
+        }
+
+        function fetchFileContent(fileName) {
+            showLoading();
+            
+            fetch(`/hstr/${fileName}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    hideLoading();
+                    document.getElementById('fileName').textContent = fileName;
+                    displayLLDPResults(data);
+                    showResults();
+                })
+                .catch(error => {
+                    hideLoading();
+                    showError('Error fetching LLDP results: ' + error.message);
+                });
+        }
+
+        function displayLLDPResults(results) {
+            const element = document.getElementById('metinAlani');
+            element.innerHTML = '';
+            
+            const lines = results.split('\n');
+            lines.forEach(line => {
+                let colorClass = 'lime';
+                if (line.startsWith('====')) {
+                    colorClass = 'steelBlue';
+                } else if (line.toLowerCase().includes('fail')) {
+                    colorClass = 'tomato';
+                } else if (line.toLowerCase().includes('created') || line.toLowerCase().includes('reated')) {
+                    colorClass = 'steelBlue';
+                } else if (line.toLowerCase().includes('no-info')) {
+                    colorClass = 'red';
+                } else if (line.toLowerCase().includes('pass')) {
+                    colorClass = 'green';
+                }
+                
+                const span = document.createElement('span');
+                span.className = colorClass;
+                span.textContent = line;
+                element.appendChild(span);
+                element.appendChild(document.createElement('br'));
+            });
+        }
+
+        function showLoading() {
+            document.getElementById('loadingText').style.display = 'block';
+            document.getElementById('resultsContainer').classList.remove('show');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingText').style.display = 'none';
+        }
+
+        function showResults() {
+            document.getElementById('resultsContainer').classList.add('show');
+        }
+
+        function hideResults() {
+            document.getElementById('resultsContainer').classList.remove('show');
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-text';
+            errorDiv.textContent = message;
+            
+            // Remove any existing error messages
+            const existingError = document.querySelector('.error-text');
+            if (existingError) {
+                existingError.remove();
+            }
+            
+            // Insert error message after file selector
+            const fileSelector = document.querySelector('.file-selector');
+            fileSelector.parentNode.insertBefore(errorDiv, fileSelector.nextSibling);
+            
+            // Auto-remove error after 5 seconds
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.remove();
+                }
+            }, 5000);
+        }
+
+        window.onload = function() {
+            setLastUpdated();
+            listFiles();
+        };
+    </script>
+</body>
+</html>

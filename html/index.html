@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <link rel="shortcut icon" href="/png/favicon.ico">
+    <title>..::LLDPQ::..</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <link rel="stylesheet" type="text/css" href="/css/main_styles.css">
+    <script src="/css/auth.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        #sidebar {
+            width: 280px;
+            position: fixed;
+            left: 0;
+            top: 0;
+            background: linear-gradient(135deg, #2d2d2d 0%, #3a3a3a 100%);
+            height: 100vh;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+            overflow-y: auto;
+            box-sizing: border-box;
+            transition: width 0.3s ease, padding 0.3s ease;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            /* Hide scrollbar */
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE/Edge */
+        }
+        
+        #sidebar::-webkit-scrollbar {
+            display: none; /* Chrome, Safari, Opera */
+        }
+        
+        #sidebar.collapsed {
+            width: 58px;
+            padding: 15px 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        #content-iframe {
+            margin-left: 280px;
+            width: calc(100% - 280px);
+            height: 100vh;
+            border: none;
+            display: block;
+            overflow: auto;
+            transition: margin-left 0.3s ease, width 0.3s ease;
+        }
+        
+        #sidebar.collapsed ~ #content-iframe {
+            margin-left: 58px;
+            width: calc(100% - 58px);
+        }
+        
+        /* Toggle Button */
+        .sidebar-toggle {
+            position: absolute;
+            top: 15px;
+            right: 10px;
+            width: 30px;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #888;
+            transition: all 0.2s ease;
+            z-index: 10;
+        }
+        
+        .sidebar-toggle:hover {
+            background: rgba(118, 185, 0, 0.2);
+            color: #76b900;
+        }
+        
+        .sidebar-toggle svg {
+            width: 18px;
+            height: 18px;
+            transition: transform 0.3s ease;
+        }
+        
+        #sidebar.collapsed .sidebar-toggle {
+            position: relative;
+            right: auto;
+            top: auto;
+            transform: none;
+            margin: 10px auto 15px auto;
+            display: flex;
+        }
+        
+        #sidebar.collapsed .sidebar-toggle svg {
+            transform: rotate(180deg);
+        }
+        
+        /* Footer wrapper - flex container for footer and toggle */
+        .footer-wrapper {
+            display: flex;
+            align-items: center;
+            margin-top: auto;
+            padding-top: 20px;
+            border-top: 1px solid #444;
+        }
+        
+        .footer-wrapper .footer {
+            flex: 1;
+            border-top: none;
+            margin-top: 0;
+            padding-top: 0;
+        }
+        
+        /* Bottom toggle button - next to footer when open */
+        .sidebar-toggle-bottom {
+            position: relative;
+            top: auto;
+            right: auto;
+            flex-shrink: 0;
+        }
+        
+        #sidebar.collapsed .footer-wrapper {
+            flex-direction: column;
+            padding-top: 10px;
+        }
+        
+        #sidebar.collapsed .sidebar-toggle-bottom {
+            margin: 10px auto;
+        }
+        
+        /* Menu Item Icons */
+        .menu-item {
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center;
+            gap: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            list-style: none;
+        }
+        
+        .menu-item .menu-icon {
+            width: 20px;
+            height: 20px;
+            min-width: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .menu-item .menu-icon svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+        
+        .menu-item .menu-text {
+            transition: opacity 0.2s ease;
+            display: inline;
+        }
+        
+        /* ========== COLLAPSED STATE ========== */
+        #sidebar.collapsed .menu-item .menu-text {
+            display: none !important;
+        }
+        
+        #sidebar.collapsed .menu-item {
+            width: 42px !important;
+            height: 42px !important;
+            padding: 0 !important;
+            margin: 4px auto !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 0 !important;
+            position: relative;
+        }
+        
+        #sidebar.collapsed .menu-item .menu-icon {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        
+        #sidebar.collapsed .menu-group {
+            margin-bottom: 8px;
+            padding: 0;
+        }
+        
+        #sidebar.collapsed .logo-section {
+            margin-bottom: 10px;
+            padding: 5px 0;
+            text-align: center;
+        }
+        
+        /* Logo switching for collapsed state */
+        .logo-section .logo-icon {
+            display: none;
+            width: 34px;
+            height: 34px;
+            object-fit: cover;
+            object-position: left center;
+            border-radius: 6px;
+        }
+        
+        #sidebar.collapsed .logo-section .logo-full {
+            display: none;
+        }
+        
+        #sidebar.collapsed .logo-section .logo-icon {
+            display: block;
+            margin: 0 auto;
+        }
+        
+        #sidebar.collapsed .group-title {
+            font-size: 8px;
+            text-align: center;
+            padding: 3px 0;
+            letter-spacing: 0;
+            margin-bottom: 3px;
+            opacity: 0.6;
+        }
+        
+        #sidebar.collapsed .footer,
+        #sidebar.collapsed #user-menu-container {
+            display: none;
+        }
+        
+        #sidebar.collapsed .menu-item:hover::after {
+            content: attr(title);
+            position: absolute;
+            left: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #2d2d2d;
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            white-space: nowrap;
+            margin-left: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            z-index: 1000;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        .logo-section {
+            text-align: center;
+            margin-bottom: 15px;
+            padding: 10px 0;
+        }
+        
+        .logo-section img {
+            max-width: 150px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        .menu-group {
+            margin-bottom: 20px;
+        }
+        
+        .group-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #ccc;
+            margin-bottom: 8px;
+            padding: 6px 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .menu-item {
+            display: block;
+            padding: 12px 16px;
+            margin: 5px 0;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+        
+        .menu-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        /* Group 1: Main Dashboard - Brightest White */
+        .group-main .menu-item {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(230, 230, 230, 0.08) 100%);
+            color: #ffffff;
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .group-main .menu-item:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(230, 230, 230, 0.15) 100%);
+            border-color: rgba(255, 255, 255, 0.35);
+            color: #ffffff;
+        }
+        
+        /* Group 2: Device Management - Light Gray */
+        .group-devices .menu-item {
+            background: linear-gradient(135deg, rgba(220, 220, 220, 0.12) 0%, rgba(200, 200, 200, 0.08) 100%);
+            color: #e0e0e0;
+            border-color: rgba(220, 220, 220, 0.2);
+        }
+        
+        .group-devices .menu-item:hover {
+            background: linear-gradient(135deg, rgba(220, 220, 220, 0.2) 0%, rgba(200, 200, 200, 0.15) 100%);
+            border-color: rgba(220, 220, 220, 0.35);
+            color: #f0f0f0;
+        }
+        
+        /* Group 3: LLDP - Medium Gray */
+        .group-lldp .menu-item {
+            background: linear-gradient(135deg, rgba(180, 180, 180, 0.12) 0%, rgba(160, 160, 160, 0.08) 100%);
+            color: #c0c0c0;
+            border-color: rgba(180, 180, 180, 0.2);
+        }
+        
+        .group-lldp .menu-item:hover {
+            background: linear-gradient(135deg, rgba(180, 180, 180, 0.2) 0%, rgba(160, 160, 160, 0.15) 100%);
+            border-color: rgba(180, 180, 180, 0.35);
+            color: #d0d0d0;
+        }
+        
+        /* Group 4: Analysis - Dark Gray */
+        .group-analysis .menu-item {
+            background: linear-gradient(135deg, rgba(140, 140, 140, 0.12) 0%, rgba(120, 120, 120, 0.08) 100%);
+            color: #a0a0a0;
+            border-color: rgba(140, 140, 140, 0.2);
+        }
+        
+        .group-analysis .menu-item:hover {
+            background: linear-gradient(135deg, rgba(140, 140, 140, 0.2) 0%, rgba(120, 120, 120, 0.15) 100%);
+            border-color: rgba(140, 140, 140, 0.35);
+            color: #b0b0b0;
+        }
+        
+        /* Group 5: Topology - Darkest Gray */
+        .group-topology .menu-item {
+            background: linear-gradient(135deg, rgba(100, 100, 100, 0.12) 0%, rgba(80, 80, 80, 0.08) 100%);
+            color: #808080;
+            border-color: rgba(100, 100, 100, 0.2);
+        }
+        
+        .group-topology .menu-item:hover {
+            background: linear-gradient(135deg, rgba(100, 100, 100, 0.2) 0%, rgba(80, 80, 80, 0.15) 100%);
+            border-color: rgba(100, 100, 100, 0.35);
+            color: #909090;
+        }
+        
+        /* Group 6: Ansible - Green */
+        .group-ansible .menu-item {
+            background: linear-gradient(135deg, rgba(118, 185, 0, 0.15) 0%, rgba(100, 160, 0, 0.10) 100%);
+            color: #76b900;
+            border-color: rgba(118, 185, 0, 0.3);
+        }
+        
+        .group-ansible .menu-item:hover {
+            background: linear-gradient(135deg, rgba(118, 185, 0, 0.25) 0%, rgba(100, 160, 0, 0.18) 100%);
+            border-color: rgba(118, 185, 0, 0.45);
+            color: #8ed100;
+        }
+        
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px 0;
+            border-top: 1px solid #444;
+        }
+        
+        .footer h3 {
+            color: #666;
+            font-size: 12px;
+            margin: 0;
+            font-family: 'Consolas', monospace;
+        }
+        
+        /* Active state */
+        .menu-item.active {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transform: translateY(-2px);
+        }
+        
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <!-- Toggle Button -->
+        <button class="sidebar-toggle" onclick="toggleSidebar()" title="Toggle Sidebar">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+            </svg>
+        </button>
+        
+        <div class="logo-section" onclick="showAboutModal()" style="cursor:pointer;" title="About LLDPq">
+            <img src="/png/lldpq-logo.png" alt="LLDPq" class="logo-full">
+            <img src="/png/lldpq-logo.png" alt="LLDPq" class="logo-icon">
+        </div>
+        
+        <!-- User Menu -->
+        <div id="user-menu-container"></div>
+
+        <!-- Group 1: Main Dashboard -->
+        <div class="menu-group group-main">
+            <div class="group-title">LLDPq</div>
+            <a href="start.html" target="content-iframe" class="menu-item" title="Main Dashboard">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M13,3V9H21V3M13,21H21V11H13M3,21H11V15H3M3,13H11V3H3V13Z"/></svg></span>
+                <span class="menu-text">Fabric</span>
+            </a>
+            <a href="search.html" title="Fabric Search" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg></span>
+                <span class="menu-text">Search</span>
+            </a>
+            <a href="tracepath.html" title="Trace Network Path" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg></span>
+                <span class="menu-text">Tracepath</span>
+            </a>
+            <a href="telemetry.html" title="Streaming Telemetry" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M3.5 18.5l6-6 4 4L22 6.92 20.59 5.5l-7.09 8-4-4L2 17l1.5 1.5z"/></svg></span>
+                <span class="menu-text">Telemetry</span>
+            </a>
+        </div>
+
+        <!-- Group 2: Device Management -->
+        <div class="menu-group group-devices">
+            <div class="group-title">DEVICES</div>
+            <a href="provision.html" title="Provision - ZTP & Base Config" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg></span>
+                <span class="menu-text">Provision</span>
+            </a>
+            <a href="assets.html" title="Device Inventory" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M4,6H20V16H4M20,18A2,2 0 0,0 22,16V6C22,4.89 21.1,4 20,4H4C2.89,4 2,4.89 2,6V16A2,2 0 0,0 4,18H0V20H24V18H20Z"/></svg></span>
+                <span class="menu-text">Assets</span>
+            </a>
+            <a href="device.html" title="Device Details & Command Runner" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6M12,8A4,4 0 0,0 8,12A4,4 0 0,0 12,16A4,4 0 0,0 16,12A4,4 0 0,0 12,8Z"/></svg></span>
+                <span class="menu-text">Details</span>
+            </a>
+            <a href="dev-conf.html" title="Device Configs" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/></svg></span>
+                <span class="menu-text">Configs</span>
+            </a>
+        </div>
+
+        <!-- Group 3: LLDP -->
+        <div class="menu-group group-lldp">
+            <div class="group-title">LLDP</div>
+            <a href="lldp.html" title="LLDP Results" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,12.5A1.5,1.5 0 0,1 10.5,11A1.5,1.5 0 0,1 12,9.5A1.5,1.5 0 0,1 13.5,11A1.5,1.5 0 0,1 12,12.5M12,7.2C9.9,7.2 8.2,8.9 8.2,11C8.2,14 12,17.5 12,17.5C12,17.5 15.8,14 15.8,11C15.8,8.9 14.1,7.2 12,7.2Z"/></svg></span>
+                <span class="menu-text">Results</span>
+            </a>
+            <a href="lldp-problem.html" title="LLDP Problems" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg></span>
+                <span class="menu-text">Problems</span>
+            </a>
+            <a href="archive.html" title="LLDP Archive" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M3,3H21V7H3V3M4,8H20V21H4V8M9.5,11A0.5,0.5 0 0,0 9,11.5V13H15V11.5A0.5,0.5 0 0,0 14.5,11H9.5Z"/></svg></span>
+                <span class="menu-text">Archive</span>
+            </a>
+        </div>
+
+        <!-- Group 4: Analysis -->
+        <div class="menu-group group-analysis">
+            <div class="group-title">Analysis</div>
+            <a href="/monitor-results/bgp-analysis.html" target="content-iframe" title="BGP Analysis" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z"/></svg></span>
+                <span class="menu-text">BGP</span>
+            </a>
+            <a href="/monitor-results/link-flap-analysis.html" target="content-iframe" title="Link Flap Analysis" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M20.5,11H19V7C19,5.89 18.1,5 17,5H13V3.5A2.5,2.5 0 0,0 10.5,1A2.5,2.5 0 0,0 8,3.5V5H4A2,2 0 0,0 2,7V10.8H3.5C5,10.8 6.2,12 6.2,13.5C6.2,15 5,16.2 3.5,16.2H2V20A2,2 0 0,0 4,22H7.8V20.5C7.8,19 9,17.8 10.5,17.8C12,17.8 13.2,19 13.2,20.5V22H17A2,2 0 0,0 19,20V16H20.5A2.5,2.5 0 0,0 23,13.5A2.5,2.5 0 0,0 20.5,11Z"/></svg></span>
+                <span class="menu-text">Flap</span>
+            </a>
+            <a href="/monitor-results/optical-analysis.html" target="content-iframe" title="Optical Analysis" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/></svg></span>
+                <span class="menu-text">Optical</span>
+            </a>
+            <a href="/monitor-results/ber-analysis.html" target="content-iframe" title="BER Analysis" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M22,21H2V3H4V19H6V10H10V19H12V6H16V19H18V14H22V21Z"/></svg></span>
+                <span class="menu-text">BER</span>
+            </a>
+            <a href="/monitor-results/hardware-analysis.html" target="content-iframe" title="Hardware Analysis" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M17,17H7V7H17M21,11V9H19V7C19,5.89 18.1,5 17,5H15V3H13V5H11V3H9V5H7C5.89,5 5,5.89 5,7V9H3V11H5V13H3V15H5V17A2,2 0 0,0 7,19H9V21H11V19H13V21H15V19H17A2,2 0 0,0 19,17V15H21V13H19V11M13,13H11V11H13M15,9H9V15H15V9Z"/></svg></span>
+                <span class="menu-text">Hardware</span>
+            </a>
+            <a href="/monitor-results/log-analysis.html" target="content-iframe" title="Log Analysis" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M13,13V18H10V13H7L12,8L17,13H13Z"/></svg></span>
+                <span class="menu-text">Logs</span>
+            </a>
+        </div>
+
+        <!-- Group 5: Topology -->
+        <div class="menu-group group-topology">
+            <div class="group-title">Topology</div>
+            <a href="topology/main.html" title="Network Topology" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M17,3A2,2 0 0,1 19,5V15A2,2 0 0,1 17,17H13V19H14A1,1 0 0,1 15,20H22V22H15A1,1 0 0,1 14,23H10A1,1 0 0,1 9,22H2V20H9A1,1 0 0,1 10,19H11V17H7A2,2 0 0,1 5,15V5A2,2 0 0,1 7,3H17M12,10A2,2 0 0,0 10,12A2,2 0 0,0 12,14A2,2 0 0,0 14,12A2,2 0 0,0 12,10Z"/></svg></span>
+                <span class="menu-text">Topology</span>
+            </a>
+        </div>
+
+        <!-- Group 6: Ansible (Admin only) -->
+        <div class="menu-group group-ansible" id="ansible-menu">
+            <div class="group-title">Ansible</div>
+            <a href="vlan-report.html" title="VLAN Report" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z"/></svg></span>
+                <span class="menu-text">VLAN Report</span>
+            </a>
+            <a href="vrf-report.html" title="VRF Report" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M17 16l-4-4V8.82C14.16 8.4 15 7.3 15 6c0-1.66-1.34-3-3-3S9 4.34 9 6c0 1.3.84 2.4 2 2.82V12l-4 4H3v5h5v-3.05l4-4.2 4 4.2V21h5v-5h-4z"/></svg></span>
+                <span class="menu-text">VRF Report</span>
+            </a>
+            <a href="fabric-exit.html" title="External BGP Peers" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg></span>
+                <span class="menu-text">Fabric Exit</span>
+            </a>
+            <a href="fabric-config.html" title="Fabric Configuration Manager" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg></span>
+                <span class="menu-text">Fabric Config</span>
+            </a>
+            <a href="fabric-editor.html" title="Fabric Editor" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z"/></svg></span>
+                <span class="menu-text">Fabric Editor</span>
+            </a>
+            <a href="fabric-deploy.html" title="Fabric Deploy - Multi-device deployment" target="content-iframe" class="menu-item">
+                <span class="menu-icon"><svg viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg></span>
+                <span class="menu-text">Fabric Deploy</span>
+            </a>
+        </div>
+
+        <div class="footer-wrapper">
+            <div class="footer">
+            <h3>
+                <span id="version-display" onclick="showAboutModal()" style="cursor:pointer;" title="About LLDPq">LLDPq</span>
+                <a href="#" id="update-badge" onclick="showUpdateInfo(); return false;" style="display: none; background: linear-gradient(0deg, #ff6b00 0%, #ff8c00 100%); color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; text-decoration: none; margin-left: 8px; vertical-align: middle;">
+                    <span id="update-text">v1.3.1</span>
+                </a>
+            </h3>
+            </div>
+            <!-- Bottom Toggle Button -->
+            <button class="sidebar-toggle sidebar-toggle-bottom" onclick="toggleSidebar()" title="Toggle Sidebar">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+    
+    <iframe id="content-iframe" name="content-iframe" src="start.html"></iframe>
+    
+    <script>
+        // Sidebar Toggle Function
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('collapsed');
+            // Save state to localStorage
+            localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+        }
+        
+        // Restore sidebar state on load
+        function restoreSidebarState() {
+            const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            if (isCollapsed) {
+                document.getElementById('sidebar').classList.add('collapsed');
+            }
+        }
+        
+        // Initialize sidebar state
+        document.addEventListener('DOMContentLoaded', restoreSidebarState);
+        
+        // Initialize authentication
+        async function initAuth() {
+            const isAuth = await LLDPqAuth.check();
+            if (!isAuth) return;
+            
+            // Add auth styles
+            const style = document.createElement('style');
+            style.textContent = LLDPqAuth.getStyles();
+            document.head.appendChild(style);
+            
+            // Add user menu
+            document.getElementById('user-menu-container').innerHTML = LLDPqAuth.createUserMenu();
+            
+            // Add modals (for admin)
+            if (LLDPqAuth.isAdmin()) {
+                document.body.insertAdjacentHTML('beforeend', LLDPqAuth.createPasswordModal());
+                document.body.insertAdjacentHTML('beforeend', LLDPqAuth.createUserManagementModal());
+            }
+            
+            // Hide Ansible menu for operators
+            if (LLDPqAuth.isOperator()) {
+                document.getElementById('ansible-menu').style.display = 'none';
+            }
+            
+            // Hide Ansible menu if Ansible is not configured
+            try {
+                const resp = await fetch('/fabric-api.sh?action=ansible-status');
+                const data = await resp.json();
+                if (!data.configured) {
+                    document.getElementById('ansible-menu').style.display = 'none';
+                }
+            } catch (e) {
+                // If check fails, hide Ansible menu (safe default)
+                document.getElementById('ansible-menu').style.display = 'none';
+            }
+            
+            // Check for updates after auth is ready (admin only)
+            checkForUpdates();
+        }
+        
+        // Run auth check
+        initAuth();
+        
+        // Add active state management
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', function() {
+                // Remove active class from all items
+                document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+                // Add active class to clicked item
+                this.classList.add('active');
+            });
+        });
+        
+        // Set initial active state
+        document.querySelector('a[href="start.html"]').classList.add('active');
+        
+        // Version and update check
+        const GITHUB_VERSION_URL = 'https://raw.githubusercontent.com/aliaydemir/lldpq-src/main/VERSION';
+        const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+        
+        let localVersion = '';
+        let remoteVersion = '';
+        
+        // Fetch and display local version
+        fetch('/VERSION')
+            .then(response => response.text())
+            .then(version => {
+                localVersion = version.trim();
+                document.getElementById('version-display').textContent = 'LLDPq v' + localVersion;
+            })
+            .catch(() => {
+                document.getElementById('version-display').textContent = 'LLDPq';
+            });
+        
+        // Check for updates from GitHub
+        async function checkForUpdates() {
+            // Only check for admins
+            if (!LLDPqAuth.isAdmin()) return;
+            
+            // Wait for local version to be fetched
+            if (!localVersion) {
+                try {
+                    const response = await fetch('/VERSION');
+                    localVersion = (await response.text()).trim();
+                } catch (e) {
+                    return; // Can't check without local version
+                }
+            }
+            
+            // Check cache first
+            const cached = localStorage.getItem('lldpq_update_check');
+            if (cached) {
+                const data = JSON.parse(cached);
+                const age = Date.now() - data.timestamp;
+                // Cache valid only if: not expired AND local version hasn't changed
+                if (age < UPDATE_CHECK_INTERVAL && data.localVersion === localVersion) {
+                    // Use cached result - only show if remote is actually newer
+                    if (data.hasUpdate && data.remoteVersion && compareVersions(data.remoteVersion, localVersion) > 0) {
+                        remoteVersion = data.remoteVersion;
+                        showUpdateBadge(data.remoteVersion);
+                    }
+                    return;
+                }
+            }
+            
+            try {
+                // 5 second timeout for slow/no internet
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
+                const response = await fetch(GITHUB_VERSION_URL + '?t=' + Date.now(), {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) return;
+                
+                remoteVersion = (await response.text()).trim();
+                
+                // Compare versions
+                const hasUpdate = compareVersions(remoteVersion, localVersion) > 0;
+                
+                // Cache result
+                localStorage.setItem('lldpq_update_check', JSON.stringify({
+                    timestamp: Date.now(),
+                    hasUpdate: hasUpdate,
+                    remoteVersion: remoteVersion,
+                    localVersion: localVersion
+                }));
+                
+                if (hasUpdate) {
+                    showUpdateBadge(remoteVersion);
+                }
+            } catch (err) {
+                console.log('Update check failed:', err);
+            }
+        }
+        
+        // Compare semantic versions (returns 1 if a > b, -1 if a < b, 0 if equal)
+        function compareVersions(a, b) {
+            const partsA = a.split('.').map(Number);
+            const partsB = b.split('.').map(Number);
+            
+            for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+                const numA = partsA[i] || 0;
+                const numB = partsB[i] || 0;
+                if (numA > numB) return 1;
+                if (numA < numB) return -1;
+            }
+            return 0;
+        }
+        
+        // Show update badge
+        function showUpdateBadge(newVersion) {
+            const badge = document.getElementById('update-badge');
+            const text = document.getElementById('update-text');
+            if (badge && text) {
+                text.textContent = 'v' + newVersion;
+                badge.style.display = 'inline';
+            }
+        }
+        
+        // Show update info popup
+        function showUpdateInfo() {
+            const modal = document.createElement('div');
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; justify-content: center; align-items: center;';
+            
+            modal.innerHTML = `
+                <div style="background: #2d2d2d; border-radius: 8px; max-width: 500px; width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+                    <div style="padding: 15px 20px; background: linear-gradient(0deg, #76b900 0%, #5a8c00 100%); color: white; display: flex; justify-content: space-between; align-items: center; border-radius: 8px 8px 0 0;">
+                        <h3 style="margin: 0; font-size: 16px;">⬆️ Update Available</h3>
+                        <button onclick="this.closest('div').parentElement.parentElement.remove()" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+                    </div>
+                    <div style="padding: 20px; color: #d4d4d4;">
+                        <p style="margin: 0 0 15px 0;">
+                            <strong>Current:</strong> v${localVersion}<br>
+                            <strong>Latest:</strong> v${remoteVersion}
+                        </p>
+                        <p style="margin: 0 0 15px 0; color: #999;">To update, run these commands on your server:</p>
+                        <pre style="background: #1e1e1e; padding: 15px; border-radius: 4px; margin: 0; font-family: 'Consolas', monospace; font-size: 13px; overflow-x: auto;">cd ~/lldpq-src
+git pull
+./update.sh</pre>
+                    </div>
+                    <div style="padding: 15px 20px; background: #252526; text-align: right; border-top: 1px solid #404040; border-radius: 0 0 8px 8px;">
+                        <button onclick="this.closest('div').parentElement.parentElement.remove()" style="background: #404040; color: white; border: none; padding: 10px 25px; border-radius: 4px; cursor: pointer; font-size: 14px;">Close</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+    </script>
+
+    <!-- About Modal -->
+    <div id="about-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:10000; justify-content:center; align-items:center;" onclick="if(event.target===this)closeAboutModal()">
+        <div style="background:#2d2d2d; border-radius:12px; width:380px; max-width:90%; box-shadow:0 10px 40px rgba(0,0,0,0.5); overflow:hidden;">
+            <div style="padding:30px 30px 20px; text-align:center;">
+                <img src="/png/lldpq-banner.png" alt="LLDPq" style="width:100%; border-radius:8px; margin-bottom:20px;">
+                <div style="font-size:28px; font-weight:700; color:#fff; letter-spacing:-0.5px;">LLDPq</div>
+                <div id="about-version" style="font-size:13px; color:#76b900; margin-top:4px;"></div>
+                <div style="font-size:13px; color:#888; margin-top:8px;">Network Monitoring for Cumulus Linux Switches</div>
+            </div>
+            <div style="padding:15px 30px; border-top:1px solid #3c3c3c;">
+                <div style="display:flex; justify-content:space-between; margin:6px 0;"><span style="color:#888;">Author</span><span style="color:#d4d4d4;">Ali Aydemir</span></div>
+                <div style="display:flex; justify-content:space-between; margin:6px 0;"><span style="color:#888;">License</span><span style="color:#d4d4d4;">MIT</span></div>
+                <div style="display:flex; justify-content:space-between; margin:6px 0;"><span style="color:#888;">Contact</span><a href="mailto:ali@ipcompro.net" style="color:#4fc3f7; text-decoration:none;">ali@ipcompro.net</a></div>
+            </div>
+            <div style="padding:15px 30px 20px; background:#252526; border-top:1px solid #3c3c3c; text-align:right;">
+                <button onclick="closeAboutModal()" style="background:#404040; color:white; border:none; padding:8px 24px; border-radius:4px; cursor:pointer; font-size:13px;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showAboutModal() {
+            const v = document.getElementById('version-display').textContent;
+            document.getElementById('about-version').textContent = v;
+            document.getElementById('about-modal').style.display = 'flex';
+        }
+        function closeAboutModal() {
+            document.getElementById('about-modal').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

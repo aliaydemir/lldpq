@@ -1,0 +1,411 @@
+#!/usr/bin/env bash
+# LLDPq Network Monitoring - Parallel Ping Utility
+# Copyright (c) 2024 LLDPq Project - Licensed under MIT License
+#
+# Ali Aydemir
+# v11.0 Default to devices.yaml, improved quoting and cleanup
+# v10.0 Added parallel execution support for faster ping operations
+# v9.9 Updated to support hostname and IP pair input format
+
+count=1       # quantity of send
+timeout=0.3   # timeout in seconds (300 milliseconds)
+max_tries=3   # if not reachable, quantity of tries (reduced for speed)
+
+starting_time=0
+hosts_up=0
+hosts_down=0
+unreachable_hosts=()
+reachable_hosts=()
+temp_results=""
+
+# Cleanup on exit or interrupt
+cleanup() {
+    [[ -n "$temp_results" && -f "$temp_results" ]] && rm -f "$temp_results"
+}
+trap cleanup EXIT INT TERM
+
+# Find LLDPQ directory
+find_lldpq_dir() {
+    # Try config file first
+    if [[ -f /etc/lldpq.conf ]]; then
+        source /etc/lldpq.conf 2>/dev/null
+    fi
+    LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
+}
+
+# Initialize LLDPQ_DIR early for help message
+find_lldpq_dir
+
+show_usage() {
+    echo -e "\e[95m┌────────────────────────────────────┐\e[0m"
+    echo -e "\e[95m│\e[0m            \e[93mPPING v13.0\e[0m             \e[95m│\e[0m"
+    echo -e "\e[95m│\e[0m      \e[92mParallel Ping Utility\e[0m         \e[95m│\e[0m"
+    echo -e "\e[95m└────────────────────────────────────┘\e[0m"
+    echo ""
+    echo -e "\e[96mUSAGE:\e[0m"
+    echo -e "  \e[32mpping\e[0m [\e[33mOPTIONS\e[0m]"
+    echo -e "  \e[32mpping\e[0m \e[33m<start_ip> <end_ip>\e[0m    # Ping IP range"
+    echo ""
+    echo -e "\e[96mOPTIONS:\e[0m"
+    echo -e "  \e[33m-r <role>\e[0m     Filter by role (e.g., spine, leaf, border)"
+    echo -e "  \e[33m-f <file>\e[0m     Use custom devices.yaml file (overrides default)"
+    echo -e "  \e[33m-v <vrf>\e[0m      Use VRF for ping commands"
+    echo -e "  \e[33m--roles\e[0m       List available roles from devices.yaml"
+    echo -e "  \e[33m-h, --help\e[0m    Show this help message"
+    echo ""
+    echo -e "\e[96mDEFAULT:\e[0m"
+    echo -e "  Uses \e[33m$LLDPQ_DIR/devices.yaml\e[0m (fallback: ~/lldpq/devices.yaml)"
+    echo ""
+    echo -e "\e[96mIP RANGE:\e[0m"
+    echo -e "  Ping all IPs in a range:  \e[33mpping 192.168.58.10 192.168.58.240\e[0m"
+    echo -e "  With VRF:                 \e[33mpping -v mgmt 10.0.0.1 10.0.0.50\e[0m"
+    echo ""
+    echo -e "\e[96mROLES:\e[0m"
+    echo -e "  Add @role in devices.yaml:  \e[33m10.10.100.10: Spine1 @spine\e[0m"
+    echo -e "  Then filter:                \e[33mpping -r spine\e[0m"
+    echo ""
+    echo -e "\e[96mCUSTOM FILE FORMAT (-f):\e[0m"
+    echo -e "  Each line: \e[33mhostname ip_address\e[0m  or just  \e[33mip_address\e[0m"
+    echo -e "  Lines starting with # are ignored (comments)"
+    echo ""
+    echo -e "\e[96mEXAMPLES:\e[0m"
+    echo -e "  \e[32mpping\e[0m                              # Ping all devices"
+    echo -e "  \e[32mpping 192.168.1.1 192.168.1.254\e[0m    # Ping IP range"
+    echo -e "  \e[32mpping -r spine\e[0m                     # Ping only @spine devices"
+    echo -e "  \e[32mpping -r leaf -v mgmt\e[0m              # Ping @leaf via mgmt VRF"
+    echo -e "  \e[32mpping --roles\e[0m                      # List available roles"
+    echo -e "  \e[32mpping -f custom.txt\e[0m                # Use custom file"
+    echo ""
+}
+
+# Check if string is a valid IP address
+is_valid_ip() {
+    local ip="$1"
+    local IFS='.'
+    read -ra octets <<< "$ip"
+    [[ ${#octets[@]} -ne 4 ]] && return 1
+    for octet in "${octets[@]}"; do
+        [[ ! "$octet" =~ ^[0-9]+$ ]] && return 1
+        [[ "$octet" -lt 0 || "$octet" -gt 255 ]] && return 1
+    done
+    return 0
+}
+
+# Generate IP range
+generate_ip_range() {
+    local start_ip="$1"
+    local end_ip="$2"
+    
+    # Validate IPs
+    if ! is_valid_ip "$start_ip" || ! is_valid_ip "$end_ip"; then
+        echo -e "\e[91mError: Invalid IP address format\e[0m"
+        exit 1
+    fi
+    
+    # Extract octets
+    IFS='.' read -ra start_octets <<< "$start_ip"
+    IFS='.' read -ra end_octets <<< "$end_ip"
+    
+    # Check if same subnet (first 3 octets match)
+    if [[ "${start_octets[0]}" != "${end_octets[0]}" ]] || \
+       [[ "${start_octets[1]}" != "${end_octets[1]}" ]] || \
+       [[ "${start_octets[2]}" != "${end_octets[2]}" ]]; then
+        echo -e "\e[91mError: Start and end IPs must be in the same /24 subnet\e[0m"
+        echo -e "\e[91mExample: 192.168.58.10 192.168.58.240\e[0m"
+        exit 1
+    fi
+    
+    local base="${start_octets[0]}.${start_octets[1]}.${start_octets[2]}"
+    local start_last="${start_octets[3]}"
+    local end_last="${end_octets[3]}"
+    
+    if [[ "$start_last" -gt "$end_last" ]]; then
+        echo -e "\e[91mError: Start IP must be less than or equal to end IP\e[0m"
+        exit 1
+    fi
+    
+    ip_list=()
+    local count=0
+    for ((i=start_last; i<=end_last; i++)); do
+        local ip="${base}.${i}"
+        ip_list+=("$ip $ip")
+        count=$((count+1))
+    done
+    
+    echo -e "\e[32mGenerated $count IPs in range $start_ip - $end_ip\e[0m"
+}
+
+load_from_devices_yaml() {
+    local role_filter="$1"
+    local custom_file="$2"
+    find_lldpq_dir
+    local parser="$LLDPQ_DIR/parse_devices.py"
+    local yaml_file="${custom_file:-$LLDPQ_DIR/devices.yaml}"
+    
+    # Fallback: if not found, try ~/lldpq/devices.yaml
+    if [[ -z "$custom_file" && ! -f "$yaml_file" ]]; then
+        yaml_file="$HOME/lldpq/devices.yaml"
+    fi
+    
+    if [[ ! -f "$yaml_file" ]]; then
+        echo -e "\e[91mError: devices.yaml not found at $yaml_file\e[0m"
+        echo -e "\e[91mUse: \e[32mpping -f <file>\e[0m to specify a custom devices.yaml"
+        exit 1
+    fi
+    
+    if [[ ! -f "$parser" ]]; then
+        echo -e "\e[91mError: parse_devices.py not found at $parser\e[0m"
+        exit 1
+    fi
+    
+    # Parse devices.yaml and convert to ip_list format
+    local file_arg=""
+    [[ -n "$custom_file" ]] && file_arg="-f $yaml_file"
+    
+    if [[ -n "$role_filter" ]]; then
+        echo -e "\e[35mFiltering by role: @$role_filter\e[0m"
+        eval "$(python3 "$parser" -r "$role_filter" $file_arg)" || exit 1
+    else
+        eval "$(python3 "$parser" $file_arg)"
+    fi
+    
+    if [[ ${#devices[@]} -eq 0 ]]; then
+        echo -e "\e[91mError: No devices found in devices.yaml\e[0m"
+        exit 1
+    fi
+    
+    ip_list=()
+    for ip in "${!devices[@]}"; do
+        IFS=' ' read -r user hostname <<< "${devices[$ip]}"
+        ip_list+=("$hostname $ip")
+    done
+    
+    echo -e "\e[32mLoaded ${#ip_list[@]} devices from devices.yaml\e[0m"
+}
+
+load_ip_list() {
+    local file_path="$1"
+    if [[ ! -f "$file_path" ]]; then
+        echo -e "\e[91mError: \e[32m${file_path}\e[91m does not exist.\e[0m"
+        echo -e "\e[91mUse: \e[32mpping -h\e[0m for help"
+        exit 1
+    fi
+    
+    ip_list=()
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+        if [[ $(echo "$line" | awk '{print NF}') -eq 2 ]]; then
+            ip_list+=("$line")
+        else
+            ip_list+=("$line $line")
+        fi
+    done < "$file_path"
+    
+    echo -e "\e[32mLoaded ${#ip_list[@]} hosts from $file_path\e[0m"
+}
+
+command_maker() {
+    local entries=("$@")
+    local vrf="$vrf_name"
+    commands=()
+    for entry in "${entries[@]}"; do
+        hostname=$(echo "$entry" | cut -d' ' -f1)
+        ip=$(echo "$entry" | cut -d' ' -f2)
+        if [[ -n "$vrf" ]]; then
+            command="timeout $timeout vrf task exec $vrf ping -c$count $ip"
+        else
+            command="timeout $timeout ping -c$count $ip"
+        fi
+        commands+=("$command")
+    done
+}
+
+process_ping() {
+    local hostname="$1"
+    local cmd="$2"
+    local ip="$3"
+    local temp_file="$4"
+    local tries=0
+    
+    while [[ $tries -lt $max_tries ]]; do
+        tries=$((tries+1))
+        if eval "$cmd" > /dev/null 2>&1; then
+            echo -e "\e[93m${hostname} [${ip}] is UP\e[0m"
+            echo "UP:$hostname $ip" >> "$temp_file"
+            return 0
+        else
+            echo -e "\e[96m${hostname} [${ip}] is DOWN !!!\e[0m"
+        fi
+    done
+    echo "DOWN:$hostname $ip" >> "$temp_file"
+    return 1
+}
+
+full_ping() {
+    echo
+    echo -e "\e[101;93m...::Parallel Ping Starting::...\e[0m"
+    starting_time=$(date +%s)
+    hosts_up=0
+    hosts_down=0
+    unreachable_hosts=()
+    reachable_hosts=()
+    
+    # Create temporary file for collecting results (global for cleanup trap)
+    temp_results=$(mktemp)
+    local pids=()
+    
+    command_maker "${ip_list[@]}"
+    
+    echo -e "\e[32mStarting parallel ping to ${#ip_list[@]} hosts...\e[0m"
+    
+    # Start all pings in parallel
+    for i in "${!commands[@]}"; do
+        local cmd="${commands[i]}"
+        local hostname=$(echo "${ip_list[i]}" | cut -d' ' -f1)
+        local ip=$(echo "${ip_list[i]}" | cut -d' ' -f2)
+        
+        if [[ -n "$vrf_name" ]]; then
+            echo -e "\e[32mPinging:\e[0m \e[1m${hostname} [${ip}] [VRF: ${vrf_name}]\e[0m"
+        else
+            echo -e "\e[32mPinging:\e[0m \e[1m${hostname} [${ip}]\e[0m"
+        fi
+        
+        # Start ping in background
+        process_ping "$hostname" "$cmd" "$ip" "$temp_results" &
+        pids+=($!)
+    done
+    
+    echo
+    echo -e "\e[33mWaiting for all pings to complete...\e[0m"
+    
+    # Wait for all background processes
+    for pid in "${pids[@]}"; do
+        wait "$pid"
+    done
+    
+    # Process results from temp file
+    while IFS=':' read -r status host_info; do
+        if [[ "$status" == "UP" ]]; then
+            hosts_up=$((hosts_up+1))
+            reachable_hosts+=("$host_info")
+        elif [[ "$status" == "DOWN" ]]; then
+            hosts_down=$((hosts_down+1))
+            unreachable_hosts+=("$host_info")
+        fi
+    done < "$temp_results"
+    
+    # Cleanup temp file
+    rm -f "$temp_results"
+    temp_results=""
+}
+
+last_call() {
+    echo
+    echo -e "\e[101;93m...::Ping Completed::...\e[0m"
+    
+    # Sort hosts by IP address (using the IP field)
+    IFS=$'\n'
+    sorted_reachable=($(for host in "${reachable_hosts[@]}"; do echo "$host"; done | sort -t'.' -k1,1n -k2,2n -k3,3n -k4,4n))
+    sorted_unreachable=($(for host in "${unreachable_hosts[@]}"; do echo "$host"; done | sort -t'.' -k1,1n -k2,2n -k3,3n -k4,4n))
+    unset IFS
+    
+    if [[ ${#sorted_reachable[@]} -gt 0 ]]; then
+        echo -e "\n\e[92mReachable Hosts:\n\e[0m"
+        for host in "${sorted_reachable[@]}"; do
+            IFS=' ' read -r hostname ip <<< "$host"
+            echo -e "\e[32m[$ip] \e[0;32m[$hostname]\e[0m"
+        done
+        echo ""
+    fi
+    if [[ ${#sorted_unreachable[@]} -gt 0 ]]; then
+        echo -e "\n\e[96mUnreachable Hosts:\n\e[0m"
+        for host in "${sorted_unreachable[@]}"; do
+            IFS=' ' read -r hostname ip <<< "$host"
+            echo -e "\e[31m[$ip] \e[0;31m[$hostname]\e[0m"
+        done
+        echo ""
+    fi
+    
+    # Summary at the bottom
+    echo -e "\e[95m────────────────────────────────────────\e[0m"
+    elapsed_time=$(($(date +%s) - starting_time))
+    echo -e "Time Elapsed: \e[95m${elapsed_time}\e[0m seconds"
+    echo -e "Hosts UP: \e[93m${hosts_up}\e[0m, Hosts DOWN: \e[96m${hosts_down}\e[0m"
+    echo -e "\e[95m────────────────────────────────────────\e[0m"
+    echo ""
+    echo -e "Press \e[32m[P] \e[0mto do it again.\nPress \e[91m[Q] \e[0mto exit."
+    read -rsn1 char
+    if [[ $char == 'p' || $char == 'P' ]]; then
+        main_loop
+    elif [[ $char == 'q' || $char == 'Q' ]]; then
+        exit 0
+    else
+        exit 0
+    fi
+}
+
+main_loop() {
+    while true; do
+        main "$@"
+        last_call
+    done
+}
+
+main() {
+    # Handle --help and --roles first
+    for arg in "$@"; do
+        if [[ "$arg" == "--help" ]]; then
+            show_usage
+            exit 0
+        fi
+        if [[ "$arg" == "--roles" ]]; then
+            find_lldpq_dir
+            python3 "$LLDPQ_DIR/parse_devices.py" --list-roles
+            exit 0
+        fi
+    done
+    
+    local file_path=""
+    local role_filter=""
+    local start_ip=""
+    local end_ip=""
+    
+    while getopts ":v:f:r:h" opt; do
+        case $opt in
+            v) vrf_name="$OPTARG" ;;
+            f) file_path="$OPTARG" ;;
+            r) role_filter="$OPTARG" ;;
+            h) show_usage; exit 0 ;;
+            \?) echo -e "\e[91mInvalid option: -$OPTARG\e[0m" >&2
+                echo -e "\e[91mUse: \e[32mpping -h\e[0m for help" >&2
+                exit 1 ;;
+        esac
+    done
+    shift $((OPTIND-1))
+    
+    # Check for IP range arguments (remaining positional args)
+    if [[ $# -eq 2 ]]; then
+        start_ip="$1"
+        end_ip="$2"
+        if is_valid_ip "$start_ip" && is_valid_ip "$end_ip"; then
+            generate_ip_range "$start_ip" "$end_ip"
+            full_ping
+            return
+        fi
+    elif [[ $# -eq 1 ]]; then
+        # Single IP address
+        if is_valid_ip "$1"; then
+            ip_list=("$1 $1")
+            echo -e "\e[32mPinging single IP: $1\e[0m"
+            full_ping
+            return
+        fi
+    fi
+    
+    # Load from devices.yaml (with optional -f override)
+    load_from_devices_yaml "$role_filter" "$file_path"
+    
+    full_ping
+}
+
+main_loop "$@"

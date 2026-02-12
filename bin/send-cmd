@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# LLDPq Send Commands - Wrapper script
+# Copyright (c) 2024 LLDPq Project - Licensed under MIT License
+#
+# Executes commands from ~/lldpq/commands on all devices in devices.yaml
+# Edit ~/lldpq/commands to specify which commands to run (uncomment lines)
+
+# Load config
+source /etc/lldpq.conf 2>/dev/null || true
+LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
+
+# Execute main script
+exec "$LLDPQ_DIR/send-cmd.sh" "$@"

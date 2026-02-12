@@ -1,0 +1,121 @@
+            /*<![CDATA[*/
+            body::-webkit-scrollbar {
+                width: 12px;                  /* width of the entire scrollbar */
+                height: 12px;
+            }
+
+            body::-webkit-scrollbar-track {
+                background: #272822;          /* color of the tracking area */
+            }
+
+            body::-webkit-scrollbar-thumb {
+                background-color: #43453B;    /* color of the scroll thumb */
+                border-radius: 30px;          /* roundness of the scroll thumb */
+                border: 1px solid #272822;    /* creates padding around scroll thumb */
+            }
+
+            body::-webkit-scrollbar-corner {
+                background-color: #272822;
+            }
+
+            body {
+                background-color: #272822;
+                color: #666666;
+                font-size: 0.9em;
+                font-family:    Verdana, Arial, Helvetica, Open Sans, sans-serif;
+                margin: 0;
+                padding: 0;
+            }
+            ::-moz-selection { /* Code for Firefox */
+                color: #272822;
+                background: #43453B;
+            }
+            ::selection {
+                color: #272822;
+                background: #43453B;
+            }
+            a:link {
+                color: #b57614;
+            }
+            a:visited {
+                color: #b57614;
+            }
+            a:hover {
+                color: #d79921;
+            }
+            h1 {
+                text-align: center;
+                margin: 0;
+                padding: 0.6em 2em 0.4em;
+                background-color: #272822;
+                color: #666666;
+                font-weight: normal;
+                font-size: 1.75em;
+                border-bottom: 2px solid #43453B;
+            }
+            h1 strong {
+                font-weight: normal;
+                font-size: 1.5em;
+            }
+            h2 {
+                text-align: center;
+                background-color: #272822;
+                font-size: 1.1em;
+                font-weight: bold;
+                color: #666666;
+                margin: 0;
+                padding: 0.5em;
+                border-bottom: 2px solid #43453B;
+            }
+            h5 {
+                text-align: center;
+                background-color: #272822;
+                margin: 0;
+                border-bottom: 2px solid #43453B;
+            }
+            hr {
+                display: none;
+            }
+            .content {
+                padding: 1em 5em;
+            }
+            .alert {
+                border: 2px solid #43453B;
+            }
+
+            img {
+                border: 2px solid #666666;
+                padding: 2px;
+                margin: 2px;
+            }
+            a:hover img {
+                border: 2px solid #43453B;
+            }
+            .logos {
+                margin: 1em;
+                text-align: center;
+            }
+            a {
+                text-decoration: none;
+            }
+            a.point {
+                text-decoration: none;
+                color: #666666;
+            }
+            a.sec {
+                text-decoration: none;
+                color: #666666;
+            }
+            a.ssh-link {
+                color: slateblue;
+            }
+            a.ssh-link:hover {
+                color: #d79921;
+            }
+            .copyleft {
+                position: relative;
+                top: -5px;
+                display:inline-block;
+                transform: rotate(180deg);
+            }
+            /*]]>*/

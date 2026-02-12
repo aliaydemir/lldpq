@@ -1,0 +1,55 @@
+# Alertmanager Configuration for LLDPq
+# Configure your notification channels below
+
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'device', 'interface']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default-receiver'
+  
+  routes:
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      continue: true
+    
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+
+receivers:
+  - name: 'default-receiver'
+    # Configure your default notification method
+    # Examples below are commented out - uncomment and configure as needed
+    
+    # Slack webhook
+    # slack_configs:
+    #   - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+    #     channel: '#network-alerts'
+    #     title: '{{ template "slack.default.title" . }}'
+    #     text: '{{ template "slack.default.text" . }}'
+    
+    # Email
+    # email_configs:
+    #   - to: 'network-team@example.com'
+    #     from: 'lldpq-alerts@example.com'
+    #     smarthost: 'smtp.example.com:587'
+    #     auth_username: 'alerter'
+    #     auth_password: 'password'
+
+  - name: 'critical-alerts'
+    # Configure critical alert notifications
+
+  - name: 'warning-alerts'
+    # Configure warning alert notifications
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'device', 'interface']

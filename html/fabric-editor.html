@@ -1,0 +1,4038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>..::LLDPQ::..</title>
+    <link rel="shortcut icon" href="/png/favicon.ico">
+    <!-- Codicons - VS Code icon set -->
+    <link rel="stylesheet" href="/css/codicon.css">
+    <!-- No syntax highlighting - it breaks monospace alignment for ASCII art -->
+    <!-- Authentication -->
+    <script src="/css/auth.js"></script>
+    <!-- js-yaml for YAML validation (offline) -->
+    <script src="/css/js-yaml.min.js"></script>
+    <style>
+        /* Prevent browser autofill from changing input background */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px #1a1a1a inset !important;
+            -webkit-text-fill-color: #fff !important;
+            caret-color: #fff !important;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Header */
+        .header {
+            display: none;
+        }
+        
+        .header h1 {
+            display: none;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .editor-toolbar {
+            display: flex;
+            gap: 2px;
+            align-items: center;
+            background: #252526;
+            padding: 4px 8px;
+            border-bottom: 1px solid #3c3c3c;
+        }
+        
+        .toolbar-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+        
+        .toolbar-btn {
+            background: transparent;
+            border: none;
+            color: #888;
+            padding: 4px 6px;
+            cursor: pointer;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .toolbar-btn:hover {
+            background: #3d3d3d;
+            color: #fff;
+        }
+        
+        .toolbar-btn .codicon {
+            font-size: 14px;
+        }
+        
+        .toolbar-separator {
+            width: 1px;
+            height: 16px;
+            background: #444;
+            margin: 0 4px;
+        }
+        
+        .status {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: #333;
+        }
+        
+        .status.saved { color: #4ec9b0; }
+        .status.modified { color: #dcdcaa; }
+        .status.error { color: #f44747; }
+        .status.valid { color: #4ec9b0; }
+        .status.invalid { color: #f44747; }
+        
+        /* Main container */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        /* Sidebar - File Tree */
+        .sidebar {
+            width: 250px;
+            background: #252526;
+            border-right: 1px solid #404040;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .sidebar-header {
+            padding: 15px;
+            background: linear-gradient(0deg, #76b900 0%, #5a8c00 100%);
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .file-search-container {
+            padding: 8px 10px;
+            background: #252526;
+            border-bottom: 1px solid #3c3c3c;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .file-search-input {
+            flex: 1;
+            padding: 6px 10px;
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            color: #ccc;
+            font-size: 12px;
+            outline: none;
+        }
+        
+        .file-search-input:focus {
+            border-color: #76b900;
+        }
+        
+        .file-search-input::placeholder {
+            color: #666;
+        }
+        
+        .file-search-count {
+            font-size: 11px;
+            color: #888;
+            white-space: nowrap;
+        }
+        
+        .file-item.search-match {
+            background: rgba(118, 185, 0, 0.2) !important;
+        }
+        
+        .file-item.search-highlight {
+            background: rgba(118, 185, 0, 0.4) !important;
+            outline: 1px solid #76b900;
+        }
+        
+        .folder-header.search-match {
+            background: rgba(118, 185, 0, 0.15) !important;
+        }
+        
+        .file-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 0;
+        }
+        
+        .folder {
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .folder-header {
+            display: flex;
+            align-items: center;
+            padding: 6px 15px;
+            color: #ccc;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        
+        .folder-header:hover {
+            background: #2a2d2e;
+        }
+        
+        .folder-chevron {
+            margin-right: 4px;
+            font-size: 14px;
+            transition: transform 0.15s;
+            color: #888;
+        }
+        
+        .folder-icon {
+            margin-right: 6px;
+            font-size: 14px;
+            color: #dcb67a;
+        }
+        
+        .folder.collapsed .folder-chevron {
+            transform: rotate(0deg);
+        }
+        
+        .folder:not(.collapsed) .folder-chevron {
+            transform: rotate(90deg);
+        }
+        
+        .file-icon {
+            margin-right: 6px;
+            font-size: 14px;
+            color: #888;
+        }
+        
+        .file-item .codicon-file-code { color: #6997d5; }
+        .file-item .codicon-list-tree { color: #8db9e8; }
+        .file-item .codicon-bracket { color: #e5a84b; }
+        .file-item .codicon-type-hierarchy { color: #c586c0; }
+        .file-item .codicon-beaker { color: #ffd43b; }
+        .file-item .codicon-markdown { color: #519aba; }
+        .file-item .codicon-note { color: #a8a8a8; }
+        .file-item .codicon-file-media { color: #c586c0; }
+        .file-item .codicon-terminal { color: #4ec9b0; }
+        .file-item .codicon-json { color: #ce9178; }
+        .file-item .codicon-settings-gear { color: #888; }
+        .file-item .codicon-git-commit { color: #f14e32; }
+        .file-item .codicon-server { color: #4ec9b0; }
+        
+        .folder.collapsed .folder-contents {
+            display: none;
+        }
+        
+        .folder-contents {
+            padding-left: 15px;
+        }
+        
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 5px 15px 5px 25px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #aaa;
+        }
+        
+        .file-item:hover {
+            background: #2a2d2e;
+        }
+        
+        .file-item.active {
+            background: #37373d;
+            color: #fff;
+        }
+        
+        .file-item.modified::after {
+            content: '●';
+            margin-left: 8px;
+            color: #dcdcaa;
+            font-size: 10px;
+        }
+        
+        /* Git modified file indicator */
+        .file-item.git-modified {
+            color: #e2c08d;
+        }
+        .file-item.git-modified::before {
+            content: 'M';
+            margin-right: 6px;
+            color: #e2c08d;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        /* Folder with modified files */
+        .folder.has-git-modified > .folder-header {
+            color: #e2c08d;
+        }
+        .folder.has-git-modified > .folder-header::after {
+            content: '●';
+            margin-left: 6px;
+            color: #e2c08d;
+            font-size: 8px;
+        }
+        
+        .file-icon {
+            margin-right: 8px;
+            color: #e8ab53;
+        }
+        
+        /* Editor area */
+        .editor-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .editor-tabs {
+            display: flex;
+            background: #252526;
+            border-bottom: 1px solid #404040;
+            overflow-x: auto;
+        }
+        
+        .editor-tab {
+            padding: 8px 15px;
+            font-size: 13px;
+            color: #888;
+            cursor: pointer;
+            border-right: 1px solid #404040;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        
+        .editor-tab:hover {
+            background: #2d2d2d;
+        }
+        
+        .editor-tab.active {
+            background: #1e1e1e;
+            color: #fff;
+            border-bottom: 2px solid #76b900;
+        }
+        
+        .editor-tab.modified::before {
+            content: '●';
+            color: #dcdcaa;
+            font-size: 10px;
+        }
+        
+        .tab-close {
+            opacity: 0;
+            font-size: 14px;
+            color: #888;
+        }
+        
+        .editor-tab:hover .tab-close {
+            opacity: 1;
+        }
+        
+        .tab-close:hover {
+            color: #fff;
+        }
+        
+        #editor-container {
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        #markdown-preview {
+            display: none;
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
+            background: #1e1e1e;
+            border-left: 1px solid #3c3c3c;
+            tab-size: 8;  /* GitLab tab-width */
+            -moz-tab-size: 8;
+        }
+        
+        #markdown-preview.visible {
+            display: block;
+        }
+        
+        #markdown-preview.full-preview {
+            width: 100% !important;
+            max-width: 100% !important;
+            left: 0 !important;
+        }
+        
+        .editor-preview-split {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .editor-preview-split #editor-container {
+            flex: 1;
+        }
+        
+        .editor-preview-split #markdown-preview {
+            flex: 1;
+        }
+        
+        /* Markdown preview styles */
+        #markdown-preview h1, #markdown-preview h2, #markdown-preview h3,
+        #markdown-preview h4, #markdown-preview h5, #markdown-preview h6 {
+            color: #569cd6;
+            border-bottom: 1px solid #3c3c3c;
+            padding-bottom: 8px;
+            margin-top: 10px;
+            margin-bottom: 12px;
+        }
+        #markdown-preview h1 { font-size: 1.8em; }
+        #markdown-preview h2 { font-size: 1.4em; }
+        #markdown-preview h3 { font-size: 1.2em; }
+        #markdown-preview h4 { font-size: 1.1em; border-bottom: none; }
+        #markdown-preview h5 { font-size: 1.0em; border-bottom: none; }
+        #markdown-preview h6 { font-size: 0.9em; border-bottom: none; color: #888; }
+        #markdown-preview p { line-height: 1.6; margin: 10px 0; }
+        #markdown-preview code:not([class*="language-"]) {
+            background: #2d2d2d;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Menlo', 'DejaVu Sans Mono', 'Liberation Mono', 'Consolas', monospace;
+            color: #e6db74;
+            font-size: 13px;
+        }
+        #markdown-preview pre {
+            border-radius: 4px !important;
+            margin: 16px 0 !important;
+            padding: 12px 16px !important;
+            overflow-x: auto !important;
+            background: #282c34 !important;
+            word-break: normal !important;
+            overflow-wrap: normal !important;
+            word-wrap: normal !important;
+            /* Fix first line issues */
+            text-align: left !important;
+            direction: ltr !important;
+        }
+        #markdown-preview pre::before,
+        #markdown-preview pre::after {
+            content: none !important;
+            display: none !important;
+        }
+        #markdown-preview pre code {
+            display: block !important;
+            font-size: 13px !important;
+            line-height: 1.5 !important;
+            font-family: 'Menlo', 'DejaVu Sans Mono', 'Liberation Mono', 'Consolas', 'Ubuntu Mono', monospace !important;
+            white-space: pre !important;
+            tab-size: 8 !important;
+            -moz-tab-size: 8 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: transparent !important;
+            border: none !important;
+            letter-spacing: 0 !important;
+            word-spacing: 0 !important;
+            font-variant-ligatures: none !important;
+            text-rendering: geometricPrecision !important;
+            text-indent: 0 !important;
+            vertical-align: top !important;
+            /* Fix first line shift */
+            float: none !important;
+            position: static !important;
+        }
+        #markdown-preview pre code::first-line {
+            text-indent: 0 !important;
+            margin-left: 0 !important;
+            padding-left: 0 !important;
+        }
+        #markdown-preview pre code::before {
+            content: none !important;
+            display: none !important;
+        }
+        /* No highlight.js - removed to preserve monospace alignment */
+        #markdown-preview ul, #markdown-preview ol {
+            padding-left: 20px;
+        }
+        #markdown-preview li { margin: 5px 0; }
+        #markdown-preview a { color: #4ec9b0; }
+        #markdown-preview blockquote {
+            border-left: 3px solid #569cd6;
+            margin: 10px 0;
+            padding-left: 15px;
+            color: #888;
+        }
+        #markdown-preview table {
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        #markdown-preview th, #markdown-preview td {
+            border: 1px solid #3c3c3c;
+            padding: 8px 12px;
+        }
+        #markdown-preview th {
+            background: #2d2d2d;
+        }
+        
+        .no-file-open {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 14px;
+            height: 100%;
+        }
+
+        .no-file-open svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .no-file-open h2 {
+            font-size: 24px;
+            font-style: italic;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #888;
+        }
+
+        .no-file-open p {
+            font-size: 14px;
+        }
+        
+        /* Bottom bar */
+        .bottom-bar {
+            background: linear-gradient(135deg, #2d2d2d 0%, #3a3a3a 100%);
+            padding: 8px 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-top: 1px solid #404040;
+        }
+        
+        .bottom-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .bottom-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-primary {
+            background: #76b900;
+            color: #fff;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background: #8ed100;
+        }
+        
+        .btn-secondary {
+            background: #404040;
+            color: #ccc;
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: #505050;
+        }
+        
+        .btn-success {
+            background: linear-gradient(0deg, #76b900 0%, #5a8c00 100%);
+            color: #fff;
+        }
+        
+        .btn-success:hover:not(:disabled) {
+            background: linear-gradient(0deg, #8bd400 0%, #6ba000 100%);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(0deg, #ff6b00 0%, #cc5500 100%);
+            color: #fff;
+        }
+        
+        .btn-warning:hover:not(:disabled) {
+            background: linear-gradient(0deg, #ff8533 0%, #e66000 100%);
+        }
+        
+        .btn-danger {
+            background: #c53030;
+            color: #fff;
+        }
+        
+        .btn-danger:hover:not(:disabled) {
+            background: #e53e3e;
+        }
+        
+        /* Dropdown menu */
+        .dropdown {
+            position: relative;
+        }
+        
+        .dropdown-toggle::after {
+            margin-left: 4px;
+        }
+        
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            background: #2d2d2d;
+            border: 1px solid #404040;
+            border-radius: 4px;
+            min-width: 150px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            margin-bottom: 5px;
+            z-index: 1000;
+        }
+        
+        .dropdown-menu.show {
+            display: block;
+        }
+        
+        .dropdown-menu a {
+            display: block;
+            padding: 8px 12px;
+            color: #ccc;
+            text-decoration: none;
+            font-size: 13px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .dropdown-menu a:last-child {
+            border-bottom: none;
+        }
+        
+        .dropdown-menu a:hover {
+            background: #3a3a3a;
+            color: #fff;
+        }
+        
+        .host-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .host-dropdown-trigger {
+            background: #333;
+            border: 1px solid #404040;
+            color: #ccc;
+            padding: 6px 10px;
+            border-radius: 4px;
+            min-width: 140px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+        
+        .host-dropdown-trigger:hover {
+            border-color: #555;
+        }
+        
+        .host-dropdown-trigger .arrow {
+            font-size: 10px;
+            color: #888;
+        }
+        
+        .host-dropdown-menu {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            background: #2d2d2d;
+            border: 1px solid #404040;
+            border-radius: 4px;
+            min-width: 200px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1000;
+            margin-bottom: 5px;
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.3);
+        }
+        
+        .host-dropdown-menu.show {
+            display: block;
+        }
+        
+        .host-dropdown-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            color: #ccc;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .host-dropdown-item:hover {
+            background: #404040;
+        }
+        
+        .host-dropdown-item.selected {
+            background: linear-gradient(0deg, #76b900 0%, #5a8c00 100%);
+            color: white;
+        }
+        
+        .host-dropdown-group {
+            padding: 6px 12px;
+            color: #888;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-top: 1px solid #404040;
+            background: #252526;
+        }
+        
+        .host-dropdown-group:first-child {
+            border-top: none;
+        }
+        
+        .host-dropdown-menu {
+            max-height: 350px;
+        }
+        
+        /* Validation indicator */
+        .validation-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: #333;
+        }
+        
+        .validation-indicator.valid {
+            color: #4ec9b0;
+        }
+        
+        .validation-indicator.invalid {
+            color: #f44747;
+        }
+        
+        .validation-indicator .icon {
+            font-size: 14px;
+        }
+        
+        /* Output panel */
+        .output-panel {
+            display: none;
+            background: #1a1a1a;
+            border-top: 1px solid #404040;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        
+        .output-panel.visible {
+            display: block;
+        }
+        
+        .output-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 15px;
+            background: #252526;
+            border-bottom: 1px solid #404040;
+            position: sticky;
+            top: 0;
+        }
+        
+        .output-header span {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #888;
+        }
+        
+        .output-content {
+            padding: 10px 15px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            color: #ccc;
+        }
+        
+        .output-content.error {
+            color: #f44747;
+        }
+        
+        .output-content.success {
+            color: #4ec9b0;
+        }
+        
+        /* Loading overlay */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .loading-overlay.visible {
+            display: flex;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #333;
+            border-top-color: #76b900;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        .loading-text {
+            color: #888;
+            font-size: 14px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Error markers in editor */
+        .yaml-error-decoration {
+            background: rgba(255, 0, 0, 0.3);
+        }
+        
+        .yaml-error-glyph {
+            background: #f44747;
+            border-radius: 50%;
+        }
+        
+        /* MD Button active state */
+        .toolbar-btn.md-active {
+            background: #4ec9b0;
+            color: #1e1e1e;
+        }
+        
+        .toolbar-btn.md-active:hover {
+            background: #3db8a0;
+        }
+        
+        /* Light Theme */
+        body.light-theme {
+            background: #ffffff;
+            color: #333;
+        }
+        
+        body.light-theme .header {
+            background: linear-gradient(135deg, #f0f0f0 0%, #e8e8e8 100%);
+            border-bottom-color: #d0d0d0;
+        }
+        
+        body.light-theme .header h1 {
+            color: #76b900;
+        }
+        
+        body.light-theme .editor-toolbar {
+            background: #f3f3f3;
+            border-bottom-color: #e0e0e0;
+        }
+        
+        body.light-theme .toolbar-btn {
+            color: #616161;
+        }
+        
+        body.light-theme .toolbar-btn:hover {
+            background: #e0e0e0;
+            color: #333;
+        }
+        
+        body.light-theme .toolbar-separator {
+            background: #d0d0d0;
+        }
+        
+        body.light-theme .sidebar {
+            background: #f3f3f3;
+            border-right-color: #e0e0e0;
+        }
+        
+        body.light-theme .file-tree-item {
+            color: #333;
+        }
+        
+        body.light-theme .file-tree-item:hover {
+            background: #e0e0e0;
+        }
+        
+        body.light-theme .file-tree-item.active {
+            background: #d0d0d0;
+        }
+        
+        body.light-theme .editor-tabs {
+            background: #f3f3f3;
+            border-bottom-color: #e0e0e0;
+        }
+        
+        body.light-theme .editor-tab {
+            background: #ececec;
+            color: #616161;
+            border-color: #e0e0e0;
+        }
+        
+        body.light-theme .editor-tab:hover {
+            background: #e0e0e0;
+        }
+        
+        body.light-theme .editor-tab.active {
+            background: #ffffff;
+            color: #333;
+        }
+        
+        body.light-theme .bottom-bar {
+            background: #f3f3f3;
+            border-top-color: #e0e0e0;
+        }
+        
+        body.light-theme .btn {
+            background: #e0e0e0;
+            color: #333;
+        }
+        
+        body.light-theme .btn:hover {
+            background: #d0d0d0;
+        }
+        
+        body.light-theme .btn-primary {
+            background: #76b900;
+            color: #fff;
+        }
+        
+        body.light-theme .output-panel {
+            background: #f3f3f3;
+            border-top-color: #e0e0e0;
+        }
+        
+        body.light-theme #markdown-preview {
+            background: #ffffff;
+            color: #333;
+        }
+        
+        body.light-theme .help-modal {
+            background: #ffffff;
+            border-color: #e0e0e0;
+        }
+        
+        body.light-theme .help-modal-header {
+            background: #ffffff;
+            border-bottom-color: #e0e0e0;
+        }
+        
+        body.light-theme .help-modal-header h2 {
+            color: #333;
+        }
+        
+        body.light-theme .help-table {
+            border-color: #e0e0e0;
+        }
+        
+        body.light-theme .help-table th {
+            background: #f3f3f3;
+            border-color: #e0e0e0;
+            color: #616161;
+        }
+        
+        body.light-theme .help-table td {
+            border-color: #e0e0e0;
+            color: #333;
+        }
+        
+        body.light-theme .help-table kbd {
+            background: #e0e0e0;
+            color: #333;
+        }
+        
+        body.light-theme .help-footer {
+            border-top-color: #e0e0e0;
+            color: #999;
+        }
+        
+        /* Help Modal */
+        .help-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .help-modal-overlay.visible {
+            display: flex;
+        }
+        
+        .help-modal {
+            background: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 8px;
+            max-width: 850px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+        
+        .help-modal::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .help-modal::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+        
+        .help-modal::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 4px;
+        }
+        
+        .help-modal::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        .help-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #3c3c3c;
+            position: sticky;
+            top: 0;
+            background: #252526;
+        }
+        
+        .help-modal-header h2 {
+            margin: 0;
+            font-size: 16px;
+            color: #fff;
+        }
+        
+        .help-modal-close {
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 4px 8px;
+        }
+        
+        .help-modal-close:hover {
+            color: #fff;
+        }
+        
+        .help-modal-content {
+            padding: 16px 20px;
+        }
+        
+        .help-section {
+            margin-bottom: 20px;
+        }
+        
+        .help-section h3 {
+            color: #4EC9B0;
+            font-size: 13px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .help-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #3c3c3c;
+        }
+        
+        .help-table th {
+            text-align: left;
+            color: #888;
+            font-size: 11px;
+            padding: 8px 12px;
+            border: 1px solid #3c3c3c;
+            background: #1e1e1e;
+        }
+        
+        .help-table td {
+            padding: 8px 12px;
+            font-size: 12px;
+            border: 1px solid #3c3c3c;
+        }
+        
+        .help-table td:first-child,
+        .help-table th:first-child {
+            color: #d4d4d4;
+            width: 180px;
+        }
+        
+        .help-table td:nth-child(2),
+        .help-table th:nth-child(2) {
+            color: #888;
+            font-family: monospace;
+            font-size: 11px;
+            width: 180px;
+        }
+        
+        .help-table td:nth-child(3),
+        .help-table th:nth-child(3) {
+            color: #888;
+            font-family: monospace;
+            font-size: 11px;
+            width: 180px;
+        }
+        
+        .help-table kbd {
+            background: #3c3c3c;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            color: #ddd;
+        }
+        
+        .help-footer {
+            text-align: center;
+            padding: 16px 20px;
+            border-top: 1px solid #3c3c3c;
+            color: #555;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Fabric Editor</h1>
+        <div class="header-actions">
+            <div id="yaml-validation" class="validation-indicator valid" style="display: none;">
+                <span class="icon">✓</span>
+                <span class="text">YAML Valid</span>
+            </div>
+            <span id="status" class="status saved">Ready</span>
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M14.6,16.6L19.2,12L14.6,7.4L16,6L22,12L16,18L14.6,16.6M9.4,16.6L4.8,12L9.4,7.4L8,6L2,12L8,18L9.4,16.6Z"/>
+                </svg>
+                Fabric Editor
+            </div>
+            <div class="file-search-container">
+                <input type="text" id="file-search" class="file-search-input" placeholder="Search files..." oninput="filterFileTree(this.value)" onkeydown="handleSearchKeydown(event)">
+                <span id="file-search-count" class="file-search-count"></span>
+            </div>
+            <div id="file-tree" class="file-tree">
+                <!-- File tree will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <div class="editor-area">
+            <div class="editor-toolbar">
+                <button class="toolbar-btn" onclick="editorAction('find')" title="Find (Ctrl+F)">
+                    <span class="codicon codicon-search"></span>
+                </button>
+                <button class="toolbar-btn" onclick="editorAction('replace')" title="Find & Replace (Ctrl+H)">
+                    <span class="codicon codicon-find-replace"></span>
+                </button>
+                <span class="toolbar-separator"></span>
+                <button class="toolbar-btn" onclick="editorAction('toggleComment')" title="Toggle Comment (Ctrl+/)">
+                    <span class="codicon codicon-comment"></span>
+                </button>
+                <button class="toolbar-btn" onclick="editorAction('format')" title="Format Document">
+                    <span class="codicon codicon-list-tree"></span>
+                </button>
+                <span class="toolbar-separator"></span>
+                <button class="toolbar-btn" onclick="editorAction('undo')" title="Undo (Ctrl+Z)">
+                    <span class="codicon codicon-discard"></span>
+                </button>
+                <button class="toolbar-btn" onclick="editorAction('redo')" title="Redo (Ctrl+Shift+Z)">
+                    <span class="codicon codicon-redo"></span>
+                </button>
+                <span class="toolbar-separator"></span>
+                <button class="toolbar-btn" onclick="editorAction('zoomIn')" title="Zoom In (Ctrl++)">
+                    <span class="codicon codicon-zoom-in"></span>
+                </button>
+                <button class="toolbar-btn" onclick="editorAction('zoomReset')" title="Reset Zoom">
+                    <span class="codicon codicon-screen-normal"></span>
+                </button>
+                <button class="toolbar-btn" onclick="editorAction('zoomOut')" title="Zoom Out (Ctrl+-)">
+                    <span class="codicon codicon-zoom-out"></span>
+                </button>
+                <span class="toolbar-separator"></span>
+                <button class="toolbar-btn" onclick="editorAction('foldAll')" title="Fold All">
+                    <span class="codicon codicon-fold"></span>
+                </button>
+                <button class="toolbar-btn" onclick="editorAction('unfoldAll')" title="Unfold All">
+                    <span class="codicon codicon-unfold"></span>
+                </button>
+                <span class="toolbar-separator"></span>
+                <button class="toolbar-btn" onclick="editorAction('gotoLine')" title="Go to Line (Ctrl+G)">
+                    <span class="codicon codicon-go-to-file"></span>
+                </button>
+                <button class="toolbar-btn" onclick="editorAction('wordWrap')" title="Toggle Word Wrap">
+                    <span class="codicon codicon-word-wrap"></span>
+                </button>
+                <button class="toolbar-btn" onclick="editorAction('minimap')" title="Toggle Minimap">
+                    <span class="codicon codicon-layout-sidebar-right"></span>
+                </button>
+                <span class="toolbar-separator"></span>
+                <button class="toolbar-btn" onclick="editorAction('commandPalette')" title="Command Palette (F1)">
+                    <span class="codicon codicon-terminal"></span>
+                </button>
+                <button class="toolbar-btn" onclick="closeAllTabs()" title="Close All Tabs" style="color: #f48771;">
+                    <span class="codicon codicon-close-all"></span>
+                </button>
+                <span class="toolbar-separator"></span>
+                <button id="autocomplete-toggle" class="toolbar-btn" onclick="toggleAutocomplete()" title="Toggle Auto-completion (Off by default)">
+                    <span class="codicon codicon-lightbulb-autofix"></span>
+                </button>
+                <button id="theme-toggle" class="toolbar-btn" onclick="toggleTheme()" title="Toggle Light/Dark Theme">
+                    <span class="codicon codicon-color-mode"></span>
+                </button>
+                <span class="toolbar-separator"></span>
+                <button class="toolbar-btn" id="btn-preview" onclick="toggleMarkdownMode()" title="Toggle Mode" style="display: none;">
+                    MD
+                </button>
+                <div class="toolbar-right">
+                    <button class="toolbar-btn" onclick="showHelpModal()" title="Keyboard Shortcuts">
+                        <span class="codicon codicon-question"></span>
+                    </button>
+                </div>
+            </div>
+            <div id="editor-tabs" class="editor-tabs">
+                <!-- Tabs will be added dynamically -->
+            </div>
+            <div id="editor-preview-wrapper" class="editor-preview-split">
+                <div id="editor-container">
+                    <div class="no-file-open" id="no-file-message">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/>
+                        </svg>
+                        <h2>Fabric Editor</h2>
+                        <p>Select a file from the left panel to view and edit its content</p>
+                    </div>
+                </div>
+                <div id="markdown-preview"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="output-panel" class="output-panel">
+        <div class="output-header">
+            <button class="btn btn-secondary" onclick="hideOutput()" style="padding: 4px 8px; font-size: 11px;">✕</button>
+            <span>Output</span>
+        </div>
+        <div id="output-content" class="output-content"></div>
+    </div>
+    
+    <div class="bottom-bar">
+        <div class="bottom-left">
+            <button id="btn-new" class="btn btn-secondary" onclick="createNewFile()">
+                + New
+            </button>
+            <button id="btn-save" class="btn btn-secondary" onclick="saveCurrentFile()" disabled>
+                Save
+            </button>
+            <button id="btn-save-all" class="btn btn-secondary" onclick="saveAllFiles()" disabled>
+                Save All
+            </button>
+            <button id="btn-delete" class="btn btn-danger" onclick="deleteCurrentFile()" disabled>
+                Delete
+            </button>
+            <button id="btn-rename" class="btn btn-secondary" onclick="renameCurrentFile()" disabled>
+                Rename
+            </button>
+            <button id="btn-validate" class="btn btn-secondary" onclick="validateCurrentFile()">
+                Validate YAML
+            </button>
+            <span style="margin: 0 10px; border-left: 1px solid #444; height: 24px; display: inline-block;"></span>
+            <button id="btn-commit" class="btn btn-primary" onclick="gitCommitPush()">
+                Commit & Push
+            </button>
+            <button id="btn-pull" class="btn btn-secondary" onclick="gitPull()">
+                Pull
+            </button>
+            <button class="btn btn-secondary" onclick="gitStatus()" title="View uncommitted changes">
+                Status
+            </button>
+            <button class="btn btn-secondary" onclick="gitLog()" title="View commit history">
+                History
+            </button>
+            <button class="btn btn-secondary" onclick="gitDiff()" title="Show git diff">
+                Diff
+            </button>
+            <button class="btn btn-secondary" onclick="confirmResetFile()" style="color: #ffb347;" title="Reset current file to last commit">
+                Reset File
+            </button>
+            <button class="btn btn-secondary" onclick="gitReset()" style="color: #ff6b6b;" title="Discard all uncommitted changes">
+                Reset All
+            </button>
+        </div>
+        <div class="bottom-right" style="display: flex; align-items: center; gap: 15px;">
+            <!-- Search in inventory -->
+            <div style="position: relative; display: flex; align-items: center;">
+                <span id="search-clear" onclick="clearSearch()" 
+                      style="position: absolute; left: 6px; cursor: pointer; color: #888; font-size: 14px; display: none; z-index: 1;"
+                      title="Clear search">✕</span>
+                <input type="text" id="inventory-search" placeholder="mgrep inventory" 
+                       style="background: #333; border: 1px solid #555; color: #ccc; padding: 4px 10px 4px 24px; border-radius: 4px; font-size: 12px; width: 190px;"
+                       onkeydown="if(event.key==='Enter') searchInventory(this.value)"
+                       oninput="document.getElementById('search-clear').style.display = this.value ? 'block' : 'none'">
+            </div>
+            <!-- Modified Files Indicator -->
+            <div id="git-modified-indicator" style="display: flex; gap: 20px; align-items: center; font-size: 12px;">
+                <span id="host-vars-count" style="color: #666; cursor: pointer;" onclick="filterToHostVars()" title="Click to filter host vars">
+                    host vars: <span style="color: #666;">0</span>
+                </span>
+                <span id="group-vars-count" style="color: #666; cursor: pointer;" onclick="filterToGroupVars()" title="Click to filter group vars">
+                    group vars: <span style="color: #666;">0</span>
+                </span>
+            </div>
+        </div>
+    </div>
+    
+    <div id="loading" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div id="loading-text" class="loading-text">Loading...</div>
+    </div>
+
+    <!-- Monaco Editor (offline) -->
+    <script src="/monaco/vs/loader.js"></script>
+    
+    <!-- Markdown Preview -->
+    <script src="/css/marked.min.js"></script>
+    
+    <script>
+        // Check authentication - admin only page
+        // Early git status (loaded in parallel with other resources)
+        let earlyGitModifiedFiles = [];
+        let gitStatusLoadedOnce = false;  // Prevent early fetch from overwriting later updates
+        
+        (async function checkAuth() {
+            try {
+                const response = await fetch('/auth-api?action=check');
+                const data = await response.json();
+                if (!data.authenticated) {
+                    window.location.href = '/login.html';
+                    return;
+                }
+                if (data.role !== 'admin') {
+                    alert('Access denied. Admin privileges required.');
+                    window.location.href = '/';
+                    return;
+                }
+                
+                // Start loading git status immediately after auth (parallel with Monaco)
+                fetch('/ansible-api?action=get-modified-files')
+                    .then(r => r.json())
+                    .then(result => {
+                        if (result.success && !gitStatusLoadedOnce) {
+                            earlyGitModifiedFiles = result.modified_files || [];
+                            // Update UI if state is ready
+                            if (typeof state !== 'undefined' && state.gitModifiedFiles !== undefined) {
+                                state.gitModifiedFiles = earlyGitModifiedFiles;
+                                if (typeof updateModifiedFilter === 'function') updateModifiedFilter();
+                                if (typeof markGitModifiedFiles === 'function') markGitModifiedFiles();
+                            }
+                        }
+                    })
+                    .catch(() => {});
+                    
+            } catch (e) {
+                window.location.href = '/login.html';
+            }
+        })();
+        
+        // State management
+        const state = {
+            files: {},           // { path: { content, originalContent, modified, valid } }
+            currentFile: null,
+            lastFolder: '',      // Last opened folder (for new file creation)
+            editor: null,
+            groups: [],          // Ansible groups
+            hosts: [],           // Individual hosts
+            decorations: [],     // For error markers
+            previewListener: null, // For markdown preview updates
+            gitModifiedFiles: earlyGitModifiedFiles || []  // Files with uncommitted git changes (may be pre-loaded)
+        };
+        
+        // Apply early loaded git status if available
+        if (earlyGitModifiedFiles && earlyGitModifiedFiles.length > 0) {
+            setTimeout(() => {
+                updateModifiedFilter();
+            }, 100);
+        }
+        
+        // Check if js-yaml is loaded
+        const hasJsYaml = typeof jsyaml !== 'undefined';
+        
+        // Autocomplete state (OFF by default)
+        let autocompleteEnabled = false;
+        
+        // Project-specific Jinja variables (fetched from API)
+        let projectVariables = [];
+        
+        // Fetch Jinja variables from project
+        async function fetchProjectVariables() {
+            try {
+                const response = await fetch('/ansible-api?action=get-jinja-variables');
+                const data = await response.json();
+                if (data.success && data.variables) {
+                    projectVariables = data.variables;
+                    console.log('Loaded', projectVariables.length, 'project variables for autocomplete');
+                }
+            } catch (e) {
+                console.warn('Failed to load project variables:', e);
+            }
+        }
+        
+        // Load variables on startup
+        fetchProjectVariables();
+        
+        // Toggle autocomplete function
+        function toggleAutocomplete() {
+            autocompleteEnabled = !autocompleteEnabled;
+            const btnEl = document.getElementById('autocomplete-toggle');
+            btnEl.style.color = autocompleteEnabled ? '#4EC9B0' : '#858585';
+        }
+        
+        // Theme toggle
+        let isDarkTheme = true;
+        
+        function toggleTheme() {
+            isDarkTheme = !isDarkTheme;
+            const theme = isDarkTheme ? 'vs-dark' : 'vs';
+            
+            // Change Monaco theme
+            if (typeof monaco !== 'undefined' && state.editor) {
+                monaco.editor.setTheme(theme);
+            }
+            
+            // Change UI theme
+            document.body.classList.toggle('light-theme', !isDarkTheme);
+            
+            // Update button icon
+            const btn = document.getElementById('theme-toggle');
+            btn.title = isDarkTheme ? 'Switch to Light Theme' : 'Switch to Dark Theme';
+            btn.style.color = isDarkTheme ? '#858585' : '#FDB813';
+            
+            // Save preference
+            localStorage.setItem('editor-theme', isDarkTheme ? 'dark' : 'light');
+        }
+        
+        // Load saved theme on startup
+        function loadSavedTheme() {
+            const saved = localStorage.getItem('editor-theme');
+            if (saved === 'light') {
+                isDarkTheme = true;
+                toggleTheme();
+            }
+        }
+        
+        // Help modal functions
+        function showHelpModal() {
+            document.getElementById('help-modal').classList.add('visible');
+        }
+        
+        function hideHelpModal() {
+            document.getElementById('help-modal').classList.remove('visible');
+        }
+        
+        // Close help modal with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && document.getElementById('help-modal').classList.contains('visible')) {
+                hideHelpModal();
+            }
+        });
+        
+        // ============================================
+        // LANGUAGE AUTO-DETECTION (global scope)
+        // ============================================
+        function detectLanguage(content) {
+            if (!content || content.trim().length === 0) return null;
+            const lines = content.split('\n').slice(0, 30);
+            const firstLines = lines.join('\n');
+            
+            // Cumulus NVUE
+            if (/^nv\s+(set|show|unset|config|action)/m.test(firstLines)) return 'cumulus';
+            
+            // Ansible playbook (YAML with specific patterns) - check before Jinja2
+            if (/^-\s*(hosts|name):/m.test(firstLines) || /^\s*tasks:/m.test(firstLines) || /^\s*roles:/m.test(firstLines) || /^\s*become:/m.test(firstLines) || /^\s*gather_facts:/m.test(firstLines)) return 'yaml';
+            
+            // YAML header
+            if (/^---/.test(firstLines) && /:\s*$/m.test(firstLines)) return 'yaml';
+            if (/^-\s*(header|set):/m.test(firstLines)) return 'yaml';
+            
+            // Jinja2 (only if not Ansible)
+            if (/\{\{|\{%|\{#/.test(firstLines) && !/^-\s*(hosts|name):/m.test(firstLines)) return 'twig';
+            
+            // Graphviz DOT
+            if (/^(strict\s+)?(di)?graph\s+/m.test(firstLines)) return 'dot';
+            
+            // Nginx
+            if (/^\s*(server|http|events|upstream)\s*\{/m.test(firstLines) || /^\s*location\s+/m.test(firstLines)) return 'nginx';
+            
+            // Shell
+            if (/^#!.*\b(bash|sh|zsh)\b/.test(firstLines) || /^\s*(if|for|while|case)\s+.*;\s*(then|do)/m.test(firstLines)) return 'shell';
+            
+            // INI (Ansible inventory)
+            if (/^\[[\w:_-]+\]/.test(firstLines)) return 'ini';
+            
+            // JSON
+            if (/^\s*[\[{]/.test(firstLines) && /[}\]]\s*$/.test(content.trim())) return 'json';
+            
+            // Markdown
+            if (/^#{1,6}\s+/.test(firstLines) || /^\*\*.*\*\*/.test(firstLines) || /^!\[/.test(firstLines)) return 'markdown';
+            
+            return null;
+        }
+        
+        // Detect language based on file extension and content
+        function detectLanguageForFile(path, content) {
+            // Get file extension
+            const ext = path.split('.').pop().toLowerCase();
+            
+            // Extension-based detection (priority)
+            const extMap = {
+                'yaml': 'yaml', 'yml': 'yaml',
+                'j2': 'twig', 'jinja': 'twig', 'jinja2': 'twig',
+                'json': 'json',
+                'md': 'markdown', 'markdown': 'markdown',
+                'sh': 'shell', 'bash': 'shell', 'zsh': 'shell',
+                'py': 'python',
+                'js': 'javascript',
+                'ts': 'typescript',
+                'html': 'html', 'htm': 'html',
+                'css': 'css',
+                'xml': 'xml',
+                'ini': 'ini', 'cfg': 'ini', 'conf': 'ini',
+                'dot': 'dot', 'gv': 'dot',
+                'sql': 'sql'
+            };
+            
+            // For certain extensions, check content to override
+            if (ext === 'yaml' || ext === 'yml') {
+                // Check if it's Cumulus NVUE YAML
+                if (/^nv\s+(set|show|unset|config|action)/m.test(content)) {
+                    return 'cumulus';
+                }
+                return 'yaml';
+            }
+            
+            if (ext === 'txt' || !extMap[ext]) {
+                // For .txt or unknown extensions, use content detection
+                const detected = detectLanguage(content);
+                if (detected) return detected;
+            }
+            
+            // For .conf files, check if nginx or ini
+            if (ext === 'conf') {
+                if (/^\s*(server|http|events|upstream)\s*\{/m.test(content)) {
+                    return 'nginx';
+                }
+                return 'ini';
+            }
+            
+            return extMap[ext] || 'plaintext';
+        }
+        
+        // Monaco lazy loading - don't load until first file is opened
+        let monacoReady = false;
+        let monacoLoadPromise = null;
+        
+        require.config({ paths: { vs: '/monaco/vs' } });
+        
+        // Function to load Monaco on demand
+        function ensureMonacoLoaded() {
+            if (monacoReady) return Promise.resolve();
+            if (monacoLoadPromise) return monacoLoadPromise;
+            
+            monacoLoadPromise = new Promise((resolve) => {
+                document.getElementById('no-file-message').innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.06 9.02l.92.92L5.92 19H5v-.92l9.06-9.06M17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83 3.75 3.75 1.83-1.83c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29zm-3.6 3.19L3 17.25V21h3.75L17.81 9.94l-3.75-3.75z"/></svg><h2>Loading Editor...</h2><p>Please wait</p>';
+                initMonaco(resolve);
+            });
+            return monacoLoadPromise;
+        }
+        
+        // Load file tree immediately (no Monaco needed)
+        fetch('/ansible-api?action=list')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    renderFileTree(data.files);
+                    state.groups = data.groups || [];
+                    state.hosts = data.hosts || [];
+                    populateHostSelect();
+                    // Mark git modified files after tree is loaded
+                    if (state.gitModifiedFiles && state.gitModifiedFiles.length > 0) {
+                        markGitModifiedFiles();
+                        updateModifiedFilter();
+                    }
+                }
+            })
+            .catch(e => console.error('Failed to load files:', e));
+        
+        // Initialize Monaco Editor (called lazily)
+        function initMonaco(onReady) {
+        
+        require(['vs/editor/editor.main'], function() {
+            
+            // ============================================
+            // REGISTER CUMULUS (NVUE) LANGUAGE
+            // ============================================
+            monaco.languages.register({ id: 'cumulus' });
+            monaco.languages.setMonarchTokensProvider('cumulus', {
+                tokenizer: {
+                    root: [
+                        [/^nv\b/, 'keyword.control', '@nvcommand'],
+                        [/#.*$/, 'comment'],
+                        [/\b(on|off|enable|disable|enabled|disabled|true|false|yes|no)\b/, 'constant'],
+                        [/\b\d+\.\d+\.\d+\.\d+(\/\d+)?\b/, 'number'],
+                        [/\b\d+\b/, 'number'],
+                        [/"[^"]*"/, 'string'],
+                        [/'[^']*'/, 'string'],
+                    ],
+                    nvcommand: [
+                        [/\b(set|unset|show|apply|config|action|diff)\b/, 'keyword'],
+                        [/\b(interface|router|bridge|system|vrf|mlag|platform|qos|acl|evpn|service|nve|maintenance)\b/, 'type'],
+                        [/\b(bgp|ospf|ospf6|policy|pim|igmp|pbr|static)\b/, 'type'],
+                        [/\b(swp\d+s?\d*|bond[a-zA-Z0-9_-]+|eth\d+|lo|peerlink|vlan\d+|br_default|mgmt)\b/, 'variable'],
+                        [/\b(ip|link|address|neighbor|member|domain|vni|route-map|prefix-list|autonomous-system|router-id)\b/, 'keyword'],
+                        [/\b(enable|state|mtu|speed|description|hostname|vrf|gateway)\b/, 'keyword'],
+                        [/\b(multihoming|segment|local-id|df-preference|mac-address)\b/, 'keyword'],
+                        [/\b(access|untagged|vlan)\b/, 'string'],
+                        [/\b\d+\.\d+\.\d+\.\d+(\/\d+)?\b/, 'number'],
+                        [/\b\d+\b/, 'number'],
+                        [/"[^"]*"/, 'string'],
+                        [/'[^']*'/, 'string'],
+                        [/#.*$/, 'comment'],
+                        [/$/, '', '@pop'],
+                    ]
+                }
+            });
+            
+            // ============================================
+            // REGISTER GRAPHVIZ DOT LANGUAGE
+            // ============================================
+            monaco.languages.register({ id: 'dot' });
+            monaco.languages.setMonarchTokensProvider('dot', {
+                tokenizer: {
+                    root: [
+                        [/\b(graph|digraph|subgraph|node|edge|strict)\b/, 'keyword'],
+                        [/\b(label|color|style|shape|fontsize|fontname|fillcolor|bgcolor|rankdir|rank|weight|len|dir|arrowhead|arrowtail|headlabel|taillabel|constraint|splines|overlap|compound|lhead|ltail|samehead|sametail|minlen|penwidth|width|height|margin|pad|nodesep|ranksep|size|ratio|orientation|center|layers|layersep|ordering|outputorder|page|pagedir|quantum|remincross|rotate|samplepoints|searchsize|showboxes|URL|tooltip|target|id|class|href|peripheries|regular|sides|skew|distortion|pos|rects|xlp|xlabel|headclip|tailclip)\b/, 'attribute.name'],
+                        [/->|--/, 'operator'],
+                        [/[{}[\];,=]/, 'delimiter'],
+                        [/"[^"]*"/, 'string'],
+                        [/\/\/.*$/, 'comment'],
+                        [/\/\*/, 'comment', '@comment'],
+                        [/#.*$/, 'comment'],
+                        [/\b\d+(\.\d+)?\b/, 'number'],
+                    ],
+                    comment: [
+                        [/\*\//, 'comment', '@pop'],
+                        [/./, 'comment']
+                    ]
+                }
+            });
+            
+            // ============================================
+            // REGISTER NGINX LANGUAGE
+            // ============================================
+            monaco.languages.register({ id: 'nginx' });
+            monaco.languages.setMonarchTokensProvider('nginx', {
+                tokenizer: {
+                    root: [
+                        [/#.*$/, 'comment'],
+                        [/\b(server|location|upstream|http|events|stream|mail|map|geo|types|if|else|set|return|rewrite|break|proxy_pass|fastcgi_pass|uwsgi_pass|scgi_pass|memcached_pass|grpc_pass)\b/, 'keyword'],
+                        [/\b(listen|server_name|root|index|error_page|access_log|error_log|client_max_body_size|keepalive_timeout|sendfile|tcp_nopush|tcp_nodelay|gzip|gzip_types|gzip_vary|gzip_proxied|gzip_comp_level|gzip_buffers|gzip_http_version|gzip_min_length|ssl|ssl_certificate|ssl_certificate_key|ssl_protocols|ssl_ciphers|ssl_prefer_server_ciphers|ssl_session_cache|ssl_session_timeout|add_header|expires|proxy_set_header|proxy_connect_timeout|proxy_send_timeout|proxy_read_timeout|proxy_buffer_size|proxy_buffers|proxy_busy_buffers_size|proxy_temp_file_write_size|proxy_http_version|proxy_cache|proxy_cache_valid|proxy_cache_bypass|proxy_no_cache|include|worker_processes|worker_connections|use|multi_accept|default_type|charset|log_format|try_files|alias|internal|stub_status|allow|deny|auth_basic|auth_basic_user_file|autoindex|limit_req|limit_req_zone|limit_conn|limit_conn_zone)\b/, 'type'],
+                        [/\$[a-zA-Z_][a-zA-Z0-9_]*/, 'variable'],
+                        [/[{}]/, 'delimiter.bracket'],
+                        [/[;]/, 'delimiter'],
+                        [/~\*?|=|\^~/, 'operator'],
+                        [/"[^"]*"/, 'string'],
+                        [/'[^']*'/, 'string'],
+                        [/\b\d+[kmgKMG]?\b/, 'number'],
+                        [/\b(on|off|true|false)\b/, 'constant'],
+                    ]
+                }
+            });
+            
+            // ============================================
+            // JINJA2 COMPLETION PROVIDER
+            // ============================================
+            monaco.languages.registerCompletionItemProvider('twig', {
+                triggerCharacters: ['{', '%', '|', ' '],
+                provideCompletionItems: function(model, position) {
+                    if (!autocompleteEnabled) return { suggestions: [] };
+                    const lineContent = model.getLineContent(position.lineNumber);
+                    const textUntilPosition = lineContent.substring(0, position.column - 1);
+                    const suggestions = [];
+                    const range = {
+                        startLineNumber: position.lineNumber,
+                        endLineNumber: position.lineNumber,
+                        startColumn: position.column,
+                        endColumn: position.column
+                    };
+                    
+                    if (/\{\{\s*$/.test(textUntilPosition)) {
+                        // Built-in Ansible/Jinja variables
+                        ['item', 'loop', 'loop.index', 'loop.first', 'loop.last', 'ansible_host', 'ansible_hostname', 'inventory_hostname', 'hostvars', 'groups', 'group_names'].forEach(v => {
+                            suggestions.push({ label: v, kind: monaco.languages.CompletionItemKind.Variable, insertText: v + ' }}', range: range, detail: 'built-in' });
+                        });
+                        // Project-specific variables
+                        projectVariables.forEach(v => {
+                            suggestions.push({ label: v, kind: monaco.languages.CompletionItemKind.Field, insertText: v + ' }}', range: range, detail: 'project' });
+                        });
+                    }
+                    if (/\|\s*$/.test(textUntilPosition)) {
+                        ['default', 'lower', 'upper', 'title', 'capitalize', 'trim', 'length', 'first', 'last', 'join', 'sort', 'unique', 'map', 'select', 'reject', 'selectattr', 'rejectattr', 'json_query', 'to_yaml', 'to_json', 'from_yaml', 'from_json', 'regex_replace', 'regex_search', 'ipaddr', 'ipv4', 'ipv6'].forEach(f => {
+                            suggestions.push({ label: f, kind: monaco.languages.CompletionItemKind.Function, insertText: f, range: range });
+                        });
+                    }
+                    if (/\{%\s*$/.test(textUntilPosition)) {
+                        [
+                            { label: 'if', insert: 'if ${1:condition} %}\\n${2}\\n{% endif %}' },
+                            { label: 'for', insert: 'for ${1:item} in ${2:list} %}\\n${3}\\n{% endfor %}' },
+                            { label: 'block', insert: 'block ${1:name} %}\\n${2}\\n{% endblock %}' },
+                            { label: 'include', insert: "include '${1:template.j2}' %}" },
+                            { label: 'set', insert: 'set ${1:var} = ${2:value} %}' }
+                        ].forEach(b => {
+                            suggestions.push({ label: b.label, kind: monaco.languages.CompletionItemKind.Snippet, insertText: b.insert, insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, range: range });
+                        });
+                    }
+                    return { suggestions: suggestions };
+                }
+            });
+            
+            // ============================================
+            // YAML (ANSIBLE) COMPLETION PROVIDER
+            // ============================================
+            monaco.languages.registerCompletionItemProvider('yaml', {
+                triggerCharacters: [' ', ':', '-', '\n', '{'],
+                provideCompletionItems: function(model, position) {
+                    if (!autocompleteEnabled) return { suggestions: [] };
+                    const lineContent = model.getLineContent(position.lineNumber);
+                    const textUntilPosition = lineContent.substring(0, position.column - 1);
+                    const suggestions = [];
+                    const range = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: position.column, endColumn: position.column };
+                    
+                    // Jinja variables inside YAML (when typing {{ )
+                    if (/\{\{\s*$/.test(textUntilPosition)) {
+                        // Built-in Ansible/Jinja variables
+                        ['item', 'loop', 'loop.index', 'loop.first', 'loop.last', 'ansible_host', 'ansible_hostname', 'inventory_hostname', 'hostvars', 'groups', 'group_names'].forEach(v => {
+                            suggestions.push({ label: v, kind: monaco.languages.CompletionItemKind.Variable, insertText: v + ' }}', range: range, detail: 'built-in' });
+                        });
+                        // Project-specific variables
+                        projectVariables.forEach(v => {
+                            suggestions.push({ label: v, kind: monaco.languages.CompletionItemKind.Field, insertText: v + ' }}', range: range, detail: 'project' });
+                        });
+                        return { suggestions: suggestions };
+                    }
+                    
+                    // Jinja filters (when typing | )
+                    if (/\|\s*$/.test(textUntilPosition)) {
+                        ['default', 'lower', 'upper', 'title', 'trim', 'length', 'first', 'last', 'join', 'sort', 'unique', 'to_yaml', 'to_json', 'from_yaml', 'from_json', 'ipaddr'].forEach(f => {
+                            suggestions.push({ label: f, kind: monaco.languages.CompletionItemKind.Function, insertText: f, range: range });
+                        });
+                        return { suggestions: suggestions };
+                    }
+                    
+                    if (/^\s*-\s*$/.test(textUntilPosition)) {
+                        ['name', 'hosts', 'tasks', 'roles', 'vars', 'handlers', 'gather_facts', 'become', 'become_user', 'serial', 'connection'].forEach(k => {
+                            suggestions.push({ label: k, kind: monaco.languages.CompletionItemKind.Property, insertText: k + ': ', range: range });
+                        });
+                    }
+                    if (/^\s{4,}\w*$/.test(textUntilPosition) || /^\s+$/.test(textUntilPosition)) {
+                        const modules = ['copy', 'template', 'file', 'lineinfile', 'shell', 'command', 'apt', 'yum', 'pip', 'service', 'systemd', 'user', 'group', 'git', 'uri', 'get_url', 'debug', 'set_fact', 'include_tasks', 'include_role', 'assert', 'fail', 'wait_for', 'pause', 'nclu', 'nvidia_nvue'];
+                        modules.forEach(m => {
+                            suggestions.push({ label: m, kind: monaco.languages.CompletionItemKind.Module, insertText: m + ':\\n  ', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, range: range });
+                        });
+                        const options = ['when', 'register', 'loop', 'with_items', 'notify', 'ignore_errors', 'changed_when', 'failed_when', 'delegate_to', 'run_once', 'become', 'tags', 'block', 'rescue', 'always'];
+                        options.forEach(o => {
+                            suggestions.push({ label: o, kind: monaco.languages.CompletionItemKind.Keyword, insertText: o + ': ', range: range });
+                        });
+                    }
+                    if (/:\s*$/.test(textUntilPosition)) {
+                        ['true', 'false', 'yes', 'no'].forEach(v => {
+                            suggestions.push({ label: v, kind: monaco.languages.CompletionItemKind.Value, insertText: v, range: range });
+                        });
+                    }
+                    // Top-level YAML keys - suggest project variables
+                    if (/^[a-zA-Z_]*$/.test(textUntilPosition.trim())) {
+                        projectVariables.forEach(v => {
+                            suggestions.push({ label: v, kind: monaco.languages.CompletionItemKind.Field, insertText: v + ': ', range: range, detail: 'project var' });
+                        });
+                    }
+                    return { suggestions: suggestions };
+                }
+            });
+            
+            // ============================================
+            // SHELL COMPLETION PROVIDER
+            // ============================================
+            monaco.languages.registerCompletionItemProvider('shell', {
+                triggerCharacters: [' ', '$', '-'],
+                provideCompletionItems: function(model, position) {
+                    if (!autocompleteEnabled) return { suggestions: [] };
+                    const lineContent = model.getLineContent(position.lineNumber);
+                    const textUntilPosition = lineContent.substring(0, position.column - 1);
+                    const suggestions = [];
+                    const range = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: position.column, endColumn: position.column };
+                    
+                    if (/\$\w*$/.test(textUntilPosition)) {
+                        ['$HOME', '$USER', '$PWD', '$PATH', '$?', '$$', '$1', '$#', '$@', '${VAR}', '${VAR:-default}', '$(command)'].forEach(v => {
+                            suggestions.push({ label: v, kind: monaco.languages.CompletionItemKind.Variable, insertText: v.substring(1), range: range });
+                        });
+                    }
+                    if (/^[\s]*\w*$/.test(textUntilPosition) || /[|;&]\s*\w*$/.test(textUntilPosition)) {
+                        const commands = ['ls', 'cd', 'pwd', 'mkdir', 'rm', 'cp', 'mv', 'cat', 'grep', 'find', 'sed', 'awk', 'curl', 'wget', 'ssh', 'scp', 'rsync', 'ps', 'kill', 'sudo', 'systemctl', 'journalctl', 'df', 'du', 'tar', 'gzip', 'git', 'docker', 'nv'];
+                        commands.forEach(c => {
+                            suggestions.push({ label: c, kind: monaco.languages.CompletionItemKind.Function, insertText: c + ' ', range: range });
+                        });
+                    }
+                    return { suggestions: suggestions };
+                }
+            });
+            
+            // ============================================
+            // CUMULUS (NVUE) COMPLETION PROVIDER
+            // ============================================
+            const nvueTree = {
+                'nv': ['set', 'show', 'unset', 'config', 'action'],
+                'nv config': ['apply', 'save', 'diff', 'show', 'history', 'replace', 'patch'],
+                'nv action': ['clear', 'ping', 'traceroute', 'reboot', 'fetch', 'install', 'generate'],
+                'nv set': ['interface', 'router', 'bridge', 'system', 'vrf', 'mlag', 'platform', 'qos', 'acl', 'evpn', 'service', 'nve'],
+                'nv show': ['interface', 'router', 'bridge', 'system', 'vrf', 'mlag', 'platform', 'qos', 'acl', 'evpn', 'service', 'nve'],
+                'nv set interface': ['swp', 'bond', 'vlan', 'lo', 'eth', 'peerlink', 'br_default'],
+                'nv set interface *': ['ip', 'link', 'bridge', 'description', 'type', 'evpn', 'bond', 'router'],
+                'nv set interface * ip': ['address', 'gateway', 'vrf', 'vrr'],
+                'nv set interface * link': ['speed', 'mtu', 'fec', 'state', 'breakout'],
+                'nv set interface * bridge domain br_default': ['access', 'vlan', 'stp', 'untagged'],
+                'nv set interface * evpn multihoming': ['segment'],
+                'nv set interface * evpn multihoming segment': ['enable', 'df-preference', 'local-id', 'mac-address'],
+                'nv set router': ['bgp', 'ospf', 'policy', 'vrr', 'pim'],
+                'nv set router bgp': ['autonomous-system', 'router-id', 'neighbor', 'address-family', 'enable'],
+                'nv set router bgp neighbor': [],
+                'nv set router bgp neighbor *': ['peer-group', 'remote-as', 'type', 'address-family'],
+                'nv set router bgp address-family': ['ipv4-unicast', 'ipv6-unicast', 'l2vpn-evpn'],
+                'nv set router policy': ['route-map', 'prefix-list'],
+                'nv set bridge domain br_default': ['vlan', 'stp', 'type', 'untagged'],
+                'nv set system': ['hostname', 'timezone', 'reboot', 'ssh-server', 'aaa', 'api', 'control-plane', 'wjh', 'ntp'],
+                'nv set system hostname': [],
+                'nv set system aaa': ['user', 'role', 'class'],
+                'nv set vrf': ['default', 'mgmt'],
+                'nv set vrf *': ['router', 'evpn', 'loopback'],
+                'nv set vrf * router bgp': ['autonomous-system', 'router-id', 'neighbor', 'address-family', 'enable'],
+                'nv set mlag': ['backup', 'init-delay', 'mac-address', 'peer-ip', 'priority', 'enable'],
+                'nv set evpn': ['enable', 'multihoming', 'route-advertise'],
+                'nv set evpn multihoming': ['enable', 'startup-delay', 'segment'],
+                'nv set service': ['dhcp-relay', 'dns', 'ntp', 'ptp'],
+                'nv set nve vxlan': ['enable', 'source', 'arp-nd-suppress', 'flooding']
+            };
+            
+            monaco.languages.registerCompletionItemProvider('cumulus', {
+                triggerCharacters: [' '],
+                provideCompletionItems: function(model, position) {
+                    if (!autocompleteEnabled) return { suggestions: [] };
+                    const lineContent = model.getLineContent(position.lineNumber);
+                    const textUntilPosition = lineContent.substring(0, position.column - 1).trim();
+                    const suggestions = [];
+                    const range = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: position.column, endColumn: position.column };
+                    
+                    // Find best matching context
+                    let bestMatch = null;
+                    for (const key in nvueTree) {
+                        if (textUntilPosition === key || textUntilPosition.startsWith(key + ' ')) {
+                            if (!bestMatch || key.length > bestMatch.length) {
+                                bestMatch = key;
+                            }
+                        }
+                        // Handle wildcards
+                        const keyParts = key.split(' ');
+                        const textParts = textUntilPosition.split(/\s+/);
+                        if (keyParts.length <= textParts.length) {
+                            let matches = true;
+                            for (let i = 0; i < keyParts.length; i++) {
+                                if (keyParts[i] !== '*' && keyParts[i] !== textParts[i]) {
+                                    matches = false;
+                                    break;
+                                }
+                            }
+                            if (matches && (!bestMatch || key.length > bestMatch.length)) {
+                                bestMatch = key;
+                            }
+                        }
+                    }
+                    
+                    if (bestMatch && nvueTree[bestMatch]) {
+                        nvueTree[bestMatch].forEach(cmd => {
+                            suggestions.push({
+                                label: cmd,
+                                kind: monaco.languages.CompletionItemKind.Keyword,
+                                insertText: cmd + ' ',
+                                range: range
+                            });
+                        });
+                    }
+                    
+                    // General suggestions for start of line
+                    if (textUntilPosition === '' || textUntilPosition === 'n') {
+                        suggestions.push({ label: 'nv set', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'nv set ', range: range });
+                        suggestions.push({ label: 'nv show', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'nv show ', range: range });
+                        suggestions.push({ label: 'nv config apply', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'nv config apply', range: range });
+                    }
+                    
+                    return { suggestions: suggestions };
+                }
+            });
+            
+            // Create editor instance
+            state.editor = monaco.editor.create(document.getElementById('editor-container'), {
+                value: '',
+                language: 'yaml',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                minimap: { enabled: true },
+                fontSize: 14,
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+                wordWrap: 'on',
+                tabSize: 2,
+                insertSpaces: true,
+                renderWhitespace: 'selection',
+                bracketPairColorization: { enabled: true }
+            });
+            
+            // Load saved theme
+            loadSavedTheme();
+            
+            // Track changes
+            state.editor.onDidChangeModelContent(() => {
+                if (state.currentFile && state.files[state.currentFile]) {
+                    const file = state.files[state.currentFile];
+                    file.content = state.editor.getValue();
+                    file.modified = file.content !== file.originalContent;
+                    
+                    // Validate YAML on change (debounced)
+                    clearTimeout(state.validateTimeout);
+                    state.validateTimeout = setTimeout(() => validateCurrentFile(true), 500);
+                    
+                    updateUI();
+                }
+            });
+            
+            // Keyboard shortcuts
+            state.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+                saveCurrentFile();
+            });
+            
+            // Monaco is ready
+            monacoReady = true;
+            if (onReady) onReady();
+        });
+        }
+        
+        // YAML Validation
+        function validateYaml(content) {
+            if (!hasJsYaml) {
+                return { valid: true, error: null };
+            }
+            
+            try {
+                jsyaml.load(content);
+                return { valid: true, error: null };
+            } catch (e) {
+                return { 
+                    valid: false, 
+                    error: e.message,
+                    line: e.mark ? e.mark.line + 1 : null,
+                    column: e.mark ? e.mark.column + 1 : null
+                };
+            }
+        }
+        
+        function validateCurrentFile(silent = false) {
+            if (!state.currentFile || !state.files[state.currentFile]) {
+                return true; // No file to validate
+            }
+            
+            // Only validate YAML files
+            const isYaml = state.currentFile.endsWith('.yaml') || state.currentFile.endsWith('.yml');
+            const indicator = document.getElementById('yaml-validation');
+            
+            if (!isYaml) {
+                // Hide validation indicator for non-YAML files
+                indicator.style.display = 'none';
+                state.decorations = state.editor.deltaDecorations(state.decorations, []);
+                return true; // Non-YAML files are always valid
+            }
+            
+            const file = state.files[state.currentFile];
+            const result = validateYaml(file.content);
+            file.valid = result.valid;
+            
+            // Update validation indicator
+            indicator.style.display = 'flex';
+            
+            if (result.valid) {
+                indicator.className = 'validation-indicator valid';
+                indicator.innerHTML = '<span class="icon">✓</span><span class="text">YAML Valid</span>';
+                
+                // Clear error decorations
+                state.decorations = state.editor.deltaDecorations(state.decorations, []);
+                
+                if (!silent) {
+                    showOutput('YAML syntax is valid!', 'success');
+                }
+            } else {
+                indicator.className = 'validation-indicator invalid';
+                indicator.innerHTML = `<span class="icon">✗</span><span class="text">Line ${result.line || '?'}</span>`;
+                
+                // Add error decoration
+                if (result.line) {
+                    state.decorations = state.editor.deltaDecorations(state.decorations, [
+                        {
+                            range: new monaco.Range(result.line, 1, result.line, 1000),
+                            options: {
+                                isWholeLine: true,
+                                className: 'yaml-error-decoration',
+                                glyphMarginClassName: 'yaml-error-glyph',
+                                hoverMessage: { value: result.error }
+                            }
+                        }
+                    ]);
+                    
+                    // Scroll to error line
+                    if (!silent) {
+                        state.editor.revealLineInCenter(result.line);
+                    }
+                }
+                
+                if (!silent) {
+                    showOutput('YAML Error: ' + result.error, 'error');
+                }
+            }
+            
+            return result.valid;
+        }
+        
+        // API calls
+        async function apiCall(action, data = {}) {
+            const response = await fetch('/ansible-api?' + new URLSearchParams({ action, ...data }), {
+                method: data.content !== undefined ? 'POST' : 'GET',
+                headers: data.content !== undefined ? { 'Content-Type': 'application/json' } : {},
+                body: data.content !== undefined ? JSON.stringify({ content: data.content }) : undefined
+            });
+            return response.json();
+        }
+        
+        // Load/refresh file tree
+        async function loadFileTree() {
+            showLoading(true, 'Loading files...');
+            try {
+                const result = await apiCall('list');
+                if (result.success) {
+                    renderFileTree(result.files);
+                    state.groups = result.groups || [];
+                    state.hosts = result.hosts || [];
+                    populateHostSelect();
+                    // Load git modified files (async, non-blocking)
+                    loadGitModifiedFiles();
+                } else {
+                    showOutput('Error loading files: ' + result.error, 'error');
+                }
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            showLoading(false);
+        }
+        
+        // Load git modified files
+        async function loadGitModifiedFiles() {
+            try {
+                const result = await apiCall('get-modified-files');
+                if (result.success) {
+                    gitStatusLoadedOnce = true;  // Prevent early fetch from overwriting
+                    state.gitModifiedFiles = result.modified_files || [];
+                    markGitModifiedFiles();
+                    updateModifiedFilter();
+                }
+            } catch (e) {
+                console.error('Error loading git modified files:', e);
+            }
+        }
+        
+        // Auto-refresh git status when tab becomes visible
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') {
+                loadGitModifiedFiles();
+            }
+        });
+        
+        // Also refresh when window gets focus
+        window.addEventListener('focus', function() {
+            loadGitModifiedFiles();
+        });
+        
+        // Mark git modified files in file tree
+        function markGitModifiedFiles() {
+            document.querySelectorAll('.file-item').forEach(el => {
+                const path = el.dataset.path;
+                el.classList.remove('git-modified');
+                if (state.gitModifiedFiles.includes(path)) {
+                    el.classList.add('git-modified');
+                }
+            });
+            
+            // Also mark folders that contain modified files
+            document.querySelectorAll('.folder').forEach(folder => {
+                const folderPath = folder.dataset.path;
+                const hasModified = state.gitModifiedFiles.some(f => f.startsWith(folderPath + '/'));
+                folder.classList.toggle('has-git-modified', hasModified);
+            });
+        }
+        
+        // Update modified files counts in indicator
+        function updateModifiedFilter() {
+            const hostVarsFiles = state.gitModifiedFiles.filter(f => f.includes('host_vars/'));
+            const groupVarsFiles = state.gitModifiedFiles.filter(f => f.includes('group_vars/'));
+            
+            const hostVarsEl = document.getElementById('host-vars-count');
+            const groupVarsEl = document.getElementById('group-vars-count');
+            
+            if (hostVarsEl) {
+                const count = hostVarsFiles.length;
+                hostVarsEl.innerHTML = `host vars: <span style="color: ${count > 0 ? '#e2c08d' : '#666'};">${count}</span>`;
+                hostVarsEl.style.color = count > 0 ? '#ccc' : '#666';
+            }
+            if (groupVarsEl) {
+                const count = groupVarsFiles.length;
+                groupVarsEl.innerHTML = `group vars: <span style="color: ${count > 0 ? '#e2c08d' : '#666'};">${count}</span>`;
+                groupVarsEl.style.color = count > 0 ? '#ccc' : '#666';
+            }
+        }
+        
+        // Track active filter
+        let activeFileFilter = null;
+        
+        // Filter functions for modified files
+        function filterToHostVars() {
+            // Toggle: if already filtered to host_vars, reset
+            if (activeFileFilter === 'host_vars') {
+                resetFileFilter();
+                return;
+            }
+            const files = state.gitModifiedFiles.filter(f => f.includes('host_vars/'));
+            applyFileFilter(files, 'host_vars');
+        }
+        
+        function filterToGroupVars() {
+            // Toggle: if already filtered to group_vars, reset
+            if (activeFileFilter === 'group_vars') {
+                resetFileFilter();
+                return;
+            }
+            const files = state.gitModifiedFiles.filter(f => f.includes('group_vars/'));
+            applyFileFilter(files, 'group_vars');
+        }
+        
+        function applyFileFilter(files, category) {
+            if (files.length === 0) {
+                showOutput(`No modified files in ${category}`, 'info');
+                return;
+            }
+            
+            activeFileFilter = category;
+            
+            // Hide all files, show only filtered
+            document.querySelectorAll('.file-item').forEach(el => {
+                const path = el.dataset.path;
+                el.style.display = files.includes(path) ? '' : 'none';
+            });
+            
+            // Expand folders with matching files
+            document.querySelectorAll('.folder').forEach(folder => {
+                const folderPath = folder.dataset.path;
+                const hasMatch = files.some(f => f.startsWith(folderPath + '/'));
+                if (hasMatch) {
+                    folder.classList.remove('collapsed');
+                } else {
+                    folder.classList.add('collapsed');
+                }
+            });
+            
+            // Highlight active filter
+            updateFilterHighlight();
+            
+            showOutput(`Showing ${files.length} modified file(s) in ${category} (click again to show all)`, 'info');
+        }
+        
+        function resetFileFilter() {
+            activeFileFilter = null;
+            
+            // Show all files
+            document.querySelectorAll('.file-item').forEach(el => {
+                el.style.display = '';
+            });
+            
+            // Reset filter highlight
+            updateFilterHighlight();
+            
+            showOutput('Showing all files', 'info');
+        }
+        
+        function updateFilterHighlight() {
+            const hostVarsEl = document.getElementById('host-vars-count');
+            const groupVarsEl = document.getElementById('group-vars-count');
+            
+            if (hostVarsEl) {
+                hostVarsEl.style.textDecoration = activeFileFilter === 'host_vars' ? 'underline' : 'none';
+            }
+            if (groupVarsEl) {
+                groupVarsEl.style.textDecoration = activeFileFilter === 'group_vars' ? 'underline' : 'none';
+            }
+        }
+        
+        // File search functionality
+        let searchMatches = [];
+        let currentSearchIndex = -1;
+        
+        function filterFileTree(query) {
+            const items = document.querySelectorAll('.file-item');
+            const countEl = document.getElementById('file-search-count');
+            
+            // Clear previous highlights
+            items.forEach(item => {
+                item.classList.remove('search-match', 'search-highlight');
+            });
+            searchMatches = [];
+            currentSearchIndex = -1;
+            
+            if (!query.trim()) {
+                countEl.textContent = '';
+                // Collapse all folders when search is cleared
+                document.querySelectorAll('.folder').forEach(f => f.classList.add('collapsed'));
+                return;
+            }
+            
+            const lowerQuery = query.toLowerCase();
+            
+            // Find matching items and expand their parent folders
+            items.forEach(item => {
+                const filepath = item.getAttribute('data-path') || item.textContent;
+                if (filepath.toLowerCase().includes(lowerQuery)) {
+                    item.classList.add('search-match');
+                    searchMatches.push(item);
+                    
+                    // Expand parent folders - only use classList, no inline styles
+                    let parent = item.parentElement;
+                    while (parent && parent.id !== 'file-tree') {
+                        if (parent.classList && parent.classList.contains('folder')) {
+                            parent.classList.remove('collapsed');
+                        }
+                        parent = parent.parentElement;
+                    }
+                }
+            });
+            
+            // Update count and highlight first match
+            if (searchMatches.length > 0) {
+                countEl.textContent = searchMatches.length + ' found';
+                currentSearchIndex = 0;
+                highlightAndScrollToMatch(0);
+            } else {
+                countEl.textContent = 'No matches';
+            }
+        }
+        
+        function highlightAndScrollToMatch(index) {
+            // Remove previous highlight
+            searchMatches.forEach(item => item.classList.remove('search-highlight'));
+            
+            if (index >= 0 && index < searchMatches.length) {
+                const item = searchMatches[index];
+                item.classList.add('search-highlight');
+                item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                // Update count display
+                const countEl = document.getElementById('file-search-count');
+                countEl.textContent = (index + 1) + '/' + searchMatches.length;
+            }
+        }
+        
+        function handleSearchKeydown(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                if (searchMatches.length > 0) {
+                    if (event.shiftKey) {
+                        // Previous match
+                        currentSearchIndex = (currentSearchIndex - 1 + searchMatches.length) % searchMatches.length;
+                    } else {
+                        // Next match
+                        currentSearchIndex = (currentSearchIndex + 1) % searchMatches.length;
+                    }
+                    highlightAndScrollToMatch(currentSearchIndex);
+                }
+            } else if (event.key === 'Escape') {
+                // Clear search
+                document.getElementById('file-search').value = '';
+                filterFileTree('');
+            }
+        }
+        
+        // Render file tree (nested structure)
+        function renderFileTree(files) {
+            const tree = document.getElementById('file-tree');
+            tree.innerHTML = '';
+            
+            // Build tree structure
+            const root = {};
+            files.forEach(file => {
+                const parts = file.split('/');
+                let current = root;
+                
+                // Build nested structure
+                parts.forEach((part, idx) => {
+                    if (idx === parts.length - 1) {
+                        // File
+                        if (!current._files) current._files = [];
+                        current._files.push({ name: part, path: file });
+                    } else {
+                        // Folder
+                        if (!current[part]) current[part] = {};
+                        current = current[part];
+                    }
+                });
+            });
+            
+            // Folders and files to hide from the tree (at root level)
+            const hiddenFolders = ['assets', 'configs', 'files', 'scripts', 'srv-configs'];
+            const hiddenFiles = ['.gitignore', 'ansible.cfg'];
+            
+            // Render tree recursively
+            function renderNode(node, parentEl, depth = 0, currentPath = '') {
+                let entries = Object.keys(node).filter(k => k !== '_files').sort();
+                
+                // Hide certain folders at root level
+                if (depth === 0) {
+                    entries = entries.filter(k => !hiddenFolders.includes(k));
+                }
+                
+                // Render folders
+                entries.forEach(folderName => {
+                    const folderPath = currentPath ? currentPath + '/' + folderName : folderName;
+                    const folderEl = document.createElement('div');
+                    folderEl.className = 'folder collapsed';  // Start collapsed
+                    folderEl.style.paddingLeft = (depth * 0) + 'px';
+                    folderEl.dataset.path = folderPath;
+                    
+                    folderEl.innerHTML = `
+                        <div class="folder-header" onclick="toggleFolder(this.parentElement)">
+                            <span class="codicon codicon-chevron-right folder-chevron"></span>
+                            <span class="codicon codicon-folder folder-icon"></span>
+                            ${folderName}
+                        </div>
+                        <div class="folder-contents"></div>
+                    `;
+                    
+                    const contents = folderEl.querySelector('.folder-contents');
+                    renderNode(node[folderName], contents, depth + 1, folderPath);
+                    
+                    parentEl.appendChild(folderEl);
+                });
+                
+                // Render files
+                if (node._files) {
+                    let filesToRender = node._files.sort((a, b) => a.name.localeCompare(b.name));
+                    // Hide certain files at root level
+                    if (depth === 0) {
+                        filesToRender = filesToRender.filter(f => !hiddenFiles.includes(f.name));
+                    }
+                    filesToRender.forEach(file => {
+                        const fileEl = document.createElement('div');
+                        fileEl.className = 'file-item';
+                        fileEl.style.paddingLeft = (depth * 0 + 25) + 'px';
+                        fileEl.dataset.path = file.path;
+                        
+                        // Get file icon based on filename or extension
+                        const ext = file.name.split('.').pop().toLowerCase();
+                        const fileName = file.name.toLowerCase();
+                        let iconClass = 'codicon-file';
+                        
+                        // Special filenames first
+                        if (fileName === '.gitignore') iconClass = 'codicon-git-commit';
+                        else if (fileName === 'hosts') iconClass = 'codicon-server';
+                        // Then by extension
+                        else if (ext === 'yaml') iconClass = 'codicon-file-code';
+                        else if (ext === 'yml') iconClass = 'codicon-list-tree';
+                        else if (ext === 'j2') iconClass = 'codicon-bracket';
+                        else if (ext === 'dot') iconClass = 'codicon-type-hierarchy';
+                        else if (['md'].includes(ext)) iconClass = 'codicon-markdown';
+                        else if (['txt', 'log'].includes(ext)) iconClass = 'codicon-note';
+                        else if (['png', 'jpg', 'jpeg', 'gif', 'svg'].includes(ext)) iconClass = 'codicon-file-media';
+                        else if (['sh', 'bash'].includes(ext)) iconClass = 'codicon-terminal';
+                        else if (['json'].includes(ext)) iconClass = 'codicon-json';
+                        else if (['py'].includes(ext)) iconClass = 'codicon-beaker';
+                        else if (['cfg', 'conf', 'ini'].includes(ext)) iconClass = 'codicon-settings-gear';
+                        
+                        fileEl.innerHTML = `<span class="codicon ${iconClass} file-icon"></span>${file.name}`;
+                        fileEl.onclick = () => {
+                            // If file is already open, switch to it; otherwise open it
+                            if (state.files[file.path]) {
+                                switchToFile(file.path);
+                            } else {
+                                openFile(file.path);
+                            }
+                        };
+                        parentEl.appendChild(fileEl);
+                    });
+                }
+            }
+            
+            renderNode(root, tree, 0);
+        }
+        
+        // Editor toolbar actions
+        function editorAction(action) {
+            if (!state.editor) return;
+            
+            switch(action) {
+                case 'find':
+                    state.editor.trigger('toolbar', 'actions.find');
+                    break;
+                case 'replace':
+                    state.editor.trigger('toolbar', 'editor.action.startFindReplaceAction');
+                    break;
+                case 'toggleComment':
+                    state.editor.trigger('toolbar', 'editor.action.commentLine');
+                    break;
+                case 'format':
+                    state.editor.trigger('toolbar', 'editor.action.formatDocument');
+                    break;
+                case 'undo':
+                    state.editor.trigger('toolbar', 'undo');
+                    break;
+                case 'redo':
+                    state.editor.trigger('toolbar', 'redo');
+                    break;
+                case 'zoomIn':
+                    state.editor.trigger('toolbar', 'editor.action.fontZoomIn');
+                    break;
+                case 'zoomOut':
+                    state.editor.trigger('toolbar', 'editor.action.fontZoomOut');
+                    break;
+                case 'zoomReset':
+                    state.editor.trigger('toolbar', 'editor.action.fontZoomReset');
+                    break;
+                case 'foldAll':
+                    state.editor.trigger('toolbar', 'editor.foldAll');
+                    break;
+                case 'unfoldAll':
+                    state.editor.trigger('toolbar', 'editor.unfoldAll');
+                    break;
+                case 'gotoLine':
+                    state.editor.focus();
+                    setTimeout(() => state.editor.trigger('keyboard', 'editor.action.gotoLine'), 50);
+                    return;
+                case 'wordWrap':
+                    const currentWrap = state.editor.getOption(monaco.editor.EditorOption.wordWrap);
+                    state.editor.updateOptions({ wordWrap: currentWrap === 'on' ? 'off' : 'on' });
+                    break;
+                case 'minimap':
+                    const currentMinimap = state.editor.getOption(monaco.editor.EditorOption.minimap);
+                    state.editor.updateOptions({ minimap: { enabled: !currentMinimap.enabled } });
+                    break;
+                case 'commandPalette':
+                    state.editor.focus();
+                    setTimeout(() => state.editor.trigger('keyboard', 'editor.action.quickCommand'), 50);
+                    return;
+            }
+            state.editor.focus();
+        }
+        
+        function toggleFolder(folder) {
+            folder.classList.toggle('collapsed');
+            // Update lastFolder when clicking on a folder
+            if (folder.dataset.path) {
+                state.lastFolder = folder.dataset.path;
+            }
+        }
+        
+        // Get selected hosts as comma-separated string
+        // Selected hosts state
+        let selectedHosts = [];
+        
+        function getSelectedHosts() {
+            return selectedHosts.join(',');
+        }
+        
+        function toggleHostDropdown() {
+            const menu = document.getElementById('host-dropdown-menu');
+            menu.classList.toggle('show');
+        }
+        
+        function toggleHostSelection(host) {
+            // If "all" is selected, clear everything else and close menu
+            if (host === 'all') {
+                selectedHosts = ['all'];
+                updateHostDropdownUI();
+                // Reset file filter to show all files
+                resetFileFilter();
+                // Close the dropdown
+                document.getElementById('host-dropdown-menu').classList.remove('show');
+                return;
+            }
+            
+            // If selecting something other than "all", remove "all" if it was selected
+            const allIndex = selectedHosts.indexOf('all');
+            if (allIndex !== -1) {
+                selectedHosts.splice(allIndex, 1);
+            }
+            
+            const index = selectedHosts.indexOf(host);
+            if (index === -1) {
+                selectedHosts.push(host);
+            } else {
+                selectedHosts.splice(index, 1);
+            }
+            updateHostDropdownUI();
+        }
+        
+        function updateHostDropdownUI() {
+            // Update trigger text
+            const text = document.getElementById('host-dropdown-text');
+            if (selectedHosts.length === 0) {
+                text.textContent = 'Select hosts...';
+            } else if (selectedHosts.length === 1 && selectedHosts[0] === 'all') {
+                text.textContent = 'ALL HOSTS';
+            } else if (selectedHosts.length === 1) {
+                text.textContent = selectedHosts[0];
+            } else {
+                text.textContent = selectedHosts.length + ' hosts selected';
+            }
+            
+            // Update item selection styling
+            document.querySelectorAll('.host-dropdown-item').forEach(item => {
+                if (selectedHosts.includes(item.dataset.value)) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
+        }
+        
+        function clearHostSelection() {
+            selectedHosts = [];
+            updateHostDropdownUI();
+        }
+        
+        // Populate host select (dropdown removed - now using modified files indicator)
+        function populateHostSelect() {
+            // No longer needed - dropdown removed
+            // Generate will run for all hosts by default
+        }
+        
+        // Filter to show all modified files
+        function filterToAllModified() {
+            applyFileFilter(state.gitModifiedFiles, 'all');
+        }
+        
+        // Open file
+        async function openFile(path) {
+            // Ensure Monaco is loaded first (lazy load)
+            await ensureMonacoLoaded();
+            
+            showLoading(true, 'Loading ' + path.split('/').pop() + '...');
+            
+            // Update lastFolder based on the file path
+            const pathParts = path.split('/');
+            if (pathParts.length > 1) {
+                pathParts.pop();
+                state.lastFolder = pathParts.join('/');
+            } else {
+                state.lastFolder = '';
+            }
+            
+            try {
+                // Load file if not already loaded
+                if (!state.files[path]) {
+                    const result = await apiCall('read', { file: path });
+                    if (result.success) {
+                        state.files[path] = {
+                            content: result.content,
+                            originalContent: result.content,
+                            modified: false,
+                            valid: true
+                        };
+                    } else {
+                        showOutput('Error loading file: ' + result.error, 'error');
+                        showLoading(false);
+                        return;
+                    }
+                }
+                
+                // Save current file content before switching
+                if (state.currentFile && state.files[state.currentFile]) {
+                    state.files[state.currentFile].content = state.editor.getValue();
+                }
+                
+                // Switch to file
+                state.currentFile = path;
+                
+                // Show editor
+                document.getElementById('no-file-message').style.display = 'none';
+                document.getElementById('editor-container').style.display = 'block';
+                
+                // Set editor content
+                state.editor.setValue(state.files[path].content);
+                state.editor.setScrollTop(0);
+                
+                // Auto-detect and set language
+                const detectedLang = detectLanguageForFile(path, state.files[path].content);
+                monaco.editor.setModelLanguage(state.editor.getModel(), detectedLang);
+                
+                // Validate
+                validateCurrentFile(true);
+                
+                updateUI();
+                
+                // Auto-show preview for markdown files (read-only mode by default)
+                if (path.endsWith('.md')) {
+                    showMarkdownPreviewOnly();
+                } else {
+                    hideMarkdownPreview();
+                }
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            
+            showLoading(false);
+        }
+        
+        // Update UI based on state
+        function updateUI() {
+            // Update tabs
+            const tabsContainer = document.getElementById('editor-tabs');
+            tabsContainer.innerHTML = '';
+            
+            Object.keys(state.files).forEach(path => {
+                const file = state.files[path];
+                const tab = document.createElement('div');
+                tab.className = 'editor-tab' + (path === state.currentFile ? ' active' : '') + (file.modified ? ' modified' : '');
+                tab.title = 'Double-click to reload from server';
+                
+                const filename = path.split('/').pop();
+                tab.innerHTML = `
+                    ${filename}
+                    <span class="tab-close" onclick="closeFile('${path}', event)">×</span>
+                `;
+                tab.onclick = (e) => {
+                    if (!e.target.classList.contains('tab-close')) {
+                        switchToFile(path);
+                    }
+                };
+                // Double-click to reload file from server
+                tab.ondblclick = (e) => {
+                    if (!e.target.classList.contains('tab-close')) {
+                        reloadFile(path);
+                    }
+                };
+                tabsContainer.appendChild(tab);
+            });
+            
+            // Update file tree active state
+            document.querySelectorAll('.file-item').forEach(el => {
+                el.classList.remove('active');
+                if (el.dataset.path === state.currentFile) {
+                    el.classList.add('active');
+                }
+                const file = state.files[el.dataset.path];
+                if (file && file.modified) {
+                    el.classList.add('modified');
+                } else {
+                    el.classList.remove('modified');
+                }
+            });
+            
+            // Update buttons
+            const hasModified = Object.values(state.files).some(f => f.modified);
+            const currentModified = state.currentFile && state.files[state.currentFile]?.modified;
+            const hasCurrentFile = !!state.currentFile;
+            
+            document.getElementById('btn-save').disabled = !currentModified;
+            document.getElementById('btn-save-all').disabled = !hasModified;
+            document.getElementById('btn-delete').disabled = !hasCurrentFile;
+            document.getElementById('btn-rename').disabled = !hasCurrentFile;
+            
+            // Show preview button only for markdown files
+            const isMarkdown = state.currentFile && state.currentFile.toLowerCase().endsWith('.md');
+            document.getElementById('btn-preview').style.display = isMarkdown ? 'inline-flex' : 'none';
+            if (!isMarkdown) hideMarkdownPreview();
+            
+            // Update status
+            const status = document.getElementById('status');
+            if (hasModified) {
+                status.textContent = 'Modified';
+                status.className = 'status modified';
+            } else {
+                status.textContent = 'Ready';
+                status.className = 'status saved';
+            }
+        }
+        
+        // Switch to file
+        function switchToFile(path) {
+            if (state.files[path]) {
+                // Save current file content before switching
+                if (state.currentFile && state.files[state.currentFile]) {
+                    state.files[state.currentFile].content = state.editor.getValue();
+                }
+                
+                state.currentFile = path;
+                state.editor.setValue(state.files[path].content);
+                state.editor.setScrollTop(0);
+                
+                // Auto-detect and set language
+                const detectedLang = detectLanguageForFile(path, state.files[path].content);
+                monaco.editor.setModelLanguage(state.editor.getModel(), detectedLang);
+                
+                validateCurrentFile(true);
+                updateUI();
+                
+                // Auto-show/hide preview for markdown files (read-only mode by default)
+                if (path.endsWith('.md')) {
+                    showMarkdownPreviewOnly();
+                } else {
+                    hideMarkdownPreview();
+                }
+            }
+        }
+        
+        // Reload file from server (refresh content)
+        async function reloadFile(path) {
+            if (!state.files[path]) return;
+            
+            const file = state.files[path];
+            
+            // If file is modified, ask for confirmation
+            if (file.modified) {
+                if (!confirm('File has unsaved changes. Reload and discard changes?')) {
+                    return;
+                }
+            }
+            
+            try {
+                const result = await apiCall('read', { file: path });
+                if (result.success) {
+                    // Check if content actually changed
+                    const oldContent = file.originalContent;
+                    const newContent = result.content;
+                    
+                    if (oldContent !== newContent) {
+                        // Update file state
+                        state.files[path] = {
+                            content: newContent,
+                            originalContent: newContent,
+                            modified: false,
+                            valid: true
+                        };
+                        
+                        // If this is the current file, update editor
+                        if (state.currentFile === path) {
+                            state.editor.setValue(newContent);
+                            validateCurrentFile(true);
+                        }
+                        
+                        updateUI();
+                        showOutput('File reloaded: ' + path.split('/').pop(), 'success');
+                    } else {
+                        showOutput('File unchanged', 'info');
+                    }
+                } else {
+                    showOutput('Error reloading: ' + result.error, 'error');
+                }
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+        }
+        
+        // Close file
+        async function closeFile(path, event) {
+            event.stopPropagation();
+            
+            const file = state.files[path];
+            if (file.modified) {
+                const confirmed = await confirmAsync('Unsaved Changes', `<strong>${path.split('/').pop()}</strong> has unsaved changes.<br><br>Close anyway?`);
+                if (!confirmed) return;
+            }
+            
+            delete state.files[path];
+            
+            // Switch to another file or show placeholder
+            const remainingFiles = Object.keys(state.files);
+            if (remainingFiles.length > 0) {
+                switchToFile(remainingFiles[0]);
+            } else {
+                state.currentFile = null;
+                document.getElementById('no-file-message').style.display = 'flex';
+                document.getElementById('editor-container').style.display = 'none';
+                document.getElementById('yaml-validation').style.display = 'none';
+                hideMarkdownPreview();
+                // Clear editor content
+                if (state.editor) {
+                    state.editor.setValue('');
+                }
+            }
+            
+            updateUI();
+        }
+        
+        async function closeAllTabs() {
+            const modifiedFiles = Object.entries(state.files).filter(([_, f]) => f.modified);
+            if (modifiedFiles.length > 0) {
+                const names = modifiedFiles.map(([p, _]) => p.split('/').pop()).join(', ');
+                const confirmed = await confirmAsync('Unsaved Changes', `<strong>${modifiedFiles.length} file(s)</strong> have unsaved changes:<br><br>${names}<br><br>Close all anyway?`);
+                if (!confirmed) return;
+            }
+            
+            state.files = {};
+            state.currentFile = null;
+            document.getElementById('no-file-message').style.display = 'flex';
+            document.getElementById('editor-container').style.display = 'none';
+            document.getElementById('yaml-validation').style.display = 'none';
+            hideMarkdownPreview();
+            // Clear editor content
+            if (state.editor) {
+                state.editor.setValue('');
+            }
+            hideMarkdownPreview();
+            updateUI();
+        }
+        
+        // Markdown Preview - 3 modes cycle: Full Preview → Split → Editor Only → Full Preview
+        // State: 'full-preview' | 'split' | 'editor-only'
+        state.markdownMode = 'full-preview';
+        
+        // MD button: cycle through modes
+        function toggleMarkdownMode() {
+            const preview = document.getElementById('markdown-preview');
+            const editor = document.getElementById('editor-container');
+            
+            if (state.markdownMode === 'full-preview') {
+                // Full Preview → Split View
+                state.markdownMode = 'split';
+                preview.classList.remove('full-preview');
+                preview.classList.add('visible');
+                editor.style.display = 'block';
+            } else if (state.markdownMode === 'split') {
+                // Split View → Editor Only
+                state.markdownMode = 'editor-only';
+                preview.classList.remove('visible');
+                preview.classList.remove('full-preview');
+                editor.style.display = 'block';
+            } else {
+                // Editor Only → Full Preview
+                state.markdownMode = 'full-preview';
+                preview.classList.add('visible');
+                preview.classList.add('full-preview');
+                editor.style.display = 'none';
+                updateMarkdownPreview();
+            }
+            updateMarkdownButtons();
+        }
+        
+        function updateMarkdownButtons() {
+            const btnMD = document.getElementById('btn-preview');
+            
+            // Update button text, style and tooltip based on mode
+            if (state.markdownMode === 'full-preview') {
+                btnMD.textContent = 'MD●';
+                btnMD.classList.add('md-active');
+                btnMD.title = 'Split View (MD + Editor)';
+            } else if (state.markdownMode === 'split') {
+                btnMD.textContent = 'MD½';
+                btnMD.classList.add('md-active');
+                btnMD.title = 'Editor Only';
+            } else {
+                btnMD.textContent = 'MD';
+                btnMD.classList.remove('md-active');
+                btnMD.title = 'Preview Only';
+            }
+        }
+        
+        // Show only preview (read-only mode) - default when opening MD
+        function showMarkdownPreviewOnly() {
+            const preview = document.getElementById('markdown-preview');
+            const editor = document.getElementById('editor-container');
+            
+            state.markdownMode = 'full-preview';
+            preview.classList.add('visible');
+            preview.classList.add('full-preview');
+            editor.style.display = 'none';
+            
+            // Show MD button
+            document.getElementById('btn-preview').style.display = 'inline-flex';
+            
+            updateMarkdownPreview();
+            updateMarkdownButtons();
+            
+            // Listen for editor changes
+            if (state.editor && !state.previewListener) {
+                state.previewListener = state.editor.onDidChangeModelContent(() => {
+                    updateMarkdownPreview();
+                });
+            }
+        }
+        
+        function hideMarkdownPreview() {
+            const preview = document.getElementById('markdown-preview');
+            const editor = document.getElementById('editor-container');
+            
+            preview.classList.remove('visible');
+            preview.classList.remove('full-preview');
+            preview.innerHTML = ''; // Clear content
+            
+            // Show editor (it might have been hidden in full-preview mode)
+            editor.style.display = 'block';
+            
+            // Hide MD button and reset state
+            const btnMD = document.getElementById('btn-preview');
+            btnMD.style.display = 'none';
+            btnMD.textContent = 'MD';
+            btnMD.classList.remove('md-active');
+            
+            // Reset mode
+            state.markdownMode = 'full-preview';
+            
+            // Remove listener
+            if (state.previewListener) {
+                state.previewListener.dispose();
+                state.previewListener = null;
+            }
+        }
+        
+        function copyCode(btn) {
+            const codeBlock = btn.closest('div').nextElementSibling.querySelector('code');
+            const text = codeBlock.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                btn.textContent = 'Copied!';
+                btn.style.color = '#4ec9b0';
+                setTimeout(() => {
+                    btn.textContent = 'Copy';
+                    btn.style.color = '#888';
+                }, 2000);
+            });
+        }
+        
+        function openLinkedFile(relativePath) {
+            // Resolve relative path from current file
+            let basePath = '';
+            if (state.currentFile) {
+                const parts = state.currentFile.split('/');
+                parts.pop(); // Remove filename
+                basePath = parts.join('/');
+            }
+            
+            // Handle relative paths
+            let fullPath = relativePath;
+            if (!relativePath.startsWith('/')) {
+                if (basePath) {
+                    fullPath = basePath + '/' + relativePath;
+                }
+            }
+            
+            // Clean up path (remove ./ and resolve ../)
+            fullPath = fullPath.replace(/^\.\//, '');
+            
+            // Open the file
+            openFile(fullPath);
+        }
+        
+        function simpleMarkdown(text) {
+            // Process code blocks first (```code```)
+            text = text.replace(/```(\w*)\n([\s\S]*?)```/g, function(match, lang, code) {
+                // Only remove leading/trailing empty lines, preserve spaces
+                const trimmed = code.replace(/^\n+|\n+$/g, '');
+                const id = 'code-' + Math.random().toString(36).substr(2, 9);
+                
+                // Syntax highlight line by line
+                const lines = trimmed.split('\n').map(line => {
+                    // Escape HTML first
+                    let escaped = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    
+                    // Apply highlighting
+                    if (escaped.trim().startsWith('#')) {
+                        // Comment line
+                        return '[[GREEN]]' + escaped + '[[/GREEN]]';
+                    }
+                    // Highlight strings
+                    escaped = escaped.replace(/(&quot;[^&]*&quot;|"[^"]*")/g, '[[ORANGE]]$1[[/ORANGE]]');
+                    // Highlight flags
+                    escaped = escaped.replace(/(--[\w-]+)/g, '[[CYAN]]$1[[/CYAN]]');
+                    // Highlight commands
+                    escaped = escaped.replace(/^(\s*)(ansible-playbook|ansible|sudo|cd|git|npm|pip|python3?|bash|sh)\b/g, '$1[[BLUE]]$2[[/BLUE]]');
+                    return escaped;
+                }).join('\n');
+                
+                // Replace placeholders with spans
+                const highlighted = lines
+                    .replace(/\[\[GREEN\]\]/g, '<span style="color:#7ee787;">')
+                    .replace(/\[\[\/GREEN\]\]/g, '</span>')
+                    .replace(/\[\[ORANGE\]\]/g, '<span style="color:#a5d6ff;">')
+                    .replace(/\[\[\/ORANGE\]\]/g, '</span>')
+                    .replace(/\[\[CYAN\]\]/g, '<span style="color:#79c0ff;">')
+                    .replace(/\[\[\/CYAN\]\]/g, '</span>')
+                    .replace(/\[\[BLUE\]\]/g, '<span style="color:#ff7b72;">')
+                    .replace(/\[\[\/BLUE\]\]/g, '</span>');
+                
+                return '<div style="position: relative; margin: 10px 0;">' +
+                    '<div style="background: #0d1117; border: 1px solid #30363d; border-radius: 6px; overflow: hidden;">' +
+                    '<div style="background: #161b22; padding: 8px 16px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center;">' +
+                    '<span style="color: #8b949e; font-size: 12px; font-weight: 500;">' + (lang || 'code') + '</span>' +
+                    '<button onclick="navigator.clipboard.writeText(document.getElementById(\'' + id + '\').textContent);this.textContent=\'Copied!\';setTimeout(()=>this.textContent=\'Copy\',2000)" style="background: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;">Copy</button>' +
+                    '</div>' +
+                    '<pre id="' + id + '" style="margin: 0; padding: 16px; overflow-x: auto; background: #0d1117; color: #c9d1d9;"><code style="font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px; line-height: 1.5;">' + highlighted + '</code></pre>' +
+                    '</div></div>';
+            });
+            
+            // Process tables
+            const lines = text.split('\n');
+            let result = [];
+            let inTable = false;
+            let tableRows = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                if (line.match(/^\|.*\|$/)) {
+                    if (!inTable) {
+                        inTable = true;
+                        tableRows = [];
+                    }
+                    // Skip separator row
+                    if (!line.match(/^\|[\s\-\|:]+\|$/)) {
+                        tableRows.push(line);
+                    }
+                } else {
+                    if (inTable) {
+                        result.push(renderTable(tableRows));
+                        inTable = false;
+                        tableRows = [];
+                    }
+                    result.push(line);
+                }
+            }
+            if (inTable) {
+                result.push(renderTable(tableRows));
+            }
+            
+            text = result.join('\n');
+            
+            return text
+                .replace(/^###### (.*$)/gm, '<h6>$1</h6>')
+                .replace(/^##### (.*$)/gm, '<h5>$1</h5>')
+                .replace(/^#### (.*$)/gm, '<h4>$1</h4>')
+                .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+                .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+                .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+                .replace(/^---$/gm, '<hr style="border: none; border-top: 1px solid #30363d; margin: 20px 0;">')
+                .replace(/^> (.*$)/gm, '<blockquote style="border-left: 3px solid #569cd6; margin: 10px 0; padding-left: 15px; color: #888;">$1</blockquote>')
+                .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="/ansible-api?action=image&file=$2" alt="$1" style="max-width: 100%;">')
+                .replace(/\[(.*?)\]\((.*?)\)/g, function(match, text, url) {
+                    if (url.match(/\.(md|yaml|yml|txt|cfg|sh|py)$/i) && !url.startsWith('http')) {
+                        return '<a href="#" onclick="openLinkedFile(\'' + url + '\'); return false;">' + text + '</a>';
+                    }
+                    return '<a href="' + url + '" target="_blank">' + text + '</a>';
+                })
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/`(.*?)`/g, '<code style="background: #2d2d2d; padding: 2px 6px; border-radius: 3px;">$1</code>')
+                .replace(/^\d+\. (.*$)/gm, '<li style="list-style-type: decimal; margin-left: 20px;">$1</li>')
+                .replace(/^\- (.*$)/gm, '<li>$1</li>')
+                .replace(/^\* (.*$)/gm, '<li>$1</li>')
+                .replace(/\n{3,}/g, '<br><br>')  // Max 2 line breaks
+                .replace(/\n/g, '<br>')
+                .replace(/<br><br>(<h[1-6]>)/g, '$1')  // Remove breaks before headings
+                .replace(/<br>(<h[1-6]>)/g, '$1')
+                .replace(/(<\/h[1-6]>)<br><br>/g, '$1')  // Remove breaks after headings
+                .replace(/(<\/h[123]>)<br>/g, '$1')
+                .replace(/<br><br>(<hr)/g, '$1')  // Remove breaks before hr
+                .replace(/<br>(<hr)/g, '$1')
+                .replace(/(<hr[^>]*>)<br><br>/g, '$1')  // Remove breaks after hr
+                .replace(/(<hr[^>]*>)<br>/g, '$1')
+                .replace(/(<\/table>)<br><br>/g, '$1')  // Remove breaks after tables
+                .replace(/(<\/table>)<br>/g, '$1');
+        }
+        
+        function renderTable(rows) {
+            if (rows.length === 0) return '';
+            let html = '<table style="border-collapse: collapse; margin: 16px 0; width: 100%; border: 1px solid #30363d; border-radius: 6px; overflow: hidden;">';
+            rows.forEach((row, idx) => {
+                const cells = row.split('|').filter(c => c.trim() !== '');
+                const isHeader = idx === 0;
+                const bgColor = isHeader ? '#161b22' : (idx % 2 === 0 ? '#0d1117' : '#161b22');
+                html += '<tr style="background: ' + bgColor + ';">';
+                cells.forEach(cell => {
+                    const tag = isHeader ? 'th' : 'td';
+                    const style = isHeader 
+                        ? 'padding: 8px 16px; text-align: left; font-weight: 600; color: #c9d1d9; border-bottom: 1px solid #30363d;'
+                        : 'padding: 8px 16px; text-align: left; color: #c9d1d9; border-bottom: 1px solid #21262d;';
+                    html += '<' + tag + ' style="' + style + '">' + cell.trim() + '</' + tag + '>';
+                });
+                html += '</tr>';
+            });
+            html += '</table>';
+            return html;
+        }
+        
+        function updateMarkdownPreview() {
+            const preview = document.getElementById('markdown-preview');
+            if (!preview.classList.contains('visible')) return;
+            
+            const content = state.editor ? state.editor.getValue() : '';
+            if (typeof marked !== 'undefined') {
+                // Parse markdown directly (no preprocessing)
+                preview.innerHTML = marked.parse(content);
+                
+                // Double-check: Remove any remaining inline styles
+                preview.querySelectorAll('[style]').forEach(el => {
+                    el.removeAttribute('style');
+                });
+                
+                // Fix code blocks: normalize line breaks
+                preview.querySelectorAll('pre code').forEach(codeBlock => {
+                    // Get HTML and convert <br> to \n
+                    let html = codeBlock.innerHTML;
+                    html = html.replace(/<br\s*\/?>/gi, '\n');
+                    // Strip all other HTML tags
+                    const temp = document.createElement('div');
+                    temp.innerHTML = html;
+                    let plainText = temp.textContent || temp.innerText;
+                    // Trim leading/trailing empty lines
+                    plainText = plainText.replace(/^\n+/, '').replace(/\n+$/, '');
+                    // Always add zero-width space at start to fix first line alignment
+                    codeBlock.textContent = '\u200B' + plainText;
+                });
+            } else {
+                preview.innerHTML = simpleMarkdown(content);
+            }
+        }
+        
+        // Save current file
+        async function saveCurrentFile() {
+            if (!state.currentFile || !state.files[state.currentFile]?.modified) return;
+            
+            // Validate before saving
+            if (!validateCurrentFile()) {
+                const confirmed = await confirmAsync('YAML Errors', 'This file has <strong>YAML syntax errors</strong>.<br><br>Save anyway?');
+                if (!confirmed) return;
+            }
+            
+            showLoading(true, 'Saving...');
+            try {
+                const file = state.files[state.currentFile];
+                const result = await fetch('/ansible-api?action=write&file=' + encodeURIComponent(state.currentFile), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: file.content })
+                }).then(r => r.json());
+                
+                if (result.success) {
+                    const wasNewFile = !file.originalContent;
+                    file.originalContent = file.content;
+                    file.modified = false;
+                    showOutput('Saved: ' + state.currentFile, 'success');
+                    updateUI();
+                    
+                    // Refresh file tree if this was a new file
+                    if (wasNewFile) {
+                        await loadFileTree();
+                    }
+                    
+                    // Refresh git modified status (small delay for disk write)
+                    setTimeout(() => loadGitModifiedFiles(), 500);
+                } else {
+                    showOutput('Error saving: ' + result.error, 'error');
+                }
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            showLoading(false);
+        }
+        
+        // Save all files
+        async function saveAllFiles() {
+            const modifiedFiles = Object.entries(state.files).filter(([_, f]) => f.modified);
+            if (modifiedFiles.length === 0) return;
+            
+            // Check for validation errors
+            const invalidFiles = modifiedFiles.filter(([_, f]) => !validateYaml(f.content).valid);
+            if (invalidFiles.length > 0) {
+                const confirmed = await confirmAsync('YAML Errors', `<strong>${invalidFiles.length} file(s)</strong> have YAML syntax errors.<br><br>Save anyway?`);
+                if (!confirmed) return;
+            }
+            
+            showLoading(true, 'Saving all files...');
+            let saved = 0;
+            
+            for (const [path, file] of modifiedFiles) {
+                try {
+                    const result = await fetch('/ansible-api?action=write&file=' + encodeURIComponent(path), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content: file.content })
+                    }).then(r => r.json());
+                    
+                    if (result.success) {
+                        file.originalContent = file.content;
+                        file.modified = false;
+                        saved++;
+                    }
+                } catch (e) {
+                    console.error('Error saving ' + path, e);
+                }
+            }
+            
+            showOutput(`Saved ${saved}/${modifiedFiles.length} files`, saved === modifiedFiles.length ? 'success' : 'error');
+            updateUI();
+            
+            // Refresh file tree in case new files were created
+            if (saved > 0) {
+                await loadFileTree();
+            }
+            showLoading(false);
+        }
+        
+        // Run generate configs
+        async function runGenerate() {
+            const host = getSelectedHosts();
+            
+            // Note: confirm() removed as browsers block it
+            const targetMsg = host ? ` for ${host}` : ' for all hosts';
+            
+            showLoading(true, 'Generating configs' + targetMsg + '...');
+            try {
+                const result = await apiCall('generate', { host: host || '' });
+                showOutput(result.output || result.error, result.success ? 'success' : 'error');
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            showLoading(false);
+        }
+        
+        // Run diff
+        async function runDiff() {
+            const host = getSelectedHosts();
+            if (!host) {
+                showOutput('Please select at least one host', 'error');
+                return;
+            }
+            
+            showLoading(true, 'Running diff for ' + host + '...');
+            try {
+                const result = await apiCall('diff', { host });
+                const output = result.output || result.error || '';
+                showOutput(output, result.success ? '' : 'error');
+                
+                // Show diff popup with summary
+                if (result.success && output.includes('DIFF SUMMARY')) {
+                    const changesMatch = output.match(/With changes:\s*(\d+)/);
+                    const changesCount = changesMatch ? parseInt(changesMatch[1]) : 0;
+                    showDiffPopup(output, changesCount);
+                }
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            showLoading(false);
+        }
+        
+        // Show diff summary popup
+        function showDiffPopup(output, changesCount) {
+            // Extract summary section (from CONFIG DIFF SUMMARY to PLAY RECAP)
+            const lines = output.split('\n');
+            let summaryLines = [];
+            let inSummary = false;
+            let boxStarted = false;
+            
+            for (const line of lines) {
+                // Stop at PLAY RECAP
+                if (line.includes('PLAY RECAP')) {
+                    break;
+                }
+                
+                // Detect start of summary box (the line with ╔)
+                if (line.includes('╔') && line.includes('CONFIG DIFF SUMMARY')) {
+                    inSummary = true;
+                    boxStarted = true;
+                }
+                // Also catch the box line before the title
+                if (!boxStarted && line.includes('╔════')) {
+                    inSummary = true;
+                    boxStarted = true;
+                }
+                
+                if (inSummary) {
+                    summaryLines.push(line);
+                }
+            }
+            
+            // Create popup content
+            const popupContent = summaryLines.length > 0 
+                ? summaryLines.join('\n')
+                : changesCount > 0 
+                    ? `${changesCount} switch(es) have configuration changes.\n\nCheck the output panel for details.`
+                    : 'All switches are in sync with Ansible configurations.';
+            
+            // Show popup modal
+            showDiffModal(popupContent, changesCount);
+        }
+        
+        function showDiffModal(content, changesCount) {
+            // Remove existing modal if any
+            const existing = document.getElementById('diff-popup-modal');
+            if (existing) existing.remove();
+            
+            const hasChanges = changesCount > 0;
+            const headerBg = hasChanges ? '#c53030' : '#76b900';
+            const headerText = hasChanges ? '#ffffff' : '#000000';
+            const icon = hasChanges ? '⚠️' : '✅';
+            const title = hasChanges 
+                ? `Configuration Changes Detected (${changesCount})`
+                : 'All Switches Synchronized';
+            
+            const modal = document.createElement('div');
+            modal.id = 'diff-popup-modal';
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; justify-content: center; align-items: center;';
+            // Don't close on overlay click - only close button works
+            
+            modal.innerHTML = `
+                <div style="background: #2d2d2d; border-radius: 8px; max-width: 800px; width: 90%; max-height: 80vh; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+                    <div style="padding: 15px 20px; background: ${headerBg}; color: ${headerText}; display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0; font-size: 16px;">${icon} ${title}</h3>
+                        <button onclick="this.closest('#diff-popup-modal').remove()" style="background: none; border: none; color: ${headerText}; font-size: 24px; cursor: pointer; padding: 0; line-height: 1;">&times;</button>
+                    </div>
+                    <div style="padding: 20px; max-height: 60vh; overflow: auto; background: #1e1e1e;">
+                        <pre id="diff-popup-content" style="margin: 0; white-space: pre; font-family: 'DejaVu Sans Mono', 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 13px; line-height: 1.4; color: #d4d4d4; tab-size: 4; min-width: max-content;">${ansiToHtml(content)}</pre>
+                    </div>
+                    <div style="padding: 15px 20px; background: #252526; text-align: center; border-top: 1px solid #404040;">
+                        <button onclick="this.closest('#diff-popup-modal').remove()" style="background: #404040; color: white; border: none; padding: 10px 30px; border-radius: 4px; cursor: pointer; font-size: 14px; margin-right: 10px;">Close</button>
+                        <button onclick="copyDiffContent(this)" style="background: #76b900; color: #000; border: none; padding: 10px 30px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold;">Copy</button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function copyDiffContent(btn) {
+            const pre = document.getElementById('diff-popup-content');
+            if (pre) {
+                const text = pre.textContent;
+                
+                // Create a temporary textarea for copying (works on HTTP too)
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                textarea.style.top = '0';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                
+                try {
+                    document.execCommand('copy');
+                    // Show feedback
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    btn.style.background = '#4ec9b0';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.style.background = '#76b900';
+                    }, 2000);
+                } catch (err) {
+                    console.error('Copy failed:', err);
+                    alert('Copy failed');
+                }
+                
+                document.body.removeChild(textarea);
+            }
+        }
+        
+        // Run deploy
+        async function runDeploy() {
+            const host = getSelectedHosts();
+            if (!host) {
+                showOutput('Please select at least one target host/group', 'error');
+                return;
+            }
+            
+            // Note: confirm() removed as browsers block it
+            showLoading(true, 'Deploying to ' + host + '...');
+            try {
+                const result = await apiCall('deploy', { host });
+                showOutput(result.output || result.error, result.success ? 'success' : 'error');
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            showLoading(false);
+        }
+        
+        // UI helpers
+        function showLoading(show, text = 'Loading...') {
+            document.getElementById('loading').classList.toggle('visible', show);
+            document.getElementById('loading-text').textContent = text;
+        }
+        
+        // Convert ANSI escape codes to HTML
+        function ansiToHtml(text) {
+            // Escape HTML first
+            let html = text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            
+            // Remove grep-specific ANSI codes: [K (clear line), [m (reset without number)
+            html = html.replace(/\u001b\[K/g, '');
+            html = html.replace(/\u001b\[m/g, '</span>');
+            
+            // Wrap in span to handle orphan closing tags
+            html = '<span>' + html + '</span>';
+            
+            // ANSI color map
+            const colors = {
+                '30': '#000', '31': '#e74c3c', '32': '#2ecc71', '33': '#f1c40f',
+                '34': '#3498db', '35': '#9b59b6', '36': '#1abc9c', '37': '#ecf0f1',
+                '90': '#7f8c8d', '91': '#ff6b6b', '92': '#4ec9b0', '93': '#ffd93d',
+                '94': '#6997d5', '95': '#c586c0', '96': '#56d4bc', '97': '#fff'
+            };
+            
+            // Replace ANSI codes with spans
+            html = html.replace(/\u001b\[([0-9;]+)m/g, (match, codes) => {
+                const codeList = codes.split(';');
+                let style = '';
+                let isReset = false;
+                
+                for (const code of codeList) {
+                    if (code === '0' || code === '') {
+                        isReset = true;
+                        continue; // Don't return, process other codes
+                    }
+                    if (code === '1') style += 'font-weight:bold;';
+                    else if (code === '4') style += 'text-decoration:underline;';
+                    else if (colors[code]) style += `color:${colors[code]};`;
+                    else {
+                        // Background colors (40-47, 100-107)
+                        const bg = parseInt(code);
+                        if (bg >= 40 && bg <= 47) {
+                            const fgCode = String(bg - 10);
+                            if (colors[fgCode]) style += `background:${colors[fgCode]};`;
+                        }
+                    }
+                }
+                
+                // If only reset with no other style, close span
+                if (isReset && !style) return '</span>';
+                // If has style, close previous and open new
+                if (style) return `</span><span style="${style}">`;
+                return '';
+            });
+            
+            return html;
+        }
+        
+        function showOutput(text, type = '') {
+            const panel = document.getElementById('output-panel');
+            const content = document.getElementById('output-content');
+            
+            // Check if text contains ANSI codes - if so, don't apply success/error class
+            const hasAnsi = /\u001b\[/.test(text);
+            content.innerHTML = ansiToHtml(text);
+            content.className = 'output-content' + (hasAnsi ? '' : ' ' + type);
+            panel.classList.add('visible');
+        }
+        
+        function showOutputHtml(html) {
+            const panel = document.getElementById('output-panel');
+            const content = document.getElementById('output-content');
+            content.innerHTML = html;
+            content.className = 'output-content';
+            panel.classList.add('visible');
+        }
+        
+        function hideOutput() {
+            document.getElementById('output-panel').classList.remove('visible');
+        }
+        
+        // Git functions
+        function toggleGitMenu() {
+            const menu = document.getElementById('git-menu');
+            menu.classList.toggle('show');
+            
+            // Close menu when clicking outside
+            if (menu.classList.contains('show')) {
+                setTimeout(() => {
+                    document.addEventListener('click', closeGitMenu);
+                }, 0);
+            }
+        }
+        
+        function closeGitMenu(e) {
+            const menu = document.getElementById('git-menu');
+            const dropdown = menu.parentElement;
+            if (!dropdown.contains(e.target)) {
+                menu.classList.remove('show');
+                document.removeEventListener('click', closeGitMenu);
+            }
+        }
+        
+        async function createNewFile() {
+            // Use lastFolder (set when opening files/folders)
+            let folder = state.lastFolder || '';
+            
+            // Ask for filename
+            const folderDisplay = folder || '(root)';
+            const userInput = prompt(`New filename (in ${folderDisplay}):`, 'new-file.yaml');
+            
+            if (!userInput) {
+                return; // User cancelled
+            }
+            
+            const fileName = (folder ? folder + '/' : '') + userInput;
+            
+            // Check if file already exists
+            if (state.files[fileName]) {
+                showOutput('File already exists: ' + fileName, 'error');
+                return;
+            }
+            
+            // Create new file in state
+            state.files[fileName] = {
+                content: '# ' + userInput + '\n\n',
+                originalContent: '',
+                modified: true,
+                valid: true
+            };
+            
+            // Switch to the new file
+            state.currentFile = fileName;
+            document.getElementById('no-file-message').style.display = 'none';
+            document.getElementById('editor-container').style.display = 'block';
+            state.editor.setValue(state.files[fileName].content);
+            state.editor.setScrollTop(0);
+            
+            updateUI();
+            showOutput('New file: ' + fileName + ' | Press Save to create', 'success');
+        }
+        
+        async function renameCurrentFile() {
+            if (!state.currentFile) return;
+            
+            const oldPath = state.currentFile;
+            const oldName = oldPath.split('/').pop();
+            const folder = oldPath.includes('/') ? oldPath.substring(0, oldPath.lastIndexOf('/')) : '';
+            
+            // Since prompt may be blocked, use a simple approach:
+            // Get new name from first line of file if it's a comment with filename
+            const content = state.files[oldPath]?.content || '';
+            const firstLine = content.split('\n')[0];
+            let newName = oldName;
+            
+            // Check if first line has a filename hint: # filename: newname.yaml
+            const match = firstLine.match(/^#\s*filename:\s*(.+)/i);
+            if (match) {
+                newName = match[1].trim();
+            } else {
+                // Try prompt (may be blocked)
+                const input = window.prompt ? prompt('New filename:', oldName) : null;
+                if (input) {
+                    newName = input;
+                } else {
+                    showOutput('To rename: edit "# filename: newname.yaml" in first line, then click Rename', 'info');
+                    return;
+                }
+            }
+            
+            if (newName === oldName) {
+                showOutput('Filename unchanged', 'info');
+                return;
+            }
+            
+            const newPath = folder ? folder + '/' + newName : newName;
+            
+            showLoading(true, 'Renaming file...');
+            try {
+                // Save content to new path
+                const saveResult = await fetch('/ansible-api?action=write&file=' + encodeURIComponent(newPath), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: content.replace(/^#\s*filename:.*\n?/i, '') })
+                }).then(r => r.json());
+                
+                if (!saveResult.success) {
+                    showOutput('Error creating new file: ' + saveResult.error, 'error');
+                    showLoading(false);
+                    return;
+                }
+                
+                // Delete old file
+                const deleteResult = await apiCall('delete', { file: oldPath });
+                if (!deleteResult.success) {
+                    showOutput('Warning: new file created but old file not deleted', 'error');
+                }
+                
+                // Update state
+                delete state.files[oldPath];
+                state.files[newPath] = {
+                    content: content.replace(/^#\s*filename:.*\n?/i, ''),
+                    originalContent: content.replace(/^#\s*filename:.*\n?/i, ''),
+                    modified: false,
+                    valid: true
+                };
+                state.currentFile = newPath;
+                
+                // Refresh
+                await loadFileTree();
+                state.editor.setValue(state.files[newPath].content);
+                updateUI();
+                
+                showOutput('Renamed: ' + oldName + ' → ' + newName, 'success');
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            showLoading(false);
+        }
+        
+        async function deleteCurrentFile() {
+            if (!state.currentFile) return;
+            
+            const file = state.files[state.currentFile];
+            const isNewFile = file && !file.originalContent;
+            
+            // If file was never saved, just remove from state
+            if (isNewFile) {
+                delete state.files[state.currentFile];
+                state.currentFile = null;
+                
+                // Clear editor and show placeholder
+                if (state.editor) {
+                    state.editor.setValue('');
+                }
+                document.getElementById('editor-container').style.display = 'none';
+                document.getElementById('no-file-message').style.display = 'flex';
+                document.getElementById('editor-tabs').innerHTML = '';
+                document.getElementById('yaml-validation').style.display = 'none';
+                
+                updateUI();
+                showOutput('New file discarded', 'success');
+                return;
+            }
+            
+            showLoading(true, 'Deleting file...');
+            try {
+                const result = await apiCall('delete', { file: state.currentFile });
+                if (result.success) {
+                    // Remove from state
+                    delete state.files[state.currentFile];
+                    state.currentFile = null;
+                    
+                    // Reload file list
+                    await loadFileTree();
+                    
+                    // Clear editor and show placeholder
+                    if (state.editor) {
+                        state.editor.setValue('');
+                    }
+                    document.getElementById('editor-container').style.display = 'none';
+                    document.getElementById('no-file-message').style.display = 'flex';
+                    document.getElementById('editor-tabs').innerHTML = '';
+                    document.getElementById('yaml-validation').style.display = 'none';
+                    
+                    showOutput('File deleted successfully', 'success');
+                } else {
+                    showOutput(result.error || 'Failed to delete file', 'error');
+                }
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            showLoading(false);
+            updateUI();
+        }
+        
+        async function gitCommitPush() {
+            // Note: prompt() removed as some browsers block it
+            // Using timestamp-based commit message
+            const now = new Date();
+            const message = 'Update ' + now.toISOString().slice(0, 16).replace('T', ' ');
+            
+            showLoading(true, 'Committing and pushing...');
+            try {
+                // Send action in URL, message in POST body
+                const response = await fetch('/ansible-api?action=git-commit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'message=' + encodeURIComponent(message)
+                });
+                const result = await response.json();
+                showOutput(result.output || result.error, result.success ? 'success' : 'error');
+                
+                // Refresh git modified status immediately
+                if (result.success) {
+                    loadGitModifiedFiles();
+                }
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            showLoading(false);
+        }
+        
+        async function gitPull() {
+            // Note: confirm() removed as some browsers block it
+            
+            showLoading(true, 'Pulling from remote...');
+            try {
+                const result = await apiCall('git-pull');
+                showOutput(result.output || result.error, result.success ? 'success' : 'error');
+                if (result.success) {
+                    // Reload file list and git status
+                    setTimeout(() => {
+                        loadFileTree();
+                        loadGitModifiedFiles();
+                    }, 500);
+                }
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            showLoading(false);
+        }
+        
+        async function gitStatus() {
+            showLoading(true, 'Checking status...');
+            try {
+                const result = await apiCall('git-status');
+                showOutput(result.output || result.error, result.success ? '' : 'error');
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            showLoading(false);
+        }
+        
+        // Clear search input
+        function clearSearch() {
+            const input = document.getElementById('inventory-search');
+            input.value = '';
+            document.getElementById('search-clear').style.display = 'none';
+            hideOutput();
+            input.focus();
+        }
+        
+        // Search in inventory folder (grep) - with colored output like terminal
+        async function searchInventory(query) {
+            if (!query || query.trim() === '') {
+                showOutput('Please enter a search term', 'info');
+                return;
+            }
+            
+            showLoading(true, 'Searching in inventory...');
+            try {
+                const response = await fetch('/ansible-api?action=grep&query=' + encodeURIComponent(query.trim()) + '&path=inventory');
+                const result = await response.json();
+                
+                if (result.success) {
+                    if (result.output && result.output.trim()) {
+                        // showOutput already handles ANSI codes via ansiToHtml
+                        showOutput('mgrep "' + query + '" inventory/\n\n' + result.output);
+                    } else {
+                        showOutput('No matches found for "' + query + '" in inventory/', 'info');
+                    }
+                } else {
+                    showOutput(result.error || 'Search failed', 'error');
+                }
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            showLoading(false);
+        }
+        
+        async function gitLog() {
+            showLoading(true, 'Loading history...');
+            try {
+                const result = await apiCall('git-log');
+                showOutput(result.output || result.error, result.success ? '' : 'error');
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            showLoading(false);
+        }
+        
+        async function gitDiff() {
+            showLoading(true, 'Loading diff...');
+            try {
+                const result = await apiCall('git-diff');
+                if (result.success) {
+                    const output = (result.output || '').trim();
+                    if (!output || output === '') {
+                        showOutputHtml('<div style="color: #76ff7a; font-weight: 600; font-size: 16px;">✓ No Changes</div><div style="margin-top: 10px; color: #888;">All files are in sync with the last commit.</div>');
+                    } else {
+                        showOutput(output, '');
+                    }
+                } else {
+                    showOutput(result.error || 'Unknown error', 'error');
+                }
+            } catch (e) {
+                showOutput('Error: ' + e.message, 'error');
+            }
+            showLoading(false);
+        }
+        
+        async function gitReset() {
+            showConfirmModal(
+                'Reset All Changes',
+                'Are you sure you want to discard <strong>ALL uncommitted changes</strong>?<br><br>This action cannot be undone!',
+                async () => {
+                    showLoading(true, 'Resetting changes...');
+                    try {
+                        const result = await apiCall('git-reset');
+                        showOutput(result.output || result.error, result.success ? '' : 'error');
+                        if (result.success) {
+                            // Refresh git modified status immediately
+                            loadGitModifiedFiles();
+                            // Reload current file to show reverted content
+                            if (state.currentFile) {
+                                await reloadFile(state.currentFile);
+                            }
+                        }
+                    } catch (e) {
+                        showOutput('Error: ' + e.message, 'error');
+                    }
+                    showLoading(false);
+                }
+            );
+        }
+        
+        // Reset single file to last commit
+        async function confirmResetFile() {
+            if (!state.currentFile) {
+                showOutput('No file is currently open', 'error');
+                return;
+            }
+            
+            const filename = state.currentFile.split('/').pop();
+            
+            showConfirmModal(
+                'Reset File',
+                `Are you sure you want to reset <strong>${filename}</strong> to the last commit?<br><br>All uncommitted changes will be lost!`,
+                async () => {
+                    showLoading(true, 'Resetting file...');
+                    try {
+                        const result = await apiCall('git-reset-file', { file: state.currentFile });
+                        if (result.success) {
+                            showOutput(`✓ ${filename} reset to last commit`, 'success');
+                            // Reload file to show reverted content
+                            await reloadFile(state.currentFile);
+                            // Refresh git modified status
+                            loadGitModifiedFiles();
+                        } else {
+                            showOutput(result.error || 'Failed to reset file', 'error');
+                        }
+                    } catch (e) {
+                        showOutput('Error: ' + e.message, 'error');
+                    }
+                    showLoading(false);
+                }
+            );
+        }
+        
+        // Custom confirm modal (Promise-based for async/await support)
+        let confirmResolve = null;
+        let confirmCallback = null;
+        
+        function showConfirmModal(title, message, onConfirm = null) {
+            document.getElementById('confirm-modal-title').textContent = title;
+            document.getElementById('confirm-modal-message').innerHTML = message;
+            confirmCallback = onConfirm;
+            document.getElementById('confirm-modal').style.display = 'flex';
+            
+            // If no callback, return a Promise
+            if (!onConfirm) {
+                return new Promise(resolve => {
+                    confirmResolve = resolve;
+                });
+            }
+        }
+        
+        function closeConfirmModal(result = false) {
+            document.getElementById('confirm-modal').style.display = 'none';
+            if (confirmResolve) {
+                confirmResolve(result);
+                confirmResolve = null;
+            }
+            confirmCallback = null;
+        }
+        
+        function executeConfirmAction() {
+            if (confirmCallback) {
+                confirmCallback();
+                closeConfirmModal();
+            } else if (confirmResolve) {
+                confirmResolve(true);
+                confirmResolve = null;
+                document.getElementById('confirm-modal').style.display = 'none';
+            }
+        }
+        
+        // Async confirm helper
+        async function confirmAsync(title, message) {
+            return showConfirmModal(title, message);
+        }
+    </script>
+    
+    <!-- Confirm Modal -->
+    <div id="confirm-modal" class="help-modal-overlay" style="display: none;" onclick="if(event.target === this) closeConfirmModal()">
+        <div class="help-modal" style="max-width: 450px;">
+            <div class="help-modal-header" style="background: linear-gradient(135deg, #f57c00 0%, #e65100 100%);">
+                <h2 id="confirm-modal-title">Confirm</h2>
+                <button class="help-modal-close" onclick="closeConfirmModal()">&times;</button>
+            </div>
+            <div style="padding: 20px;">
+                <p id="confirm-modal-message" style="color: #ccc; line-height: 1.6; margin: 0;"></p>
+            </div>
+            <div style="padding: 15px 20px; background: #252526; display: flex; justify-content: flex-end; gap: 10px; border-radius: 0 0 8px 8px;">
+                <button class="btn btn-secondary" onclick="closeConfirmModal()">Cancel</button>
+                <button class="btn btn-danger" id="confirm-modal-ok" onclick="executeConfirmAction()">Confirm</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Help Modal -->
+    <div id="help-modal" class="help-modal-overlay" onclick="if(event.target === this) hideHelpModal()">
+        <div class="help-modal">
+            <div class="help-modal-header">
+                <h2>Keyboard Shortcuts</h2>
+                <button class="help-modal-close" onclick="hideHelpModal()">&times;</button>
+            </div>
+            <div class="help-modal-content">
+                <div class="help-section">
+                    <h3>Editing</h3>
+                    <table class="help-table">
+                        <tr><th>Action</th><th>Windows/Linux</th><th>Mac</th></tr>
+                        <tr><td>Undo</td><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td><kbd>⌘</kbd>+<kbd>Z</kbd></td></tr>
+                        <tr><td>Redo</td><td><kbd>Ctrl</kbd>+<kbd>Y</kbd></td><td><kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>Z</kbd></td></tr>
+                        <tr><td>Cut Line</td><td><kbd>Ctrl</kbd>+<kbd>X</kbd></td><td><kbd>⌘</kbd>+<kbd>X</kbd></td></tr>
+                        <tr><td>Copy Line</td><td><kbd>Ctrl</kbd>+<kbd>C</kbd></td><td><kbd>⌘</kbd>+<kbd>C</kbd></td></tr>
+                        <tr><td>Delete Line</td><td><kbd>Ctrl</kbd>+<kbd>⇧</kbd>+<kbd>K</kbd></td><td><kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>K</kbd></td></tr>
+                        <tr><td>Duplicate Line</td><td><kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>↓</kbd></td><td><kbd>⇧</kbd>+<kbd>⌥</kbd>+<kbd>↓</kbd></td></tr>
+                        <tr><td>Move Line Up/Down</td><td><kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd></td><td><kbd>⌥</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd></td></tr>
+                        <tr><td>Toggle Comment</td><td><kbd>Ctrl</kbd>+<kbd>/</kbd></td><td><kbd>⌘</kbd>+<kbd>/</kbd></td></tr>
+                        <tr><td>Indent/Outdent</td><td><kbd>Tab</kbd> / <kbd>⇧</kbd>+<kbd>Tab</kbd></td><td><kbd>Tab</kbd> / <kbd>⇧</kbd>+<kbd>Tab</kbd></td></tr>
+                    </table>
+                </div>
+                
+                <div class="help-section">
+                    <h3>Selection</h3>
+                    <table class="help-table">
+                        <tr><th>Action</th><th>Windows/Linux</th><th>Mac</th></tr>
+                        <tr><td>Select All</td><td><kbd>Ctrl</kbd>+<kbd>A</kbd></td><td><kbd>⌘</kbd>+<kbd>A</kbd></td></tr>
+                        <tr><td>Select Line</td><td><kbd>Ctrl</kbd>+<kbd>L</kbd></td><td><kbd>⌘</kbd>+<kbd>L</kbd></td></tr>
+                        <tr><td>Select Word</td><td><kbd>Ctrl</kbd>+<kbd>D</kbd></td><td><kbd>⌘</kbd>+<kbd>D</kbd></td></tr>
+                        <tr><td>Select All Occurrences</td><td><kbd>Ctrl</kbd>+<kbd>⇧</kbd>+<kbd>L</kbd></td><td><kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>L</kbd></td></tr>
+                        <tr><td>Multi-cursor (click)</td><td><kbd>Alt</kbd>+Click</td><td><kbd>⌥</kbd>+Click</td></tr>
+                        <tr><td>Multi-cursor (above/below)</td><td><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd></td><td><kbd>⌘</kbd>+<kbd>⌥</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd></td></tr>
+                        <tr><td>Column/Box Selection</td><td><kbd>Shift</kbd>+<kbd>Alt</kbd>+Drag</td><td><kbd>⇧</kbd>+<kbd>⌥</kbd>+Drag</td></tr>
+                        <tr><td>Expand Selection</td><td><kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>→</kbd></td><td><kbd>⇧</kbd>+<kbd>⌃</kbd>+<kbd>⌘</kbd>+<kbd>→</kbd></td></tr>
+                    </table>
+                </div>
+                
+                <div class="help-section">
+                    <h3>Search & Navigation</h3>
+                    <table class="help-table">
+                        <tr><th>Action</th><th>Windows/Linux</th><th>Mac</th></tr>
+                        <tr><td>Find</td><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td><kbd>⌘</kbd>+<kbd>F</kbd></td></tr>
+                        <tr><td>Find & Replace</td><td><kbd>Ctrl</kbd>+<kbd>H</kbd></td><td><kbd>⌘</kbd>+<kbd>⌥</kbd>+<kbd>F</kbd></td></tr>
+                        <tr><td>Go to Line</td><td><kbd>Ctrl</kbd>+<kbd>G</kbd></td><td><kbd>⌃</kbd>+<kbd>G</kbd></td></tr>
+                        <tr><td>Go to Start/End</td><td><kbd>Ctrl</kbd>+<kbd>Home</kbd>/<kbd>End</kbd></td><td><kbd>⌘</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd></td></tr>
+                        <tr><td>Command Palette</td><td><kbd>F1</kbd></td><td><kbd>F1</kbd></td></tr>
+                    </table>
+                </div>
+            </div>
+            <div class="help-footer">
+                Ali Aydemir © 2024
+            </div>
+        </div>
+    </div>
+</body>
+</html>

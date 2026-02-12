@@ -1,0 +1,300 @@
+#!/usr/bin/env bash
+
+# nvc: NV config colorizer (terminal) matching Monaco editor Cumulus syntax highlighting
+# Usage:
+#   nvc                  -> runs: nv config show -o commands | colorize
+#   nvc -- <cmd...>      -> runs provided command and colorizes output
+#   nvc -                -> reads from stdin and colorizes
+
+set -euo pipefail
+
+FORCE_COLOR=${NVC_FORCE_COLOR:-0}
+COLOR_LO_ENV=${NVC_COLOR_LO:-1}
+
+if [[ -n "${NO_COLOR:-}" ]]; then
+  COLOR=0
+elif [[ "${FORCE_COLOR}" == "1" ]]; then
+  COLOR=1
+elif [[ ! -t 1 ]]; then
+  COLOR=0
+else
+  COLOR=1
+fi
+
+run_and_colorize() {
+  if [[ ${COLOR} -eq 0 ]]; then
+    cat
+    return 0
+  fi
+
+  awk -v ESC="$(printf '\033')" -v COLOR_LO="${COLOR_LO_ENV}" '
+  BEGIN {
+    CSI = ESC "["
+    
+    # Color definitions matching Monaco vs-dark theme
+    C_BLUE = CSI "38;2;86;156;214m"       # keyword blue
+    C_CYAN = CSI "38;2;78;201;176m"       # interface cyan
+    C_GREEN = CSI "38;2;106;153;85m"      # comment/vlan/access green
+    C_WHITE = CSI "38;2;255;255;255m"     # bright white
+    C_ORANGE = CSI "38;2;206;145;120m"    # string/description orange
+    C_BROWN = CSI "38;2;215;186;125m"     # MACs brown
+    C_YELLOW = CSI "38;2;220;220;170m"    # set/unset yellow
+    C_LCYAN = CSI "38;2;156;220;254m"     # type.term light cyan
+    C_RED = CSI "38;2;244;71;71m"         # hostname value red
+    C_PURPLE = CSI "38;2;197;134;192m"    # constants purple
+    C_BOLDBLUE = CSI "1;38;2;86;156;214m" # nv bold blue
+    C_BOLDGREEN = CSI "1;38;2;78;201;176m" # bold green for nv
+    RST = CSI "0m"
+  }
+  
+  function is_interface(word) {
+    if (word ~ /^swp[0-9,.\-s]+$/) return 1
+    if (word ~ /^eth[0-9]+$/) return 1
+    if (word ~ /^bond[0-9]+(-[0-9]+)?$/) return 1
+    if (word ~ /^bond_[A-Za-z0-9_-]+$/) return 1
+    if (word ~ /^[A-Za-z][A-Za-z0-9]*_bond[0-9]*$/) return 1
+    if (word ~ /^vlan[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$/) return 1
+    if (word ~ /^br_?[A-Za-z0-9_]*$/) return 1
+    if (word ~ /^peerlink(\.[0-9]+)?$/) return 1
+    if (word ~ /^lo$/) return 1
+    if (word ~ /^vni[0-9]+$/) return 1
+    return 0
+  }
+  
+  function is_ip(word) {
+    if (word ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(\/[0-9]+)?$/) return 1
+    return 0
+  }
+  
+  function is_mac(word) {
+    # MAC address pattern: xx:xx:xx:xx:xx:xx
+    if (word ~ /^[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]:[0-9A-Fa-f][0-9A-Fa-f]$/) return 1
+    return 0
+  }
+  
+  function is_constant(word) {
+    # on/off/enable/disable now blue (not purple) - only some bgp values stay purple
+    if (word ~ /^(ibgp|ebgp)$/) return 1
+    return 0
+  }
+  
+  function is_green_kw(word) {
+    if (word ~ /^(vlan|untagged|access)$/) return 1
+    return 0
+  }
+  
+  function is_term(word) {
+    if (word ~ /^(autonomous-system|route-map|prefix-list|ip-prefix-list|access-list|community-list|as-path-list|route-target|route-distinguisher)$/) return 1
+    return 0
+  }
+  
+  function is_keyword(word) {
+    # Primary keywords
+    if (word ~ /^(interface|router|bgp|ospf|ospf6|vrf|bridge|system|mlag|platform)$/) return 1
+    # Secondary keywords
+    if (word ~ /^(neighbor|peer-group|address-family|ipv4-unicast|ipv6-unicast|l2vpn-evpn)$/) return 1
+    if (word ~ /^(network|redistribute|aggregate-address|default-originate)$/) return 1
+    if (word ~ /^(svi|domain|tagged|trunk|member|vxlan|qos|policy)$/) return 1
+    # Config options
+    if (word ~ /^(timezone|message|motd|pre-login|post-login)$/) return 1
+    if (word ~ /^(ip|ipv6|address|gateway|route|static|via|blackhole)$/) return 1
+    if (word ~ /^(link|speed|duplex|mtu|fec|autoneg|state|up|down)$/) return 1
+    if (word ~ /^(update-source|ebgp-multihop|ttl-security|timers|password|bfd)$/) return 1
+    if (word ~ /^(local-tunnelip|flooding|head-end-replication|arp-nd-suppress|mac-vrf)$/) return 1
+    if (word ~ /^(lacp-bypass|mode|slaves|clag-id|backup|peer-ip|priority|sys-mac|init-delay)$/) return 1
+    if (word ~ /^(import|export|rd|rt|ead-evi-route|multihoming|segment)$/) return 1
+    if (word ~ /^(keepalive|hold|connect|graceful-restart|capabilities)$/) return 1
+    if (word ~ /^(weight|local-preference|med|as-path-prepend|next-hop-self)$/) return 1
+    if (word ~ /^(send-community|soft-reconfiguration|route-reflector-client|allowas-in)$/) return 1
+    if (word ~ /^(ntp|dns|syslog|snmp|lldp|ptm)$/) return 1
+    # New keywords
+    if (word ~ /^(startup-delay|local-id|path-selection|multipath|aspath-ignore|mac-address|df-preference|admin-edge|auto-edge|bpdu-guard)$/) return 1
+    if (word ~ /^(action|decapsulation|encapsulation|preservation|dscp|nve|vrr|source|copy|preserve|type)$/) return 1
+    if (word ~ /^(lanes-per-port|route-export|to-evpn|route-import)$/) return 1
+    if (word ~ /^(unnumbered|numbered|reboot|ssh-server|auto-save|config|eth|service|api|aaa|wjh)$/) return 1
+    if (word ~ /^(stp|lossless|router-id|server|class|nvapply|allow|command-path|permission|role|user)$/) return 1
+    if (word ~ /^(all|ro|rw|loopback)$/) return 1
+    if (word ~ /^(nvshow|sudo|nvue-admin|nvue-monitor|cumulus|full-name|channel|forwarding|tunnel|control-plane)$/) return 1
+    if (word ~ /^(servers|mgmt|cold|list|rule|match|permit|max-prefix-len|inbound|external|internal)$/) return 1
+    if (word ~ /^(on|off|enable|disable|enabled|disabled|yes|no|true|false|auto|none)$/) return 1
+    if (word ~ /^(hostname|description|evpn|bond|policy|acl)$/) return 1
+    # Compound patterns
+    if (word ~ /^server-group/) return 1
+    if (word ~ /-group$/) return 1
+    if (word ~ /-group-/) return 1
+    if (word ~ /^downstream-/) return 1
+    if (word ~ /^upstream-/) return 1
+    if (word ~ /^from-/) return 1
+    if (word ~ /^base-/) return 1
+    if (word ~ /^hashed-/) return 1
+    if (word ~ /-name$/) return 1
+    if (word ~ /^acl-/) return 1
+    return 0
+  }
+  
+  function colorize_word(word) {
+    # Order matters - check most specific first
+    if (word == "nv") return C_BOLDGREEN word RST
+    if (word == "set" || word == "unset") return C_YELLOW word RST
+    if (word == "show" || word == "apply" || word == "diff" || word == "pending") return C_YELLOW word RST
+    if (word == "dhcp-relay") return C_WHITE word RST
+    if (is_interface(word)) return C_CYAN word RST
+    if (is_ip(word)) return C_WHITE word RST
+    if (is_mac(word)) return C_WHITE word RST
+    if (is_constant(word)) return C_PURPLE word RST
+    if (is_green_kw(word)) return C_GREEN word RST
+    if (is_term(word)) return C_LCYAN word RST
+    if (is_keyword(word)) return C_BLUE word RST
+    # Numbers standalone
+    if (word ~ /^[0-9]+$/) return C_LCYAN word RST
+    return C_BLUE word RST
+  }
+  
+  {
+    line = $0
+    
+    # Full-line comments
+    if (line ~ /^[[:space:]]*#/) {
+      print C_GREEN line RST
+      next
+    }
+    
+    # Split line into tokens and process each
+    n = split(line, tokens, /[[:space:]]+/)
+    output = ""
+    
+    # Track special states
+    after_hostname = 0
+    after_description = 0
+    after_vrf = 0
+    after_interface = 0
+    after_routemap = 0
+    after_list = 0
+    after_peergroup = 0
+    
+    for (i = 1; i <= n; i++) {
+      word = tokens[i]
+      if (word == "") continue
+      
+      # Handle special cases based on previous word
+      if (after_hostname == 1) {
+        output = output " " C_RED word RST
+        after_hostname = 0
+        continue
+      }
+      
+      if (after_description == 1) {
+        # Everything after description is orange
+        rest = word
+        for (j = i + 1; j <= n; j++) {
+          rest = rest " " tokens[j]
+        }
+        output = output " " C_ORANGE rest RST
+        break
+      }
+      
+      if (after_vrf == 1) {
+        # VRF name - use light cyan/type color
+        output = output " " C_LCYAN word RST
+        after_vrf = 0
+        continue
+      }
+      
+      if (after_interface == 1) {
+        # Interface name should be cyan
+        if (is_interface(word) || word ~ /^[A-Za-z]/) {
+          output = output " " C_CYAN word RST
+        } else {
+          output = output " " colorize_word(word)
+        }
+        after_interface = 0
+        continue
+      }
+      
+      if (after_routemap == 1 || after_list == 1 || after_peergroup == 1) {
+        # Route-map/list/peer-group name is white
+        output = output " " C_WHITE word RST
+        after_routemap = 0
+        after_list = 0
+        after_peergroup = 0
+        continue
+      }
+      
+      # Check for state triggers
+      if (word == "hostname") {
+        after_hostname = 1
+        output = output " " C_BLUE word RST
+        continue
+      }
+      
+      if (word == "description") {
+        after_description = 1
+        output = output " " C_BLUE word RST
+        continue
+      }
+      
+      if (word == "vrf") {
+        after_vrf = 1
+        output = output " " C_BLUE word RST
+        continue
+      }
+      
+      if (word == "interface") {
+        after_interface = 1
+        output = output " " C_BLUE word RST
+        continue
+      }
+      
+      if (word == "route-map") {
+        after_routemap = 1
+        output = output " " C_LCYAN word RST
+        continue
+      }
+      
+      if (word == "list") {
+        after_list = 1
+        output = output " " C_BLUE word RST
+        continue
+      }
+      
+      if (word == "peer-group") {
+        after_peergroup = 1
+        output = output " " C_BLUE word RST
+        continue
+      }
+      
+      # Standard colorization
+      if (i == 1) {
+        output = colorize_word(word)
+      } else {
+        output = output " " colorize_word(word)
+      }
+    }
+    
+    print output
+  }'
+}
+
+main() {
+  if [[ $# -eq 0 ]]; then
+    if command -v nv >/dev/null 2>&1; then
+      nv config show -o commands 2>&1 | run_and_colorize
+    else
+      echo "nv command not found. Pipe input or run with: nvc -- <command>" >&2
+      exit 127
+    fi
+  elif [[ "$1" == "-" ]]; then
+    run_and_colorize
+  elif [[ "$1" == "--" ]]; then
+    shift
+    if [[ $# -eq 0 ]]; then
+      echo "Usage: nvc -- <command ...>" >&2
+      exit 2
+    fi
+    "$@" 2>&1 | run_and_colorize
+  else
+    "$@" 2>&1 | run_and_colorize
+  fi
+}
+
+main "$@"

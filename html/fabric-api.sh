@@ -1,0 +1,5894 @@
+#!/bin/bash
+# Fabric Configuration API
+# Backend for fabric-config.html
+
+# Load config - read ANSIBLE_DIR from config file, but don't overwrite env var
+if [[ -f /etc/lldpq.conf ]]; then
+    _conf_ansible_dir=$(grep "^ANSIBLE_DIR=" /etc/lldpq.conf 2>/dev/null | cut -d= -f2)
+    if [[ -n "$_conf_ansible_dir" ]]; then
+        ANSIBLE_DIR="$_conf_ansible_dir"
+    fi
+fi
+# NoNe = explicitly disabled, treat as empty
+if [[ "$ANSIBLE_DIR" == "NoNe" ]]; then
+    ANSIBLE_DIR=""
+fi
+
+# Export for Python scripts
+export ANSIBLE_DIR
+
+# Output JSON header
+echo "Content-Type: application/json"
+echo ""
+
+# Parse query string
+parse_query() {
+    local query="$QUERY_STRING"
+    # Parse action
+    ACTION=$(echo "$query" | grep -oP 'action=\K[^&]*' | head -1)
+    # Parse hostname
+    HOSTNAME=$(echo "$query" | grep -oP 'hostname=\K[^&]*' | head -1 | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read().strip()))")
+}
+
+# List devices from inventory
+# Priority: Ansible inventory -> devices.yaml fallback
+list_devices() {
+    # Try Ansible inventory first
+    local hosts_file=""
+    if [[ -n "$ANSIBLE_DIR" ]]; then
+        if [[ -f "$ANSIBLE_DIR/inventory/inventory.ini" ]]; then
+            hosts_file="$ANSIBLE_DIR/inventory/inventory.ini"
+        elif [[ -f "$ANSIBLE_DIR/inventory/hosts" ]]; then
+            hosts_file="$ANSIBLE_DIR/inventory/hosts"
+        fi
+    fi
+
+    # Fallback: devices.yaml
+    local lldpq_dir=""
+    if [[ -f /etc/lldpq.conf ]]; then
+        lldpq_dir=$(grep "^LLDPQ_DIR=" /etc/lldpq.conf | cut -d= -f2)
+    fi
+    lldpq_dir="${lldpq_dir:-/home/lldpq/lldpq}"
+    local devices_yaml="$lldpq_dir/devices.yaml"
+
+    export INVENTORY_FILE="$hosts_file"
+    export DEVICES_YAML="$devices_yaml"
+
+    python3 << 'PYTHON'
+import sys
+import json
+import os
+import re
+
+hosts_file = os.environ.get('INVENTORY_FILE', '')
+devices_yaml = os.environ.get('DEVICES_YAML', '')
+source = None
+devices = {}
+
+# --- Try Ansible inventory first ---
+if hosts_file and os.path.isfile(hosts_file):
+    source = 'ansible'
+    current_group = None
+    try:
+        with open(hosts_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                if line.startswith('[') and ':' in line:
+                    current_group = None
+                    continue
+                if line.startswith('[') and line.endswith(']'):
+                    current_group = line[1:-1]
+                    if ':children' in current_group:
+                        current_group = None
+                    else:
+                        devices[current_group] = []
+                    continue
+                if current_group and '=' in line:
+                    parts = line.split()
+                    hostname = parts[0]
+                    ip = None
+                    for part in parts[1:]:
+                        if part.startswith('ansible_host='):
+                            ip = part.split('=')[1]
+                            break
+                    devices[current_group].append({
+                        'hostname': hostname,
+                        'ip': ip
+                    })
+    except Exception as e:
+        devices = {}
+        source = None
+
+# --- Fallback: devices.yaml ---
+if not devices and devices_yaml and os.path.isfile(devices_yaml):
+    source = 'devices.yaml'
+    try:
+        import yaml
+        with open(devices_yaml, 'r') as f:
+            config = yaml.safe_load(f)
+        devs = config.get('devices', {})
+        if devs:
+            for ip_addr, device_config in devs.items():
+                hostname = None
+                role = None
+                if isinstance(device_config, str):
+                    # Parse "Hostname @role" format
+                    match = re.match(r'^(.+?)\s+@(\w+)$', device_config.strip())
+                    if match:
+                        hostname = match.group(1).strip()
+                        role = match.group(2).lower()
+                    else:
+                        hostname = device_config.strip()
+                elif isinstance(device_config, dict):
+                    hostname = device_config.get('hostname', str(ip_addr))
+                    role = device_config.get('role', None)
+                    if role:
+                        role = role.lower()
+                else:
+                    continue
+                group = role if role else 'all'
+                if group not in devices:
+                    devices[group] = []
+                devices[group].append({
+                    'hostname': hostname,
+                    'ip': str(ip_addr)
+                })
+    except Exception as e:
+        print(json.dumps({'success': False, 'error': f'Failed to parse devices.yaml: {e}'}))
+        sys.exit(0)
+
+if devices:
+    print(json.dumps({
+        'success': True,
+        'devices': devices,
+        'source': source
+    }))
+else:
+    print(json.dumps({
+        'success': False,
+        'error': 'No device inventory found. Provide Ansible inventory or devices.yaml'
+    }))
+PYTHON
+}
+
+# Get device configuration
+get_device() {
+    local hostname="$1"
+    
+    if [[ -z "$hostname" ]]; then
+        echo '{"success": false, "error": "Hostname is required"}'
+        return
+    fi
+    
+    local host_vars_file="$ANSIBLE_DIR/inventory/host_vars/${hostname}.yaml"
+    
+    # Python script to parse host_vars and find device info
+    # Host vars file is optional - some devices (like spines) may not have it
+    python3 << PYTHON
+import sys
+import json
+import yaml  # PyYAML - faster for read-only operations
+import os
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+hostname = "$hostname"
+host_vars_file = f"{ansible_dir}/inventory/host_vars/{hostname}.yaml"
+# Fallback: try inventory.ini first, then hosts
+hosts_file = None
+for name in ['inventory.ini', 'hosts']:
+    path = f"{ansible_dir}/inventory/{name}"
+    if os.path.exists(path):
+        hosts_file = path
+        break
+if not hosts_file:
+    hosts_file = f"{ansible_dir}/inventory/hosts"  # default for error message
+port_profiles_file = f"{ansible_dir}/inventory/group_vars/all/sw_port_profiles.yaml"
+vlan_profiles_file = f"{ansible_dir}/inventory/group_vars/all/vlan_profiles.yaml"
+
+try:
+    # Read host_vars (optional - some devices like spines may not have it)
+    config = {}
+    if os.path.exists(host_vars_file):
+        with open(host_vars_file, 'r') as f:
+            config = yaml.load(f, Loader=yaml.CSafeLoader) or {}
+    
+    # Find device info from hosts file
+    device_info = {'hostname': hostname, 'group': None, 'ip': None}
+    current_group = None
+    
+    with open(hosts_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            
+            if not line or line.startswith('#'):
+                continue
+            
+            if line.startswith('[') and line.endswith(']'):
+                current_group = line[1:-1]
+                if ':' in current_group:
+                    current_group = None
+                continue
+            
+            if current_group and line.startswith(hostname):
+                device_info['group'] = current_group
+                parts = line.split()
+                for part in parts[1:]:
+                    if part.startswith('ansible_host='):
+                        device_info['ip'] = part.split('=')[1]
+                        break
+                break
+    
+    # Check for group_vars VRFs if not in host_vars
+    if 'vrfs' not in config and device_info['group']:
+        group_vrfs_file = f"{ansible_dir}/inventory/group_vars/{device_info['group']}/vrfs.yaml"
+        if os.path.exists(group_vrfs_file):
+            with open(group_vrfs_file, 'r') as f:
+                group_config = yaml.load(f, Loader=yaml.CSafeLoader) or {}
+                if 'vrfs' in group_config:
+                    config['vrfs'] = group_config['vrfs']
+    
+    # Load port profiles for VLAN resolution
+    port_profiles = {}
+    if os.path.exists(port_profiles_file):
+        with open(port_profiles_file, 'r') as f:
+            pp_config = yaml.load(f, Loader=yaml.CSafeLoader) or {}
+            port_profiles = pp_config.get('sw_port_profiles', {})
+    
+    # Load VLAN profiles for VRF and IP resolution
+    vlan_to_vrf = {}
+    vlan_profiles_data = {}
+    vxlan_int_mapping = {}  # VRF name -> VLAN ID for L3VNI interface
+    
+    if os.path.exists(vlan_profiles_file):
+        with open(vlan_profiles_file, 'r') as f:
+            vp_config = yaml.load(f, Loader=yaml.CSafeLoader) or {}
+            
+            # Load vxlan_int mapping (nscale/kddi style: vxlan_int at top level)
+            if 'vxlan_int' in vp_config and isinstance(vp_config['vxlan_int'], dict):
+                vxlan_int_mapping = {str(k): str(v) for k, v in vp_config['vxlan_int'].items()}
+            
+            vlan_profiles = vp_config.get('vlan_profiles', {})
+            # Build VLAN ID to VRF mapping and VLAN profile data
+            for profile_name, profile_data in vlan_profiles.items():
+                if profile_data and 'vlans' in profile_data:
+                    vrr_enabled = profile_data.get('vrr', {}).get('state', False)
+                    vlan_ids = sorted([int(v) for v in profile_data['vlans'].keys()])
+                    
+                    # Build vlan_to_vrf mapping for all VLANs
+                    for vlan_id, vlan_config in profile_data['vlans'].items():
+                        if vlan_config and 'vrf' in vlan_config:
+                            vlan_to_vrf[str(vlan_id)] = vlan_config['vrf']
+                    
+                    # Get first VLAN's config for description/VRF etc
+                    first_vlan_id = vlan_ids[0] if vlan_ids else None
+                    first_vlan_config = profile_data['vlans'].get(str(first_vlan_id)) or profile_data['vlans'].get(first_vlan_id) or {}
+                    
+                    # Get last VLAN's l2vni for range profiles
+                    last_vlan_id = vlan_ids[-1] if vlan_ids else None
+                    last_vlan_config = profile_data['vlans'].get(str(last_vlan_id)) or profile_data['vlans'].get(last_vlan_id) or {}
+                    
+                    # Determine VLAN ID display (single or range)
+                    if len(vlan_ids) == 1:
+                        vlan_id_display = str(vlan_ids[0])
+                    else:
+                        vlan_id_display = f"{vlan_ids[0]}-{vlan_ids[-1]}"
+                    
+                    # Store VLAN profile info for SVI section
+                    vlan_profiles_data[profile_name] = {
+                        'vlan_id': vlan_id_display,
+                        'vlan_count': len(vlan_ids),
+                        'description': first_vlan_config.get('description', ''),
+                        'vrf': first_vlan_config.get('vrf', 'default'),
+                        'l2vni': last_vlan_config.get('l2vni'),
+                        'vrr_enabled': vrr_enabled,
+                        'vrr_vip': first_vlan_config.get('vrr_vip'),
+                        'even_ip': first_vlan_config.get('even_ip'),
+                        'odd_ip': first_vlan_config.get('odd_ip'),
+                        'ip': first_vlan_config.get('ip'),
+                        'vlans': profile_data['vlans']  # Include raw vlans data
+                    }
+    
+    print(json.dumps({
+        'success': True,
+        'config': config,
+        'device_info': device_info,
+        'port_profiles': port_profiles,
+        'vlan_to_vrf': vlan_to_vrf,
+        'vlan_profiles': vlan_profiles_data,
+        'vxlan_int_mapping': vxlan_int_mapping
+    }))
+
+except Exception as e:
+    print(json.dumps({
+        'success': False,
+        'error': str(e)
+    }))
+PYTHON
+}
+
+# Get VLAN profiles
+get_vlan_profiles() {
+    local vlan_file="$ANSIBLE_DIR/inventory/group_vars/all/vlan_profiles.yaml"
+    
+    if [[ ! -f "$vlan_file" ]]; then
+        echo '{"success": false, "error": "VLAN profiles file not found"}'
+        return
+    fi
+    
+    python3 << PYTHON
+import json
+import yaml  # PyYAML - faster for read-only operations
+import os
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+vlan_file = f"{ansible_dir}/inventory/group_vars/all/vlan_profiles.yaml"
+
+try:
+    with open(vlan_file, 'r') as f:
+        config = yaml.load(f, Loader=yaml.CSafeLoader) or {}
+    
+    print(json.dumps({
+        'success': True,
+        'vlan_profiles': config.get('vlan_profiles', {}),
+        'vxlan_int': config.get('vxlan_int', {})
+    }))
+
+except Exception as e:
+    print(json.dumps({
+        'success': False,
+        'error': str(e)
+    }))
+PYTHON
+}
+
+# Bulk create VLANs
+bulk_create_vlans() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = json.loads(sys.stdin.read()) if sys.stdin.isatty() == False else {}
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+vlan_file = os.path.join(ansible_dir, 'inventory', 'group_vars', 'all', 'vlan_profiles.yaml')
+
+start_id = data.get('start_id', 1)
+end_id = data.get('end_id', 1)
+profile_name = data.get('profile_name', f'VLAN_{start_id}_{end_id}_L2')
+description = data.get('description', f'L2 VLANs {start_id}-{end_id}')
+l2vni_offset = data.get('l2vni_offset', 100000)
+
+# Validate
+if start_id < 1 or end_id > 4094 or start_id > end_id:
+    print(json.dumps({'success': False, 'error': 'Invalid VLAN ID range'}))
+    exit(0)
+
+count = end_id - start_id + 1
+if count > 500:
+    print(json.dumps({'success': False, 'error': 'Maximum 500 VLANs at once'}))
+    exit(0)
+
+# Load existing vlan profiles
+vlan_profiles = {}
+if os.path.exists(vlan_file):
+    with open(vlan_file, 'r') as f:
+        existing = yaml.load(f) or {}
+        vlan_profiles = existing.get('vlan_profiles', {})
+
+# Check if profile name already exists
+if profile_name in vlan_profiles:
+    print(json.dumps({'success': False, 'error': f'Profile {profile_name} already exists'}))
+    exit(0)
+
+# Create the VLAN profile with multiple VLANs inside
+vlans_dict = {}
+for vid in range(start_id, end_id + 1):
+    vlans_dict[vid] = {
+        'description': f'{description}',
+        'l2vni': l2vni_offset + vid
+    }
+
+new_profile = {
+    'vlans': vlans_dict
+}
+
+vlan_profiles[profile_name] = new_profile
+
+# Write back
+_tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(vlan_file), suffix='.tmp')
+try:
+    with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+        yaml.dump({'vlan_profiles': vlan_profiles}, _tmp_f)
+    shutil.move(_tmp_path, vlan_file)
+except:
+    if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+    raise
+
+print(json.dumps({'success': True, 'message': f'Created {count} VLANs in profile {profile_name}'}))
+PYTHON
+}
+
+# ==================== BGP PROFILES ====================
+
+# Get VRFs that can be used for leaking (those that have profiles with route_import)
+get_leaking_vrfs() {
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import glob
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+bgp_file = os.path.join(ansible_dir, 'inventory', 'group_vars', 'all', 'bgp_profiles.yaml')
+host_vars_dir = os.path.join(ansible_dir, 'inventory', 'host_vars')
+
+leaking_vrfs = []
+
+try:
+    # First, find BGP profiles that have route_import.from_vrf
+    if os.path.exists(bgp_file):
+        with open(bgp_file, 'r') as f:
+            data = yaml.load(f) or {}
+            bgp_profiles = data.get('bgp_profiles', {})
+            
+            # Find all VRFs mentioned in from_vrf across all profiles
+            imported_vrfs = set()
+            for profile_name, profile_config in bgp_profiles.items():
+                ipv4_af = profile_config.get('ipv4_unicast_af', {})
+                route_import = ipv4_af.get('route_import', {})
+                from_vrf = route_import.get('from_vrf', [])
+                for vrf in from_vrf:
+                    imported_vrfs.add(vrf)
+            
+            # These VRFs can be leaked into
+            for vrf_name in sorted(imported_vrfs):
+                leaking_vrfs.append({'name': vrf_name})
+    
+    print(json.dumps({'success': True, 'vrfs': leaking_vrfs}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+}
+
+# Get BGP profiles (filtered - exclude VxLAN_UNDERLAY*)
+get_bgp_profiles() {
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+bgp_file = os.path.join(ansible_dir, 'inventory', 'group_vars', 'all', 'bgp_profiles.yaml')
+
+profiles = []
+infra_vrfs = ['default']  # Default fallback
+
+try:
+    if os.path.exists(bgp_file):
+        with open(bgp_file, 'r') as f:
+            data = yaml.load(f) or {}
+            bgp_profiles = data.get('bgp_profiles', {})
+            
+            # Get infra_vrfs list from config
+            infra_vrfs = data.get('infra_vrfs', ['default'])
+            
+            for name in sorted(bgp_profiles.keys()):
+                # Filter out underlay profiles
+                if name.startswith('VxLAN_UNDERLAY'):
+                    continue
+                profiles.append({'name': name})
+    
+    print(json.dumps({'success': True, 'profiles': profiles, 'infra_vrfs': infra_vrfs}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+}
+
+# ==================== VRF MANAGEMENT ====================
+
+# Get available VRFs from all devices
+get_available_vrfs() {
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import glob
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_vars_dir = os.path.join(ansible_dir, 'inventory', 'host_vars')
+
+# Collect all unique VRFs from all devices
+vrfs = {}
+
+for host_file in glob.glob(os.path.join(host_vars_dir, '*.yaml')) + glob.glob(os.path.join(host_vars_dir, '*.yml')):
+    hostname = os.path.basename(host_file).rsplit('.', 1)[0]
+    
+    try:
+        with open(host_file, 'r') as f:
+            host_data = yaml.load(f) or {}
+            device_vrfs = host_data.get('vrfs', {})
+            
+            for vrf_name, vrf_config in device_vrfs.items():
+                if vrf_name not in vrfs:
+                    vrfs[vrf_name] = {
+                        'name': vrf_name,
+                        'l3vni': vrf_config.get('l3vni'),
+                        'vxlan_int': vrf_config.get('vxlan_int'),
+                        'bgp_profile': vrf_config.get('bgp', {}).get('bgp_profile'),
+                        'device_count': 0,
+                        'devices': []
+                    }
+                vrfs[vrf_name]['device_count'] += 1
+                vrfs[vrf_name]['devices'].append(hostname)
+    except:
+        pass
+
+print(json.dumps({
+    'success': True,
+    'vrfs': list(vrfs.values())
+}))
+PYTHON
+}
+
+# Create VRF in device's host_vars
+create_vrf() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = {}
+
+device = data.get('device')
+vrf_name = data.get('vrf_name')
+l3vni = data.get('l3vni')
+vxlan_int = data.get('vxlan_int')
+bgp_asn = data.get('bgp_asn')
+bgp_profile = data.get('bgp_profile')
+leaking_enabled = data.get('leaking_enabled', False)
+leak_from_vrf = data.get('leak_from_vrf')
+
+if not device or not vrf_name:
+    print(json.dumps({'success': False, 'error': 'Device and VRF name are required'}))
+    sys.exit(0)
+
+if not l3vni:
+    print(json.dumps({'success': False, 'error': 'L3VNI is required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+bgp_profiles_file = os.path.join(ansible_dir, 'inventory', 'group_vars', 'all', 'bgp_profiles.yaml')
+host_file = os.path.join(ansible_dir, 'inventory', 'host_vars', f'{device}.yaml')
+
+# Try .yml if .yaml doesn't exist
+if not os.path.exists(host_file):
+    host_file = os.path.join(ansible_dir, 'inventory', 'host_vars', f'{device}.yml')
+
+# If leaking is enabled, find the appropriate profiles
+tenant_profile = None
+shared_profile = None
+leaking_configured = False
+
+if leaking_enabled and leak_from_vrf:
+    try:
+        with open(bgp_profiles_file, 'r') as f:
+            bgp_data = yaml.load(f) or {}
+            bgp_profiles = bgp_data.get('bgp_profiles', {})
+            
+            # Find profile that imports FROM the leak_from_vrf (this is for new tenant)
+            # Find profile that imports FROM other tenants (this is for shared VRF, needs updating)
+            for profile_name, profile_config in bgp_profiles.items():
+                if profile_name.startswith('VxLAN_UNDERLAY'):
+                    continue
+                    
+                ipv4_af = profile_config.get('ipv4_unicast_af', {})
+                route_import = ipv4_af.get('route_import', {})
+                from_vrf_list = route_import.get('from_vrf', [])
+                
+                if leak_from_vrf in from_vrf_list:
+                    # This profile imports from leak_from_vrf -> use for new tenant
+                    tenant_profile = profile_name
+                elif from_vrf_list and leak_from_vrf not in from_vrf_list:
+                    # This profile imports from other VRFs -> this is the shared profile
+                    shared_profile = profile_name
+            
+            # Update the shared profile to include the new tenant
+            if shared_profile and shared_profile in bgp_profiles:
+                ipv4_af = bgp_profiles[shared_profile].setdefault('ipv4_unicast_af', {})
+                route_import = ipv4_af.setdefault('route_import', {})
+                from_vrf_list = route_import.setdefault('from_vrf', [])
+                
+                if vrf_name not in from_vrf_list:
+                    from_vrf_list.append(vrf_name)
+                    
+                    # Write updated bgp_profiles.yaml
+                    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(bgp_profiles_file), suffix='.tmp')
+                    try:
+                        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                            yaml.dump(bgp_data, _tmp_f)
+                        shutil.move(_tmp_path, bgp_profiles_file)
+                    except:
+                        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+                        raise
+                    leaking_configured = True
+            
+            # Use tenant_profile if found
+            if tenant_profile:
+                bgp_profile = tenant_profile
+                
+    except Exception as e:
+        print(json.dumps({'success': False, 'error': f'Failed to configure leaking: {str(e)}'}))
+        sys.exit(0)
+
+# Load existing host_vars
+host_data = {}
+if os.path.exists(host_file):
+    with open(host_file, 'r') as f:
+        host_data = yaml.load(f) or {}
+
+# Initialize vrfs if not exists
+if 'vrfs' not in host_data:
+    host_data['vrfs'] = {}
+
+# Check if VRF already exists
+if vrf_name in host_data['vrfs']:
+    print(json.dumps({'success': False, 'error': f'VRF {vrf_name} already exists on this device'}))
+    sys.exit(0)
+
+# Create VRF entry
+vrf_entry = {
+    'l3vni': l3vni,
+    'lo': '{{ lo_ip }}'
+}
+
+if vxlan_int:
+    vrf_entry['vxlan_int'] = vxlan_int
+
+if bgp_asn or bgp_profile:
+    vrf_entry['bgp'] = {}
+    if bgp_asn:
+        vrf_entry['bgp']['asn'] = bgp_asn
+    if bgp_profile:
+        vrf_entry['bgp']['bgp_profile'] = bgp_profile
+
+host_data['vrfs'][vrf_name] = vrf_entry
+
+# Write back
+_target_file = host_file if os.path.exists(host_file) else os.path.join(ansible_dir, 'inventory', 'host_vars', f'{device}.yaml')
+_tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(_target_file), suffix='.tmp')
+try:
+    with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+        yaml.dump(host_data, _tmp_f)
+    shutil.move(_tmp_path, _target_file)
+except:
+    if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+    raise
+
+result = {'success': True, 'vrf_name': vrf_name}
+if leaking_enabled:
+    result['leaking_configured'] = leaking_configured
+    result['tenant_profile'] = tenant_profile
+    result['shared_profile'] = shared_profile
+    if not tenant_profile:
+        result['warning'] = f'No profile found that imports from {leak_from_vrf}'
+
+print(json.dumps(result))
+PYTHON
+}
+
+# Create VRF on multiple devices (bulk)
+create_vrf_bulk() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+import glob
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = {}
+
+devices = data.get('devices', [])
+vrf_name = data.get('vrf_name')
+l3vni = data.get('l3vni')
+vxlan_int = data.get('vxlan_int')
+bgp_profile = data.get('bgp_profile', 'OVERLAY_LEAF')
+leaking_enabled = data.get('leaking_enabled', False)
+leak_from_vrf = data.get('leak_from_vrf')
+loopback_ip = data.get('loopback_ip')  # Custom loopback IP with mask
+
+if not devices or not isinstance(devices, list):
+    print(json.dumps({'success': False, 'error': 'No devices specified'}))
+    sys.exit(0)
+
+if not vrf_name or not l3vni:
+    print(json.dumps({'success': False, 'error': 'VRF name and L3VNI are required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_vars_dir = os.path.join(ansible_dir, 'inventory', 'host_vars')
+bgp_profiles_file = os.path.join(ansible_dir, 'inventory', 'group_vars', 'all', 'bgp_profiles.yaml')
+
+# Handle leaking profile detection
+leaking_configured = False
+tenant_profile = None
+shared_profile = None
+
+if leaking_enabled and leak_from_vrf:
+    try:
+        with open(bgp_profiles_file, 'r') as f:
+            bgp_data = yaml.load(f) or {}
+        
+        bgp_profiles = bgp_data.get('bgp_profiles', {})
+        
+        # Find profile that imports from leak_from_vrf (this is tenant profile)
+        for profile_name, profile_config in bgp_profiles.items():
+            ipv4_af = profile_config.get('ipv4_unicast_af', {})
+            route_import = ipv4_af.get('route_import', {})
+            from_vrf_list = route_import.get('from_vrf', [])
+            if leak_from_vrf in from_vrf_list:
+                tenant_profile = profile_name
+                break
+        
+        # Find profile for shared VRF (has from_vrf list without leak_from_vrf)
+        for profile_name, profile_config in bgp_profiles.items():
+            ipv4_af = profile_config.get('ipv4_unicast_af', {})
+            route_import = ipv4_af.get('route_import', {})
+            from_vrf_list = route_import.get('from_vrf', [])
+            if from_vrf_list and leak_from_vrf not in from_vrf_list:
+                shared_profile = profile_name
+                # Add new VRF to shared profile's from_vrf list
+                from_vrf_list.append(vrf_name)
+                leaking_configured = True
+                break
+        
+        if leaking_configured:
+            _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(bgp_profiles_file), suffix='.tmp')
+            try:
+                with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                    yaml.dump(bgp_data, _tmp_f)
+                shutil.move(_tmp_path, bgp_profiles_file)
+            except:
+                if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+                raise
+        
+        if tenant_profile:
+            bgp_profile = tenant_profile
+    except Exception as e:
+        pass
+
+# Create VRF entry
+vrf_entry = {
+    'l3vni': l3vni,
+    'lo': loopback_ip if loopback_ip else '{{ lo_ip }}',
+    'bgp_profile': bgp_profile
+}
+
+if vxlan_int:
+    vrf_entry['vxlan_int'] = vxlan_int
+
+devices_created = []
+
+for device in devices:
+    try:
+        host_file = os.path.join(host_vars_dir, f'{device}.yaml')
+        if not os.path.exists(host_file):
+            alt_file = os.path.join(host_vars_dir, f'{device}.yml')
+            if os.path.exists(alt_file):
+                host_file = alt_file
+        
+        # Load host_vars
+        host_data = {}
+        if os.path.exists(host_file):
+            with open(host_file, 'r') as f:
+                host_data = yaml.load(f) or {}
+        
+        # Get device's BGP ASN
+        device_asn = None
+        bgp_config = host_data.get('bgp', {})
+        if isinstance(bgp_config, dict):
+            device_asn = bgp_config.get('asn')
+        
+        # Initialize vrfs if not exists
+        if 'vrfs' not in host_data:
+            host_data['vrfs'] = {}
+        
+        # Create device-specific VRF entry with its own ASN
+        device_vrf_entry = vrf_entry.copy()
+        if device_asn:
+            device_vrf_entry['bgp_asn'] = device_asn
+        
+        host_data['vrfs'][vrf_name] = device_vrf_entry
+        
+        # Write back
+        target_file = host_file if os.path.exists(host_file) else os.path.join(host_vars_dir, f'{device}.yaml')
+        _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(target_file), suffix='.tmp')
+        try:
+            with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                yaml.dump(host_data, _tmp_f)
+            shutil.move(_tmp_path, target_file)
+        except:
+            if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+            raise
+        
+        devices_created.append(device)
+    except Exception as e:
+        pass  # Skip failed devices
+
+result = {
+    'success': True,
+    'vrf_name': vrf_name,
+    'devices_created': len(devices_created),
+    'devices_list': devices_created
+}
+
+if leaking_enabled:
+    result['leaking_configured'] = leaking_configured
+    result['tenant_profile'] = tenant_profile
+    result['shared_profile'] = shared_profile
+    if not tenant_profile:
+        result['warning'] = f'No profile found that imports from {leak_from_vrf}'
+
+print(json.dumps(result))
+PYTHON
+}
+
+# Assign VRFs to device
+assign_vrfs() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+import glob
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = {}
+
+device = data.get('device')
+vrf_names = data.get('vrfs', [])
+
+if not device or not vrf_names:
+    print(json.dumps({'success': False, 'error': 'Device and VRF names are required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_vars_dir = os.path.join(ansible_dir, 'inventory', 'host_vars')
+host_file = os.path.join(host_vars_dir, f'{device}.yaml')
+
+# Try .yml if .yaml doesn't exist
+if not os.path.exists(host_file):
+    alt_file = os.path.join(host_vars_dir, f'{device}.yml')
+    if os.path.exists(alt_file):
+        host_file = alt_file
+
+# Load existing host_vars
+host_data = {}
+if os.path.exists(host_file):
+    with open(host_file, 'r') as f:
+        host_data = yaml.load(f) or {}
+
+# Initialize vrfs if not exists
+if 'vrfs' not in host_data:
+    host_data['vrfs'] = {}
+
+# Find VRF configs from other devices
+all_vrf_configs = {}
+for hf in glob.glob(os.path.join(host_vars_dir, '*.yaml')) + glob.glob(os.path.join(host_vars_dir, '*.yml')):
+    try:
+        with open(hf, 'r') as f:
+            hd = yaml.load(f) or {}
+            for vrf_name, vrf_config in hd.get('vrfs', {}).items():
+                if vrf_name not in all_vrf_configs:
+                    all_vrf_configs[vrf_name] = vrf_config
+    except:
+        pass
+
+# Add VRFs
+added = []
+for vrf_name in vrf_names:
+    if vrf_name not in host_data['vrfs']:
+        if vrf_name in all_vrf_configs:
+            host_data['vrfs'][vrf_name] = all_vrf_configs[vrf_name]
+            added.append(vrf_name)
+        else:
+            # Create minimal VRF entry
+            host_data['vrfs'][vrf_name] = {'l3vni': None}
+            added.append(vrf_name)
+
+# Write back
+_tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+try:
+    with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+        yaml.dump(host_data, _tmp_f)
+    shutil.move(_tmp_path, host_file)
+except:
+    if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+    raise
+
+print(json.dumps({'success': True, 'added': added}))
+PYTHON
+}
+
+# Unassign VRF from device
+unassign_vrf() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = {}
+
+device = data.get('device')
+vrf_name = data.get('vrf')
+
+if not device or not vrf_name:
+    print(json.dumps({'success': False, 'error': 'Device and VRF name are required'}))
+    sys.exit(0)
+
+if vrf_name == 'default':
+    print(json.dumps({'success': False, 'error': 'Cannot remove default VRF'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_vars_dir = os.path.join(ansible_dir, 'inventory', 'host_vars')
+bgp_profiles_file = os.path.join(ansible_dir, 'inventory', 'group_vars', 'all', 'bgp_profiles.yaml')
+host_file = os.path.join(host_vars_dir, f'{device}.yaml')
+
+# Try .yml if .yaml doesn't exist
+if not os.path.exists(host_file):
+    alt_file = os.path.join(host_vars_dir, f'{device}.yml')
+    if os.path.exists(alt_file):
+        host_file = alt_file
+
+if not os.path.exists(host_file):
+    print(json.dumps({'success': False, 'error': 'Host vars file not found'}))
+    sys.exit(0)
+
+# Load host_vars
+with open(host_file, 'r') as f:
+    host_data = yaml.load(f) or {}
+
+if 'vrfs' not in host_data or vrf_name not in host_data['vrfs']:
+    print(json.dumps({'success': False, 'error': f'VRF {vrf_name} not found in device config'}))
+    sys.exit(0)
+
+# Remove VRF
+del host_data['vrfs'][vrf_name]
+
+# Write back host_vars
+_tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+try:
+    with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+        yaml.dump(host_data, _tmp_f)
+    shutil.move(_tmp_path, host_file)
+except:
+    if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+    raise
+
+# Check if any other devices still have this VRF
+import glob
+remaining_devices = 0
+for hf in glob.glob(os.path.join(host_vars_dir, '*.yaml')) + glob.glob(os.path.join(host_vars_dir, '*.yml')):
+    try:
+        with open(hf, 'r') as f:
+            hd = yaml.load(f) or {}
+        if vrf_name in hd.get('vrfs', {}):
+            remaining_devices += 1
+    except:
+        pass
+
+# Only remove VRF from bgp_profiles.yaml if this was the LAST device
+leaking_removed = False
+if remaining_devices == 0:
+    try:
+        if os.path.exists(bgp_profiles_file):
+            with open(bgp_profiles_file, 'r') as f:
+                bgp_data = yaml.load(f) or {}
+            
+            bgp_profiles = bgp_data.get('bgp_profiles', {})
+            modified = False
+            
+            for profile_name, profile_config in bgp_profiles.items():
+                ipv4_af = profile_config.get('ipv4_unicast_af', {})
+                route_import = ipv4_af.get('route_import', {})
+                from_vrf_list = route_import.get('from_vrf', [])
+                
+                if vrf_name in from_vrf_list:
+                    from_vrf_list.remove(vrf_name)
+                    modified = True
+                    leaking_removed = True
+            
+            if modified:
+                _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(bgp_profiles_file), suffix='.tmp')
+                try:
+                    with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                        yaml.dump(bgp_data, _tmp_f)
+                    shutil.move(_tmp_path, bgp_profiles_file)
+                except:
+                    if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+                    raise
+    except:
+        pass  # Don't fail if bgp_profiles update fails
+
+print(json.dumps({'success': True, 'leaking_removed': leaking_removed, 'remaining_devices': remaining_devices}))
+PYTHON
+}
+
+# Delete VRF globally (from all devices)
+delete_vrf_global() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+import glob
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = {}
+
+vrf_name = data.get('vrf_name')
+
+if not vrf_name:
+    print(json.dumps({'success': False, 'error': 'VRF name is required'}))
+    sys.exit(0)
+
+if vrf_name == 'default':
+    print(json.dumps({'success': False, 'error': 'Cannot delete default VRF'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_vars_dir = os.path.join(ansible_dir, 'inventory', 'host_vars')
+bgp_profiles_file = os.path.join(ansible_dir, 'inventory', 'group_vars', 'all', 'bgp_profiles.yaml')
+
+devices_updated = []
+
+# Remove VRF from all host_vars files
+for host_file in glob.glob(os.path.join(host_vars_dir, '*.yaml')) + glob.glob(os.path.join(host_vars_dir, '*.yml')):
+    try:
+        with open(host_file, 'r') as f:
+            host_data = yaml.load(f) or {}
+        
+        if 'vrfs' in host_data and vrf_name in host_data['vrfs']:
+            del host_data['vrfs'][vrf_name]
+            _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+            try:
+                with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                    yaml.dump(host_data, _tmp_f)
+                shutil.move(_tmp_path, host_file)
+            except:
+                if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+                raise
+            hostname = os.path.basename(host_file).replace('.yaml', '').replace('.yml', '')
+            devices_updated.append(hostname)
+    except:
+        pass
+
+# Remove VRF from bgp_profiles.yaml (leaking references)
+leaking_removed = False
+try:
+    if os.path.exists(bgp_profiles_file):
+        with open(bgp_profiles_file, 'r') as f:
+            bgp_data = yaml.load(f) or {}
+        
+        bgp_profiles = bgp_data.get('bgp_profiles', {})
+        modified = False
+        
+        for profile_name, profile_config in bgp_profiles.items():
+            ipv4_af = profile_config.get('ipv4_unicast_af', {})
+            route_import = ipv4_af.get('route_import', {})
+            from_vrf_list = route_import.get('from_vrf', [])
+            
+            if vrf_name in from_vrf_list:
+                from_vrf_list.remove(vrf_name)
+                modified = True
+                leaking_removed = True
+        
+        if modified:
+            _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(bgp_profiles_file), suffix='.tmp')
+            try:
+                with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                    yaml.dump(bgp_data, _tmp_f)
+                shutil.move(_tmp_path, bgp_profiles_file)
+            except:
+                if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+                raise
+except:
+    pass
+
+print(json.dumps({
+    'success': True,
+    'devices_updated': devices_updated,
+    'leaking_removed': leaking_removed
+}))
+PYTHON
+}
+
+# Get VRF report - VRFs with device assignments
+get_vrf_report() {
+    python3 << PYTHON
+import json
+import yaml  # PyYAML - faster for read-only operations
+import os
+import glob
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_vars_dir = os.path.join(ansible_dir, 'inventory', 'host_vars')
+
+# Collect all VRFs from all devices
+vrfs = {}
+unique_devices = set()
+
+for host_file in glob.glob(os.path.join(host_vars_dir, '*.yaml')) + glob.glob(os.path.join(host_vars_dir, '*.yml')):
+    hostname = os.path.basename(host_file).rsplit('.', 1)[0]
+    
+    try:
+        with open(host_file, 'r') as f:
+            host_data = yaml.load(f, Loader=yaml.CSafeLoader) or {}
+            device_vrfs = host_data.get('vrfs', {})
+            
+            if device_vrfs:
+                unique_devices.add(hostname)
+            
+            for vrf_name, vrf_config in device_vrfs.items():
+                if vrf_name not in vrfs:
+                    vrfs[vrf_name] = {
+                        'name': vrf_name,
+                        'l3vni': vrf_config.get('l3vni'),
+                        'vxlan_int': vrf_config.get('vxlan_int'),
+                        'bgp_profile': vrf_config.get('bgp', {}).get('bgp_profile') if vrf_config.get('bgp') else None,
+                        'devices': []
+                    }
+                vrfs[vrf_name]['devices'].append(hostname)
+    except:
+        pass
+
+print(json.dumps({
+    'success': True,
+    'vrfs': vrfs,
+    'device_count': len(unique_devices)
+}))
+PYTHON
+}
+
+# Get VLAN report - VLANs with device assignments
+get_vlan_report() {
+    python3 << PYTHON
+import json
+import yaml  # PyYAML - faster for read-only operations
+import os
+import glob
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+inventory_base = os.path.join(ansible_dir, 'inventory')
+vlan_file = os.path.join(inventory_base, 'group_vars', 'all', 'vlan_profiles.yaml')
+host_vars_dir = os.path.join(inventory_base, 'host_vars')
+
+# Load VLAN profiles
+vlan_profiles = {}
+vrfs = set()
+
+if os.path.exists(vlan_file):
+    with open(vlan_file, 'r') as f:
+        data = yaml.load(f, Loader=yaml.CSafeLoader) or {}
+        vlan_profiles = data.get('vlan_profiles', {})
+
+# Collect VRFs from VLAN profiles
+for vlan_name, vlan_data in vlan_profiles.items():
+    if vlan_data and 'vlans' in vlan_data:
+        for vid, vinfo in vlan_data['vlans'].items():
+            if vinfo and vinfo.get('vrf'):
+                vrfs.add(vinfo['vrf'])
+
+# Build VLAN to device mapping and collect unique devices
+vlan_device_map = {vlan_name: [] for vlan_name in vlan_profiles.keys()}
+unique_devices = set()
+
+# Scan all host_vars files for vlan_templates
+for host_file in glob.glob(os.path.join(host_vars_dir, '*.yaml')) + glob.glob(os.path.join(host_vars_dir, '*.yml')):
+    hostname = os.path.basename(host_file).rsplit('.', 1)[0]
+    
+    try:
+        with open(host_file, 'r') as f:
+            host_data = yaml.load(f, Loader=yaml.CSafeLoader) or {}
+            vlan_templates = host_data.get('vlan_templates', [])
+            
+            if vlan_templates:
+                unique_devices.add(hostname)
+            
+            for vlan_name in vlan_templates:
+                if vlan_name in vlan_device_map:
+                    vlan_device_map[vlan_name].append(hostname)
+                else:
+                    vlan_device_map[vlan_name] = [hostname]
+    except:
+        pass
+
+print(json.dumps({
+    'success': True,
+    'vlan_profiles': vlan_profiles,
+    'vlan_device_map': vlan_device_map,
+    'device_count': len(unique_devices),
+    'vrf_count': len(vrfs)
+}))
+PYTHON
+}
+
+# Get port profiles
+get_port_profiles() {
+    local port_file="$ANSIBLE_DIR/inventory/group_vars/all/sw_port_profiles.yaml"
+    
+    if [[ ! -f "$port_file" ]]; then
+        echo '{"success": false, "error": "Port profiles file not found"}'
+        return
+    fi
+    
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+port_file = f"{ansible_dir}/inventory/group_vars/all/sw_port_profiles.yaml"
+
+try:
+    with open(port_file, 'r') as f:
+        config = yaml.load(f) or {}
+    
+    print(json.dumps({
+        'success': True,
+        'port_profiles': config.get('sw_port_profiles', {})
+    }))
+
+except Exception as e:
+    print(json.dumps({
+        'success': False,
+        'error': str(e)
+    }))
+PYTHON
+}
+
+# Get BGP Profiles
+get_bgp_profiles() {
+    local bgp_file="$ANSIBLE_DIR/inventory/group_vars/all/bgp_profiles.yaml"
+    
+    if [[ ! -f "$bgp_file" ]]; then
+        echo '{"success": false, "error": "BGP profiles file not found"}'
+        return
+    fi
+    
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+bgp_file = f"{ansible_dir}/inventory/group_vars/all/bgp_profiles.yaml"
+
+try:
+    with open(bgp_file, 'r') as f:
+        config = yaml.load(f) or {}
+    
+    print(json.dumps({
+        'success': True,
+        'bgp_profiles': config.get('bgp_profiles', {}),
+        'infra_vrfs': config.get('infra_vrfs', [])
+    }))
+
+except Exception as e:
+    print(json.dumps({
+        'success': False,
+        'error': str(e)
+    }))
+PYTHON
+}
+
+# Create BGP Profile (using ruamel.yaml to preserve comments)
+create_bgp_profile() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+import os
+import sys
+from ruamel.yaml import YAML
+
+yaml = YAML()
+yaml.preserve_quotes = True
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = {}
+
+profile_name = data.get('profile_name', '').strip()
+redistribute_connected = data.get('redistribute_connected', True)
+redistribute_static = data.get('redistribute_static', False)
+export_to_evpn_type5 = data.get('export_to_evpn_type5', False)
+enable_evpn = data.get('enable_evpn', False)
+peer_groups = data.get('peer_groups', {})
+
+if not profile_name:
+    print(json.dumps({'success': False, 'error': 'Profile name is required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+bgp_file = f"{ansible_dir}/inventory/group_vars/all/bgp_profiles.yaml"
+
+try:
+    with open(bgp_file, 'r') as f:
+        config = yaml.load(f) or {}
+    
+    if 'bgp_profiles' not in config:
+        config['bgp_profiles'] = {}
+    
+    if profile_name in config['bgp_profiles']:
+        print(json.dumps({'success': False, 'error': f'Profile {profile_name} already exists'}))
+        sys.exit(0)
+    
+    # Build profile entry
+    profile_entry = {
+        'ipv4_unicast_af': {
+            'redistribute_connected_routes': redistribute_connected,
+            'redistribute_static_routes': redistribute_static
+        }
+    }
+    
+    if export_to_evpn_type5:
+        profile_entry['ipv4_unicast_af']['export_to_evpn_type5'] = True
+    
+    if enable_evpn:
+        profile_entry['l2vpn_evpn_af'] = {'enable_evpn': True}
+    
+    if peer_groups:
+        profile_entry['peer_groups'] = peer_groups
+    
+    config['bgp_profiles'][profile_name] = profile_entry
+    
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(bgp_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(config, _tmp_f)
+        shutil.move(_tmp_path, bgp_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    print(json.dumps({
+        'success': True,
+        'message': f'BGP profile {profile_name} created successfully'
+    }))
+
+except Exception as e:
+    print(json.dumps({
+        'success': False,
+        'error': str(e)
+    }))
+PYTHON
+}
+
+# Update BGP Profile (using ruamel.yaml to preserve comments)
+update_bgp_profile() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+import os
+import sys
+from ruamel.yaml import YAML
+
+yaml = YAML()
+yaml.preserve_quotes = True
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = {}
+
+original_name = data.get('original_name', '').strip()
+profile_name = data.get('profile_name', '').strip()
+redistribute_connected = data.get('redistribute_connected', True)
+redistribute_static = data.get('redistribute_static', False)
+export_to_evpn_type5 = data.get('export_to_evpn_type5', False)
+enable_evpn = data.get('enable_evpn', False)
+peer_groups = data.get('peer_groups', {})
+
+if not original_name or not profile_name:
+    print(json.dumps({'success': False, 'error': 'Profile names are required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+bgp_file = f"{ansible_dir}/inventory/group_vars/all/bgp_profiles.yaml"
+
+try:
+    with open(bgp_file, 'r') as f:
+        config = yaml.load(f) or {}
+    
+    if 'bgp_profiles' not in config or original_name not in config['bgp_profiles']:
+        print(json.dumps({'success': False, 'error': f'Profile {original_name} not found'}))
+        sys.exit(0)
+    
+    # Build updated profile entry
+    profile_entry = {
+        'ipv4_unicast_af': {
+            'redistribute_connected_routes': redistribute_connected,
+            'redistribute_static_routes': redistribute_static
+        }
+    }
+    
+    if export_to_evpn_type5:
+        profile_entry['ipv4_unicast_af']['export_to_evpn_type5'] = True
+    
+    if enable_evpn:
+        profile_entry['l2vpn_evpn_af'] = {'enable_evpn': True}
+    
+    if peer_groups:
+        profile_entry['peer_groups'] = peer_groups
+    
+    # Remove old profile if renaming
+    if original_name != profile_name:
+        del config['bgp_profiles'][original_name]
+    
+    config['bgp_profiles'][profile_name] = profile_entry
+    
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(bgp_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(config, _tmp_f)
+        shutil.move(_tmp_path, bgp_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    print(json.dumps({
+        'success': True,
+        'message': f'BGP profile {profile_name} updated successfully'
+    }))
+
+except Exception as e:
+    print(json.dumps({
+        'success': False,
+        'error': str(e)
+    }))
+PYTHON
+}
+
+# Delete BGP Profile (using ruamel.yaml to preserve comments)
+delete_bgp_profile() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+import os
+import sys
+from ruamel.yaml import YAML
+
+yaml = YAML()
+yaml.preserve_quotes = True
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = {}
+
+profile_name = data.get('profile_name', '').strip()
+
+if not profile_name:
+    print(json.dumps({'success': False, 'error': 'Profile name is required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+bgp_file = f"{ansible_dir}/inventory/group_vars/all/bgp_profiles.yaml"
+
+try:
+    with open(bgp_file, 'r') as f:
+        config = yaml.load(f) or {}
+    
+    if 'bgp_profiles' not in config or profile_name not in config['bgp_profiles']:
+        print(json.dumps({'success': False, 'error': f'Profile {profile_name} not found'}))
+        sys.exit(0)
+    
+    del config['bgp_profiles'][profile_name]
+    
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(bgp_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(config, _tmp_f)
+        shutil.move(_tmp_path, bgp_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    print(json.dumps({
+        'success': True,
+        'message': f'BGP profile {profile_name} deleted successfully'
+    }))
+
+except Exception as e:
+    print(json.dumps({
+        'success': False,
+        'error': str(e)
+    }))
+PYTHON
+}
+
+# Create Port Profile
+create_port_profile() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = {}
+
+profile_name = data.get('profile_name', '').strip()
+sw_port_mode = data.get('sw_port_mode', 'access')
+description = data.get('description', '')
+access_vlan = data.get('access_vlan')
+native_vlan = data.get('native_vlan')
+trunk_allowed_vlans = data.get('trunk_allowed_vlans', [])
+trunk_allowed_vlan_all = data.get('trunk_allowed_vlan_all', False)
+stp_bpduguard = data.get('stp_bpduguard', True)
+stp_portadminedge = data.get('stp_portadminedge', True)
+stp_portautoedgedisable = data.get('stp_portautoedgedisable', True)
+
+if not profile_name:
+    print(json.dumps({'success': False, 'error': 'Profile name is required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+port_file = f"{ansible_dir}/inventory/group_vars/all/sw_port_profiles.yaml"
+
+# Load existing
+config = {}
+if os.path.exists(port_file):
+    with open(port_file, 'r') as f:
+        config = yaml.load(f) or {}
+
+if 'sw_port_profiles' not in config:
+    config['sw_port_profiles'] = {}
+
+if profile_name in config['sw_port_profiles']:
+    print(json.dumps({'success': False, 'error': f'Profile {profile_name} already exists'}))
+    sys.exit(0)
+
+# Build profile entry
+profile_entry = {
+    'sw_port_mode': sw_port_mode
+}
+
+if description:
+    profile_entry['description'] = description
+
+if sw_port_mode == 'access':
+    if access_vlan:
+        profile_entry['access_vlan'] = int(access_vlan)
+    profile_entry['stp_bpduguard'] = stp_bpduguard
+    profile_entry['stp_portadminedge'] = stp_portadminedge
+    profile_entry['stp_portautoedgedisable'] = stp_portautoedgedisable
+elif sw_port_mode == 'trunk':
+    if native_vlan:
+        profile_entry['trunk_untagged'] = int(native_vlan)
+    if trunk_allowed_vlan_all:
+        profile_entry['trunk_allowed_vlan_all'] = True
+    elif trunk_allowed_vlans:
+        profile_entry['trunk_allowed_vlan_list'] = trunk_allowed_vlans
+
+config['sw_port_profiles'][profile_name] = profile_entry
+
+_tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(port_file), suffix='.tmp')
+try:
+    with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+        yaml.dump(config, _tmp_f)
+    shutil.move(_tmp_path, port_file)
+except:
+    if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+    raise
+
+print(json.dumps({'success': True, 'profile_name': profile_name}))
+PYTHON
+}
+
+# Update Port Profile
+update_port_profile() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = {}
+
+original_name = data.get('original_name', '').strip()
+profile_name = data.get('profile_name', '').strip()
+sw_port_mode = data.get('sw_port_mode', 'access')
+description = data.get('description', '')
+access_vlan = data.get('access_vlan')
+native_vlan = data.get('native_vlan')
+trunk_allowed_vlans = data.get('trunk_allowed_vlans', [])
+trunk_allowed_vlan_all = data.get('trunk_allowed_vlan_all', False)
+stp_bpduguard = data.get('stp_bpduguard', True)
+stp_portadminedge = data.get('stp_portadminedge', True)
+stp_portautoedgedisable = data.get('stp_portautoedgedisable', True)
+
+if not original_name:
+    print(json.dumps({'success': False, 'error': 'Original profile name is required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+port_file = f"{ansible_dir}/inventory/group_vars/all/sw_port_profiles.yaml"
+
+config = {}
+if os.path.exists(port_file):
+    with open(port_file, 'r') as f:
+        config = yaml.load(f) or {}
+
+if 'sw_port_profiles' not in config or original_name not in config['sw_port_profiles']:
+    print(json.dumps({'success': False, 'error': f'Profile {original_name} not found'}))
+    sys.exit(0)
+
+# Build updated entry
+profile_entry = {
+    'sw_port_mode': sw_port_mode
+}
+
+if description:
+    profile_entry['description'] = description
+
+if sw_port_mode == 'access':
+    if access_vlan:
+        profile_entry['access_vlan'] = int(access_vlan)
+    profile_entry['stp_bpduguard'] = stp_bpduguard
+    profile_entry['stp_portadminedge'] = stp_portadminedge
+    profile_entry['stp_portautoedgedisable'] = stp_portautoedgedisable
+elif sw_port_mode == 'trunk':
+    if native_vlan:
+        profile_entry['trunk_untagged'] = int(native_vlan)
+    if trunk_allowed_vlan_all:
+        profile_entry['trunk_allowed_vlan_all'] = True
+    elif trunk_allowed_vlans:
+        profile_entry['trunk_allowed_vlan_list'] = trunk_allowed_vlans
+
+# Remove old if renaming
+if original_name != profile_name:
+    del config['sw_port_profiles'][original_name]
+
+config['sw_port_profiles'][profile_name] = profile_entry
+
+_tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(port_file), suffix='.tmp')
+try:
+    with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+        yaml.dump(config, _tmp_f)
+    shutil.move(_tmp_path, port_file)
+except:
+    if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+    raise
+
+print(json.dumps({'success': True, 'profile_name': profile_name}))
+PYTHON
+}
+
+# Delete Port Profile
+delete_port_profile() {
+    read -r POST_DATA
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = {}
+
+profile_name = data.get('profile_name', '').strip()
+
+if not profile_name:
+    print(json.dumps({'success': False, 'error': 'Profile name is required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+port_file = f"{ansible_dir}/inventory/group_vars/all/sw_port_profiles.yaml"
+
+config = {}
+if os.path.exists(port_file):
+    with open(port_file, 'r') as f:
+        config = yaml.load(f) or {}
+
+if 'sw_port_profiles' not in config or profile_name not in config['sw_port_profiles']:
+    print(json.dumps({'success': False, 'error': f'Profile {profile_name} not found'}))
+    sys.exit(0)
+
+del config['sw_port_profiles'][profile_name]
+
+_tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(port_file), suffix='.tmp')
+try:
+    with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+        yaml.dump(config, _tmp_f)
+    shutil.move(_tmp_path, port_file)
+except:
+    if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+    raise
+
+print(json.dumps({'success': True, 'deleted': profile_name}))
+PYTHON
+}
+
+# Create VLAN - adds to vlan_profiles.yaml and sw_port_profiles.yaml
+create_vlan() {
+    # Read POST data
+    local post_data
+    read -r post_data
+    
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+from datetime import datetime
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+vlan_profiles_file = f"{ansible_dir}/inventory/group_vars/all/vlan_profiles.yaml"
+port_profiles_file = f"{ansible_dir}/inventory/group_vars/all/sw_port_profiles.yaml"
+
+try:
+    # Parse POST data
+    post_data = '''$post_data'''
+    data = json.loads(post_data)
+    
+    vlan_id = int(data.get('vlan_id'))
+    profile_name = data.get('profile_name', f'VLAN_{vlan_id}')
+    description = data.get('description', '')
+    l2vni = data.get('l2vni', 100000 + vlan_id)
+    stp_bpduguard = data.get('stp_bpduguard', True)
+    
+    # SVI/L3 configuration
+    svi_enabled = data.get('svi_enabled', False)
+    vrf = data.get('vrf', 'default') if svi_enabled else None
+    vrr_enabled = data.get('vrr_enabled', False) if svi_enabled else False
+    vrr_vip = data.get('vrr_vip', '')
+    even_ip = data.get('even_ip', '')
+    odd_ip = data.get('odd_ip', '')
+    vrr_vmac = data.get('vrr_vmac', '')
+    gateway_ip = data.get('gateway_ip', '')
+    
+    # Validate VLAN ID
+    if vlan_id < 1 or vlan_id > 4094:
+        print(json.dumps({'success': False, 'error': 'VLAN ID must be between 1 and 4094'}))
+        sys.exit(0)
+    
+    # Load existing vlan_profiles
+    vlan_config = {}
+    if os.path.exists(vlan_profiles_file):
+        with open(vlan_profiles_file, 'r') as f:
+            vlan_config = yaml.load(f) or {}
+    
+    if 'vlan_profiles' not in vlan_config:
+        vlan_config['vlan_profiles'] = {}
+    
+    # Check if VLAN profile already exists
+    if profile_name in vlan_config['vlan_profiles']:
+        print(json.dumps({'success': False, 'error': f'VLAN profile {profile_name} already exists'}))
+        sys.exit(0)
+    
+    # Check if VLAN ID already used
+    for pname, pdata in vlan_config['vlan_profiles'].items():
+        if pdata and 'vlans' in pdata:
+            if vlan_id in pdata['vlans'] or str(vlan_id) in pdata['vlans']:
+                print(json.dumps({'success': False, 'error': f'VLAN ID {vlan_id} already exists in profile {pname}'}))
+                sys.exit(0)
+    
+    # Build VLAN entry
+    vlan_entry = {
+        'description': description,
+        'l2vni': l2vni
+    }
+    
+    # Add VRF and IP info only if SVI is enabled
+    if svi_enabled:
+        vlan_entry['vrf'] = vrf
+        vlan_entry['ipv6'] = False  # Always disabled
+        
+        if vrr_enabled:
+            # VRR mode with VIP and Even/Odd IPs
+            if vrr_vip:
+                vlan_entry['vrr_vip'] = vrr_vip
+            if even_ip:
+                vlan_entry['even_ip'] = even_ip
+            if odd_ip:
+                vlan_entry['odd_ip'] = odd_ip
+            if vrr_vmac:
+                vlan_entry['vrr_vmac'] = vrr_vmac
+        else:
+            # Single gateway IP mode
+            if gateway_ip:
+                vlan_entry['ip'] = gateway_ip
+    
+    # Build profile entry
+    profile_entry = {
+        'vrr': {'state': vrr_enabled if svi_enabled else False},
+        'vlans': {vlan_id: vlan_entry}
+    }
+    
+    # Add to vlan_profiles
+    vlan_config['vlan_profiles'][profile_name] = profile_entry
+    
+    # Write vlan_profiles.yaml
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(vlan_profiles_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(vlan_config, _tmp_f)
+        shutil.move(_tmp_path, vlan_profiles_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    # Load existing port_profiles
+    port_config = {}
+    if os.path.exists(port_profiles_file):
+        with open(port_profiles_file, 'r') as f:
+            port_config = yaml.load(f) or {}
+    
+    if 'sw_port_profiles' not in port_config:
+        port_config['sw_port_profiles'] = {}
+    
+    # Create ACCESS_VLAN_{id} profile
+    access_profile_name = f'ACCESS_VLAN_{vlan_id}'
+    if access_profile_name not in port_config['sw_port_profiles']:
+        port_config['sw_port_profiles'][access_profile_name] = {
+            'description': description,
+            'sw_port_mode': 'access',
+            'access_vlan': vlan_id,
+            'stp_bpduguard': stp_bpduguard
+        }
+        
+        # Write port_profiles.yaml
+        _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(port_profiles_file), suffix='.tmp')
+        try:
+            with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                yaml.dump(port_config, _tmp_f)
+            shutil.move(_tmp_path, port_profiles_file)
+        except:
+            if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+            raise
+    
+    print(json.dumps({
+        'success': True,
+        'message': f'VLAN {vlan_id} created successfully',
+        'vlan_profile': profile_name,
+        'port_profile': access_profile_name
+    }))
+
+except json.JSONDecodeError as e:
+    print(json.dumps({'success': False, 'error': f'Invalid JSON: {str(e)}'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+}
+
+# Get list of VRFs for dropdown
+get_vrfs() {
+    python3 << 'PYTHON'
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+vlan_profiles_file = f"{ansible_dir}/inventory/group_vars/all/vlan_profiles.yaml"
+
+vrfs = set(['default'])
+
+try:
+    # Check vxlan_int mapping for VRF names
+    if os.path.exists(vlan_profiles_file):
+        with open(vlan_profiles_file, 'r') as f:
+            config = yaml.load(f) or {}
+        
+        # Get VRFs from vxlan_int mapping
+        if 'vxlan_int' in config:
+            vrfs.update(config['vxlan_int'].keys())
+        
+        # Get VRFs from vlan_profiles
+        if 'vlan_profiles' in config:
+            for profile in config['vlan_profiles'].values():
+                if profile and 'vlans' in profile:
+                    for vlan in profile['vlans'].values():
+                        if vlan and 'vrf' in vlan:
+                            vrfs.add(vlan['vrf'])
+    
+    print(json.dumps({
+        'success': True,
+        'vrfs': sorted(list(vrfs))
+    }))
+
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+}
+
+delete_vlan() {
+    # Read POST data
+    local post_data
+    read -r post_data
+
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+# Parse POST data
+post_data = '''$post_data'''
+data = json.loads(post_data)
+
+profile_name = data.get('profile_name', '')
+
+if not profile_name:
+    print(json.dumps({'success': False, 'error': 'Profile name is required'}))
+    sys.exit(0)
+
+# Paths
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+inventory_base = os.path.join(ansible_dir, 'inventory')
+vlan_profiles_file = os.path.join(inventory_base, 'group_vars', 'all', 'vlan_profiles.yaml')
+port_profiles_file = os.path.join(inventory_base, 'group_vars', 'all', 'sw_port_profiles.yaml')
+
+# Load vlan_profiles
+vlan_config = {}
+if os.path.exists(vlan_profiles_file):
+    with open(vlan_profiles_file, 'r') as f:
+        vlan_config = yaml.load(f) or {}
+
+if 'vlan_profiles' not in vlan_config or profile_name not in vlan_config['vlan_profiles']:
+    print(json.dumps({'success': False, 'error': f'VLAN profile {profile_name} not found'}))
+    sys.exit(0)
+
+# Get VLAN ID for port profile name
+vlan_id = None
+profile_data = vlan_config['vlan_profiles'][profile_name]
+if profile_data and 'vlans' in profile_data:
+    vlan_ids = list(profile_data['vlans'].keys())
+    if vlan_ids:
+        vlan_id = vlan_ids[0]
+
+# Delete from vlan_profiles
+del vlan_config['vlan_profiles'][profile_name]
+
+# Save vlan_profiles
+_tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(vlan_profiles_file), suffix='.tmp')
+try:
+    with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+        yaml.dump(vlan_config, _tmp_f)
+    shutil.move(_tmp_path, vlan_profiles_file)
+except:
+    if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+    raise
+
+# Try to delete corresponding port profile
+port_profile_deleted = False
+port_profile_name = None
+if vlan_id:
+    port_profile_name = f'ACCESS_VLAN_{vlan_id}'
+    
+    port_config = {}
+    if os.path.exists(port_profiles_file):
+        with open(port_profiles_file, 'r') as f:
+            port_config = yaml.load(f) or {}
+    
+    if 'sw_port_profiles' in port_config and port_profile_name in port_config['sw_port_profiles']:
+        del port_config['sw_port_profiles'][port_profile_name]
+        
+        _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(port_profiles_file), suffix='.tmp')
+        try:
+            with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                yaml.dump(port_config, _tmp_f)
+            shutil.move(_tmp_path, port_profiles_file)
+        except:
+            if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+            raise
+        
+        port_profile_deleted = True
+
+print(json.dumps({
+    'success': True,
+    'profile_name': profile_name,
+    'port_profile': port_profile_name,
+    'port_profile_deleted': port_profile_deleted
+}))
+PYTHON
+}
+
+assign_vlans() {
+    # Read POST data
+    local post_data
+    read -r post_data
+
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+# Parse POST data
+post_data = '''$post_data'''
+data = json.loads(post_data)
+
+device = data.get('device', '')
+vlans = data.get('vlans', [])
+
+if not device:
+    print(json.dumps({'success': False, 'error': 'Device name is required'}))
+    sys.exit(0)
+
+if not vlans:
+    print(json.dumps({'success': False, 'error': 'No VLANs selected'}))
+    sys.exit(0)
+
+# Path to host_vars
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+inventory_base = os.path.join(ansible_dir, 'inventory')
+host_vars_file = os.path.join(inventory_base, 'host_vars', device + '.yaml')
+
+if not os.path.exists(host_vars_file):
+    # Also try without .yaml
+    host_vars_file = os.path.join(inventory_base, 'host_vars', device + '.yml')
+
+# Load host_vars or create empty config
+host_config = {}
+if os.path.exists(host_vars_file):
+    with open(host_vars_file, 'r') as f:
+        host_config = yaml.load(f) or {}
+else:
+    # Create new file with .yaml extension
+    host_vars_file = os.path.join(inventory_base, 'host_vars', device + '.yaml')
+
+# Add VLANs to vlan_templates
+if 'vlan_templates' not in host_config:
+    host_config['vlan_templates'] = []
+
+# Add new VLANs (avoid duplicates)
+added = []
+for vlan in vlans:
+    if vlan not in host_config['vlan_templates']:
+        host_config['vlan_templates'].append(vlan)
+        added.append(vlan)
+
+# Save host_vars
+_tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_vars_file), suffix='.tmp')
+try:
+    with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+        yaml.dump(host_config, _tmp_f)
+    shutil.move(_tmp_path, host_vars_file)
+except:
+    if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+    raise
+
+print(json.dumps({
+    'success': True,
+    'device': device,
+    'added_vlans': added,
+    'total_vlans': len(host_config['vlan_templates'])
+}))
+PYTHON
+}
+
+unassign_vlan() {
+    # Read POST data
+    local post_data
+    read -r post_data
+
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+# Parse POST data
+post_data = '''$post_data'''
+data = json.loads(post_data)
+
+device = data.get('device', '')
+vlan = data.get('vlan', '')
+
+if not device:
+    print(json.dumps({'success': False, 'error': 'Device name is required'}))
+    sys.exit(0)
+
+if not vlan:
+    print(json.dumps({'success': False, 'error': 'VLAN name is required'}))
+    sys.exit(0)
+
+# Path to host_vars
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+inventory_base = os.path.join(ansible_dir, 'inventory')
+host_vars_file = os.path.join(inventory_base, 'host_vars', device + '.yaml')
+
+# Try .yaml first, then .yml
+if not os.path.exists(host_vars_file):
+    host_vars_file = os.path.join(inventory_base, 'host_vars', device + '.yml')
+
+# Load host_vars (create empty if doesn't exist)
+host_config = {}
+if os.path.exists(host_vars_file):
+    with open(host_vars_file, 'r') as f:
+        host_config = yaml.load(f) or {}
+else:
+    # File doesn't exist - check if we should create it
+    # Use .yaml extension for new files
+    host_vars_file = os.path.join(inventory_base, 'host_vars', device + '.yaml')
+    host_config = {}
+
+# Check if VLAN is in vlan_templates
+if 'vlan_templates' not in host_config or vlan not in host_config.get('vlan_templates', []):
+    print(json.dumps({'success': False, 'error': f'VLAN {vlan} not found in device config (may be inherited from group_vars)'}))
+    sys.exit(0)
+
+# Remove VLAN from vlan_templates
+host_config['vlan_templates'].remove(vlan)
+
+# Save host_vars
+_tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_vars_file), suffix='.tmp')
+try:
+    with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+        yaml.dump(host_config, _tmp_f)
+    shutil.move(_tmp_path, host_vars_file)
+except:
+    if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+    raise
+
+print(json.dumps({
+    'success': True,
+    'device': device,
+    'removed_vlan': vlan
+}))
+PYTHON
+}
+
+update_vlan() {
+    # Read POST data
+    local post_data
+    read -r post_data
+
+    python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+# Parse POST data
+post_data = '''$post_data'''
+data = json.loads(post_data)
+
+original_name = data.get('original_name', '')
+profile_name = data.get('profile_name', original_name)
+vlan_id = data.get('vlan_id')
+description = data.get('description', '')
+l2vni = data.get('l2vni')
+svi_enabled = data.get('svi_enabled', False)
+vrr_enabled = data.get('vrr_enabled', False)
+vrf = data.get('vrf', 'default')
+vrr_vip = data.get('vrr_vip', '')
+even_ip = data.get('even_ip', '')
+odd_ip = data.get('odd_ip', '')
+vrr_vmac = data.get('vrr_vmac', '')
+gateway_ip = data.get('gateway_ip', '')
+
+if not original_name:
+    print(json.dumps({'success': False, 'error': 'Original profile name is required'}))
+    sys.exit(0)
+
+# Paths
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+inventory_base = os.path.join(ansible_dir, 'inventory')
+vlan_profiles_file = os.path.join(inventory_base, 'group_vars', 'all', 'vlan_profiles.yaml')
+
+# Load vlan_profiles
+vlan_config = {}
+if os.path.exists(vlan_profiles_file):
+    with open(vlan_profiles_file, 'r') as f:
+        vlan_config = yaml.load(f) or {}
+
+if 'vlan_profiles' not in vlan_config or original_name not in vlan_config['vlan_profiles']:
+    print(json.dumps({'success': False, 'error': f'VLAN profile {original_name} not found'}))
+    sys.exit(0)
+
+# Get existing profile data
+existing = vlan_config['vlan_profiles'][original_name]
+
+# Build updated VLAN entry
+vlan_entry = {
+    'description': description,
+    'l2vni': l2vni if l2vni else existing.get('vlans', {}).get(vlan_id, {}).get('l2vni', 100000 + vlan_id)
+}
+
+if svi_enabled:
+    vlan_entry['vrf'] = vrf
+    vlan_entry['ipv6'] = False
+    
+    if vrr_enabled:
+        if vrr_vip:
+            vlan_entry['vrr_vip'] = vrr_vip
+        if even_ip:
+            vlan_entry['even_ip'] = even_ip
+        if odd_ip:
+            vlan_entry['odd_ip'] = odd_ip
+        if vrr_vmac:
+            vlan_entry['vrr_vmac'] = vrr_vmac
+    else:
+        if gateway_ip:
+            vlan_entry['ip'] = gateway_ip
+
+# Update profile
+profile_entry = {
+    'vrr': {'state': vrr_enabled if svi_enabled else False},
+    'vlans': {vlan_id: vlan_entry}
+}
+
+# If profile name changed, remove old and add new
+if profile_name != original_name:
+    del vlan_config['vlan_profiles'][original_name]
+
+vlan_config['vlan_profiles'][profile_name] = profile_entry
+
+# Save
+_tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(vlan_profiles_file), suffix='.tmp')
+try:
+    with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+        yaml.dump(vlan_config, _tmp_f)
+    shutil.move(_tmp_path, vlan_profiles_file)
+except:
+    if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+    raise
+
+print(json.dumps({
+    'success': True,
+    'profile_name': profile_name,
+    'renamed': profile_name != original_name
+}))
+PYTHON
+}
+
+# Main handler
+parse_query
+
+case "$ACTION" in
+    "list-devices")
+        list_devices
+        ;;
+    "get-device")
+        get_device "$HOSTNAME"
+        ;;
+    "get-vlan-profiles")
+        get_vlan_profiles
+        ;;
+    "get-vlan-report")
+        get_vlan_report
+        ;;
+    "get-port-profiles")
+        get_port_profiles
+        ;;
+    "create-port-profile")
+        create_port_profile
+        ;;
+    "update-port-profile")
+        update_port_profile
+        ;;
+    "delete-port-profile")
+        delete_port_profile
+        ;;
+    "get-bgp-profiles")
+        get_bgp_profiles
+        ;;
+    "create-bgp-profile")
+        create_bgp_profile
+        ;;
+    "update-bgp-profile")
+        update_bgp_profile
+        ;;
+    "delete-bgp-profile")
+        delete_bgp_profile
+        ;;
+    "get-vrfs")
+        get_vrfs
+        ;;
+    "create-vlan")
+        create_vlan
+        ;;
+    "delete-vlan")
+        delete_vlan
+        ;;
+    "assign-vlans")
+        assign_vlans
+        ;;
+    "unassign-vlan")
+        unassign_vlan
+        ;;
+    "update-vlan")
+        update_vlan
+        ;;
+    "bulk-create-vlans")
+        bulk_create_vlans
+        ;;
+    "get-available-vrfs")
+        get_available_vrfs
+        ;;
+    "get-bgp-profiles")
+        get_bgp_profiles
+        ;;
+    "get-leaking-vrfs")
+        get_leaking_vrfs
+        ;;
+    "create-vrf")
+        create_vrf
+        ;;
+    "create-vrf-bulk")
+        create_vrf_bulk
+        ;;
+    "assign-vrfs")
+        assign_vrfs
+        ;;
+    "unassign-vrf")
+        unassign_vrf
+        ;;
+    "delete-vrf-global")
+        delete_vrf_global
+        ;;
+    "get-vrf-report")
+        get_vrf_report
+        ;;
+    "get-all-leaked-subnets")
+        # Get all leaked subnets with their target VRFs
+        python3 << 'PYTHON'
+import json
+import yaml  # PyYAML - faster for read-only operations
+import os
+import glob
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_vars_dir = f"{ansible_dir}/inventory/host_vars"
+bgp_file = f"{ansible_dir}/inventory/group_vars/all/bgp_profiles.yaml"
+
+try:
+    with open(bgp_file, 'r') as f:
+        bgp_data = yaml.load(f, Loader=yaml.CSafeLoader)
+    
+    profiles = bgp_data.get('bgp_profiles', {})
+    route_map_to_target = {}
+    leaked_subnets = {}
+    all_prefix_lists = {}  # Store prefix lists for second pass
+    
+    # Single pass: collect both route_map mapping AND prefix_lists
+    for yaml_file in glob.glob(f"{host_vars_dir}/*.yaml"):
+        try:
+            with open(yaml_file, 'r') as f:
+                device_data = yaml.load(f, Loader=yaml.CSafeLoader)
+            if not device_data:
+                continue
+            
+            # Collect route_map -> target_vrf mapping from VRFs
+            vrfs = device_data.get('vrfs', {})
+            for vrf_name, vrf_config in vrfs.items():
+                if isinstance(vrf_config, dict):
+                    bgp = vrf_config.get('bgp', {})
+                    bgp_profile = bgp.get('bgp_profile', '')
+                    if bgp_profile in profiles:
+                        profile = profiles[bgp_profile]
+                        ipv4_af = profile.get('ipv4_unicast_af', {})
+                        route_import = ipv4_af.get('route_import', {})
+                        route_map = route_import.get('route_map', '')
+                        if route_map and route_map not in route_map_to_target:
+                            route_map_to_target[route_map] = vrf_name
+            
+            # Collect prefix_lists from policies
+            policies = device_data.get('policies', {})
+            prefix_lists = policies.get('prefix_list', {})
+            for pl_name, pl_entries in prefix_lists.items():
+                if pl_name not in all_prefix_lists:
+                    all_prefix_lists[pl_name] = pl_entries
+        except:
+            continue
+    
+    # Now match prefix_lists with route_maps (no file I/O needed)
+    for pl_name, pl_entries in all_prefix_lists.items():
+        if pl_name in route_map_to_target:
+            target_vrf = route_map_to_target[pl_name]
+            for seq, entry in pl_entries.items():
+                subnet = entry.get('match', '')
+                if subnet and subnet not in leaked_subnets:
+                    leaked_subnets[subnet] = {
+                        'target_vrf': target_vrf,
+                        'route_map': pl_name
+                    }
+    
+    print(json.dumps({'success': True, 'leaked_subnets': leaked_subnets}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    "check-subnet-leak")
+        # Check if a subnet is already leaked to any VRF
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+import yaml  # PyYAML - faster for read-only operations
+import os
+import glob
+
+try:
+    params = json.loads('''$POST_DATA''')
+except:
+    params = {}
+
+subnet = params.get('subnet', '')
+
+if not subnet:
+    print(json.dumps({'success': False, 'error': 'Missing subnet'}))
+    exit()
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_vars_dir = f"{ansible_dir}/inventory/host_vars"
+bgp_file = f"{ansible_dir}/inventory/group_vars/all/bgp_profiles.yaml"
+
+# Build route_map -> target_vrf mapping from bgp_profiles
+try:
+    with open(bgp_file, 'r') as f:
+        bgp_data = yaml.load(f, Loader=yaml.CSafeLoader)
+    
+    profiles = bgp_data.get('bgp_profiles', {})
+    
+    # Single pass: collect both route_map->target_vrf mapping AND check prefix-lists
+    route_map_to_target = {}
+    leaked_to = None
+    route_map_found = None
+    all_prefix_list_matches = []  # Store all matches to check after we have route_map mapping
+    
+    for yaml_file in glob.glob(f"{host_vars_dir}/*.yaml"):
+        try:
+            with open(yaml_file, 'r') as f:
+                device_data = yaml.load(f, Loader=yaml.CSafeLoader)
+            if not device_data:
+                continue
+            
+            # Part 1: Build route_map -> target_vrf mapping
+            vrfs = device_data.get('vrfs', {})
+            for vrf_name, vrf_config in vrfs.items():
+                if isinstance(vrf_config, dict):
+                    bgp = vrf_config.get('bgp', {})
+                    bgp_profile = bgp.get('bgp_profile', '')
+                    if bgp_profile in profiles:
+                        profile = profiles[bgp_profile]
+                        ipv4_af = profile.get('ipv4_unicast_af', {})
+                        route_import = ipv4_af.get('route_import', {})
+                        route_map = route_import.get('route_map', '')
+                        if route_map:
+                            route_map_to_target[route_map] = vrf_name
+            
+            # Part 2: Check prefix-lists for subnet match
+            policies = device_data.get('policies', {})
+            prefix_lists = policies.get('prefix_list', {})
+            
+            for pl_name, pl_entries in prefix_lists.items():
+                if isinstance(pl_entries, dict):
+                    for seq, entry in pl_entries.items():
+                        if isinstance(entry, dict) and entry.get('match') == subnet:
+                            all_prefix_list_matches.append(pl_name)
+        except:
+            continue
+    
+    # Now resolve matches
+    for pl_name in all_prefix_list_matches:
+        route_map_found = pl_name
+        if pl_name in route_map_to_target:
+            leaked_to = route_map_to_target[pl_name]
+            break
+    
+    print(json.dumps({
+        'success': True,
+        'leaked': leaked_to is not None,
+        'target_vrf': leaked_to,
+        'route_map': route_map_found
+    }))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    "get-leaking-targets")
+        # Get VRFs that can receive leaked routes (from a source VRF)
+        python3 << 'PYTHON'
+import json
+import yaml  # PyYAML - faster for read-only operations
+import os
+import glob
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+bgp_file = f"{ansible_dir}/inventory/group_vars/all/bgp_profiles.yaml"
+host_vars_dir = f"{ansible_dir}/inventory/host_vars"
+
+try:
+    with open(bgp_file, 'r') as f:
+        data = yaml.load(f, Loader=yaml.CSafeLoader)
+    
+    profiles = data.get('bgp_profiles', {})
+    
+    # Build profile -> route_map mapping
+    profile_route_map = {}
+    for profile_name, profile in profiles.items():
+        ipv4_af = profile.get('ipv4_unicast_af', {})
+        route_import = ipv4_af.get('route_import', {})
+        from_vrfs = route_import.get('from_vrf', [])
+        route_map = route_import.get('route_map', '')
+        if from_vrfs and route_map:
+            profile_route_map[profile_name] = {
+                'from_vrfs': from_vrfs,
+                'route_map': route_map
+            }
+    
+    # Scan host_vars to find which VRF uses which profile
+    vrf_profile_map = {}  # vrf_name -> profile_name
+    for yaml_file in glob.glob(f"{host_vars_dir}/*.yaml"):
+        try:
+            with open(yaml_file, 'r') as f:
+                device_data = yaml.load(f, Loader=yaml.CSafeLoader)
+            if not device_data:
+                continue
+            vrfs = device_data.get('vrfs', {})
+            for vrf_name, vrf_config in vrfs.items():
+                if isinstance(vrf_config, dict):
+                    bgp = vrf_config.get('bgp', {})
+                    bgp_profile = bgp.get('bgp_profile', '')
+                    if bgp_profile and bgp_profile in profile_route_map:
+                        vrf_profile_map[vrf_name] = bgp_profile
+        except:
+            continue
+    
+    # Build leaking_map: source_vrf -> [target_vrfs with route_map]
+    leaking_map = {}
+    for vrf_name, profile_name in vrf_profile_map.items():
+        if profile_name in profile_route_map:
+            info = profile_route_map[profile_name]
+            for src_vrf in info['from_vrfs']:
+                if src_vrf not in leaking_map:
+                    leaking_map[src_vrf] = []
+                # Check if this target VRF is already added
+                existing = [x for x in leaking_map[src_vrf] if x['target_vrf'] == vrf_name]
+                if not existing:
+                    leaking_map[src_vrf].append({
+                        'target_vrf': vrf_name,
+                        'route_map': info['route_map']
+                    })
+    
+    print(json.dumps({'success': True, 'leaking_map': leaking_map}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    "add-subnet-leak")
+        # Add a subnet to prefix-list for leaking
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+import glob
+
+# Read POST data
+try:
+    params = json.loads('''$POST_DATA''')
+except:
+    params = {}
+
+subnet = params.get('subnet', '')
+route_map = params.get('route_map', '')
+
+if not subnet or not route_map:
+    print(json.dumps({'success': False, 'error': 'Missing subnet or route_map'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_vars_dir = f"{ansible_dir}/inventory/host_vars"
+
+# Find all devices that have this prefix_list and add the subnet
+devices_updated = []
+errors = []
+
+try:
+    for yaml_file in glob.glob(f"{host_vars_dir}/*.yaml"):
+        hostname = os.path.basename(yaml_file).replace('.yaml', '')
+        
+        with open(yaml_file, 'r') as f:
+            content = f.read()
+            device_data = yaml.load(content)
+        
+        if not device_data:
+            continue
+        
+        policies = device_data.get('policies', {})
+        prefix_lists = policies.get('prefix_list', {})
+        
+        if route_map not in prefix_lists:
+            continue
+        
+        # This device has the prefix_list, add the subnet
+        prefix_list = prefix_lists[route_map]
+        
+        # Find the next sequence number (increment by 10)
+        existing_seqs = [int(seq) for seq in prefix_list.keys()]
+        next_seq = str(max(existing_seqs) + 10) if existing_seqs else "10"
+        
+        # Check if subnet already exists
+        subnet_exists = any(
+            entry.get('match') == subnet 
+            for entry in prefix_list.values()
+        )
+        
+        if subnet_exists:
+            continue
+        
+        # Add the new entry
+        prefix_list[next_seq] = {
+            'match': subnet,
+            'max_prefix_len': 32
+        }
+        
+        # Write back
+        _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(yaml_file), suffix='.tmp')
+        try:
+            with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                yaml.dump(device_data, _tmp_f)
+            shutil.move(_tmp_path, yaml_file)
+        except:
+            if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+            raise
+        
+        devices_updated.append(hostname)
+    
+    print(json.dumps({
+        'success': True,
+        'devices_updated': devices_updated,
+        'count': len(devices_updated),
+        'message': f"Subnet {subnet} added to prefix-list {route_map} on {len(devices_updated)} device(s)"
+    }))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    "save-dhcp-relay")
+        # Save (create or update) DHCP relay entry
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+try:
+    params = json.loads('''$POST_DATA''')
+except:
+    params = {}
+
+device = params.get('device', '')
+index = params.get('index')  # None for create, number for update
+vrf = params.get('vrf', '')
+interfaces = params.get('interfaces', [])
+servers = params.get('servers', [])
+upstream = params.get('upstream', [])
+giaddr = params.get('giaddr', '')  # Optional gateway interface
+
+if not device or not vrf:
+    print(json.dumps({'success': False, 'error': 'Device and VRF are required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_vars_dir = f"{ansible_dir}/inventory/host_vars"
+host_file = f"{host_vars_dir}/{device}.yaml"
+
+# Try .yml if .yaml doesn't exist
+if not os.path.exists(host_file):
+    alt_file = f"{host_vars_dir}/{device}.yml"
+    if os.path.exists(alt_file):
+        host_file = alt_file
+
+try:
+    # Load host_vars
+    host_data = {}
+    if os.path.exists(host_file):
+        with open(host_file, 'r') as f:
+            host_data = yaml.load(f) or {}
+    
+    # Initialize dhcp_relay if not exists
+    if 'dhcp_relay' not in host_data:
+        host_data['dhcp_relay'] = []
+    
+    # Build relay entry
+    relay_entry = {
+        'vrf': vrf,
+        'interfaces': interfaces,
+        'servers': servers
+    }
+    if upstream:
+        relay_entry['upstream'] = upstream
+    if giaddr:
+        relay_entry['giaddr'] = giaddr
+    
+    if index is not None and isinstance(index, int) and 0 <= index < len(host_data['dhcp_relay']):
+        # Update existing
+        host_data['dhcp_relay'][index] = relay_entry
+    else:
+        # Create new
+        host_data['dhcp_relay'].append(relay_entry)
+    
+    # Write back
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(host_data, _tmp_f)
+        shutil.move(_tmp_path, host_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    print(json.dumps({'success': True, 'message': 'DHCP relay saved'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    "delete-dhcp-relay")
+        # Delete DHCP relay entry
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+try:
+    params = json.loads('''$POST_DATA''')
+except:
+    params = {}
+
+device = params.get('device', '')
+index = params.get('index')
+
+if not device or index is None:
+    print(json.dumps({'success': False, 'error': 'Device and index are required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_vars_dir = f"{ansible_dir}/inventory/host_vars"
+host_file = f"{host_vars_dir}/{device}.yaml"
+
+# Try .yml if .yaml doesn't exist
+if not os.path.exists(host_file):
+    alt_file = f"{host_vars_dir}/{device}.yml"
+    if os.path.exists(alt_file):
+        host_file = alt_file
+
+try:
+    # Load host_vars
+    host_data = {}
+    if os.path.exists(host_file):
+        with open(host_file, 'r') as f:
+            host_data = yaml.load(f) or {}
+    
+    if 'dhcp_relay' not in host_data or not isinstance(index, int) or index < 0 or index >= len(host_data['dhcp_relay']):
+        print(json.dumps({'success': False, 'error': 'DHCP relay entry not found'}))
+        sys.exit(0)
+    
+    # Delete the entry
+    del host_data['dhcp_relay'][index]
+    
+    # If empty, remove the key
+    if len(host_data['dhcp_relay']) == 0:
+        del host_data['dhcp_relay']
+    
+    # Write back
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(host_data, _tmp_f)
+        shutil.move(_tmp_path, host_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    print(json.dumps({'success': True, 'message': 'DHCP relay deleted'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    "save-evpn-mh")
+        # Save EVPN Multihoming configuration
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+try:
+    params = json.loads('''$POST_DATA''')
+    device = params.get('device', '')
+    evpn_mh = params.get('evpn_mh', {})
+    
+    if not device:
+        print(json.dumps({'success': False, 'error': 'Device is required'}))
+        sys.exit(0)
+    
+    if not evpn_mh.get('sysmac'):
+        print(json.dumps({'success': False, 'error': 'System MAC is required'}))
+        sys.exit(0)
+    
+    ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+    host_file = f"{ansible_dir}/inventory/host_vars/{device}.yaml"
+    
+    if not os.path.exists(host_file):
+        print(json.dumps({'success': False, 'error': f'Host file not found: {device}.yaml'}))
+        sys.exit(0)
+    
+    with open(host_file, 'r') as f:
+        host_data = yaml.load(f) or {}
+    
+    # Set evpn_mh
+    host_data['evpn_mh'] = {
+        'sysmac': evpn_mh.get('sysmac'),
+        'df_preference': evpn_mh.get('df_preference', 50000)
+    }
+    
+    # Write back
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(host_data, _tmp_f)
+        shutil.move(_tmp_path, host_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    print(json.dumps({'success': True, 'message': 'EVPN Multihoming saved'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    "delete-evpn-mh")
+        # Delete EVPN Multihoming configuration
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+try:
+    params = json.loads('''$POST_DATA''')
+    device = params.get('device', '')
+    
+    if not device:
+        print(json.dumps({'success': False, 'error': 'Device is required'}))
+        sys.exit(0)
+    
+    ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+    host_file = f"{ansible_dir}/inventory/host_vars/{device}.yaml"
+    
+    if not os.path.exists(host_file):
+        print(json.dumps({'success': False, 'error': f'Host file not found: {device}.yaml'}))
+        sys.exit(0)
+    
+    with open(host_file, 'r') as f:
+        host_data = yaml.load(f) or {}
+    
+    if 'evpn_mh' not in host_data:
+        print(json.dumps({'success': False, 'error': 'EVPN Multihoming not configured'}))
+        sys.exit(0)
+    
+    # Delete evpn_mh
+    del host_data['evpn_mh']
+    
+    # Write back
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(host_data, _tmp_f)
+        shutil.move(_tmp_path, host_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    print(json.dumps({'success': True, 'message': 'EVPN Multihoming deleted'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    create-bond)
+        # Create a new bond interface
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import sys
+import os
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    try:
+        data = json.loads(sys.stdin.read())
+    except:
+        print(json.dumps({'success': False, 'error': 'Invalid JSON data'}))
+        sys.exit(0)
+
+device = data.get('device', '')
+bond_name = data.get('bond_name', '')
+profile = data.get('profile', '')
+mh_id = data.get('evpn_mh_id', '')
+bond_mode = data.get('bond_mode', 'lacp')
+lacp_bypass = data.get('lacp_bypass', False)
+description = data.get('description', '')
+
+if not device or not bond_name:
+    print(json.dumps({'success': False, 'error': 'Device and bond name are required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_file = f"{ansible_dir}/inventory/host_vars/{device}.yaml"
+
+try:
+    # Load host file
+    with open(host_file, 'r') as f:
+        host_data = yaml.load(f) or {}
+    
+    # Initialize bonds if not exists
+    if 'bonds' not in host_data:
+        host_data['bonds'] = {}
+    
+    # Check if bond already exists
+    if bond_name in host_data['bonds']:
+        print(json.dumps({'success': False, 'error': f'Bond {bond_name} already exists'}))
+        sys.exit(0)
+    
+    # Create bond entry
+    bond_entry = {}
+    
+    if profile:
+        bond_entry['sw_port_profile'] = profile
+    
+    if mh_id:
+        bond_entry['evpn_mh_id'] = int(mh_id)
+    
+    if bond_mode and bond_mode != 'lacp':
+        bond_entry['bond_mode'] = bond_mode
+    
+    if lacp_bypass:
+        bond_entry['lacp_bypass'] = True
+    
+    if description:
+        bond_entry['description'] = description
+    
+    # Empty bond_members - will be added later
+    bond_entry['bond_members'] = []
+    
+    host_data['bonds'][bond_name] = bond_entry
+    
+    # Write back
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(host_data, _tmp_f)
+        shutil.move(_tmp_path, host_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    print(json.dumps({'success': True, 'message': f'Bond {bond_name} created'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    delete-bond)
+        # Delete a bond interface
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import sys
+import os
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    try:
+        data = json.loads(sys.stdin.read())
+    except:
+        print(json.dumps({'success': False, 'error': 'Invalid JSON data'}))
+        sys.exit(0)
+
+device = data.get('device', '')
+bond_name = data.get('name', '')
+
+if not device or not bond_name:
+    print(json.dumps({'success': False, 'error': 'Device and bond name are required'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_file = f"{ansible_dir}/inventory/host_vars/{device}.yaml"
+
+try:
+    with open(host_file, 'r') as f:
+        host_data = yaml.load(f) or {}
+    
+    if 'bonds' not in host_data or bond_name not in host_data['bonds']:
+        print(json.dumps({'success': False, 'error': f'Bond {bond_name} not found'}))
+        sys.exit(0)
+    
+    # Get bond members to release them
+    bond_members = host_data['bonds'][bond_name].get('bond_members', [])
+    
+    # Remove bond
+    del host_data['bonds'][bond_name]
+    
+    # Clean up empty bonds dict
+    if not host_data['bonds']:
+        del host_data['bonds']
+    
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(host_data, _tmp_f)
+        shutil.move(_tmp_path, host_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    print(json.dumps({'success': True, 'message': f'Bond {bond_name} deleted'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    delete-subinterface)
+        # Delete a subinterface
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import sys
+import os
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    try:
+        data = json.loads(sys.stdin.read())
+    except:
+        print(json.dumps({'success': False, 'error': 'Invalid JSON data'}))
+        sys.exit(0)
+
+device = data.get('device', '')
+subif_name = data.get('name', '')  # e.g., swp1.1001
+
+if not device or not subif_name:
+    print(json.dumps({'success': False, 'error': 'Device and subinterface name are required'}))
+    sys.exit(0)
+
+# Parse parent interface and subif ID
+if '.' not in subif_name:
+    print(json.dumps({'success': False, 'error': 'Invalid subinterface name format'}))
+    sys.exit(0)
+
+parts = subif_name.rsplit('.', 1)
+parent_if = parts[0]
+subif_id = parts[1]
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_file = f"{ansible_dir}/inventory/host_vars/{device}.yaml"
+
+try:
+    with open(host_file, 'r') as f:
+        host_data = yaml.load(f) or {}
+    
+    deleted = False
+    
+    # Check in interfaces -> parent -> subinterfaces
+    if 'interfaces' in host_data and parent_if in host_data['interfaces']:
+        iface = host_data['interfaces'][parent_if]
+        if 'subinterfaces' in iface and subif_id in iface['subinterfaces']:
+            del iface['subinterfaces'][subif_id]
+            deleted = True
+            # Clean up empty subinterfaces dict
+            if not iface['subinterfaces']:
+                del iface['subinterfaces']
+        elif 'subinterfaces' in iface:
+            # Try numeric key
+            try:
+                subif_id_int = int(subif_id)
+                if subif_id_int in iface['subinterfaces']:
+                    del iface['subinterfaces'][subif_id_int]
+                    deleted = True
+                    if not iface['subinterfaces']:
+                        del iface['subinterfaces']
+            except:
+                pass
+    
+    if not deleted:
+        print(json.dumps({'success': False, 'error': f'Subinterface {subif_name} not found'}))
+        sys.exit(0)
+    
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(host_data, _tmp_f)
+        shutil.move(_tmp_path, host_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    print(json.dumps({'success': True, 'message': f'Subinterface {subif_name} deleted'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    update-interface)
+        # Update interface or bond settings
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import sys
+import os
+
+# Read POST data
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    try:
+        data = json.loads(sys.stdin.read())
+    except:
+        print(json.dumps({'success': False, 'error': 'Invalid JSON data'}))
+        sys.exit(0)
+
+device = data.get('device', '')
+interface_name = data.get('interface_name', '')
+interface_type = data.get('interface_type', '')  # 'l2', 'l3', 'subif', 'bond'
+description = data.get('description', '')
+
+if not device or not interface_name:
+    print(json.dumps({'success': False, 'error': 'Missing device or interface_name'}))
+    sys.exit(0)
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+host_file = f"{ansible_dir}/inventory/host_vars/{device}.yaml"
+
+try:
+    # Load host file
+    with open(host_file, 'r') as f:
+        host_data = yaml.load(f) or {}
+    
+    if interface_type == 'bond':
+        # Update bond
+        if 'bonds' not in host_data:
+            host_data['bonds'] = {}
+        if interface_name not in host_data['bonds']:
+            host_data['bonds'][interface_name] = {}
+        
+        bond = host_data['bonds'][interface_name]
+        
+        # Update profile
+        profile = data.get('profile', '')
+        if profile:
+            bond['sw_port_profile'] = profile
+        elif 'sw_port_profile' in bond:
+            del bond['sw_port_profile']
+        
+        # Update description
+        if description:
+            bond['description'] = description
+        elif 'description' in bond:
+            del bond['description']
+        
+        # Update bond_members
+        bond_members = data.get('bond_members', [])
+        if bond_members:
+            bond['bond_members'] = bond_members
+        elif 'bond_members' in bond:
+            del bond['bond_members']
+        
+        # Update evpn_mh_id
+        mh_id = data.get('evpn_mh_id', '')
+        if mh_id:
+            bond['evpn_mh_id'] = int(mh_id)
+        elif 'evpn_mh_id' in bond:
+            del bond['evpn_mh_id']
+        
+        # Update bond_mode
+        bond_mode = data.get('bond_mode', '')
+        if bond_mode:
+            bond['bond_mode'] = bond_mode
+        elif 'bond_mode' in bond:
+            del bond['bond_mode']
+        
+        # Update lacp_bypass
+        lacp_bypass = data.get('lacp_bypass', False)
+        if lacp_bypass:
+            bond['lacp_bypass'] = True
+        elif 'lacp_bypass' in bond:
+            del bond['lacp_bypass']
+    
+    elif interface_type == 'breakout':
+        # Physical port with breakout config
+        if 'interfaces' not in host_data:
+            host_data['interfaces'] = {}
+        if interface_name not in host_data['interfaces']:
+            host_data['interfaces'][interface_name] = {}
+        
+        iface = host_data['interfaces'][interface_name]
+        
+        # Update breakout
+        breakout = data.get('breakout', '')
+        if breakout:
+            iface['breakout'] = breakout
+        elif 'breakout' in iface:
+            del iface['breakout']
+        
+        # Update description
+        if description:
+            iface['description'] = description
+        elif 'description' in iface:
+            del iface['description']
+    
+    elif interface_type == 'bond-member':
+        # Bond member - manage bond membership
+        target_bond = data.get('target_bond', '')
+        previous_bond = data.get('previous_bond', '')
+        
+        # Remove from previous bond if different
+        if previous_bond and previous_bond != target_bond:
+            if 'bonds' in host_data and previous_bond in host_data['bonds']:
+                old_bond = host_data['bonds'][previous_bond]
+                if 'bond_members' in old_bond and interface_name in old_bond['bond_members']:
+                    old_bond['bond_members'].remove(interface_name)
+        
+        # Add to target bond
+        if target_bond:
+            if 'bonds' not in host_data:
+                host_data['bonds'] = {}
+            if target_bond not in host_data['bonds']:
+                host_data['bonds'][target_bond] = {}
+            
+            bond = host_data['bonds'][target_bond]
+            if 'bond_members' not in bond:
+                bond['bond_members'] = []
+            
+            if interface_name not in bond['bond_members']:
+                bond['bond_members'].append(interface_name)
+        
+        # Update description on interface
+        if 'interfaces' not in host_data:
+            host_data['interfaces'] = {}
+        if interface_name not in host_data['interfaces']:
+            host_data['interfaces'][interface_name] = {}
+        
+        iface = host_data['interfaces'][interface_name]
+        if description:
+            iface['description'] = description
+        elif 'description' in iface:
+            del iface['description']
+            
+    elif interface_type == 'l3':
+        # L3 interface
+        # First, remove from any previous bond
+        previous_bond = data.get('previous_bond', '')
+        if previous_bond:
+            if 'bonds' in host_data and previous_bond in host_data['bonds']:
+                old_bond = host_data['bonds'][previous_bond]
+                if 'bond_members' in old_bond and interface_name in old_bond['bond_members']:
+                    old_bond['bond_members'].remove(interface_name)
+        
+        if 'interfaces' not in host_data:
+            host_data['interfaces'] = {}
+        if interface_name not in host_data['interfaces']:
+            host_data['interfaces'][interface_name] = {}
+        
+        iface = host_data['interfaces'][interface_name]
+        
+        # Update IP
+        ip = data.get('ip', '')
+        if ip:
+            iface['ip'] = ip
+        elif 'ip' in iface:
+            del iface['ip']
+        
+        # Update VRF
+        vrf = data.get('vrf', '')
+        if vrf:
+            iface['vrf'] = vrf
+        elif 'vrf' in iface:
+            del iface['vrf']
+        
+        # Update description
+        if description:
+            iface['description'] = description
+        elif 'description' in iface:
+            del iface['description']
+            
+    elif interface_type == 'subif':
+        # Subinterface - format: swp1.1001
+        # First, remove from any previous bond
+        previous_bond = data.get('previous_bond', '')
+        if previous_bond:
+            if 'bonds' in host_data and previous_bond in host_data['bonds']:
+                old_bond = host_data['bonds'][previous_bond]
+                if 'bond_members' in old_bond and interface_name in old_bond['bond_members']:
+                    old_bond['bond_members'].remove(interface_name)
+        
+        if '.' in interface_name:
+            parent_if, sub_id = interface_name.rsplit('.', 1)
+            
+            if 'interfaces' not in host_data:
+                host_data['interfaces'] = {}
+            if parent_if not in host_data['interfaces']:
+                host_data['interfaces'][parent_if] = {}
+            if 'subinterfaces' not in host_data['interfaces'][parent_if]:
+                host_data['interfaces'][parent_if]['subinterfaces'] = {}
+            
+            subif = host_data['interfaces'][parent_if]['subinterfaces'].get(sub_id, {})
+            
+            # Update VLAN ID
+            vlan_id = data.get('vlan_id', '')
+            if vlan_id:
+                subif['vlan'] = int(vlan_id)
+            
+            # Update IP
+            ip = data.get('ip', '')
+            if ip:
+                subif['ip'] = ip
+            elif 'ip' in subif:
+                del subif['ip']
+            
+            # Update VRF
+            vrf = data.get('vrf', '')
+            if vrf:
+                subif['vrf'] = vrf
+            elif 'vrf' in subif:
+                del subif['vrf']
+            
+            host_data['interfaces'][parent_if]['subinterfaces'][sub_id] = subif
+            
+            # Update parent description
+            if description:
+                host_data['interfaces'][parent_if]['description'] = description
+        else:
+            print(json.dumps({'success': False, 'error': 'Invalid subinterface format'}))
+            sys.exit(0)
+            
+    else:
+        # L2 interface (default)
+        # First, remove from any previous bond
+        previous_bond = data.get('previous_bond', '')
+        if previous_bond:
+            if 'bonds' in host_data and previous_bond in host_data['bonds']:
+                old_bond = host_data['bonds'][previous_bond]
+                if 'bond_members' in old_bond and interface_name in old_bond['bond_members']:
+                    old_bond['bond_members'].remove(interface_name)
+        
+        if 'interfaces' not in host_data:
+            host_data['interfaces'] = {}
+        if interface_name not in host_data['interfaces']:
+            host_data['interfaces'][interface_name] = {}
+        
+        iface = host_data['interfaces'][interface_name]
+        
+        # Update profile
+        profile = data.get('profile', '')
+        if profile:
+            iface['sw_port_profile'] = profile
+        elif 'sw_port_profile' in iface:
+            del iface['sw_port_profile']
+        
+        # Update description
+        if description:
+            iface['description'] = description
+        elif 'description' in iface:
+            del iface['description']
+    
+    # Write back
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(host_data, _tmp_f)
+        shutil.move(_tmp_path, host_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    print(json.dumps({'success': True, 'message': f'{interface_type} {interface_name} updated'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    add-external-peer)
+        # Add a new external BGP peer
+        # Creates subinterface + adds peer to BGP profile
+        # If create_border_profile=true, creates OVERLAY_BORDER_XX profile with External peer group
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    import sys
+    data = json.loads(sys.stdin.read()) if not sys.stdin.isatty() else {}
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+
+try:
+    device = data.get('device', '')
+    vrf = data.get('vrf', '')
+    interface = data.get('interface', '')  # e.g., swp1.1002
+    vlan_id = data.get('vlan_id', '')
+    local_ip = data.get('local_ip', '')
+    remote_peer = data.get('remote_peer', '')
+    create_border_profile = data.get('create_border_profile', False)
+    border_profile_suffix = data.get('border_profile_suffix', '00')
+    
+    if not all([device, vrf, interface, local_ip, remote_peer]):
+        print(json.dumps({'success': False, 'error': 'Missing required fields'}))
+        exit(0)
+    
+    # Parse interface name
+    if '.' in interface:
+        parent_if, sub_id = interface.split('.', 1)
+    else:
+        print(json.dumps({'success': False, 'error': 'Invalid interface format, expected swpX.VLAN'}))
+        exit(0)
+    
+    # 1. Update host_vars - add subinterface
+    host_file = os.path.join(ansible_dir, 'inventory', 'host_vars', f'{device}.yaml')
+    
+    if not os.path.exists(host_file):
+        print(json.dumps({'success': False, 'error': f'Device file not found: {device}.yaml'}))
+        exit(0)
+    
+    with open(host_file, 'r') as f:
+        host_data = yaml.load(f) or {}
+    
+    # Get VRF config
+    vrfs = host_data.get('vrfs', {})
+    if vrf not in vrfs:
+        print(json.dumps({'success': False, 'error': f'VRF {vrf} not found on device'}))
+        exit(0)
+    
+    vrf_config = vrfs[vrf]
+    bgp_profile = vrf_config.get('bgp', {}).get('bgp_profile', '')
+    profile_created = False
+    
+    # Load BGP profiles
+    bgp_profiles_file = os.path.join(ansible_dir, 'inventory', 'group_vars', 'all', 'bgp_profiles.yaml')
+    with open(bgp_profiles_file, 'r') as f:
+        bgp_data = yaml.load(f) or {}
+    
+    profiles = bgp_data.get('bgp_profiles', {})
+    
+    # Check if current profile has External peer group
+    has_external = False
+    if bgp_profile and bgp_profile in profiles:
+        peer_groups = profiles[bgp_profile].get('peer_groups', {})
+        has_external = 'External' in peer_groups
+    
+    # If no External and create_border_profile requested, create new OVERLAY_BORDER_XX profile
+    if not has_external and create_border_profile:
+        new_profile_name = f'OVERLAY_BORDER_{border_profile_suffix}'
+        
+        # Create new profile with External peer group (template from OVERLAY_BORDER_XX)
+        profiles[new_profile_name] = {
+            'ipv4_unicast_af': {
+                'redistribute_connected_routes': True,
+                'redistribute_static_routes': False,
+                'export_to_evpn_type5': True
+            },
+            'peer_groups': {
+                'External': {
+                    'description': 'External-Connections',
+                    'peer_type': 'external',
+                    'enable_bfd': False,
+                    'peers': {
+                        remote_peer: None
+                    }
+                }
+            }
+        }
+        
+        # Update VRF to use new profile
+        if 'bgp' not in vrf_config:
+            vrf_config['bgp'] = {}
+        vrf_config['bgp']['bgp_profile'] = new_profile_name
+        bgp_profile = new_profile_name
+        profile_created = True
+        
+        # Save updated host_vars with new bgp_profile
+        _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+        try:
+            with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                yaml.dump(host_data, _tmp_f)
+            shutil.move(_tmp_path, host_file)
+        except:
+            if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+            raise
+        
+        # Save bgp_profiles with new profile
+        _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(bgp_profiles_file), suffix='.tmp')
+        try:
+            with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                yaml.dump(bgp_data, _tmp_f)
+            shutil.move(_tmp_path, bgp_profiles_file)
+        except:
+            if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+            raise
+    
+    elif not has_external:
+        print(json.dumps({'success': False, 'error': f'External peer group not found in profile {bgp_profile}. Enable "Create Border Profile" option.'}))
+        exit(0)
+    
+    # Create subinterface
+    if 'interfaces' not in host_data:
+        host_data['interfaces'] = {}
+    
+    if parent_if not in host_data['interfaces']:
+        host_data['interfaces'][parent_if] = {'description': 'External BGP'}
+    
+    if 'subinterfaces' not in host_data['interfaces'][parent_if]:
+        host_data['interfaces'][parent_if]['subinterfaces'] = {}
+    
+    # Add subinterface
+    host_data['interfaces'][parent_if]['subinterfaces'][int(sub_id)] = {
+        'ip': local_ip,
+        'vlan': int(sub_id),
+        'vrf': vrf
+    }
+    
+    # Save host_vars
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(host_data, _tmp_f)
+        shutil.move(_tmp_path, host_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    # If profile already had External, add peer to it
+    if has_external and not profile_created:
+        # Reload bgp_profiles (might have been saved)
+        with open(bgp_profiles_file, 'r') as f:
+            bgp_data = yaml.load(f) or {}
+        
+        profiles = bgp_data.get('bgp_profiles', {})
+        profile = profiles[bgp_profile]
+        external_pg = profile['peer_groups']['External']
+        
+        # Initialize peers dict if needed
+        if 'peers' not in external_pg:
+            external_pg['peers'] = {}
+        
+        # Handle both list and dict formats
+        if isinstance(external_pg['peers'], list):
+            if remote_peer not in external_pg['peers']:
+                external_pg['peers'].append(remote_peer)
+        else:
+            external_pg['peers'][remote_peer] = None
+        
+        # Save bgp_profiles
+        _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(bgp_profiles_file), suffix='.tmp')
+        try:
+            with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                yaml.dump(bgp_data, _tmp_f)
+            shutil.move(_tmp_path, bgp_profiles_file)
+        except:
+            if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+            raise
+    
+    print(json.dumps({
+        'success': True, 
+        'message': f'Added external peer {remote_peer} on {device} ({interface})',
+        'bgp_profile': bgp_profile,
+        'profile_created': profile_created
+    }))
+
+except Exception as e:
+    import traceback
+    print(json.dumps({'success': False, 'error': str(e), 'trace': traceback.format_exc()}))
+PYTHON
+        ;;
+    delete-external-peer)
+        # Delete an external BGP peer
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = json.loads(sys.stdin.read()) if not sys.stdin.isatty() else {}
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+
+try:
+    device = data.get('device', '')
+    vrf = data.get('vrf', '')
+    interface = data.get('interface', '')  # e.g., swp1.1002
+    remote_peer = data.get('remote_peer', '')
+    
+    if not all([device, vrf, remote_peer]):
+        print(json.dumps({'success': False, 'error': 'Missing required fields'}))
+        sys.exit(0)
+    
+    # 1. Update host_vars - remove subinterface if specified
+    host_file = os.path.join(ansible_dir, 'inventory', 'host_vars', f'{device}.yaml')
+    subif_removed = False
+    
+    if os.path.exists(host_file) and interface and '.' in interface:
+        parent_if, sub_id = interface.split('.', 1)
+        
+        with open(host_file, 'r') as f:
+            host_data = yaml.load(f) or {}
+        
+        # Remove subinterface
+        if 'interfaces' in host_data and parent_if in host_data['interfaces']:
+            subifs = host_data['interfaces'][parent_if].get('subinterfaces', {})
+            
+            # Try both int and string keys
+            if int(sub_id) in subifs:
+                del subifs[int(sub_id)]
+                subif_removed = True
+            elif sub_id in subifs:
+                del subifs[sub_id]
+                subif_removed = True
+            
+            # Clean up empty subinterfaces dict
+            if subif_removed and not subifs:
+                del host_data['interfaces'][parent_if]['subinterfaces']
+            
+            # Clean up empty interface dict
+            if subif_removed and len(host_data['interfaces'][parent_if]) == 0:
+                del host_data['interfaces'][parent_if]
+        
+        if subif_removed:
+            _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+            try:
+                with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                    yaml.dump(host_data, _tmp_f)
+                shutil.move(_tmp_path, host_file)
+            except:
+                if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+                raise
+    
+    # 2. Get BGP profile from VRF config
+    bgp_profile = ''
+    if os.path.exists(host_file):
+        with open(host_file, 'r') as f:
+            host_data = yaml.load(f) or {}
+        vrfs = host_data.get('vrfs', {})
+        if vrf in vrfs:
+            bgp_profile = vrfs[vrf].get('bgp', {}).get('bgp_profile', '')
+    
+    # 3. Remove peer from BGP profile External group
+    peer_removed = False
+    profile_deleted = False
+    
+    if bgp_profile:
+        bgp_profiles_file = os.path.join(ansible_dir, 'inventory', 'group_vars', 'all', 'bgp_profiles.yaml')
+        
+        with open(bgp_profiles_file, 'r') as f:
+            bgp_data = yaml.load(f) or {}
+        
+        profiles = bgp_data.get('bgp_profiles', {})
+        
+        if bgp_profile in profiles:
+            profile = profiles[bgp_profile]
+            peer_groups = profile.get('peer_groups', {})
+            
+            if 'External' in peer_groups:
+                external_pg = peer_groups['External']
+                peers = external_pg.get('peers', {})
+                
+                if isinstance(peers, list):
+                    if remote_peer in peers:
+                        peers.remove(remote_peer)
+                        peer_removed = True
+                else:
+                    if remote_peer in peers:
+                        del peers[remote_peer]
+                        peer_removed = True
+                
+                # Check if no peers left and profile is OVERLAY_BORDER_XX
+                remaining_peers = len(peers) if isinstance(peers, (list, dict)) else 0
+                is_border_profile = bgp_profile.startswith('OVERLAY_BORDER_')
+                
+                if peer_removed and remaining_peers == 0 and is_border_profile:
+                    # Delete the empty OVERLAY_BORDER_XX profile
+                    del profiles[bgp_profile]
+                    profile_deleted = True
+                    
+                    # Update VRF to use OVERLAY_LEAF instead
+                    with open(host_file, 'r') as f:
+                        host_data = yaml.load(f) or {}
+                    
+                    if vrf in host_data.get('vrfs', {}):
+                        vrf_config = host_data['vrfs'][vrf]
+                        if 'bgp' in vrf_config:
+                            vrf_config['bgp']['bgp_profile'] = 'OVERLAY_LEAF'
+                        
+                        _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+                        try:
+                            with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                                yaml.dump(host_data, _tmp_f)
+                            shutil.move(_tmp_path, host_file)
+                        except:
+                            if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+                            raise
+                
+                # Save bgp_profiles (with or without deleted profile)
+                _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(bgp_profiles_file), suffix='.tmp')
+                try:
+                    with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+                        yaml.dump(bgp_data, _tmp_f)
+                    shutil.move(_tmp_path, bgp_profiles_file)
+                except:
+                    if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+                    raise
+    
+    print(json.dumps({
+        'success': True, 
+        'message': f'Deleted external peer {remote_peer} from {device}',
+        'subinterface_removed': subif_removed,
+        'peer_removed': peer_removed,
+        'profile_deleted': profile_deleted
+    }))
+
+except Exception as e:
+    import traceback
+    print(json.dumps({'success': False, 'error': str(e), 'trace': traceback.format_exc()}))
+PYTHON
+        ;;
+    update-external-peer)
+        # Update an existing external BGP peer
+        read -r POST_DATA
+        python3 << PYTHON
+import json
+from ruamel.yaml import YAML
+yaml = YAML()
+yaml.preserve_quotes = True
+import tempfile
+import shutil
+import os
+import sys
+
+try:
+    data = json.loads('''$POST_DATA''')
+except:
+    data = json.loads(sys.stdin.read()) if not sys.stdin.isatty() else {}
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+
+try:
+    device = data.get('device', '')
+    vrf = data.get('vrf', '')
+    original_peer = data.get('original_peer', '')
+    interface = data.get('interface', '')  # e.g., swp1.1002
+    local_ip = data.get('local_ip', '')
+    remote_peer = data.get('remote_peer', '')
+    weight = data.get('weight')  # Can be None or int
+    policy_name = data.get('policy_name')  # Can be None or string
+    policy_direction = data.get('policy_direction')  # Can be None or 'inbound'/'outbound'
+    soft_reconfiguration = data.get('soft_reconfiguration', False)  # Boolean
+    bfd_enabled = data.get('bfd_enabled', False)
+    
+    if not all([device, vrf, interface, local_ip, remote_peer]):
+        print(json.dumps({'success': False, 'error': 'Missing required fields'}))
+        sys.exit(0)
+    
+    # Parse interface name
+    if '.' in interface:
+        parent_if, sub_id = interface.split('.', 1)
+    else:
+        print(json.dumps({'success': False, 'error': 'Invalid interface format, expected swpX.VLAN'}))
+        sys.exit(0)
+    
+    # 1. Update host_vars - update subinterface
+    host_file = os.path.join(ansible_dir, 'inventory', 'host_vars', f'{device}.yaml')
+    
+    if not os.path.exists(host_file):
+        print(json.dumps({'success': False, 'error': f'Device file not found: {device}.yaml'}))
+        sys.exit(0)
+    
+    with open(host_file, 'r') as f:
+        host_data = yaml.load(f) or {}
+    
+    # Get VRF's BGP profile
+    vrfs = host_data.get('vrfs', {})
+    if vrf not in vrfs:
+        print(json.dumps({'success': False, 'error': f'VRF {vrf} not found on device'}))
+        sys.exit(0)
+    
+    bgp_profile = vrfs[vrf].get('bgp', {}).get('bgp_profile', '')
+    if not bgp_profile:
+        print(json.dumps({'success': False, 'error': f'No BGP profile configured for VRF {vrf}'}))
+        sys.exit(0)
+    
+    # Update subinterface
+    if 'interfaces' not in host_data:
+        host_data['interfaces'] = {}
+    
+    if parent_if not in host_data['interfaces']:
+        host_data['interfaces'][parent_if] = {'description': 'External BGP'}
+    
+    if 'subinterfaces' not in host_data['interfaces'][parent_if]:
+        host_data['interfaces'][parent_if]['subinterfaces'] = {}
+    
+    # Update subinterface config
+    host_data['interfaces'][parent_if]['subinterfaces'][int(sub_id)] = {
+        'ip': local_ip if '/' in local_ip else f'{local_ip}/31',
+        'vlan': int(sub_id),
+        'vrf': vrf
+    }
+    
+    # Save host_vars
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(host_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(host_data, _tmp_f)
+        shutil.move(_tmp_path, host_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    # 2. Update BGP profile - update peer in External group
+    bgp_profiles_file = os.path.join(ansible_dir, 'inventory', 'group_vars', 'all', 'bgp_profiles.yaml')
+    
+    with open(bgp_profiles_file, 'r') as f:
+        bgp_data = yaml.load(f) or {}
+    
+    profiles = bgp_data.get('bgp_profiles', {})
+    
+    if bgp_profile not in profiles:
+        print(json.dumps({'success': False, 'error': f'BGP profile {bgp_profile} not found'}))
+        sys.exit(0)
+    
+    profile = profiles[bgp_profile]
+    peer_groups = profile.get('peer_groups', {})
+    
+    if 'External' not in peer_groups:
+        print(json.dumps({'success': False, 'error': f'External peer group not found in profile {bgp_profile}'}))
+        sys.exit(0)
+    
+    external_pg = peer_groups['External']
+    
+    # Update BFD setting for the External peer group
+    external_pg['enable_bfd'] = bfd_enabled
+    
+    # Update peer
+    peers = external_pg.get('peers', {})
+    
+    if isinstance(peers, list):
+        # Convert list format to dict format for weight support
+        peers = {str(p): {} for p in peers}
+        external_pg['peers'] = peers
+    
+    # Handle peer IP change
+    if original_peer and original_peer != remote_peer:
+        if original_peer in peers:
+            del peers[original_peer]
+    
+    # Set/update peer with weight, policy, and soft_reconfiguration
+    peer_config = {}
+    if weight is not None:
+        peer_config['weight'] = int(weight)
+    if policy_name and policy_direction:
+        peer_config['policy'] = {
+            'name': policy_name,
+            'direction': policy_direction
+        }
+    if soft_reconfiguration:
+        peer_config['soft_reconfiguration'] = True
+    peers[remote_peer] = peer_config if peer_config else {}
+    
+    # Save bgp_profiles
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=os.path.dirname(bgp_profiles_file), suffix='.tmp')
+    try:
+        with os.fdopen(_tmp_fd, 'w') as _tmp_f:
+            yaml.dump(bgp_data, _tmp_f)
+        shutil.move(_tmp_path, bgp_profiles_file)
+    except:
+        if os.path.exists(_tmp_path): os.unlink(_tmp_path)
+        raise
+    
+    print(json.dumps({
+        'success': True, 
+        'message': f'Updated external peer {remote_peer} on {device} ({interface})',
+        'bgp_profile': bgp_profile,
+        'bfd_updated': True
+    }))
+
+except Exception as e:
+    import traceback
+    print(json.dumps({'success': False, 'error': str(e), 'trace': traceback.format_exc()}))
+PYTHON
+        ;;
+    list-vtep-devices)
+        # List all VTEP devices (devices with vtep.state: true)
+        python3 << 'PYTHON'
+import json
+import yaml  # PyYAML - faster for read-only operations
+import os
+import glob
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+
+try:
+    host_vars_dir = os.path.join(ansible_dir, 'inventory', 'host_vars')
+    hosts_file = os.path.join(ansible_dir, 'inventory', 'hosts')
+    
+    # Build hostname -> IP mapping from hosts file
+    host_ips = {}
+    if os.path.exists(hosts_file):
+        with open(hosts_file, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and not line.startswith('[') and '=' in line:
+                    parts = line.split()
+                    hostname = parts[0]
+                    for part in parts[1:]:
+                        if part.startswith('ansible_host='):
+                            host_ips[hostname] = part.split('=')[1]
+                            break
+    
+    # Find all devices with vtep.state: true
+    vtep_devices = []
+    
+    for host_file in glob.glob(os.path.join(host_vars_dir, '*.yaml')):
+        hostname = os.path.basename(host_file).replace('.yaml', '')
+        
+        try:
+            with open(host_file, 'r') as f:
+                host_data = yaml.load(f, Loader=yaml.CSafeLoader) or {}
+            
+            # Check if vtep.state is true
+            vtep_config = host_data.get('vtep', {})
+            if vtep_config.get('state', False):
+                vtep_devices.append({
+                    'hostname': hostname,
+                    'ip': host_ips.get(hostname, '')
+                })
+        except:
+            pass
+    
+    # Sort by hostname
+    vtep_devices.sort(key=lambda x: x['hostname'])
+    
+    print(json.dumps({
+        'success': True,
+        'devices': vtep_devices,
+        'count': len(vtep_devices)
+    }))
+
+except Exception as e:
+    import traceback
+    print(json.dumps({'success': False, 'error': str(e), 'trace': traceback.format_exc()}))
+PYTHON
+        ;;
+    list-external-peers)
+        # List all external BGP peers across all devices
+        python3 << 'PYTHON'
+import json
+import yaml  # PyYAML - faster for read-only operations
+import os
+import glob
+
+ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+
+try:
+    # Load BGP profiles
+    bgp_profiles_file = os.path.join(ansible_dir, 'inventory', 'group_vars', 'all', 'bgp_profiles.yaml')
+    bgp_profiles = {}
+    profiles_with_external = {}
+    
+    if os.path.exists(bgp_profiles_file):
+        with open(bgp_profiles_file, 'r') as f:
+            bgp_data = yaml.load(f, Loader=yaml.CSafeLoader) or {}
+            bgp_profiles = bgp_data.get('bgp_profiles', {})
+    
+    # Find profiles that have "External" peer group
+    for profile_name, profile_config in bgp_profiles.items():
+        peer_groups = profile_config.get('peer_groups', {})
+        if 'External' in peer_groups:
+            external_pg = peer_groups['External']
+            peers_data = external_pg.get('peers', {})
+            
+            # Build peers dict with weight, policy, and soft_reconfiguration info
+            peers_with_info = {}
+            if isinstance(peers_data, dict):
+                for peer_ip, peer_config in peers_data.items():
+                    weight = None
+                    policy_name = None
+                    policy_direction = None
+                    soft_reconfiguration = False
+                    if isinstance(peer_config, dict):
+                        weight = peer_config.get('weight')
+                        soft_reconfiguration = peer_config.get('soft_reconfiguration', False)
+                        policy = peer_config.get('policy', {})
+                        if isinstance(policy, dict):
+                            policy_name = policy.get('name')
+                            policy_direction = policy.get('direction')
+                    peers_with_info[peer_ip] = {
+                        'weight': weight,
+                        'policy_name': policy_name,
+                        'policy_direction': policy_direction,
+                        'soft_reconfiguration': soft_reconfiguration
+                    }
+            else:
+                for peer_ip in peers_data:
+                    peers_with_info[peer_ip] = {'weight': None, 'policy_name': None, 'policy_direction': None, 'soft_reconfiguration': False}
+            
+            profiles_with_external[profile_name] = {
+                'peers': peers_with_info,
+                'bfd_enabled': external_pg.get('enable_bfd', False),
+                'description': external_pg.get('description', ''),
+                'has_external': True
+            }
+    
+    # Load all devices and find those using external profiles
+    peers = []
+    devices = []
+    host_vars_dir = os.path.join(ansible_dir, 'inventory', 'host_vars')
+    
+    for host_file in glob.glob(os.path.join(host_vars_dir, '*.yaml')):
+        hostname = os.path.basename(host_file).replace('.yaml', '')
+        
+        with open(host_file, 'r') as f:
+            host_data = yaml.load(f, Loader=yaml.CSafeLoader) or {}
+        
+        # Check VRFs for external BGP profiles
+        vrfs = host_data.get('vrfs', {})
+        interfaces = host_data.get('interfaces', {})
+        has_external = False
+        
+        for vrf_name, vrf_config in vrfs.items():
+            bgp_config = vrf_config.get('bgp', {})
+            profile_name = bgp_config.get('bgp_profile', '')
+            
+            if profile_name in profiles_with_external:
+                has_external = True
+                external_info = profiles_with_external[profile_name]
+                
+                # Get peer IPs from the profile (dict with weight info)
+                peers_data = external_info['peers']
+                
+                # Try to match subinterfaces to find local IPs
+                for peer_ip, peer_info in peers_data.items():
+                    # Find matching subinterface (same /31 network)
+                    local_ip = ''
+                    interface_name = ''
+                    
+                    for if_name, if_config in interfaces.items():
+                        subinterfaces = if_config.get('subinterfaces', {})
+                        for sub_id, sub_config in subinterfaces.items():
+                            sub_ip = sub_config.get('ip', '')
+                            sub_vrf = sub_config.get('vrf', '')
+                            
+                            # Check if this subinterface is in the same VRF
+                            if sub_vrf == vrf_name and sub_ip:
+                                # Check if IPs are in same /31 (simple check)
+                                local_base = sub_ip.split('/')[0].rsplit('.', 1)[0]
+                                peer_base = str(peer_ip).rsplit('.', 1)[0]
+                                
+                                if local_base == peer_base:
+                                    local_ip = sub_ip
+                                    interface_name = f"{if_name}.{sub_id}"
+                                    break
+                        if local_ip:
+                            break
+                    
+                    peers.append({
+                        'device': hostname,
+                        'vrf': vrf_name,
+                        'bgp_profile': profile_name,
+                        'interface': interface_name,
+                        'local_ip': local_ip.split('/')[0] if local_ip else '',
+                        'remote_peer': str(peer_ip),
+                        'weight': peer_info.get('weight'),
+                        'policy_name': peer_info.get('policy_name'),
+                        'policy_direction': peer_info.get('policy_direction'),
+                        'soft_reconfiguration': peer_info.get('soft_reconfiguration', False),
+                        'bfd_enabled': external_info['bfd_enabled']
+                    })
+        
+        if has_external:
+            devices.append({'hostname': hostname})
+    
+    # Sort peers by device, then vrf
+    peers.sort(key=lambda x: (x['device'], x['vrf'], x['remote_peer']))
+    
+    print(json.dumps({
+        'success': True,
+        'peers': peers,
+        'devices': devices,
+        'bgp_profiles': {k: {'has_external': True, 'bfd_enabled': v['bfd_enabled']} for k, v in profiles_with_external.items()}
+    }))
+
+except Exception as e:
+    import traceback
+    print(json.dumps({'success': False, 'error': str(e), 'trace': traceback.format_exc()}))
+PYTHON
+        ;;
+    get-device-data)
+        # Get all monitoring data for a specific device
+        DEVICE=$(echo "$QUERY_STRING" | grep -oP 'device=\K[^&]+' | sed 's/%20/ /g')
+        
+        if [[ -z "$DEVICE" ]]; then
+            echo '{"success": false, "error": "Missing device parameter"}'
+            exit 0
+        fi
+        
+        python3 << PYTHON
+import json
+import os
+import re
+from datetime import datetime
+
+device = "$DEVICE"
+monitor_dir = os.environ.get('WEB_ROOT', '/var/www/html') + '/monitor-results'
+
+result = {
+    'success': True,
+    'device': device,
+    'optical': [],
+    'logs': {'critical': 0, 'warning': 0, 'error': 0, 'info': 0},
+    'last_update': None
+}
+
+try:
+    # Get optical data for this device
+    optical_file = f"{monitor_dir}/optical_history.json"
+    if os.path.exists(optical_file):
+        with open(optical_file, 'r') as f:
+            optical_data = json.load(f)
+        
+        optical_history = optical_data.get('optical_history', {})
+        device_optical = []
+        
+        for port_key, readings in optical_history.items():
+            if port_key.startswith(device + ':'):
+                port_name = port_key.split(':')[1]
+                if readings:
+                    latest = readings[-1]
+                    device_optical.append({
+                        'port': port_name,
+                        'health': latest.get('health', 'unknown'),
+                        'rx_power_dbm': latest.get('rx_power_dbm'),
+                        'tx_power_dbm': latest.get('tx_power_dbm'),
+                        'temperature_c': latest.get('temperature_c'),
+                        'link_margin_db': latest.get('link_margin_db'),
+                        'timestamp': latest.get('timestamp')
+                    })
+        
+        result['optical'] = sorted(device_optical, key=lambda x: x['port'])
+    
+    # Get log summary for this device
+    log_file = f"{monitor_dir}/log_summary.json"
+    if os.path.exists(log_file):
+        with open(log_file, 'r') as f:
+            log_data = json.load(f)
+        
+        device_counts = log_data.get('device_counts', {})
+        if device in device_counts:
+            result['logs'] = device_counts[device]
+        
+        result['last_update'] = log_data.get('timestamp')
+    
+    # Get BGP data for this device
+    bgp_file = f"{monitor_dir}/bgp_history.json"
+    if os.path.exists(bgp_file):
+        with open(bgp_file, 'r') as f:
+            bgp_data = json.load(f)
+        
+        # bgp_history format: device -> neighbor -> readings[]
+        if device in bgp_data:
+            device_bgp = []
+            for neighbor, readings in bgp_data[device].items():
+                if readings:
+                    latest = readings[-1] if isinstance(readings, list) else readings
+                    device_bgp.append({
+                        'neighbor': neighbor,
+                        'state': latest.get('state', 'unknown'),
+                        'vrf': latest.get('vrf', 'default'),
+                        'uptime': latest.get('uptime'),
+                        'prefixes_received': latest.get('prefixes_received', 0)
+                    })
+            result['bgp'] = device_bgp
+    
+    print(json.dumps(result))
+
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON
+        ;;
+    download-file)
+        # Download a file from a device (for cl-support bundles and PCAP files)
+        # Header already printed at script start
+        
+        DEVICE=$(echo "$QUERY_STRING" | grep -oP 'device=\K[^&]+' | sed 's/%20/ /g' | sed 's/%2F/\//g')
+        FILE_PATH=$(echo "$QUERY_STRING" | grep -oP 'file=\K[^&]+' | sed 's/%2F/\//g' | sed 's/%20/ /g')
+        
+        # Security: Only allow downloading from approved paths
+        if [[ ! "$FILE_PATH" =~ ^/var/support/cl_support.*\.(txz|tar\.xz|tar\.gz)$ ]] && [[ ! "$FILE_PATH" =~ ^/tmp/capture_.*\.pcap$ ]]; then
+            echo '{"success": false, "error": "Only cl-support files from /var/support/ or PCAP files from /tmp/ can be downloaded"}'
+            exit 0
+        fi
+        
+        export DEVICE FILE_PATH
+        python3 << 'PYDOWNLOAD'
+import os
+import re
+import json
+import subprocess
+
+device = os.environ.get('DEVICE', '')
+file_path = os.environ.get('FILE_PATH', '')
+
+# Read config from lldpq.conf (same method as run-device-command)
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+lldpq_conf = read_lldpq_conf()
+ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+web_root = '/var/www/html'
+
+# Get device IP and username
+# Priority: devices.yaml (always available) -> Ansible inventory (optional)
+device_ip = None
+ssh_user = 'cumulus'
+
+lldpq_dir = lldpq_conf.get('LLDPQ_DIR', os.path.expanduser('~/lldpq'))
+import yaml
+for devices_path in [f"{lldpq_dir}/devices.yaml"]:
+    if os.path.exists(devices_path):
+        try:
+            with open(devices_path, 'r') as f:
+                ddata = yaml.safe_load(f)
+            defaults = ddata.get('defaults', {})
+            default_user = defaults.get('username', 'cumulus')
+            for ip, info in ddata.get('devices', {}).items():
+                if isinstance(info, dict):
+                    hname = info.get('hostname', '')
+                    uname = info.get('username', default_user)
+                else:
+                    hname = str(info).split()[0] if info else ''
+                    uname = default_user
+                if hname == device:
+                    device_ip = str(ip)
+                    ssh_user = uname
+                    break
+        except:
+            pass
+
+if not device_ip:
+    for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+        if os.path.exists(inv_file):
+            try:
+                with open(inv_file, 'r') as f:
+                    for line in f:
+                        if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                            match = re.search(r'ansible_host=(\S+)', line)
+                            if match:
+                                device_ip = match.group(1)
+                                break
+            except:
+                pass
+        if device_ip:
+            break
+
+if not device_ip:
+    print(json.dumps({'success': False, 'error': f'Device {device} not found in inventory or devices.yaml'}))
+    exit()
+
+# Create downloads directory
+download_dir = f"{web_root}/downloads"
+os.makedirs(download_dir, exist_ok=True)
+
+# Get filename
+filename = os.path.basename(file_path)
+local_file = f"{download_dir}/{filename}"
+
+# Copy file using SSH + cat (uses same sudo -u lldpq_user as run-device-command)
+try:
+    # Use SSH with cat to stream the file content
+    ssh_command = [
+        'sudo', '-u', lldpq_user,
+        'ssh', '-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=30', '-o', 'BatchMode=yes',
+        f'{ssh_user}@{device_ip}',
+        f'cat {file_path}'
+    ]
+    
+    with open(local_file, 'wb') as f:
+        result = subprocess.run(ssh_command, stdout=f, stderr=subprocess.PIPE, timeout=120)
+    
+    if result.returncode == 0 and os.path.exists(local_file) and os.path.getsize(local_file) > 0:
+        # Fix permissions
+        os.chmod(local_file, 0o644)
+        print(json.dumps({'success': True, 'download_url': f'/downloads/{filename}', 'filename': filename}))
+    else:
+        if os.path.exists(local_file):
+            os.unlink(local_file)
+        print(json.dumps({'success': False, 'error': 'SSH cat failed: ' + result.stderr.decode()[:100]}))
+except subprocess.TimeoutExpired:
+    print(json.dumps({'success': False, 'error': 'Download timeout'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYDOWNLOAD
+        exit 0
+        ;;
+    start-clsupport)
+        # Start cl-support in background
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_CLSUPPORT'
+import json
+import subprocess
+import re
+import os
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+device = data.get('device', '')
+
+if not device:
+    print(json.dumps({'success': False, 'error': 'Device required'}))
+    exit()
+
+lldpq_conf = read_lldpq_conf()
+ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+
+# Get device IP and username from devices.yaml -> Ansible inventory fallback
+device_ip = None
+ssh_user = 'cumulus'
+
+lldpq_dir = lldpq_conf.get('LLDPQ_DIR', os.path.expanduser('~/lldpq'))
+import yaml
+for devices_path in [f"{lldpq_dir}/devices.yaml"]:
+    if os.path.exists(devices_path):
+        try:
+            with open(devices_path, 'r') as f:
+                ddata = yaml.safe_load(f)
+            defaults = ddata.get('defaults', {})
+            default_user = defaults.get('username', 'cumulus')
+            for ip, info in ddata.get('devices', {}).items():
+                if isinstance(info, dict):
+                    hname = info.get('hostname', '')
+                    uname = info.get('username', default_user)
+                else:
+                    hname = str(info).split()[0] if info else ''
+                    uname = default_user
+                if hname == device:
+                    device_ip = str(ip)
+                    ssh_user = uname
+                    break
+        except:
+            pass
+
+if not device_ip:
+    for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+        if os.path.exists(inv_file):
+            try:
+                with open(inv_file, 'r') as f:
+                    for line in f:
+                        if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                            match = re.search(r'ansible_host=(\S+)', line)
+                            if match:
+                                device_ip = match.group(1)
+                                break
+            except:
+                pass
+        if device_ip:
+            break
+
+if not device_ip:
+    print(json.dumps({'success': False, 'error': f'Device {device} not found in devices.yaml or inventory'}))
+    exit()
+
+# Start cl-support in background
+remote_cmd = "nohup sudo cl-support -M -T0 > /tmp/clsupport.log 2>&1 &"
+
+ssh_command = [
+    'sudo', '-u', lldpq_user,
+    'ssh', '-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=10', '-o', 'BatchMode=yes',
+    f'{ssh_user}@{device_ip}',
+    remote_cmd
+]
+
+try:
+    result = subprocess.run(ssh_command, capture_output=True, text=True, timeout=15)
+    print(json.dumps({'success': True, 'message': 'cl-support started in background'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+
+PYTHON_CLSUPPORT
+        exit 0
+        ;;
+    check-telemetry-capability)
+        # Check which devices support OTLP telemetry export
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_CHECK_TELEM'
+import json
+import subprocess
+import os
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+def get_device_info(device, ansible_dir, lldpq_conf):
+    """Get device IP and SSH username from devices.yaml"""
+    import yaml
+    import re
+    
+    default_username = 'cumulus'
+    lldpq_dir = lldpq_conf.get('LLDPQ_DIR', '')
+    
+    if lldpq_dir:
+        devices_path = f"{lldpq_dir}/devices.yaml"
+        if os.path.exists(devices_path):
+            try:
+                with open(devices_path, 'r') as f:
+                    data = yaml.safe_load(f) or {}
+                    defaults = data.get('defaults', {})
+                    default_username = defaults.get('username', 'cumulus')
+                    
+                    devices_dict = data.get('devices', {})
+                    for ip, device_info in devices_dict.items():
+                        if isinstance(device_info, dict):
+                            hostname = device_info.get('hostname', '')
+                            username = device_info.get('username', default_username)
+                        else:
+                            hostname = device_info.split()[0] if isinstance(device_info, str) else str(device_info)
+                            username = default_username
+                        
+                        if hostname == device:
+                            return {'ip': str(ip), 'username': username}
+            except:
+                pass
+    
+    # Fallback to inventory.ini
+    for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+        if os.path.exists(inv_file):
+            with open(inv_file, 'r') as f:
+                for line in f:
+                    if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                        match = re.search(r'ansible_host=(\S+)', line)
+                        if match:
+                            return {'ip': match.group(1), 'username': default_username}
+    
+    return {'ip': device, 'username': default_username}
+
+def check_device(device, device_info, lldpq_user):
+    """Check if device supports telemetry export"""
+    try:
+        device_ip = device_info['ip']
+        ssh_user = device_info['username']
+        ssh_target = f"{ssh_user}@{device_ip}"
+        ssh_cmd = [
+            'sudo', '-u', lldpq_user,
+            'ssh',
+            '-T',
+            '-o', 'StrictHostKeyChecking=no',
+            '-o', 'ConnectTimeout=10',
+            '-o', 'LogLevel=ERROR',
+            ssh_target,
+            'nv show system telemetry export 2>&1 | head -5'
+        ]
+        
+        result = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=30)
+        output = result.stdout + result.stderr
+        
+        # Check if export is supported
+        if "'export' is not one of" in output or "Error:" in output:
+            return {'device': device, 'supported': False}
+        else:
+            return {'device': device, 'supported': True}
+    
+    except subprocess.TimeoutExpired:
+        return {'device': device, 'supported': False, 'error': 'timeout'}
+    except Exception as e:
+        return {'device': device, 'supported': False, 'error': str(e)}
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+devices = data.get('devices', [])
+
+if not devices:
+    print(json.dumps({'success': False, 'error': 'Devices required'}))
+    sys.exit()
+
+lldpq_conf = read_lldpq_conf()
+ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+
+supported = []
+unsupported = []
+
+# Check all devices in parallel
+with ThreadPoolExecutor(max_workers=300) as executor:
+    futures = {}
+    for device in devices:
+        device_info = get_device_info(device, ansible_dir, lldpq_conf)
+        future = executor.submit(check_device, device, device_info, lldpq_user)
+        futures[future] = device
+    
+    for future in as_completed(futures):
+        result = future.result()
+        if result.get('supported'):
+            supported.append(result['device'])
+        else:
+            unsupported.append(result['device'])
+
+print(json.dumps({
+    'success': True,
+    'supported': supported,
+    'unsupported': unsupported,
+    'supported_count': len(supported),
+    'unsupported_count': len(unsupported)
+}))
+
+PYTHON_CHECK_TELEM
+        exit 0
+        ;;
+    run-telemetry-commands)
+        # Run telemetry commands on ALL devices in parallel
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_TELEMETRY'
+import json
+import subprocess
+import re
+import os
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+def get_device_info(device, ansible_dir, lldpq_conf):
+    """Get device IP and SSH username from devices.yaml or inventory.ini"""
+    import yaml
+    
+    default_username = 'cumulus'
+    
+    # First try devices.yaml (preferred source)
+    lldpq_dir = lldpq_conf.get('LLDPQ_DIR', '')
+    
+    devices_paths = []
+    if lldpq_dir:
+        devices_paths.append(f"{lldpq_dir}/devices.yaml")
+    
+    for path in devices_paths:
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    data = yaml.safe_load(f) or {}
+                    # Get default username
+                    defaults = data.get('defaults', {})
+                    default_username = defaults.get('username', 'cumulus')
+                    
+                    devices_dict = data.get('devices', {})
+                    for ip, device_info in devices_dict.items():
+                        if isinstance(device_info, dict):
+                            # Extended format: { hostname: ..., username: ..., role: ... }
+                            hostname = device_info.get('hostname', '')
+                            username = device_info.get('username', default_username)
+                        else:
+                            # Simple format: "hostname @role"
+                            hostname = device_info.split()[0] if isinstance(device_info, str) else str(device_info)
+                            username = default_username
+                        
+                        if hostname == device:
+                            return {'ip': str(ip), 'username': username}
+            except:
+                pass
+            break
+    
+    # Fallback to inventory.ini
+    for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+        if os.path.exists(inv_file):
+            with open(inv_file, 'r') as f:
+                for line in f:
+                    if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                        match = re.search(r'ansible_host=(\S+)', line)
+                        if match:
+                            return {'ip': match.group(1), 'username': default_username}
+    
+    return {'ip': device, 'username': default_username}
+
+def run_on_device(device, device_info, combined_cmd, lldpq_user):
+    """Run commands on a single device"""
+    try:
+        device_ip = device_info['ip']
+        ssh_user = device_info['username']
+        ssh_target = f"{ssh_user}@{device_ip}"
+        ssh_cmd = [
+            'sudo', '-u', lldpq_user, 
+            'ssh',
+            '-T',  # Disable pseudo-tty (avoids stty errors from .bashrc)
+            '-o', 'StrictHostKeyChecking=no', 
+            '-o', 'ConnectTimeout=30',
+            '-o', 'LogLevel=ERROR',
+            ssh_target, 
+            combined_cmd
+        ]
+        
+        result = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=120)
+        
+        if result.returncode == 0:
+            return {'device': device, 'success': True, 'output': result.stdout.strip()}
+        else:
+            return {'device': device, 'success': False, 'error': result.stderr.strip() or 'Command failed'}
+    
+    except subprocess.TimeoutExpired:
+        return {'device': device, 'success': False, 'error': 'Timeout (120s)'}
+    except Exception as e:
+        return {'device': device, 'success': False, 'error': str(e)}
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+devices = data.get('devices', [])
+commands = data.get('commands', [])
+
+# Support single device for backward compatibility
+if not devices and data.get('device'):
+    devices = [data.get('device')]
+
+if not devices:
+    print(json.dumps({'success': False, 'error': 'Devices required'}))
+    sys.exit()
+
+if not commands:
+    print(json.dumps({'success': False, 'error': 'Commands required'}))
+    sys.exit()
+
+lldpq_conf = read_lldpq_conf()
+ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+
+# Validate commands - only allow telemetry-related nv commands
+allowed_prefixes = [
+    'nv set system telemetry',
+    'nv unset system telemetry',
+    'nv config apply'
+]
+for cmd in commands:
+    if not any(cmd.startswith(prefix) for prefix in allowed_prefixes):
+        print(json.dumps({'success': False, 'error': f'Only telemetry commands allowed: {cmd}'}))
+        sys.exit()
+
+# Join commands with && to run sequentially on each device
+combined_cmd = ' && '.join(commands)
+
+# Run on all devices in parallel (max 300 concurrent)
+results = []
+with ThreadPoolExecutor(max_workers=300) as executor:
+    futures = {}
+    for device in devices:
+        device_info = get_device_info(device, ansible_dir, lldpq_conf)
+        future = executor.submit(run_on_device, device, device_info, combined_cmd, lldpq_user)
+        futures[future] = device
+    
+    for future in as_completed(futures):
+        result = future.result()
+        results.append(result)
+        # Stream result immediately
+        sys.stdout.write(json.dumps(result) + '\n')
+        sys.stdout.flush()
+
+# Final summary
+success_count = sum(1 for r in results if r['success'])
+print(json.dumps({
+    'complete': True,
+    'total': len(devices),
+    'success': success_count,
+    'failed': len(devices) - success_count
+}))
+
+PYTHON_TELEMETRY
+        exit 0
+        ;;
+    prometheus-query)
+        # Query Prometheus instant query
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_PROM'
+import json
+import urllib.request
+import urllib.parse
+import os
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+query = data.get('query', '')
+if not query:
+    print(json.dumps({'success': False, 'error': 'Query required'}))
+    exit()
+
+lldpq_conf = read_lldpq_conf()
+prometheus_url = lldpq_conf.get('PROMETHEUS_URL', 'http://localhost:9090')
+
+try:
+    url = f"{prometheus_url}/api/v1/query?query={urllib.parse.quote(query)}"
+    req = urllib.request.Request(url, headers={'Accept': 'application/json'})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        result = json.loads(resp.read().decode())
+        if result.get('status') == 'success':
+            print(json.dumps({'success': True, 'data': result.get('data', {})}))
+        else:
+            print(json.dumps({'success': False, 'error': result.get('error', 'Query failed')}))
+except urllib.error.URLError as e:
+    print(json.dumps({'success': False, 'error': f'Connection error: {str(e)}'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+
+PYTHON_PROM
+        exit 0
+        ;;
+    prometheus-query-range)
+        # Query Prometheus range query for time series
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_PROM_RANGE'
+import json
+import urllib.request
+import urllib.parse
+import os
+import time
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+def parse_duration(duration_str):
+    """Convert duration string like '15m', '1h', '24h' to seconds"""
+    units = {'s': 1, 'm': 60, 'h': 3600, 'd': 86400}
+    if not duration_str:
+        return 900  # Default 15 minutes
+    unit = duration_str[-1]
+    if unit in units:
+        try:
+            return int(duration_str[:-1]) * units[unit]
+        except:
+            return 900
+    return 900
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+query = data.get('query', '')
+time_range = data.get('range', '15m')
+step = data.get('step', '30s')
+
+if not query:
+    print(json.dumps({'success': False, 'error': 'Query required'}))
+    exit()
+
+lldpq_conf = read_lldpq_conf()
+prometheus_url = lldpq_conf.get('PROMETHEUS_URL', 'http://localhost:9090')
+
+try:
+    duration_seconds = parse_duration(time_range)
+    end_time = time.time()
+    start_time = end_time - duration_seconds
+    
+    params = {
+        'query': query,
+        'start': str(start_time),
+        'end': str(end_time),
+        'step': step
+    }
+    
+    url = f"{prometheus_url}/api/v1/query_range?{urllib.parse.urlencode(params)}"
+    req = urllib.request.Request(url, headers={'Accept': 'application/json'})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        result = json.loads(resp.read().decode())
+        if result.get('status') == 'success':
+            print(json.dumps({'success': True, 'data': result.get('data', {})}))
+        else:
+            print(json.dumps({'success': False, 'error': result.get('error', 'Query failed')}))
+except urllib.error.URLError as e:
+    print(json.dumps({'success': False, 'error': f'Connection error: {str(e)}'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+
+PYTHON_PROM_RANGE
+        exit 0
+        ;;
+    get-telemetry-config)
+        # Return telemetry configuration and enabled status
+        python3 << 'PYTHON_TELEM_CONFIG'
+import json
+import os
+import subprocess
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+def check_stack_running():
+    """Check if telemetry Docker stack is running by querying Prometheus health endpoint"""
+    try:
+        import urllib.request
+        req = urllib.request.Request('http://localhost:9090/-/healthy', method='GET')
+        with urllib.request.urlopen(req, timeout=2) as response:
+            return response.status == 200
+    except:
+        return False
+
+def get_server_ips():
+    """Get all non-loopback IPv4 addresses of this server"""
+    import socket
+    ips = []
+    try:
+        # Get all network interfaces
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ip = info[4][0]
+            if not ip.startswith('127.'):
+                ips.append(ip)
+        # Also try getting IPs via ip command for more complete list
+        result = subprocess.run(['ip', '-4', 'addr', 'show'], capture_output=True, text=True, timeout=5)
+        for line in result.stdout.split('\n'):
+            if 'inet ' in line and '127.' not in line:
+                parts = line.strip().split()
+                for i, p in enumerate(parts):
+                    if p == 'inet' and i+1 < len(parts):
+                        ip = parts[i+1].split('/')[0]
+                        if ip not in ips:
+                            ips.append(ip)
+    except:
+        pass
+    return list(set(ips))
+
+def get_device_mgmt_ips(conf):
+    """Get management IPs from devices.yaml"""
+    import yaml
+    mgmt_ips = []
+    
+    # Get LLDPQ_DIR from config
+    lldpq_dir = conf.get('LLDPQ_DIR', '')
+    
+    devices_paths = []
+    if lldpq_dir:
+        devices_paths.append(f"{lldpq_dir}/devices.yaml")
+    
+    for path in devices_paths:
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as f:
+                    data = yaml.safe_load(f) or {}
+                    # Format: devices: { "192.168.100.11": "hostname", ... }
+                    devices = data.get('devices', {})
+                    for ip_key in devices.keys():
+                        # Keys are IP addresses
+                        if isinstance(ip_key, str) and '.' in ip_key:
+                            mgmt_ips.append(ip_key)
+            except:
+                pass
+            break
+    return mgmt_ips
+
+def find_matching_server_ip(server_ips, device_ips):
+    """Find server IP that is in same subnet as device mgmt IPs"""
+    for server_ip in server_ips:
+        server_parts = server_ip.rsplit('.', 1)
+        if len(server_parts) != 2:
+            continue
+        server_subnet = server_parts[0]
+        for device_ip in device_ips:
+            if device_ip.startswith(server_subnet + '.'):
+                return server_ip
+    return server_ips[0] if server_ips else ''
+
+lldpq_conf = read_lldpq_conf()
+prometheus_url = lldpq_conf.get('PROMETHEUS_URL', 'http://localhost:9090')
+telemetry_enabled = lldpq_conf.get('TELEMETRY_ENABLED', 'false').lower() == 'true'
+collector_ip = lldpq_conf.get('TELEMETRY_COLLECTOR_IP', '')
+collector_port = lldpq_conf.get('TELEMETRY_COLLECTOR_PORT', '4317')
+collector_vrf = lldpq_conf.get('TELEMETRY_COLLECTOR_VRF', 'mgmt')
+stack_running = check_stack_running()
+
+# Get server IPs and find best match
+server_ips = get_server_ips()
+device_ips = get_device_mgmt_ips(lldpq_conf)
+suggested_ip = find_matching_server_ip(server_ips, device_ips) if not collector_ip else collector_ip
+
+print(json.dumps({
+    'success': True,
+    'prometheus_url': prometheus_url,
+    'telemetry_enabled': telemetry_enabled,
+    'collector_ip': collector_ip,
+    'collector_port': collector_port,
+    'collector_vrf': collector_vrf,
+    'stack_running': stack_running,
+    'server_ips': server_ips,
+    'suggested_ip': suggested_ip
+}))
+
+PYTHON_TELEM_CONFIG
+        exit 0
+        ;;
+    get-active-telemetry-devices)
+        # Get list of devices actively sending telemetry to Prometheus
+        python3 << 'PYTHON_ACTIVE_DEVICES'
+import json
+import urllib.request
+
+try:
+    # Query Prometheus for active devices
+    query = 'count by (net_host_name) (cumulus_nvswitch_interface_if_out_octets)'
+    url = f'http://localhost:9090/api/v1/query?query={urllib.parse.quote(query)}'
+    
+    req = urllib.request.Request(url, method='GET')
+    req.add_header('Accept', 'application/json')
+    
+    with urllib.request.urlopen(req, timeout=5) as response:
+        data = json.loads(response.read().decode())
+        
+        if data.get('status') == 'success' and data.get('data', {}).get('result'):
+            devices = sorted([
+                r['metric']['net_host_name'] 
+                for r in data['data']['result'] 
+                if r.get('metric', {}).get('net_host_name')
+            ])
+            print(json.dumps({'success': True, 'devices': devices}))
+        else:
+            print(json.dumps({'success': True, 'devices': []}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e), 'devices': []}))
+
+PYTHON_ACTIVE_DEVICES
+        exit 0
+        ;;
+    save-telemetry-config)
+        # Save telemetry collector config (called when enabling telemetry)
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_SAVE_TELEM'
+import json
+import os
+import subprocess
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+collector_ip = data.get('collector_ip', '')
+collector_port = data.get('collector_port', '4317')
+collector_vrf = data.get('collector_vrf', 'mgmt')
+
+if not collector_ip:
+    print(json.dumps({'success': False, 'error': 'Collector IP required'}))
+    exit()
+
+# Update /etc/lldpq.conf with sudo
+config_updates = [
+    f"TELEMETRY_COLLECTOR_IP={collector_ip}",
+    f"TELEMETRY_COLLECTOR_PORT={collector_port}",
+    f"TELEMETRY_COLLECTOR_VRF={collector_vrf}"
+]
+
+try:
+    # Read current config
+    config_lines = []
+    if os.path.exists('/etc/lldpq.conf'):
+        with open('/etc/lldpq.conf', 'r') as f:
+            config_lines = f.readlines()
+    
+    # Update or add each config key
+    for update in config_updates:
+        key = update.split('=')[0]
+        # Remove existing key
+        config_lines = [l for l in config_lines if not l.strip().startswith(f'{key}=')]
+        # Add new value
+        config_lines.append(update + '\n')
+    
+    # Write back
+    with open('/etc/lldpq.conf', 'w') as f:
+        f.writelines(config_lines)
+    
+    print(json.dumps({'success': True}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+
+PYTHON_SAVE_TELEM
+        exit 0
+        ;;
+    start-telemetry-stack)
+        # Start Docker telemetry stack (docker-compose up -d)
+        python3 << 'PYTHON_START_STACK'
+import json
+import os
+import subprocess
+
+# Read LLDPQ_DIR from config
+lldpq_dir = None
+try:
+    with open('/etc/lldpq.conf', 'r') as f:
+        for line in f:
+            if line.startswith('LLDPQ_DIR='):
+                lldpq_dir = line.strip().split('=', 1)[1].strip('"\'')
+                break
+except:
+    pass
+
+if not lldpq_dir:
+    print(json.dumps({'success': False, 'error': 'LLDPQ_DIR not configured in /etc/lldpq.conf', 'installed': False}))
+    exit()
+
+telemetry_dir = f"{lldpq_dir}/telemetry"
+
+if not os.path.exists(f"{telemetry_dir}/docker-compose.yaml"):
+    print(json.dumps({'success': False, 'error': 'Telemetry stack not installed', 'installed': False}))
+    exit()
+
+# Check if already running - try docker compose first, then docker-compose
+for cmd in [['docker', 'compose', 'ps', '-q'], ['docker-compose', 'ps', '-q']]:
+    try:
+        check = subprocess.run(cmd, cwd=telemetry_dir, capture_output=True, text=True, timeout=30)
+        if check.returncode == 0 and check.stdout.strip():
+            print(json.dumps({'success': True, 'message': 'Stack already running', 'already_running': True}))
+            exit()
+        if check.returncode == 0:
+            break  # Command worked, no containers running
+    except FileNotFoundError:
+        continue
+    except:
+        pass
+
+# Start the stack - try docker compose first, then docker-compose
+success = False
+last_error = ''
+
+for cmd in [['docker', 'compose', 'up', '-d'], ['docker-compose', 'up', '-d']]:
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=telemetry_dir,
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+        if result.returncode == 0:
+            print(json.dumps({'success': True, 'message': 'Stack started'}))
+            success = True
+            break
+        else:
+            last_error = result.stderr
+    except FileNotFoundError:
+        continue
+    except subprocess.TimeoutExpired:
+        print(json.dumps({'success': False, 'error': 'Timeout starting stack'}))
+        exit()
+    except Exception as e:
+        last_error = str(e)
+
+if not success:
+    print(json.dumps({'success': False, 'error': last_error or 'Could not start stack'}))
+
+PYTHON_START_STACK
+        exit 0
+        ;;
+    stop-telemetry-stack)
+        # Stop Docker telemetry stack (docker-compose stop)
+        python3 << 'PYTHON_STOP_STACK'
+import json
+import os
+import subprocess
+
+# Read LLDPQ_DIR from config
+lldpq_dir = None
+try:
+    with open('/etc/lldpq.conf', 'r') as f:
+        for line in f:
+            if line.startswith('LLDPQ_DIR='):
+                lldpq_dir = line.strip().split('=', 1)[1].strip('"\'')
+                break
+except:
+    pass
+
+if not lldpq_dir:
+    print(json.dumps({'success': False, 'error': 'LLDPQ_DIR not configured'}))
+    exit()
+
+telemetry_dir = f"{lldpq_dir}/telemetry"
+
+if not os.path.exists(f"{telemetry_dir}/docker-compose.yaml"):
+    print(json.dumps({'success': False, 'error': 'Telemetry stack not found'}))
+    exit()
+
+# Try docker compose (newer syntax) first, then docker-compose
+success = False
+last_error = ''
+
+for cmd in [['docker', 'compose', 'stop'], ['docker-compose', 'stop']]:
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=telemetry_dir,
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        if result.returncode == 0:
+            print(json.dumps({'success': True, 'message': 'Stack stopped'}))
+            success = True
+            break
+        else:
+            last_error = result.stderr
+    except FileNotFoundError:
+        continue
+    except subprocess.TimeoutExpired:
+        print(json.dumps({'success': False, 'error': 'Timeout stopping stack'}))
+        exit()
+    except Exception as e:
+        last_error = str(e)
+
+if not success:
+    print(json.dumps({'success': False, 'error': last_error or 'Could not stop stack'}))
+
+PYTHON_STOP_STACK
+        exit 0
+        ;;
+    get-telemetry-disable-commands)
+        # Generate specific unset commands based on saved config
+        python3 << 'PYTHON_DISABLE_CMDS'
+import json
+import os
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+lldpq_conf = read_lldpq_conf()
+collector_ip = lldpq_conf.get('TELEMETRY_COLLECTOR_IP', '')
+collector_port = lldpq_conf.get('TELEMETRY_COLLECTOR_PORT', '4317')
+
+if not collector_ip:
+    # No saved config, use generic unset (with warning)
+    print(json.dumps({
+        'success': True,
+        'warning': 'No saved collector IP. This will remove ALL telemetry config.',
+        'commands': [
+            'nv unset system telemetry',
+            'nv config apply -y'
+        ]
+    }))
+    exit()
+
+# Specific unset commands - only remove what we configured
+commands = [
+    'nv unset system telemetry ai-ethernet-stats',
+    'nv unset system telemetry interface-stats', 
+    f'nv unset system telemetry export otlp grpc destination {collector_ip}',
+    'nv unset system telemetry export otlp grpc insecure',
+    'nv unset system telemetry export otlp state',
+    'nv unset system telemetry export vrf',
+    'nv config apply -y'
+]
+
+print(json.dumps({
+    'success': True,
+    'collector_ip': collector_ip,
+    'commands': commands
+}))
+
+PYTHON_DISABLE_CMDS
+        exit 0
+        ;;
+    start-live-capture)
+        # Start live tcpdump capture in background, return output file path
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_LIVE'
+import json
+import subprocess
+import re
+import os
+import time
+
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+device = data.get('device', '')
+iface = data.get('interface', 'any')
+duration = int(data.get('duration', 30))
+count = data.get('count', '1000')
+filter_expr = data.get('filter', '')
+
+if not device:
+    print(json.dumps({'success': False, 'error': 'Device required'}))
+    exit()
+
+# Validate interface name
+if not re.match(r'^[a-zA-Z0-9_.-]+$', iface):
+    print(json.dumps({'success': False, 'error': 'Invalid interface name'}))
+    exit()
+
+# Validate filter (basic check - alphanumeric, spaces, and common operators)
+if filter_expr and not re.match(r'^[a-zA-Z0-9\s\.\:\-\(\)]+$', filter_expr):
+    print(json.dumps({'success': False, 'error': 'Invalid filter expression'}))
+    exit()
+
+lldpq_conf = read_lldpq_conf()
+ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+
+# Get device IP and username from devices.yaml -> Ansible inventory fallback
+device_ip = None
+ssh_user = 'cumulus'
+
+lldpq_dir = lldpq_conf.get('LLDPQ_DIR', os.path.expanduser('~/lldpq'))
+import yaml
+for devices_path in [f"{lldpq_dir}/devices.yaml"]:
+    if os.path.exists(devices_path):
+        try:
+            with open(devices_path, 'r') as f:
+                ddata = yaml.safe_load(f)
+            defaults = ddata.get('defaults', {})
+            default_user = defaults.get('username', 'cumulus')
+            for ip, info in ddata.get('devices', {}).items():
+                if isinstance(info, dict):
+                    hname = info.get('hostname', '')
+                    uname = info.get('username', default_user)
+                else:
+                    hname = str(info).split()[0] if info else ''
+                    uname = default_user
+                if hname == device:
+                    device_ip = str(ip)
+                    ssh_user = uname
+                    break
+        except:
+            pass
+
+if not device_ip:
+    for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+        if os.path.exists(inv_file):
+            try:
+                with open(inv_file, 'r') as f:
+                    for line in f:
+                        if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                            match = re.search(r'ansible_host=(\S+)', line)
+                            if match:
+                                device_ip = match.group(1)
+                                break
+            except:
+                pass
+        if device_ip:
+            break
+
+if not device_ip:
+    print(json.dumps({'success': False, 'error': f'Device {device} not found in devices.yaml or inventory'}))
+    exit()
+
+# Generate unique output file
+timestamp = time.strftime('%Y%m%d-%H%M%S')
+output_file = f'/tmp/live_{device}_{timestamp}.txt'
+
+# Build tcpdump command
+cmd_parts = ['sudo', 'timeout', str(duration), 'tcpdump', '-l', '-i', iface, '-nnnn', '-vvv']
+if count and count != '0':
+    cmd_parts.extend(['-c', count])
+
+# Build the remote command with output redirection
+tcpdump_cmd = ' '.join(cmd_parts)
+if filter_expr:
+    tcpdump_cmd += f' {filter_expr}'
+remote_cmd = f"nohup sh -c '{tcpdump_cmd} > {output_file} 2>&1' > /dev/null 2>&1 & echo $!"
+
+ssh_command = [
+    'sudo', '-u', lldpq_user,
+    'ssh', '-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=10', '-o', 'BatchMode=yes',
+    f'{ssh_user}@{device_ip}',
+    remote_cmd
+]
+
+result = subprocess.run(ssh_command, capture_output=True, text=True, timeout=15)
+
+if result.returncode == 0:
+    pid = result.stdout.strip()
+    print(json.dumps({
+        'success': True,
+        'output_file': output_file,
+        'pid': pid,
+        'device': device,
+        'duration': duration
+    }))
+else:
+    print(json.dumps({'success': False, 'error': result.stderr[:200]}))
+
+PYTHON_LIVE
+        exit 0
+        ;;
+    run-device-command)
+        # Run a safe command on a device
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_END'
+import json
+import subprocess
+import re
+import os
+
+# Parse input
+post_data = os.environ.get('POST_DATA', '{}')
+try:
+    params = json.loads(post_data)
+except:
+    params = {}
+
+device = params.get('device', '')
+command = params.get('command', '')
+
+if not device or not command:
+    print(json.dumps({'success': False, 'error': 'Missing device or command'}))
+    exit()
+
+# Security: Whitelist of allowed command patterns (checked first)
+ALLOWED_PATTERNS = [
+    # NVUE commands (including abbreviations: nv sh, nv sho, nv show)
+    r'^nv show\b',
+    r'^nv sho\b',
+    r'^nv sh\b',
+    # FRR/vtysh commands
+    r'^sudo vtysh -c ["\']show\b',
+    r'^vtysh -c ["\']show\b',
+    # Layer 1 diagnostics
+    r'^sudo l1-show\b',
+    # ethtool variants
+    r'^/sbin/ethtool\b',
+    r'^sudo /sbin/ethtool\b',
+    r'^ethtool\b',
+    r'^sudo ethtool\b',
+    # IP/network commands
+    r'^ip link\b',
+    r'^ip addr\b',
+    r'^ip route\b',
+    r'^ip neigh\b',
+    r'^/sbin/bridge fdb\b',
+    r'^/sbin/bridge vlan\b',
+    r'^lldpctl\b',
+    r'^sudo lldpctl\b',
+    # Bonding/LAG
+    r'^cat /proc/net/bonding/',
+    # Hardware/sensors
+    r'^sensors\b',
+    r'^sudo sensors\b',
+    r'^smonctl\b',
+    r'^sudo smonctl\b',
+    r'^decode-syseeprom\b',
+    r'^sudo decode-syseeprom\b',
+    r'^cl-resource-query\b',
+    r'^sudo cl-resource-query\b',
+    # Logs
+    r'^cat /var/log/',
+    r'^cat /tmp/live_',
+    r'^sudo cat /var/log/',
+    r'^tail\b',
+    r'^sudo tail\b',
+    r'^journalctl\b',
+    r'^sudo journalctl\b',
+    r'^dmesg\b',
+    r'^sudo dmesg\b',
+    # System
+    r'^uptime$',
+    r'^free\b',
+    r'^df\b',
+    r'^ls\b',
+    r'^pgrep\b',
+    r'^sudo pkill\b',
+    r'^sudo killall\b',
+    r'^find /tmp -name "capture_\*\.pcap"',
+    # Packet capture
+    r'^sudo timeout \d+ tcpdump\b',
+    r'^tcpdump\b',
+    r'^sudo tcpdump\b',
+    # Diagnostic bundle
+    r'^sudo cl-support\b',
+    r'^cl-support\b',
+    # Delete cl-support files only
+    r'^sudo rm -f "/var/support/cl_support',
+    r'^sudo rm -f /var/support/cl_support\*\.txz$',
+    # Delete PCAP capture files
+    r'^sudo rm -f "/tmp/capture_',
+    r'^sudo rm -f /tmp/capture_\*\.pcap$',
+    r'^sudo rm -f /tmp/live_',
+]
+
+# Security: Blacklist dangerous patterns (only checked if NOT in whitelist)
+BLOCKED_PATTERNS = [
+    r'[;&|`\$]',          # Shell operators
+    r'\bsu\b',
+    r'\brm\b',
+    r'\bmv\b',
+    r'\bcp\b',
+    r'\bchmod\b',
+    r'\bchown\b',
+    r'\bkill\b',
+    r'\breboot\b',
+    r'\bshutdown\b',
+    r'\bnv set\b',
+    r'\bnv apply\b',
+    r'\bnv config\b',
+    r'\bnet add\b',
+    r'\bnet del\b',
+    r'\bnet commit\b',
+    r'configure',
+    r'\becho\b',
+    r'>',                 # Redirect
+    r'\bwget\b',
+    r'\bcurl\b',
+]
+
+# Check if command is in whitelist
+command_allowed = False
+for pattern in ALLOWED_PATTERNS:
+    if re.match(pattern, command, re.IGNORECASE):
+        command_allowed = True
+        break
+
+# If not in whitelist, reject
+if not command_allowed:
+    print(json.dumps({'success': False, 'error': 'Command not in whitelist. Allowed: nv show, sudo vtysh -c "show...", ethtool, journalctl, uptime, dmesg'}))
+    exit()
+
+# Even if whitelisted, check for shell injection attempts
+INJECTION_PATTERNS = [r'[;&|`\$]', r'>>', r'<<']
+for pattern in INJECTION_PATTERNS:
+    if re.search(pattern, command):
+        print(json.dumps({'success': False, 'error': 'Command contains unsafe characters'}))
+        exit()
+
+# Validate device name (must be a valid hostname pattern)
+if not re.match(r'^[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9]$', device):
+    print(json.dumps({'success': False, 'error': 'Invalid device name format'}))
+    exit()
+
+# Read config from lldpq.conf
+def read_lldpq_conf():
+    conf = {}
+    conf_paths = ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]
+    for conf_path in conf_paths:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+lldpq_conf = read_lldpq_conf()
+ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+
+# Get device management IP and username
+# Priority: devices.yaml (always available) -> Ansible inventory (optional)
+device_ip = None
+ssh_user = 'cumulus'
+
+# Try devices.yaml first
+lldpq_dir = lldpq_conf.get('LLDPQ_DIR', os.path.expanduser('~/lldpq'))
+import yaml
+for devices_path in [f"{lldpq_dir}/devices.yaml"]:
+    if os.path.exists(devices_path):
+        try:
+            with open(devices_path, 'r') as f:
+                ddata = yaml.safe_load(f)
+            defaults = ddata.get('defaults', {})
+            default_user = defaults.get('username', 'cumulus')
+            for ip, info in ddata.get('devices', {}).items():
+                if isinstance(info, dict):
+                    hname = info.get('hostname', '')
+                    uname = info.get('username', default_user)
+                else:
+                    hname = str(info).split()[0] if info else ''
+                    uname = default_user
+                if hname == device:
+                    device_ip = str(ip)
+                    ssh_user = uname
+                    break
+        except:
+            pass
+
+# Fallback to Ansible inventory
+if not device_ip:
+    for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+        if os.path.exists(inv_file):
+            try:
+                with open(inv_file, 'r') as f:
+                    for line in f:
+                        if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                            match = re.search(r'ansible_host=(\S+)', line)
+                            if match:
+                                device_ip = match.group(1)
+                                break
+            except:
+                pass
+        if device_ip:
+            break
+
+if not device_ip:
+    print(json.dumps({'success': False, 'error': f'Device {device} not found in inventory or devices.yaml'}))
+    exit()
+
+# Execute command via SSH using management IP
+try:
+    # Determine timeout based on command - longer for tcpdump, cl-support
+    cmd_timeout = 30
+    if 'tcpdump' in command or 'cl-support' in command:
+        # Extract timeout value from command if present
+        timeout_match = re.search(r'timeout\s+(\d+)', command)
+        if timeout_match:
+            cmd_timeout = int(timeout_match.group(1)) + 10  # Add 10s buffer
+        else:
+            cmd_timeout = 120  # Default 2 minutes for long commands
+    
+    ssh_command = [
+        'sudo', '-u', lldpq_user,
+        'ssh', '-tt',  # Force pseudo-tty for unbuffered output
+        '-o', 'StrictHostKeyChecking=no',
+        '-o', 'ConnectTimeout=10',
+        '-o', 'BatchMode=yes',
+        '-o', 'LogLevel=ERROR',  # Suppress warnings
+        f'{ssh_user}@{device_ip}',  # Use username@IP from devices.yaml/inventory
+        command
+    ]
+    
+    result = subprocess.run(
+        ssh_command,
+        capture_output=True,
+        text=True,
+        timeout=cmd_timeout
+    )
+    
+    print(json.dumps({
+        'success': True,
+        'device': device,
+        'command': command,
+        'output': result.stdout,
+        'error_output': result.stderr,
+        'exit_code': result.returncode
+    }))
+
+except subprocess.TimeoutExpired:
+    print(json.dumps({'success': False, 'error': f'Command timed out ({cmd_timeout}s)'}))
+except Exception as e:
+    print(json.dumps({'success': False, 'error': str(e)}))
+PYTHON_END
+        ;;
+    refresh-assets)
+        # Trigger assets.sh to refresh device inventory using trigger file mechanism
+        # A cron job running as lldpq user watches this file and runs assets.sh
+        TRIGGER_FILE="/tmp/.assets_refresh_trigger"
+        
+        # Create trigger file with timestamp
+        echo "$(date +%s)" > "$TRIGGER_FILE" 2>/dev/null
+        chmod 666 "$TRIGGER_FILE" 2>/dev/null
+        
+        if [ -f "$TRIGGER_FILE" ]; then
+            echo '{"success": true, "message": "Assets refresh triggered. Please wait about 30 seconds."}'
+        else
+            echo '{"success": false, "error": "Failed to create trigger file"}'
+        fi
+        ;;
+    "ansible-status")
+        # Check if Ansible is configured and available
+        if [[ -n "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR" ]]; then
+            echo '{"success": true, "configured": true, "ansible_dir": "'"$ANSIBLE_DIR"'"}'
+        else
+            echo '{"success": true, "configured": false}'
+        fi
+        ;;
+    *)
+        echo '{"success": false, "error": "Unknown action: '"$ACTION"'"}'
+        ;;
+esac
