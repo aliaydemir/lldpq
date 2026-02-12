@@ -538,59 +538,64 @@ fi
 echo "  - Copying VERSION to $WEB_ROOT/"
 sudo cp VERSION "$WEB_ROOT/"
 sudo chmod 644 "$WEB_ROOT/VERSION"
-sudo chmod +x "$WEB_ROOT"/*.sh
 
 echo "  - Setting permissions on web directories"
 sudo chmod o+rx /var/www 2>/dev/null || true
 sudo chown -R "$LLDPQ_USER:www-data" "$WEB_ROOT/"
 sudo find "$WEB_ROOT" -type d -exec chmod 775 {} \;
 sudo find "$WEB_ROOT" -type f -exec chmod 664 {} \;
-sudo chmod +x "$WEB_ROOT"/*.sh
+sudo find "$WEB_ROOT" -name '*.sh' -exec chmod 775 {} \;
 sudo mkdir -p "$WEB_ROOT/hstr" "$WEB_ROOT/configs" "$WEB_ROOT/monitor-results"
 
 echo "  - Copying bin/* to /usr/local/bin/"
 sudo cp bin/* /usr/local/bin/
-sudo chmod +x /usr/local/bin/*
+sudo chmod 755 /usr/local/bin/lldpq /usr/local/bin/lldpq-trigger 2>/dev/null || true
+sudo chmod 755 /usr/local/bin/*
 
 echo "  - Copying lldpq to $LLDPQ_INSTALL_DIR"
-mkdir -p "$LLDPQ_INSTALL_DIR"
-cp -r lldpq/* "$LLDPQ_INSTALL_DIR/"
+sudo mkdir -p "$LLDPQ_INSTALL_DIR"
+sudo cp -r lldpq/* "$LLDPQ_INSTALL_DIR/"
+sudo chown -R "$LLDPQ_USER:www-data" "$LLDPQ_INSTALL_DIR"
 
 # Restore preserved configs (update mode)
 if [[ -n "$_preserved_dir" ]] && [[ -d "$_preserved_dir" ]]; then
     echo "  - Restoring preserved configuration files..."
     [[ -f "$_preserved_dir/devices.yaml" ]] && \
-        cp "$_preserved_dir/devices.yaml" "$LLDPQ_INSTALL_DIR/" && echo "    • devices.yaml"
+        sudo cp "$_preserved_dir/devices.yaml" "$LLDPQ_INSTALL_DIR/" && echo "    • devices.yaml"
     [[ -f "$_preserved_dir/notifications.yaml" ]] && \
-        cp "$_preserved_dir/notifications.yaml" "$LLDPQ_INSTALL_DIR/" && echo "    • notifications.yaml"
+        sudo cp "$_preserved_dir/notifications.yaml" "$LLDPQ_INSTALL_DIR/" && echo "    • notifications.yaml"
 fi
 
 echo "  - Copying telemetry stack to $LLDPQ_INSTALL_DIR/telemetry"
-cp -r telemetry "$LLDPQ_INSTALL_DIR/telemetry"
-chmod +x "$LLDPQ_INSTALL_DIR/telemetry/start.sh"
+sudo cp -r telemetry "$LLDPQ_INSTALL_DIR/telemetry"
+sudo chown -R "$LLDPQ_USER:www-data" "$LLDPQ_INSTALL_DIR/telemetry"
+sudo chmod 755 "$LLDPQ_INSTALL_DIR/telemetry/start.sh"
 
 # Restore telemetry user config (update mode)
 if [[ -n "$_preserved_dir" ]] && [[ -d "$_preserved_dir/telemetry-config" ]]; then
-    cp -r "$_preserved_dir/telemetry-config"/* "$LLDPQ_INSTALL_DIR/telemetry/config/" 2>/dev/null || true
+    sudo cp -r "$_preserved_dir/telemetry-config"/* "$LLDPQ_INSTALL_DIR/telemetry/config/" 2>/dev/null || true
     echo "    • telemetry config preserved"
 fi
 
 # Restore git history (update mode)
 if [[ -n "$_preserved_dir" ]] && [[ -d "$_preserved_dir/dot-git" ]]; then
-    cp -r "$_preserved_dir/dot-git" "$LLDPQ_INSTALL_DIR/.git"
+    sudo cp -r "$_preserved_dir/dot-git" "$LLDPQ_INSTALL_DIR/.git"
     echo "    • .git history restored"
 fi
 
 # Clean up preserved temp dir
-[[ -n "$_preserved_dir" ]] && rm -rf "$_preserved_dir"
+[[ -n "$_preserved_dir" ]] && sudo rm -rf "$_preserved_dir"
 
 echo "  - Setting permissions on $LLDPQ_INSTALL_DIR"
-chmod 750 "$LLDPQ_INSTALL_DIR"
-chown "$LLDPQ_USER:www-data" "$LLDPQ_INSTALL_DIR/devices.yaml" 2>/dev/null || true
-chmod 664 "$LLDPQ_INSTALL_DIR/devices.yaml" 2>/dev/null || true
-mkdir -p "$LLDPQ_INSTALL_DIR/monitor-results/fabric-tables"
-chmod 750 "$LLDPQ_INSTALL_DIR/monitor-results"
-chmod 750 "$LLDPQ_INSTALL_DIR/monitor-results/fabric-tables"
+sudo chown -R "$LLDPQ_USER:www-data" "$LLDPQ_INSTALL_DIR"
+sudo chmod 750 "$LLDPQ_INSTALL_DIR"
+sudo chmod 664 "$LLDPQ_INSTALL_DIR/devices.yaml" 2>/dev/null || true
+sudo chmod 664 "$LLDPQ_INSTALL_DIR/notifications.yaml" 2>/dev/null || true
+sudo find "$LLDPQ_INSTALL_DIR" -name '*.sh' -exec chmod 755 {} \;
+sudo find "$LLDPQ_INSTALL_DIR" -name '*.py' -exec chmod 755 {} \;
+sudo mkdir -p "$LLDPQ_INSTALL_DIR/monitor-results/fabric-tables"
+sudo chmod 750 "$LLDPQ_INSTALL_DIR/monitor-results"
+sudo chmod 750 "$LLDPQ_INSTALL_DIR/monitor-results/fabric-tables"
 
 # Set default ACL so new files/directories also get group read permission
 if command -v setfacl &> /dev/null; then
