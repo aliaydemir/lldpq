@@ -9,51 +9,49 @@
   <rect width="800" height="400" fill="#0a0a0a"/>
   <ellipse cx="400" cy="200" rx="350" ry="180" fill="url(#glow)"/>
 
-  <!-- Spine tier (top) -->
-  <circle cx="300" cy="100" r="8" fill="none" stroke="#76b900" stroke-width="2"/>
-  <circle cx="400" cy="100" r="8" fill="none" stroke="#76b900" stroke-width="2"/>
-  <circle cx="500" cy="100" r="8" fill="none" stroke="#76b900" stroke-width="2"/>
+  <!-- Spine tier (top) — shifted down +25 to center vertically -->
+  <circle cx="300" cy="125" r="8" fill="none" stroke="#76b900" stroke-width="2"/>
+  <circle cx="400" cy="125" r="8" fill="none" stroke="#76b900" stroke-width="2"/>
+  <circle cx="500" cy="125" r="8" fill="none" stroke="#76b900" stroke-width="2"/>
 
   <!-- Core tier (middle) -->
-  <circle cx="350" cy="180" r="6" fill="none" stroke="#4fc3f7" stroke-width="1.5"/>
-  <circle cx="450" cy="180" r="6" fill="none" stroke="#4fc3f7" stroke-width="1.5"/>
+  <circle cx="350" cy="200" r="6" fill="none" stroke="#4fc3f7" stroke-width="1.5"/>
+  <circle cx="450" cy="200" r="6" fill="none" stroke="#4fc3f7" stroke-width="1.5"/>
 
   <!-- Leaf tier (bottom) -->
-  <circle cx="220" cy="250" r="7" fill="none" stroke="#76b900" stroke-width="2"/>
-  <circle cx="320" cy="250" r="7" fill="none" stroke="#76b900" stroke-width="2"/>
-  <circle cx="420" cy="250" r="7" fill="none" stroke="#76b900" stroke-width="2"/>
-  <circle cx="520" cy="250" r="7" fill="none" stroke="#76b900" stroke-width="2"/>
-  <circle cx="580" cy="250" r="7" fill="none" stroke="#76b900" stroke-width="2"/>
+  <circle cx="220" cy="275" r="7" fill="none" stroke="#76b900" stroke-width="2"/>
+  <circle cx="320" cy="275" r="7" fill="none" stroke="#76b900" stroke-width="2"/>
+  <circle cx="420" cy="275" r="7" fill="none" stroke="#76b900" stroke-width="2"/>
+  <circle cx="520" cy="275" r="7" fill="none" stroke="#76b900" stroke-width="2"/>
+  <circle cx="580" cy="275" r="7" fill="none" stroke="#76b900" stroke-width="2"/>
 
   <!-- Connections: leaf to core -->
-  <line x1="220" y1="250" x2="350" y2="180" stroke="#76b900" stroke-width="1" opacity="0.4"/>
-  <line x1="220" y1="250" x2="450" y2="180" stroke="#76b900" stroke-width="1" opacity="0.4"/>
-  <line x1="320" y1="250" x2="350" y2="180" stroke="#76b900" stroke-width="1" opacity="0.4"/>
-  <line x1="320" y1="250" x2="450" y2="180" stroke="#76b900" stroke-width="1" opacity="0.4"/>
-  <line x1="420" y1="250" x2="350" y2="180" stroke="#76b900" stroke-width="1" opacity="0.4"/>
-  <line x1="420" y1="250" x2="450" y2="180" stroke="#76b900" stroke-width="1" opacity="0.4"/>
-  <line x1="520" y1="250" x2="350" y2="180" stroke="#76b900" stroke-width="1" opacity="0.4"/>
-  <line x1="520" y1="250" x2="450" y2="180" stroke="#76b900" stroke-width="1" opacity="0.4"/>
-  <line x1="580" y1="250" x2="350" y2="180" stroke="#76b900" stroke-width="1" opacity="0.3"/>
-  <line x1="580" y1="250" x2="450" y2="180" stroke="#76b900" stroke-width="1" opacity="0.3"/>
+  <line x1="220" y1="275" x2="350" y2="200" stroke="#76b900" stroke-width="1" opacity="0.4"/>
+  <line x1="220" y1="275" x2="450" y2="200" stroke="#76b900" stroke-width="1" opacity="0.4"/>
+  <line x1="320" y1="275" x2="350" y2="200" stroke="#76b900" stroke-width="1" opacity="0.4"/>
+  <line x1="320" y1="275" x2="450" y2="200" stroke="#76b900" stroke-width="1" opacity="0.4"/>
+  <line x1="420" y1="275" x2="350" y2="200" stroke="#76b900" stroke-width="1" opacity="0.4"/>
+  <line x1="420" y1="275" x2="450" y2="200" stroke="#76b900" stroke-width="1" opacity="0.4"/>
+  <line x1="520" y1="275" x2="350" y2="200" stroke="#76b900" stroke-width="1" opacity="0.4"/>
+  <line x1="520" y1="275" x2="450" y2="200" stroke="#76b900" stroke-width="1" opacity="0.4"/>
+  <line x1="580" y1="275" x2="350" y2="200" stroke="#76b900" stroke-width="1" opacity="0.3"/>
+  <line x1="580" y1="275" x2="450" y2="200" stroke="#76b900" stroke-width="1" opacity="0.3"/>
 
   <!-- Connections: core to spine -->
-  <line x1="350" y1="180" x2="300" y2="100" stroke="#4fc3f7" stroke-width="1" opacity="0.4"/>
-  <line x1="350" y1="180" x2="400" y2="100" stroke="#4fc3f7" stroke-width="1" opacity="0.4"/>
-  <line x1="350" y1="180" x2="500" y2="100" stroke="#4fc3f7" stroke-width="1" opacity="0.3"/>
-  <line x1="450" y1="180" x2="300" y2="100" stroke="#4fc3f7" stroke-width="1" opacity="0.3"/>
-  <line x1="450" y1="180" x2="400" y2="100" stroke="#4fc3f7" stroke-width="1" opacity="0.4"/>
-  <line x1="450" y1="180" x2="500" y2="100" stroke="#4fc3f7" stroke-width="1" opacity="0.4"/>
+  <line x1="350" y1="200" x2="300" y2="125" stroke="#4fc3f7" stroke-width="1" opacity="0.4"/>
+  <line x1="350" y1="200" x2="400" y2="125" stroke="#4fc3f7" stroke-width="1" opacity="0.4"/>
+  <line x1="350" y1="200" x2="500" y2="125" stroke="#4fc3f7" stroke-width="1" opacity="0.3"/>
+  <line x1="450" y1="200" x2="300" y2="125" stroke="#4fc3f7" stroke-width="1" opacity="0.3"/>
+  <line x1="450" y1="200" x2="400" y2="125" stroke="#4fc3f7" stroke-width="1" opacity="0.4"/>
+  <line x1="450" y1="200" x2="500" y2="125" stroke="#4fc3f7" stroke-width="1" opacity="0.4"/>
 
   <!-- Particles -->
-  <circle cx="150" cy="130" r="1.5" fill="#76b900" opacity="0.3"/>
-  <circle cx="650" cy="150" r="2" fill="#76b900" opacity="0.2"/>
-  <circle cx="180" cy="290" r="1" fill="#4fc3f7" opacity="0.3"/>
-  <circle cx="620" cy="280" r="1.5" fill="#4fc3f7" opacity="0.2"/>
-  <circle cx="700" cy="100" r="1" fill="#76b900" opacity="0.2"/>
-  <circle cx="100" cy="200" r="1.5" fill="#76b900" opacity="0.15"/>
+  <circle cx="150" cy="155" r="1.5" fill="#76b900" opacity="0.3"/>
+  <circle cx="650" cy="170" r="2" fill="#76b900" opacity="0.2"/>
+  <circle cx="180" cy="310" r="1" fill="#4fc3f7" opacity="0.3"/>
+  <circle cx="620" cy="300" r="1.5" fill="#4fc3f7" opacity="0.2"/>
+  <circle cx="700" cy="120" r="1" fill="#76b900" opacity="0.2"/>
+  <circle cx="100" cy="220" r="1.5" fill="#76b900" opacity="0.15"/>
 
-  <!-- Title -->
-  <text x="400" y="340" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="48" font-weight="700" fill="#ffffff" letter-spacing="-1">LLDPq</text>
-  <text x="400" y="370" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="16" fill="#888888" letter-spacing="3">NETWORK MONITORING</text>
+  <!-- No text — topology only -->
 </svg>
