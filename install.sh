@@ -833,10 +833,13 @@ if [[ "$INSTALL_MODE" == "update" ]]; then
     sudo sed -i "s/^AUTO_SET_HOSTNAME=.*/AUTO_SET_HOSTNAME=$_SAVE_AUTO_SET_HOSTNAME/" /etc/lldpq.conf
 fi
 
-# Create discovery cache file
+# Create discovery cache and inventory files
 sudo touch "$WEB_ROOT/discovery-cache.json"
 sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/discovery-cache.json"
 sudo chmod 664 "$WEB_ROOT/discovery-cache.json"
+sudo touch "$WEB_ROOT/inventory.json"
+sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/inventory.json"
+sudo chmod 664 "$WEB_ROOT/inventory.json"
 
 # Set permissions so web server can update telemetry config
 USER_GROUP=$(id -gn)
@@ -850,14 +853,14 @@ echo "  Configuration saved to /etc/lldpq.conf"
 # ============================================================================
 step "Configuring sudoers..."
 
-echo "www-data ALL=($LLDPQ_USER) NOPASSWD: /usr/bin/timeout, /usr/bin/ssh, /usr/bin/scp" | \
+echo "www-data ALL=($LLDPQ_USER) NOPASSWD: /usr/bin/timeout, /usr/bin/ssh, /usr/bin/scp, /usr/bin/mkdir, /usr/bin/rm, /usr/bin/tee, /usr/bin/cat, /usr/bin/ssh-keygen" | \
     sudo tee /etc/sudoers.d/www-data-lldpq > /dev/null
 sudo chmod 440 /etc/sudoers.d/www-data-lldpq
 
-echo "www-data ALL=(root) NOPASSWD: /usr/bin/systemctl start isc-dhcp-server, /usr/bin/systemctl stop isc-dhcp-server, /usr/bin/systemctl restart isc-dhcp-server, /usr/bin/systemctl disable isc-dhcp-server, /usr/bin/systemctl enable isc-dhcp-server, /usr/bin/tee /etc/dhcp/dhcpd.conf, /usr/bin/tee /etc/dhcp/dhcpd.hosts, /usr/bin/tee /etc/default/isc-dhcp-server, /usr/bin/pkill -x dhcpd, /usr/sbin/dhcpd, /usr/bin/cat /etc/dhcp/dhcpd.conf, /usr/bin/chmod 755 *" | \
+echo "www-data ALL=(root) NOPASSWD: /usr/bin/systemctl start isc-dhcp-server, /usr/bin/systemctl stop isc-dhcp-server, /usr/bin/systemctl restart isc-dhcp-server, /usr/bin/systemctl disable isc-dhcp-server, /usr/bin/systemctl enable isc-dhcp-server, /usr/bin/tee /etc/dhcp/dhcpd.conf, /usr/bin/tee /etc/dhcp/dhcpd.hosts, /usr/bin/tee /etc/default/isc-dhcp-server, /usr/bin/tee /etc/lldpq.conf, /usr/bin/pkill -x dhcpd, /usr/sbin/dhcpd, /usr/bin/cat /etc/dhcp/dhcpd.conf, /usr/bin/chmod 755 *, /usr/bin/chmod 700 *, /usr/bin/chmod 600 *, /usr/bin/chmod 644 *, /usr/bin/chown" | \
     sudo tee /etc/sudoers.d/www-data-provision > /dev/null
 sudo chmod 440 /etc/sudoers.d/www-data-provision
-echo "  Sudoers configured (SSH/SCP + DHCP/Provision)"
+echo "  Sudoers configured (SSH/SCP + DHCP/Provision + SSH key mgmt)"
 
 # ============================================================================
 # COMMON: DHCP & ZTP directories

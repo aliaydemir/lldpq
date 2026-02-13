@@ -221,7 +221,7 @@ for entry in mac_entries:
         entry['bond_ports'] = bond_members[iface]
 
 # Parse NEXTHOPS table (ip nexthop show)
-# Format: "id 18578 via 10.128.130.4 dev vlan4063_l3 scope link proto zebra onlink"
+# Format: "id 18578 via 10.10.10.4 dev vlan4063_l3 scope link proto zebra onlink"
 # Format: "id 40050 group 18578/18635/18652 proto zebra"
 nexthop_table = {}  # nhid -> {'via': ip, 'dev': iface} or {'group': [nhid1, nhid2, ...]}
 for line in sections.get('NEXTHOPS', []):

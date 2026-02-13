@@ -342,17 +342,18 @@
         /* Stats row */
         .stats-row {
             display: flex;
-            gap: 20px;
+            gap: 8px;
             margin-bottom: 15px;
             flex-wrap: wrap;
         }
 
         .stat-card {
             background: #1e1e1e;
-            padding: 12px 20px;
+            padding: 10px 12px;
             border-radius: 6px;
             border-left: 3px solid #76b900;
-            min-width: 120px;
+            flex: 1 1 0;
+            min-width: 80px;
         }
 
         .stat-value {
@@ -763,6 +764,7 @@
     <button class="tab-btn" data-tab="dhcpd">DHCP Server</button>
     <button class="tab-btn" data-tab="ztp-script">ZTP</button>
     <button class="tab-btn" data-tab="base-config">Base Config</button>
+    <button class="tab-btn" data-tab="guide" style="margin-left:auto; color:#555;">Guide</button>
 </div>
 
 <!-- ==================== TAB 0: DISCOVER ==================== -->
@@ -879,7 +881,7 @@
     <div class="section-title">DHCP Server Configuration</div>
     <div class="section-desc">Subnet, IP range, gateway, DNS and ZTP settings. Changes require DHCP restart.</div>
     <div style="padding: 15px; background: #1e1e1e; border-radius: 6px; border: 1px solid #3c3c3c; margin-bottom: 20px;">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;">
+        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;">
             <div>
                 <label style="font-size: 11px; color: #888; display: block; margin-bottom: 4px;">SUBNET</label>
                 <input type="text" class="form-input" id="dhcpSubnet" style="width: 100%;" placeholder="192.168.100.0">
@@ -983,7 +985,7 @@
                 </tr>
             </thead>
             <tbody id="bindingsBody">
-                <tr><td colspan="10" class="loading">Loading bindings...</td></tr>
+                <tr><td colspan="10" class="loading">Loading inventory...</td></tr>
             </tbody>
         </table>
     </div>
@@ -1143,6 +1145,13 @@
     </div>
 </div>
 
+<!-- ==================== TAB 6: GUIDE ==================== -->
+<div class="tab-content" id="tab-guide">
+    <div style="overflow-y: auto; max-height: calc(100vh - 160px);">
+    <iframe src="/lldpq-ztp-new-device-flow.html" style="width:100%; height: calc(100vh - 180px); border: none; border-radius: 6px;"></iframe>
+    </div>
+</div>
+
 <!-- Add/Edit Binding Modal -->
 <div class="modal-overlay" id="bindingModal" style="display: none;" onclick="if(event.target===this)closeBindingModal()">
     <div class="modal">
@@ -1226,6 +1235,14 @@ const BASE_CONFIG_FILES = [
     { name: 'exa', dest: '/usr/bin/exa', type: 'binary', desc: 'Modern ls replacement' }
 ];
 
+// ===================== UNSAVED CHANGES WARNING =====================
+window.addEventListener('beforeunload', (e) => {
+    if (bindingsModified) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+});
+
 // ===================== INIT =====================
 document.addEventListener('DOMContentLoaded', () => {
     // Tab switching
@@ -1245,6 +1262,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDeviceList();
     loadKnownRoles();
     checkDHCPStatus();
+    // Periodic DHCP status check (every 30s)
+    setInterval(checkDHCPStatus, 30000);
 });
 
 function onTabSwitch(tab) {
@@ -1327,7 +1346,9 @@ async function _dhcpServiceAction(action) {
 
 // ===================== DHCP CONFIG =====================
 async function loadDHCPConfig() {
-    const data = await apiCall('get-dhcp-config');
+    // Use cached data from loadDiscoverySettings() if available, otherwise fetch
+    const data = _cachedDhcpConfig || await apiCall('get-dhcp-config');
+    _cachedDhcpConfig = null;  // clear cache after first use so Reload button works
     if (data.success) {
         document.getElementById('dhcpSubnet').value = data.subnet || '';
         document.getElementById('dhcpNetmask').value = data.netmask || '';
@@ -1393,9 +1414,30 @@ async function saveDHCPConfig() {
     }
 }
 
+function checkPrivateRange(rangeStr) {
+    // Warn if range contains non-RFC1918 IPs (possible typo like 92.x instead of 192.x)
+    if (!rangeStr) return '';
+    const firstIp = rangeStr.split(/[-,]/)[0].trim();
+    const parts = firstIp.split('.');
+    if (parts.length !== 4) return '';
+    const first = parseInt(parts[0]), second = parseInt(parts[1]);
+    if (first === 10 || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168)) return '';
+    return `Warning: "${firstIp}" is not a private IP (RFC1918). Did you mean 192.${parts.slice(1).join('.')}? Save anyway?`;
+}
+
 async function saveDiscoverySettings() {
+    const rangeVal = document.getElementById('discoveryRange').value.trim();
+    const rangeWarning = checkPrivateRange(rangeVal);
+    if (rangeWarning) {
+        showConfirmModal('Non-Private IP Range', rangeWarning, () => _doSaveDiscoverySettings(rangeVal));
+        return;
+    }
+    _doSaveDiscoverySettings(rangeVal);
+}
+
+async function _doSaveDiscoverySettings(rangeVal) {
     const settings = {
-        discovery_range: document.getElementById('discoveryRange').value.trim(),
+        discovery_range: rangeVal,
         auto_base_config: document.getElementById('autoBaseConfig').checked,
         auto_ztp_disable: document.getElementById('autoZtpDisable').checked,
         auto_set_hostname: document.getElementById('autoSetHostname').checked,
@@ -1410,6 +1452,8 @@ async function saveDiscoverySettings() {
 }
 
 async function loadDiscoverySettings() {
+    // Uses same endpoint as loadDHCPConfig() but only sets discovery-specific fields.
+    // On page load this runs first; loadDHCPConfig() runs when DHCP tab is opened.
     const data = await apiCall('get-dhcp-config');
     if (data.success) {
         document.getElementById('discoveryRange').value = data.discovery_range || '';
@@ -1420,15 +1464,19 @@ async function loadDiscoverySettings() {
         const interval = data.scan_interval !== undefined ? String(data.scan_interval) : '300';
         document.getElementById('scanInterval').value = interval;
         applyScanInterval();
+        // Cache for DHCP tab so it doesn't need to re-fetch
+        _cachedDhcpConfig = data;
     }
 }
 
+let _cachedDhcpConfig = null;
+
 // ===================== DOWNLOAD CSV =====================
 async function rebuildDevicesYaml() {
-    // Count what will be written
+    // Count what will be written (must match server-side logic: inv_status == 'planned' is the sole criterion)
     const withRole = allBindings.filter(b => b.hostname && b.ip && b.role);
-    const active = withRole.filter(b => b.inv_status === 'active' || (b.mac && b.mac !== '-'));
-    const planned = withRole.filter(b => b.inv_status === 'planned' || !b.mac || b.mac === '-');
+    const active = withRole.filter(b => b.inv_status !== 'planned');
+    const planned = withRole.filter(b => b.inv_status === 'planned');
     const noRole = allBindings.filter(b => b.hostname && b.ip && !b.role);
 
     let msg = `Rebuild devices.yaml from inventory?<br><br>`;
@@ -1583,7 +1631,7 @@ function applyBulkImport() {
 
 // ===================== TAB 1: BINDINGS =====================
 async function loadBindings() {
-    document.getElementById('bindingsBody').innerHTML = '<tr><td colspan="9" class="loading">Loading bindings...</td></tr>';
+    document.getElementById('bindingsBody').innerHTML = '<tr><td colspan="10" class="loading">Loading inventory...</td></tr>';
     const data = await apiCall('list-bindings');
     if (data.success) {
         allBindings = data.bindings || [];
@@ -1827,19 +1875,18 @@ async function loadKnownRoles() {
     }
 }
 
-async function inlineRoleSave(hostname, ip, newRole) {
+function inlineRoleSave(hostname, ip, newRole) {
     if (!newRole) return;
-    const data = await apiCall('update-role', { hostname, ip, role: newRole });
-    if (data.success) {
-        const b = allBindings.find(x => x.hostname === hostname);
-        if (b) b.role = newRole;
-        const d = (allDiscovered || []).find(x => x.hostname === hostname);
-        if (d) d.role = newRole;
-        if (!knownRoles.includes(newRole)) knownRoles.push(newRole);
-        showToast(`Role: ${hostname} → ${newRole}`, 'success');
-    } else {
-        showToast('Role update failed: ' + (data.error || ''), 'error');
-    }
+    // Update local state only — saved to devices.yaml when user clicks Save
+    const b = allBindings.find(x => x.hostname === hostname);
+    if (b) b.role = newRole;
+    const d = (allDiscovered || []).find(x => x.hostname === hostname);
+    if (d) d.role = newRole;
+    if (!knownRoles.includes(newRole)) knownRoles.push(newRole);
+    bindingsModified = true;
+    document.getElementById('btnSaveBindings').style.display = '';
+    document.getElementById('btnDiscardBindings').style.display = '';
+    showToast(`Role: ${hostname} → ${newRole} (unsaved)`, 'info');
     renderBindings();
 }
 
@@ -1851,10 +1898,10 @@ function inlineSerialSave(hostname, ip, selectEl) {
     const b = allBindings.find(x => x.hostname === hostname);
     if (b) {
         b.serial = newSerial;
+        bindingsModified = true;
+        document.getElementById('btnSaveBindings').style.display = ''; document.getElementById('btnDiscardBindings').style.display = '';
         if (discMac && (!b.mac || b.mac === '-' || b.mac.includes('x'))) {
             b.mac = discMac;
-            bindingsModified = true;
-            document.getElementById('btnSaveBindings').style.display = ''; document.getElementById('btnDiscardBindings').style.display = '';
             showToast(`Serial assigned + MAC auto-filled: ${discMac}`, 'success');
         } else {
             showToast(`Serial assigned: ${newSerial}`, 'info');
@@ -1899,24 +1946,19 @@ function editRole(hostname, ip, el) {
 
     let saving = false;
 
-    async function saveRole(newRole) {
+    function saveRole(newRole) {
         if (saving) return;
         saving = true;
-        select.disabled = true;
-        textInput.disabled = true;
-        const data = await apiCall('update-role', { hostname, ip, role: newRole });
-        if (data.success) {
-            const b = allBindings.find(x => x.hostname === hostname);
-            if (b) b.role = newRole;
-            // Also update discovered data
-            const d = (allDiscovered || []).find(x => x.hostname === hostname);
-            if (d) d.role = newRole;
-            // Add to known roles if new
-            if (newRole && !knownRoles.includes(newRole)) knownRoles.push(newRole);
-            showToast(`Role updated: ${hostname} → ${newRole || '(none)'}`, 'success');
-        } else {
-            showToast('Role update failed: ' + (data.error || ''), 'error');
-        }
+        // Update local state only — saved to devices.yaml when user clicks Save
+        const b = allBindings.find(x => x.hostname === hostname);
+        if (b) b.role = newRole;
+        const d = (allDiscovered || []).find(x => x.hostname === hostname);
+        if (d) d.role = newRole;
+        if (newRole && !knownRoles.includes(newRole)) knownRoles.push(newRole);
+        bindingsModified = true;
+        document.getElementById('btnSaveBindings').style.display = '';
+        document.getElementById('btnDiscardBindings').style.display = '';
+        showToast(`Role: ${hostname} → ${newRole || '(none)'} (unsaved)`, 'info');
         renderBindings();
     }
 
@@ -2011,11 +2053,11 @@ function editSerial(hostname, ip, el) {
         const b = allBindings.find(x => x.hostname === hostname);
         if (b) {
             b.serial = newSerial;
+            bindingsModified = true;
+            document.getElementById('btnSaveBindings').style.display = ''; document.getElementById('btnDiscardBindings').style.display = '';
             // Auto-fill MAC from discovered data if current MAC is empty/placeholder
             if (discMac && (!b.mac || b.mac === '-' || b.mac.includes('x'))) {
                 b.mac = discMac;
-                bindingsModified = true;
-                document.getElementById('btnSaveBindings').style.display = ''; document.getElementById('btnDiscardBindings').style.display = '';
                 showToast(`Serial assigned + MAC auto-filled: ${discMac}`, 'success');
             } else {
                 showToast(`Serial assigned: ${newSerial || '(none)'}`, 'info');
@@ -2149,12 +2191,9 @@ function saveBinding() {
         allBindings.push({ hostname, mac, ip, serial, role, commented: false });
     }
 
-    // Save role to devices.yaml if changed
-    if (role !== undefined) {
-        apiCall('update-role', { hostname, ip, role }).then(data => {
-            if (data.success && role && !knownRoles.includes(role)) knownRoles.push(role);
-        });
-    }
+    // Role is saved to devices.yaml when user clicks Save (via sync_devices),
+    // not immediately — avoids writing to disk for unsaved changes
+    if (role && !knownRoles.includes(role)) knownRoles.push(role);
 
     bindingsModified = true;
     document.getElementById('btnSaveBindings').style.display = ''; document.getElementById('btnDiscardBindings').style.display = '';
@@ -2165,7 +2204,7 @@ function saveBinding() {
 
 function deleteBinding(hostname) {
     showConfirmModal('Delete Binding',
-        `Delete binding for <strong>${hostname}</strong>?<br><br><span style="color:#ff9800;font-size:12px;">This will also remove the device from devices.yaml (inventory).</span>`,
+        `Delete binding for <strong>${escHtml(hostname)}</strong>?<br><br><span style="color:#ff9800;font-size:12px;">This will also remove the device from devices.yaml (inventory).</span>`,
         () => {
             allBindings = allBindings.filter(x => x.hostname !== hostname);
             pendingRemovals.push(hostname);
@@ -2258,7 +2297,10 @@ function updateDiscoveryInfo(ageSec) {
 }
 
 // Silent background scan — no loading indicators, just updates data
+let _scanInProgress = false;
 async function silentSubnetScan() {
+    if (_scanInProgress) return;  // prevent concurrent scans
+    _scanInProgress = true;
     const data = await apiCall('subnet-scan');
     if (data.success) {
         allDiscovered = data.entries || [];
@@ -2268,6 +2310,7 @@ async function silentSubnetScan() {
         // Refresh bindings table if loaded (uses discovery cache for MAC/Live columns)
         if (allBindings.length > 0) renderBindings();
     }
+    _scanInProgress = false;
 }
 
 // Periodic background scan — interval controlled by dropdown
@@ -2285,8 +2328,8 @@ function applyScanInterval() {
     }
 }
 
-// Initialize default interval (5 min)
-applyScanInterval();
+// Scan interval is initialized after loadDiscoverySettings() fetches the server value.
+// Do not call applyScanInterval() here — it would start a timer with the wrong default.
 
 function renderDiscoveredStats() {
     const provisioned = allDiscovered.filter(d => d.device_type === 'provisioned').length;
@@ -2366,7 +2409,8 @@ async function exportDiscoveredToDevicesYaml() {
 }
 
 async function runSubnetScan() {
-    // Manual scan — shows loading indicator
+    if (_scanInProgress) { showToast('Scan already in progress...', 'info'); return; }
+    _scanInProgress = true;
     const btn = document.getElementById('btnScan');
     btn.disabled = true;
     btn.textContent = 'Scanning...';
@@ -2382,7 +2426,12 @@ async function runSubnetScan() {
         const deployed = Object.values(data.post_provision_results || {}).filter(s => s === 'deployed').length;
         let msg = `Scan: ${data.reachable || 0}/${data.total_ips || 0} reachable, ${prov} provisioned`;
         if (deployed > 0) msg += `, ${deployed} newly configured`;
-        showToast(msg, 'success');
+        if (data.warning) {
+            showToast(data.warning, 'error');
+            setTimeout(() => showToast(msg, 'success'), 4500);
+        } else {
+            showToast(msg, 'success');
+        }
         updateDiscoveryInfo(0);
         if (allBindings.length > 0) renderBindings();
     } else {
@@ -2391,6 +2440,7 @@ async function runSubnetScan() {
     }
     btn.disabled = false;
     btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg> Scan';
+    _scanInProgress = false;
 }
 
 function renderDiscovered() {
@@ -2428,7 +2478,14 @@ function renderDiscovered() {
     });
 
     if (filtered.length === 0) {
-        document.getElementById('discoveredBody').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#666;">No entries found.</td></tr>';
+        // Show helpful hint when filter hides everything (e.g., all unreachable + reachable filter)
+        const totalEntries = allDiscovered.length;
+        const unreachCount = allDiscovered.filter(d => d.device_type === 'unreachable').length;
+        let hint = 'No entries found.';
+        if (totalEntries > 0 && filtered.length === 0 && typeFilter === 'reachable') {
+            hint = `No reachable devices found. ${unreachCount} device(s) are unreachable. <a href="#" onclick="setDiscoveredFilter('all');return false;" style="color:#42a5f5;">Show All</a>`;
+        }
+        document.getElementById('discoveredBody').innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:#666;">${hint}</td></tr>`;
         return;
     }
 
@@ -2445,6 +2502,7 @@ function renderDiscovered() {
         let ppBadge = '-';
         if (d.post_provision === 'deployed') ppBadge = '<span class="badge badge-match" style="font-size:10px;">Just Now</span>';
         else if (d.post_provision === 'already') ppBadge = '<span class="badge" style="font-size:10px;background:rgba(100,100,100,0.2);color:#aaa;">Yes</span>';
+        else if (d.post_provision === 'failed') ppBadge = '<span class="badge badge-error" style="font-size:10px;">Failed</span>';
         else if (d.device_type === 'provisioned') ppBadge = '<span class="badge" style="font-size:10px;background:rgba(255,152,0,0.15);color:#ff9800;">Pending</span>';
         else if (d.device_type === 'not_provisioned') ppBadge = 'No SSH';
         else if (d.device_type === 'unreachable') ppBadge = '-';
@@ -2549,7 +2607,8 @@ function downloadDiscoveredCSV() {
 function ipToNum(ip) {
     if (!ip) return 0;
     const parts = ip.split('.');
-    return ((+parts[0]) << 24) + ((+parts[1]) << 16) + ((+parts[2]) << 8) + (+parts[3]);
+    // Use multiplication instead of bit shift to avoid signed 32-bit overflow for octets >= 128
+    return (+parts[0]) * 16777216 + (+parts[1]) * 65536 + (+parts[2]) * 256 + (+parts[3]);
 }
 
 function filterDiscovered() { renderDiscovered(); }
@@ -2604,7 +2663,23 @@ function generateSSHKey() {
 function copySSHKey() {
     const key = document.getElementById('ztpSSHKey').value;
     if (!key) { showToast('No key to copy', 'error'); return; }
-    navigator.clipboard.writeText(key).then(() => showToast('Public key copied!', 'success'));
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(key)
+            .then(() => showToast('Public key copied!', 'success'))
+            .catch(() => fallbackCopy(key));
+    } else {
+        fallbackCopy(key);
+    }
+}
+function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;left:-9999px;';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showToast('Public key copied!', 'success'); }
+    catch(e) { showToast('Copy failed — select and copy manually', 'error'); }
+    document.body.removeChild(ta);
 }
 
 function toggleImportKey() {
@@ -2688,7 +2763,7 @@ async function uploadImage(input) {
 }
 
 function deleteOSImage(name) {
-    showConfirmModal('Delete OS Image', `Delete image <strong>${name}</strong>?`, async () => {
+    showConfirmModal('Delete OS Image', `Delete image <strong>${escHtml(name)}</strong>?`, async () => {
         const data = await apiCall('delete-os-image', { name });
         if (data.success) { showToast('Image deleted', 'success'); loadOSImages(); }
         else { showToast('Delete failed: ' + (data.error || ''), 'error'); }
@@ -2716,10 +2791,17 @@ function parseQuickSettings(content) {
     if (ipMatch) document.getElementById('ztpImageServer').value = ipMatch[1];
 }
 
+function escapeBashSingleQuote(s) {
+    // In bash single-quoted strings, single quotes can't be escaped.
+    // Use the pattern: end quote, escaped quote, start quote: 'it'\''s' → it's
+    return s.replace(/'/g, "'\\''");
+}
+
 function applyQuickSettings() {
     let content = document.getElementById('ztpEditor').value;
     const os = document.getElementById('ztpTargetOS').value.trim() || '5.14.0';
-    const pw = document.getElementById('ztpPassword').value.trim() || 'CumulusLinux!';
+    const pwRaw = document.getElementById('ztpPassword').value.trim() || 'CumulusLinux!';
+    const pw = escapeBashSingleQuote(pwRaw);
     const ip = document.getElementById('ztpImageServer').value.trim() || '192.168.100.200';
     const key = document.getElementById('ztpSSHKey').value.trim();
 
@@ -2990,7 +3072,7 @@ function escHtml(s) {
 }
 function escAttr(s) {
     if (!s) return '';
-    return s.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/`/g, '\\`').replace(/\n/g, '').replace(/\r/g, '');
 }
 
 // ===================== CUSTOM CONFIRM MODAL =====================

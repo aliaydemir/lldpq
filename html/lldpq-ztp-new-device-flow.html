@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLDPq — New Device Provisioning Flow</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1e1e1e; color: #d4d4d4; padding: 30px; }
+h1 { color: #76b900; font-size: 28px; margin-bottom: 5px; }
+.subtitle { color: #888; font-size: 14px; margin-bottom: 30px; }
+.flow-container { max-width: 1100px; margin: 0 auto; }
+
+/* Phase */
+.phase { margin-bottom: 30px; position: relative; }
+.phase-header { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
+.phase-num { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 16px; flex-shrink: 0; }
+.phase-title { font-size: 20px; font-weight: 600; }
+.phase-source { font-size: 11px; color: #666; font-family: 'Cascadia Code', Consolas, monospace; margin-left: auto; }
+
+/* Steps */
+.steps { margin-left: 18px; border-left: 2px solid #3c3c3c; padding-left: 25px; }
+.step { position: relative; margin-bottom: 12px; padding: 12px 16px; background: #252526; border: 1px solid #3c3c3c; border-radius: 6px; }
+.step::before { content: ''; position: absolute; left: -30px; top: 18px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #555; background: #1e1e1e; }
+.step.active::before { border-color: #76b900; background: #76b900; }
+.step.warn::before { border-color: #ff9800; background: #ff9800; }
+.step.fail::before { border-color: #f44336; background: #f44336; }
+.step.decision::before { border-radius: 2px; transform: rotate(45deg); border-color: #42a5f5; background: #42a5f5; }
+.step-title { font-weight: 600; font-size: 14px; color: #e0e0e0; margin-bottom: 4px; }
+.step-desc { font-size: 12px; color: #999; line-height: 1.6; }
+.step-code { font-family: 'Cascadia Code', Consolas, monospace; font-size: 11px; color: #76b900; background: #1a1a1a; padding: 2px 6px; border-radius: 3px; }
+.step-file { font-family: 'Cascadia Code', Consolas, monospace; font-size: 10px; color: #555; }
+
+/* Branch */
+.branch { display: flex; gap: 12px; margin: 8px 0 8px 0; }
+.branch-path { flex: 1; padding: 10px 14px; border-radius: 6px; border: 1px solid #3c3c3c; }
+.branch-path.yes { background: #1a2e00; border-color: #4caf50; }
+.branch-path.no { background: #2a1a00; border-color: #ff9800; }
+.branch-path.fail { background: #2a0a0a; border-color: #f44336; }
+.branch-label { font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 4px; }
+.branch-path.yes .branch-label { color: #4caf50; }
+.branch-path.no .branch-label { color: #ff9800; }
+.branch-path.fail .branch-label { color: #f44336; }
+.branch-text { font-size: 12px; color: #bbb; }
+
+/* Connector arrow between phases */
+.connector { text-align: center; margin: 5px 0 5px 18px; color: #555; font-size: 20px; }
+
+/* Colors per phase */
+.p1 .phase-num { background: #0d47a1; color: #fff; }
+.p1 .phase-title { color: #42a5f5; }
+.p2 .phase-num { background: #e65100; color: #fff; }
+.p2 .phase-title { color: #ff9800; }
+.p3 .phase-num { background: #1b5e20; color: #fff; }
+.p3 .phase-title { color: #4caf50; }
+.p4 .phase-num { background: #4a148c; color: #fff; }
+.p4 .phase-title { color: #ce93d8; }
+.p5 .phase-num { background: #b71c1c; color: #fff; }
+.p5 .phase-title { color: #ef5350; }
+.p6 .phase-num { background: #006064; color: #fff; }
+.p6 .phase-title { color: #4dd0e1; }
+.p7 .phase-num { background: #33691e; color: #fff; }
+.p7 .phase-title { color: #76b900; }
+
+/* Legend */
+.legend { display: flex; gap: 20px; margin-bottom: 25px; padding: 12px 16px; background: #252526; border: 1px solid #3c3c3c; border-radius: 6px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #999; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+.legend-dot.green { background: #76b900; }
+.legend-dot.orange { background: #ff9800; }
+.legend-dot.red { background: #f44336; }
+.legend-dot.blue { background: #42a5f5; border-radius: 2px; transform: rotate(45deg); }
+
+/* Timeline */
+.timeline-note { font-size: 11px; color: #555; font-style: italic; margin-top: 2px; }
+
+@media print {
+    body { background: #fff; color: #222; }
+    .step { background: #f5f5f5; border-color: #ddd; }
+    .step-title { color: #222; }
+    .step-desc { color: #555; }
+    .phase-title { color: #333 !important; }
+}
+</style>
+</head>
+<body>
+<div class="flow-container">
+
+<h1>New Device Provisioning Flow</h1>
+<p class="subtitle">What happens when a new switch (Cumulus Linux or other) connects to the OOB management network — traced from actual LLDPq source code.</p>
+
+<!-- KEY INSIGHT BOX -->
+<div style="margin-bottom: 25px; padding: 18px 22px; background: linear-gradient(135deg, #1a2e00 0%, #252526 100%); border: 1px solid #76b900; border-radius: 8px;">
+    <div style="font-size: 16px; font-weight: 600; color: #76b900; margin-bottom: 10px;">What do you need to provision a new switch?</div>
+    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 12px;">
+        <div style="flex: 1; min-width: 200px; padding: 12px; background: #1e1e1e; border-radius: 6px; border-left: 3px solid #76b900;">
+            <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 4px;">You provide</div>
+            <div style="font-size: 14px; color: #e0e0e0; line-height: 1.8;">
+                <strong style="color:#76b900;">Hostname</strong> — from your naming plan<br>
+                <strong style="color:#76b900;">Serial Number</strong> — from purchase order<br>
+                <strong style="color:#76b900;">IP Address</strong> — your allocation<br>
+                <span style="color:#888; font-size:12px;">Optional: Role (leaf, spine, etc.)</span>
+            </div>
+        </div>
+        <div style="flex: 1; min-width: 200px; padding: 12px; background: #1e1e1e; border-radius: 6px; border-left: 3px solid #42a5f5;">
+            <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 4px;">LLDPq discovers automatically</div>
+            <div style="font-size: 14px; color: #e0e0e0; line-height: 1.8;">
+                <strong style="color:#42a5f5;">MAC Address</strong> — from subnet scan (matched via serial or IP)<br>
+                <strong style="color:#42a5f5;">DHCP Binding</strong> — written to dhcpd.hosts on Save<br>
+                <strong style="color:#42a5f5;">OS + SSH Key + Base Config</strong> — via ZTP + post-provision
+            </div>
+        </div>
+        <div style="flex: 1; min-width: 200px; padding: 12px; background: #1e1e1e; border-radius: 6px; border-left: 3px solid #4caf50;">
+            <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 4px;">End result</div>
+            <div style="font-size: 14px; color: #e0e0e0; line-height: 1.8;">
+                Switch fully provisioned:<br>
+                Correct OS, SSH key auth, hostname set,<br>
+                base tools deployed, DHCP reserved IP,<br>
+                visible in all LLDPq modules.
+            </div>
+        </div>
+    </div>
+    <div style="font-size: 12px; color: #aaa; border-top: 1px solid #3c3c3c; padding-top: 10px;">
+        <strong>Workflow:</strong> Bulk Import (hostname + IP + serial) → rack &amp; cable the switch → power on → <em>everything else is automatic.</em>
+        The entire inventory can be planned before hardware arrives. When a switch connects, discovery matches it by serial, auto-fills the MAC, and the provisioning pipeline takes over.
+    </div>
+</div>
+
+<div class="legend">
+    <div class="legend-item"><div class="legend-dot green"></div> Action step</div>
+    <div class="legend-item"><div class="legend-dot blue"></div> Decision point</div>
+    <div class="legend-item"><div class="legend-dot orange"></div> Warning / optional</div>
+    <div class="legend-item"><div class="legend-dot red"></div> Failure path</div>
+    <div class="legend-item"><span style="color:#76b900; font-family:monospace; font-size:11px;">code reference</span></div>
+</div>
+
+<!-- ======================== PHASE 1 ======================== -->
+<div class="phase p1">
+    <div class="phase-header">
+        <div class="phase-num">1</div>
+        <div class="phase-title">Physical Connection & DHCP</div>
+        <div class="phase-source">dhcpd.conf &bull; dhcpd.hosts</div>
+    </div>
+    <div class="steps">
+        <div class="step active">
+            <div class="step-title">Switch powers on and connects to OOB management port (eth0)</div>
+            <div class="step-desc">The switch's management interface sends a DHCP DISCOVER broadcast on the OOB network.</div>
+        </div>
+        <div class="step decision">
+            <div class="step-title">DHCP Server receives request — binding lookup</div>
+            <div class="step-desc">ISC DHCP server on the LLDPq host checks <span class="step-code">dhcpd.hosts</span> for a MAC → IP static reservation.<br>
+            Format: <span class="step-code">host HOSTNAME {hardware ethernet MAC; fixed-address IP; option host-name "HOSTNAME";}</span></div>
+            <div class="step-file">provision-api.sh → generate_dhcp_hosts()</div>
+        </div>
+        <div class="branch">
+            <div class="branch-path yes">
+                <div class="branch-label">MAC found in dhcpd.hosts</div>
+                <div class="branch-text">Switch gets its <strong>reserved IP + hostname + ZTP URL</strong> via DHCP options.<br>
+                Option 239 (cumulus-provision-url) → <span class="step-code">http://server/cumulus-ztp.sh</span></div>
+            </div>
+            <div class="branch-path no">
+                <div class="branch-label">MAC not found (new/unknown device)</div>
+                <div class="branch-text">Switch gets an IP from the <strong>dynamic range</strong> (e.g., .210–.249).<br>
+                Still receives ZTP URL via the subnet-level option 239.</div>
+            </div>
+        </div>
+        <div class="step active">
+            <div class="step-title">Switch has an IP address and can reach the LLDPq server</div>
+            <div class="step-desc">At this point the switch is on the network but not yet provisioned.</div>
+        </div>
+    </div>
+</div>
+
+<div class="connector">&#9661;</div>
+
+<!-- ======================== PHASE 2 ======================== -->
+<div class="phase p2">
+    <div class="phase-header">
+        <div class="phase-num">2</div>
+        <div class="phase-title">ZTP (Zero Touch Provisioning)</div>
+        <div class="phase-source">cumulus-ztp.sh</div>
+    </div>
+    <div class="steps">
+        <div class="step active">
+            <div class="step-title">Switch downloads and executes ZTP script</div>
+            <div class="step-desc">Cumulus Linux checks DHCP option 239 → fetches <span class="step-code">http://server/cumulus-ztp.sh</span> via HTTP and runs it as root.</div>
+        </div>
+        <div class="step decision">
+            <div class="step-title">ZTP script checks OS version</div>
+            <div class="step-desc"><span class="step-code">CUMULUS_TARGET_RELEASE</span> vs current version. If mismatch → download + install + reboot.</div>
+            <div class="step-file">cumulus-ztp.sh → CUMULUS_TARGET_RELEASE check</div>
+        </div>
+        <div class="branch">
+            <div class="branch-path no">
+                <div class="branch-label">Wrong OS version</div>
+                <div class="branch-text"><span class="step-code">onie-install -fa -i http://server/cumulus-linux-X.Y.Z.bin -z http://server/cumulus-ztp.sh</span><br>
+                Switch reboots, re-runs ZTP after install. Loop until version matches.</div>
+            </div>
+            <div class="branch-path yes">
+                <div class="branch-label">Correct OS version</div>
+                <div class="branch-text">Proceeds to <span class="step-code">init_ztp()</span> — runs provisioning steps below.</div>
+            </div>
+        </div>
+        <div class="step active">
+            <div class="step-title">ZTP: Set default password</div>
+            <div class="step-desc"><span class="step-code">echo 'cumulus:PASSWORD' | chpasswd</span> — password configured in Provision → ZTP → Quick Settings.</div>
+        </div>
+        <div class="step active">
+            <div class="step-title">ZTP: Install SSH public key</div>
+            <div class="step-desc">Writes the LLDPq server's public key to <span class="step-code">/home/cumulus/.ssh/authorized_keys</span>.<br>
+            This is the same key shown in Provision → ZTP → SSH Key section.</div>
+            <div class="step-file">provision-api.sh → action_get_ssh_key() / action_generate_ssh_key()</div>
+        </div>
+        <div class="step active">
+            <div class="step-title">ZTP: Configure passwordless sudo</div>
+            <div class="step-desc"><span class="step-code">echo "cumulus ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/10_cumulus</span></div>
+        </div>
+        <div class="step active">
+            <div class="step-title">ZTP completes — switch is now SSH-accessible with key auth</div>
+            <div class="step-desc">The switch has: correct OS, known password, SSH key, and an IP address. It is ready for discovery.</div>
+            <div class="timeline-note">Elapsed: 2–10 minutes (depends on OS upgrade)</div>
+        </div>
+    </div>
+</div>
+
+<div class="connector">&#9661;</div>
+
+<!-- ======================== PHASE 3 ======================== -->
+<div class="phase p3">
+    <div class="phase-header">
+        <div class="phase-num">3</div>
+        <div class="phase-title">Discovery (Subnet Scan)</div>
+        <div class="phase-source">provision-api.sh → action_subnet_scan()</div>
+    </div>
+    <div class="steps">
+        <div class="step active">
+            <div class="step-title">Subnet scan runs (auto every N minutes, or manual click)</div>
+            <div class="step-desc">Scans all IPs in <span class="step-code">DISCOVERY_RANGE</span> (from lldpq.conf, max 1500 IPs).<br>
+            Auto-scan interval configured in Discover tab (default: 5 min).</div>
+            <div class="step-file">provision.html → silentSubnetScan() / runSubnetScan()</div>
+        </div>
+        <div class="step active">
+            <div class="step-title">Step 1: Parallel ping (250 threads)</div>
+            <div class="step-desc"><span class="step-code">ping -c 1 -W 1 IP</span> for every IP in range. Takes ~2 seconds for 250 IPs.<br>
+            Non-private IPs get shorter timeout (0.5s) to protect against range typos.</div>
+        </div>
+        <div class="step active">
+            <div class="step-title">Step 2: Read local ARP table</div>
+            <div class="step-desc"><span class="step-code">ip neigh show</span> → maps IP → MAC for all devices that responded to ping.<br>
+            This is the "Discovered MAC" shown in the Discover table.</div>
+        </div>
+        <div class="step active">
+            <div class="step-title">Step 3: SSH probe reachable IPs (20 threads)</div>
+            <div class="step-desc"><span class="step-code">sudo -u LLDPQ_USER ssh -o BatchMode=yes cumulus@IP 'echo OK; sudo dmidecode -s system-serial-number'</span></div>
+            <div class="step-file">provision-api.sh → ssh_probe()</div>
+        </div>
+        <div class="branch">
+            <div class="branch-path yes">
+                <div class="branch-label">SSH key auth succeeds → "Provisioned"</div>
+                <div class="branch-text">Device has our SSH key (ZTP worked). Serial number collected.<br>
+                <strong>Badge:</strong> <span style="color:#4caf50;">Provisioned</span></div>
+            </div>
+            <div class="branch-path no">
+                <div class="branch-label">SSH "Permission denied" → "No Key"</div>
+                <div class="branch-text">Device is reachable but doesn't have our SSH key. ZTP hasn't run yet, or used a different key.<br>
+                <strong>Badge:</strong> <span style="color:#ff9800;">No Key</span></div>
+            </div>
+            <div class="branch-path fail">
+                <div class="branch-label">SSH "Connection refused" / timeout → "Other"</div>
+                <div class="branch-text">Not a Cumulus switch (router, server, printer, etc.) or SSH not running.<br>
+                <strong>Badge:</strong> <span style="color:#78909c;">Other</span></div>
+            </div>
+        </div>
+        <div class="step active">
+            <div class="step-title">Step 4: Cross-reference with inventory</div>
+            <div class="step-desc">Each discovered IP is matched against <span class="step-code">inventory.json</span> bindings by IP.<br>
+            MAC comparison: binding MAC vs discovered MAC → <span style="color:#4caf50;">Match</span> / <span style="color:#f44336;">Mismatch</span> / <span style="color:#42a5f5;">Not in Inventory</span></div>
+        </div>
+    </div>
+</div>
+
+<div class="connector">&#9661;</div>
+
+<!-- ======================== PHASE 4 ======================== -->
+<div class="phase p4">
+    <div class="phase-header">
+        <div class="phase-num">4</div>
+        <div class="phase-title">Auto Post-Provision (for newly provisioned devices)</div>
+        <div class="phase-source">provision-api.sh → post_provision_one()</div>
+    </div>
+    <div class="steps">
+        <div class="step decision">
+            <div class="step-title">Check: device is "Provisioned" + has inventory binding + toggles enabled?</div>
+            <div class="step-desc">All three conditions must be true. Toggles: <span class="step-code">AUTO_BASE_CONFIG</span>, <span class="step-code">AUTO_ZTP_DISABLE</span>, <span class="step-code">AUTO_SET_HOSTNAME</span> (in lldpq.conf).</div>
+        </div>
+        <div class="step decision">
+            <div class="step-title">Check: marker file exists? <span class="step-code">/etc/lldpq-base-deployed</span></div>
+            <div class="step-desc">SSH to device: <span class="step-code">test -f /etc/lldpq-base-deployed && echo DONE || echo NEW</span></div>
+        </div>
+        <div class="branch">
+            <div class="branch-path yes">
+                <div class="branch-label">DONE — already provisioned</div>
+                <div class="branch-text">Skip all actions. Status: <span style="color:#aaa;">Yes</span> (already deployed).</div>
+            </div>
+            <div class="branch-path no">
+                <div class="branch-label">NEW — first time</div>
+                <div class="branch-text">Execute post-provision actions below (10 parallel workers).</div>
+            </div>
+        </div>
+        <div class="step active">
+            <div class="step-title">SCP: Deploy base config files (sw-base)</div>
+            <div class="step-desc">8 files via SCP to <span class="step-code">/tmp/</span>:<br>
+            bash.bashrc, motd.sh, tmux.conf, nanorc, cmd, nvc, nvt, exa<br>
+            Then SSH: <span class="step-code">sudo cp /tmp/FILE DEST && sudo chmod MODE DEST</span> for each file.</div>
+            <div class="step-file">Destinations: /etc/bash.bashrc, /etc/profile.d/motd.sh, /usr/local/bin/cmd, /usr/bin/exa, etc.</div>
+        </div>
+        <div class="step active">
+            <div class="step-title">Disable ZTP</div>
+            <div class="step-desc"><span class="step-code">(sudo ztp -d 2>/dev/null || true)</span> — prevents ZTP from re-running on next boot.</div>
+        </div>
+        <div class="step active">
+            <div class="step-title">Set hostname from inventory binding</div>
+            <div class="step-desc"><span class="step-code">(sudo nv set system hostname HOSTNAME && sudo nv config apply -y || true)</span></div>
+        </div>
+        <div class="step active">
+            <div class="step-title">Write marker file</div>
+            <div class="step-desc"><span class="step-code">sudo touch /etc/lldpq-base-deployed</span> — only written if SCP succeeded.<br>
+            Next scan will see this marker and skip post-provision.</div>
+        </div>
+        <div class="step active">
+            <div class="step-title">Write discovery cache</div>
+            <div class="step-desc">Results saved to <span class="step-code">discovery-cache.json</span> with timestamp. UI updates Discover + Inventory tables.</div>
+            <div class="timeline-note">Elapsed since scan start: 10–30 seconds</div>
+        </div>
+    </div>
+</div>
+
+<div class="connector">&#9661;</div>
+
+<!-- ======================== PHASE 5 ======================== -->
+<div class="phase p5">
+    <div class="phase-header">
+        <div class="phase-num">5</div>
+        <div class="phase-title">Inventory Registration (Admin Action)</div>
+        <div class="phase-source">provision.html → Inventory tab</div>
+    </div>
+    <div class="steps">
+        <div class="step decision">
+            <div class="step-title">Is the device already in inventory?</div>
+            <div class="step-desc">Discover tab shows "Not in Inventory" badge for unknown devices. Admin decides how to add it.</div>
+        </div>
+        <div class="branch">
+            <div class="branch-path yes">
+                <div class="branch-label">Already in inventory (pre-planned)</div>
+                <div class="branch-text">Admin added it via Bulk Import or Add Binding before the device arrived.<br>
+                Discovery auto-fills MAC and serial from scan data. Status changes from "Planned" → "Active".</div>
+            </div>
+            <div class="branch-path no">
+                <div class="branch-label">Not in inventory (discovered new device)</div>
+                <div class="branch-text">Three ways to add:<br>
+                <strong>A.</strong> Discover tab → "Export to devices.yaml" (batch add all provisioned)<br>
+                <strong>B.</strong> Inventory tab → "Add Binding" (single device)<br>
+                <strong>C.</strong> Discover tab → "Download CSV" → edit → "Bulk Import"</div>
+            </div>
+        </div>
+        <div class="step active">
+            <div class="step-title">Admin clicks Save</div>
+            <div class="step-desc">
+                <strong>1.</strong> <span class="step-code">inventory.json</span> — all bindings (including planned) written<br>
+                <strong>2.</strong> <span class="step-code">dhcpd.hosts</span> — only entries with valid MAC + dhcp=true<br>
+                <strong>3.</strong> <span class="step-code">devices.yaml</span> — add/update/remove synced entries (system-wide inventory)<br>
+                <strong>4.</strong> Optional: restart DHCP server (confirm modal)
+            </div>
+            <div class="step-file">provision-api.sh → action_save_bindings()</div>
+        </div>
+    </div>
+</div>
+
+<div class="connector">&#9661;</div>
+
+<!-- ======================== PHASE 6 ======================== -->
+<div class="phase p6">
+    <div class="phase-header">
+        <div class="phase-num">6</div>
+        <div class="phase-title">Integration with LLDPq Ecosystem</div>
+        <div class="phase-source">devices.yaml → all modules</div>
+    </div>
+    <div class="steps">
+        <div class="step active">
+            <div class="step-title">Device appears in Assets page</div>
+            <div class="step-desc"><span class="step-code">devices.yaml</span> is the central inventory. The Assets module reads it to show LLDP neighbors, interfaces, and system info for the new device.</div>
+        </div>
+        <div class="step active">
+            <div class="step-title">Device appears in Search</div>
+            <div class="step-desc">Search queries (MAC, IP, hostname, interface) now include this device. Route lookups work.</div>
+        </div>
+        <div class="step active">
+            <div class="step-title">Device appears in Topology</div>
+            <div class="step-desc">LLDP neighbor data builds the network graph. The new switch shows up in the Cytoscape topology view with its connections.</div>
+        </div>
+        <div class="step active">
+            <div class="step-title">Monitoring & Telemetry active</div>
+            <div class="step-desc">Cron job (<span class="step-code">/usr/local/bin/lldpq</span> every 5 min) polls the new device for LLDP, interfaces, BGP, and alerts.</div>
+        </div>
+    </div>
+</div>
+
+<div class="connector">&#9661;</div>
+
+<!-- ======================== PHASE 7 ======================== -->
+<div class="phase p7">
+    <div class="phase-header">
+        <div class="phase-num">7</div>
+        <div class="phase-title">Device is Fully Operational</div>
+    </div>
+    <div class="steps">
+        <div class="step active">
+            <div class="step-title">Provisioning complete</div>
+            <div class="step-desc">
+                The device now has:<br>
+                &#10003; Correct OS version (via ZTP)<br>
+                &#10003; SSH key authentication (via ZTP)<br>
+                &#10003; Base config: shell aliases, tmux, motd, tools (via post-provision)<br>
+                &#10003; Hostname set (via post-provision)<br>
+                &#10003; ZTP disabled (won't re-run on reboot)<br>
+                &#10003; Registered in inventory (devices.yaml + inventory.json + dhcpd.hosts)<br>
+                &#10003; Visible in all LLDPq modules (Assets, Search, Topology, Telemetry)<br>
+                &#10003; Marker file prevents redundant re-provisioning
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ======================== ALTERNATE / EDGE SCENARIOS ======================== -->
+<div style="margin-top: 40px; padding: 20px; background: #252526; border: 1px solid #3c3c3c; border-radius: 8px;">
+    <h3 style="color: #ff9800; margin-bottom: 15px;">Alternative Paths &amp; Edge Cases</h3>
+
+    <!-- ALT 1 -->
+    <div style="margin-bottom: 20px; padding: 15px; background: #1e1e1e; border-left: 3px solid #ff9800; border-radius: 4px;">
+        <div style="font-weight: 600; color: #ff9800; margin-bottom: 6px;">A. New device with NO DHCP binding (unknown MAC)</div>
+        <div style="font-size: 12px; color: #bbb; line-height: 1.8;">
+            <strong>Phase 1:</strong> Device gets a <strong>dynamic IP</strong> from DHCP range (e.g., .210–.249). Still receives ZTP URL via subnet option 239.<br>
+            <strong>Phase 2:</strong> ZTP runs normally — OS check, password, SSH key. <span style="color:#4caf50;">Works fine.</span><br>
+            <strong>Phase 3:</strong> Discovery finds it as <span style="color:#4caf50;">Provisioned</span> + <span style="color:#42a5f5;">Not in Inventory</span>.<br>
+            <strong>Phase 4:</strong> <span style="color:#f44336;">Post-provision SKIPPED</span> — <span class="step-code">has_binding</span> is false. No base config, no hostname set, no marker.<br>
+            <strong>Action needed:</strong> Admin adds the device to inventory (Export or Add Binding), then either:<br>
+            &nbsp;&nbsp;• Wait for next scan (auto post-provision will run), or<br>
+            &nbsp;&nbsp;• Use Base Config tab to deploy manually.<br>
+            <span style="color:#888; font-size:11px;">Code: action_subnet_scan() line 1128 — <code>if e['device_type'] == 'provisioned' and e['has_binding']</code></span>
+        </div>
+    </div>
+
+    <!-- ALT 2 -->
+    <div style="margin-bottom: 20px; padding: 15px; background: #1e1e1e; border-left: 3px solid #78909c; border-radius: 4px;">
+        <div style="font-weight: 600; color: #78909c; margin-bottom: 6px;">B. Non-Cumulus device (server, printer, router)</div>
+        <div style="font-size: 12px; color: #bbb; line-height: 1.8;">
+            <strong>Phase 1:</strong> Gets IP via DHCP (dynamic or static binding).<br>
+            <strong>Phase 2:</strong> ZTP does NOT run — only Cumulus/SONiC switches process option 239.<br>
+            <strong>Phase 3:</strong> Discovery ping succeeds. SSH probe result depends:<br>
+            &nbsp;&nbsp;• SSH running but no key auth → <span style="color:#ff9800;">No Key</span><br>
+            &nbsp;&nbsp;• SSH refused/not running → <span style="color:#78909c;">Other</span><br>
+            &nbsp;&nbsp;• SSH timeout → <span style="color:#78909c;">Other</span><br>
+            <strong>Phase 4:</strong> Post-provision skipped (not "Provisioned" status).<br>
+            <strong>In UI:</strong> Visible in Discover tab with "Other" badge. Can be added to inventory for documentation purposes with DHCP=off (static IP device).
+        </div>
+    </div>
+
+    <!-- ALT 3 -->
+    <div style="margin-bottom: 20px; padding: 15px; background: #1e1e1e; border-left: 3px solid #ce93d8; border-radius: 4px;">
+        <div style="font-weight: 600; color: #ce93d8; margin-bottom: 6px;">C. Manual SSH key setup (without ZTP)</div>
+        <div style="font-size: 12px; color: #bbb; line-height: 1.8;">
+            <strong>When:</strong> ZTP is disabled or unavailable, device already has an OS, or admin prefers manual control.<br>
+            <strong>Flow:</strong> Assets page → SSH Setup → distributes the same SSH key to selected devices via <span class="step-code">sshpass + ssh-copy-id</span> using the default password.<br>
+            <strong>Result:</strong> Same as post-ZTP — device becomes SSH-accessible with key auth.<br>
+            <strong>Next scan:</strong> Device shows as <span style="color:#4caf50;">Provisioned</span> in Discover tab.<br>
+            <strong>Note:</strong> SSH Setup uses the same key pair as ZTP — both are managed in Provision → ZTP → SSH Key section.<br>
+            <span style="color:#888; font-size:11px;">Code: assets.html → SSH Setup modal → send-cmd.sh</span>
+        </div>
+    </div>
+
+    <!-- ALT 4 -->
+    <div style="margin-bottom: 20px; padding: 15px; background: #1e1e1e; border-left: 3px solid #f44336; border-radius: 4px;">
+        <div style="font-weight: 600; color: #f44336; margin-bottom: 6px;">D. Device replacement (same IP, new MAC)</div>
+        <div style="font-size: 12px; color: #bbb; line-height: 1.8;">
+            <strong>Scenario:</strong> Failed switch replaced. New hardware has a different MAC address.<br>
+            <strong>DHCP:</strong> Old MAC in <span class="step-code">dhcpd.hosts</span> won't match → device gets dynamic IP (not the reserved one).<br>
+            <strong>Discovery:</strong> Shows <span style="color:#f44336;">MAC Mismatch</span> badge — binding says AA:BB, device has CC:DD.<br>
+            <strong>Action needed:</strong><br>
+            &nbsp;&nbsp;1. In Inventory tab, click the blue discovered MAC to auto-fill from discovery<br>
+            &nbsp;&nbsp;2. Click Save → updates dhcpd.hosts with new MAC<br>
+            &nbsp;&nbsp;3. Restart DHCP (confirm modal) → device gets its reserved IP on next DHCP renew<br>
+            &nbsp;&nbsp;4. ZTP re-runs (if enabled) → device fully re-provisioned<br>
+            <span style="color:#888; font-size:11px;">Code: provision.html → fillFromDiscovery('hostname', 'mac', discoveredMac)</span>
+        </div>
+    </div>
+
+    <!-- ALT 5 -->
+    <div style="margin-bottom: 20px; padding: 15px; background: #1e1e1e; border-left: 3px solid #42a5f5; border-radius: 4px;">
+        <div style="font-weight: 600; color: #42a5f5; margin-bottom: 6px;">E. DHCP managed externally (LLDPq discovery-only mode)</div>
+        <div style="font-size: 12px; color: #bbb; line-height: 1.8;">
+            <strong>When:</strong> DHCP runs on a separate server (e.g., Infoblox, Windows DHCP). LLDPq only does discovery + monitoring.<br>
+            <strong>Setup:</strong> Stop DHCP on LLDPq host (Provision → DHCP Stop). DHCP status shows red dot.<br>
+            <strong>Phases 1–2:</strong> Handled by external DHCP/ZTP infrastructure.<br>
+            <strong>Phases 3–7:</strong> Work exactly the same — discovery scans the subnet, classifies devices, post-provision runs for devices with bindings.<br>
+            <strong>Inventory:</strong> Admin adds devices manually (Add Binding or Bulk Import) with DHCP=off. <span class="step-code">dhcpd.hosts</span> is not used.<br>
+            <span style="color:#888; font-size:11px;">DHCP checkbox in Inventory controls whether an entry is written to dhcpd.hosts. Off = static/external.</span>
+        </div>
+    </div>
+
+    <!-- ALT 6: AUTO-FILL INTELLIGENCE -->
+    <div style="margin-bottom: 20px; padding: 15px; background: #1e1e1e; border-left: 3px solid #4fc3f7; border-radius: 4px;">
+        <div style="font-weight: 600; color: #4fc3f7; margin-bottom: 6px;">F. Smart Auto-Fill: Serial → MAC → DHCP (discovery-assisted binding)</div>
+        <div style="font-size: 12px; color: #bbb; line-height: 1.8;">
+            <strong>Scenario:</strong> Admin has a list of hostnames + serials (from purchase order) but no MAC addresses yet. Devices are physically connected.<br><br>
+            <strong>Auto-fill mechanisms (3 paths, all in Inventory tab):</strong><br><br>
+
+            <span style="color:#4fc3f7; font-weight:600;">Path 1 — Click blue MAC (same IP match)</span><br>
+            &nbsp;&nbsp;Discovery found MAC for the same IP as the binding. A <span style="background:rgba(66,165,245,0.15);color:#42a5f5;padding:1px 6px;border-radius:3px;font-family:monospace;font-size:11px;">54:9b:24:aa:68:16</span> clickable badge appears in the MAC column.<br>
+            &nbsp;&nbsp;Click → fills MAC. If discovery also has serial for that IP → auto-fills serial too.<br>
+            &nbsp;&nbsp;<span style="color:#555; font-size:11px;">Code: fillFromDiscovery(hostname, 'mac', discoveredMac) — also checks disc.serial</span><br><br>
+
+            <span style="color:#4fc3f7; font-weight:600;">Path 2 — Click blue Serial (same IP match)</span><br>
+            &nbsp;&nbsp;Discovery found serial for the same IP. A clickable serial badge appears.<br>
+            &nbsp;&nbsp;Click → fills serial. If binding has no MAC → auto-fills MAC from same device's discovery.<br>
+            &nbsp;&nbsp;<span style="color:#555; font-size:11px;">Code: fillFromDiscovery(hostname, 'serial', discSerial) — also checks disc.discovered_mac</span><br><br>
+
+            <span style="color:#4fc3f7; font-weight:600;">Path 3 — Serial dropdown picker (cross-device match)</span><br>
+            &nbsp;&nbsp;Binding has no serial. A dropdown shows all <strong>unbound serials</strong> from discovered devices.<br>
+            &nbsp;&nbsp;Format: <span style="font-family:monospace;font-size:11px;color:#aaa;">MT253520027 (leaf-01 / 192.168.100.11)</span><br>
+            &nbsp;&nbsp;Select a serial → assigned to this binding. If the selected device's MAC is known → auto-fills MAC too.<br>
+            &nbsp;&nbsp;<span style="color:#555; font-size:11px;">Code: inlineSerialSave() + editSerial() — data-mac attribute on &lt;option&gt;</span><br><br>
+
+            <span style="color:#4fc3f7; font-weight:600;">Path 4 — Add/Edit modal serial datalist</span><br>
+            &nbsp;&nbsp;When adding or editing a binding, the Serial field has a datalist of unbound serials from discovery.<br>
+            &nbsp;&nbsp;Selecting a serial → auto-fills MAC if the discovered device has one.<br>
+            &nbsp;&nbsp;<span style="color:#555; font-size:11px;">Code: onModalSerialSelect() → finds disc by serial → fills modalMAC</span><br><br>
+
+            <strong>Complete workflow example:</strong><br>
+            <div style="margin: 8px 0; padding: 10px; background: #252526; border-radius: 4px; font-size: 12px; line-height: 2;">
+                1. Admin does <strong>Bulk Import</strong>: hostname + IP + serial + role (MAC = <span style="font-family:monospace;">-</span>)<br>
+                2. Devices connect → DHCP gives dynamic IPs → ZTP runs<br>
+                3. <strong>Discovery scan</strong> finds devices, collects their real MACs + serials via SSH<br>
+                4. In Inventory, admin sees blue <span style="background:rgba(66,165,245,0.15);color:#42a5f5;padding:1px 4px;border-radius:3px;font-family:monospace;font-size:11px;">54:9b:24:aa:68:16</span> next to each binding<br>
+                5. <strong>One click</strong> per device → MAC + serial auto-filled from discovery<br>
+                6. Click <strong>Save</strong> → MAC written to <span class="step-code">dhcpd.hosts</span> + <span class="step-code">inventory.json</span> + <span class="step-code">devices.yaml</span><br>
+                7. <strong>Restart DHCP</strong> → device now gets its <strong>reserved IP</strong> (instead of dynamic) on next renew<br>
+                8. Status changes: <span style="color:#999;">Planned</span> → <span style="color:#4caf50;">Active</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ALT 7: PRE-PLANNED -->
+    <div style="padding: 15px; background: #1e1e1e; border-left: 3px solid #76b900; border-radius: 4px;">
+        <div style="font-weight: 600; color: #76b900; margin-bottom: 6px;">F. Pre-planned deployment (inventory before hardware)</div>
+        <div style="font-size: 12px; color: #bbb; line-height: 1.8;">
+            <strong>When:</strong> Network architect plans the fabric before switches arrive. Hostnames, IPs, and roles are known; MACs are not.<br>
+            <strong>Flow:</strong><br>
+            &nbsp;&nbsp;1. Bulk Import with hostname + IP + role (MAC left as <span class="step-code">-</span>)<br>
+            &nbsp;&nbsp;2. Entries show as <span style="color:#999;">Planned</span> in Inventory. Written to <span class="step-code">inventory.json</span> but NOT to <span class="step-code">dhcpd.hosts</span> (no MAC).<br>
+            &nbsp;&nbsp;3. When hardware arrives and connects, Discovery detects the device and its MAC.<br>
+            &nbsp;&nbsp;4. Inventory shows a blue clickable MAC → admin clicks to auto-fill from discovery → also auto-fills serial.<br>
+            &nbsp;&nbsp;5. Save → now written to <span class="step-code">dhcpd.hosts</span>. Status changes: Planned → Active.<br>
+            &nbsp;&nbsp;6. DHCP restart → device gets reserved IP. If ZTP hasn't run, it runs now with the correct binding.<br>
+            <span style="color:#888; font-size:11px;">Code: action_list_bindings() — inv_status='planned' when MAC is placeholder and dhcp=true</span>
+        </div>
+    </div>
+</div>
+
+<!-- ======================== TIMING ======================== -->
+<div style="margin-top: 40px; padding: 20px; background: #252526; border: 1px solid #3c3c3c; border-radius: 8px;">
+    <h3 style="color: #76b900; margin-bottom: 12px;">Timing Summary</h3>
+    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <tr style="border-bottom: 1px solid #3c3c3c;">
+            <td style="padding: 8px; color: #888;">Phase 1: DHCP</td>
+            <td style="padding: 8px;">~5 seconds</td>
+            <td style="padding: 8px; color: #666;">Automatic</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #3c3c3c;">
+            <td style="padding: 8px; color: #888;">Phase 2: ZTP</td>
+            <td style="padding: 8px;">2–10 minutes</td>
+            <td style="padding: 8px; color: #666;">Automatic (longer if OS upgrade needed)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #3c3c3c;">
+            <td style="padding: 8px; color: #888;">Phase 3: Discovery</td>
+            <td style="padding: 8px;">10–30 seconds</td>
+            <td style="padding: 8px; color: #666;">Auto (scan interval) or manual</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #3c3c3c;">
+            <td style="padding: 8px; color: #888;">Phase 4: Post-provision</td>
+            <td style="padding: 8px;">5–15 seconds</td>
+            <td style="padding: 8px; color: #666;">Automatic (during scan)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #3c3c3c;">
+            <td style="padding: 8px; color: #888;">Phase 5: Inventory</td>
+            <td style="padding: 8px;">~1 minute</td>
+            <td style="padding: 8px; color: #666;">Admin action (or pre-planned)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #3c3c3c;">
+            <td style="padding: 8px; color: #888;">Phase 6: Integration</td>
+            <td style="padding: 8px;">~5 minutes</td>
+            <td style="padding: 8px; color: #666;">Next cron cycle</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px; color: #76b900; font-weight: bold;">Total (happy path)</td>
+            <td style="padding: 8px; color: #76b900; font-weight: bold;">~5–15 minutes</td>
+            <td style="padding: 8px; color: #666;">Mostly automatic</td>
+        </tr>
+    </table>
+</div>
+
+<!-- ======================== DATA FLOW ======================== -->
+<div style="margin-top: 30px; padding: 20px; background: #252526; border: 1px solid #3c3c3c; border-radius: 8px;">
+    <h3 style="color: #76b900; margin-bottom: 12px;">Data Files Touched</h3>
+    <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+            <tr style="border-bottom: 1px solid #555; color: #888;">
+                <th style="padding: 8px; text-align: left;">File</th>
+                <th style="padding: 8px; text-align: left;">Written By</th>
+                <th style="padding: 8px; text-align: left;">Read By</th>
+                <th style="padding: 8px; text-align: left;">Purpose</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="border-bottom: 1px solid #2d2d2d;">
+                <td style="padding: 8px; font-family: monospace; color: #76b900;">/etc/dhcp/dhcpd.hosts</td>
+                <td style="padding: 8px;">Save Bindings</td>
+                <td style="padding: 8px;">dhcpd, Discovery fallback</td>
+                <td style="padding: 8px;">MAC → IP static reservations</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #2d2d2d;">
+                <td style="padding: 8px; font-family: monospace; color: #76b900;">inventory.json</td>
+                <td style="padding: 8px;">Save Bindings</td>
+                <td style="padding: 8px;">List Bindings, Subnet Scan</td>
+                <td style="padding: 8px;">Source of truth — all devices incl. planned</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #2d2d2d;">
+                <td style="padding: 8px; font-family: monospace; color: #76b900;">devices.yaml</td>
+                <td style="padding: 8px;">Save Bindings, Rebuild</td>
+                <td style="padding: 8px;">Assets, Search, Topology, all modules</td>
+                <td style="padding: 8px;">System-wide central inventory</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #2d2d2d;">
+                <td style="padding: 8px; font-family: monospace; color: #76b900;">discovery-cache.json</td>
+                <td style="padding: 8px;">Subnet Scan</td>
+                <td style="padding: 8px;">Discover tab, Inventory enrichment</td>
+                <td style="padding: 8px;">Cached scan results (stale after 5 min)</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #2d2d2d;">
+                <td style="padding: 8px; font-family: monospace; color: #76b900;">cumulus-ztp.sh</td>
+                <td style="padding: 8px;">ZTP tab (admin)</td>
+                <td style="padding: 8px;">New switches via HTTP</td>
+                <td style="padding: 8px;">Zero Touch Provisioning script</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px; font-family: monospace; color: #76b900;">/etc/lldpq.conf</td>
+                <td style="padding: 8px;">Discovery settings, DHCP config</td>
+                <td style="padding: 8px;">All API endpoints</td>
+                <td style="padding: 8px;">Global configuration (paths, toggles, ranges)</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div style="margin-top: 30px; text-align: center; color: #555; font-size: 12px;">
+    Generated from LLDPq source code analysis &bull; provision-api.sh + provision.html + install.sh
+</div>
+
+</div>
+</body>
+</html>

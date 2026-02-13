@@ -3850,12 +3850,12 @@
             }
             
             if (customLoopback && !loopbackIp) {
-                showAlert('Please enter a loopback IP address with mask (e.g., 10.128.131.6/32)');
+                showAlert('Please enter a loopback IP address with mask (e.g., 10.10.10.1/32)');
                 return;
             }
             
             if (customLoopback && loopbackIp && !loopbackIp.includes('/')) {
-                showAlert('Please include mask in loopback IP (e.g., 10.128.131.6/32)');
+                showAlert('Please include mask in loopback IP (e.g., 10.10.10.1/32)');
                 return;
             }
             
