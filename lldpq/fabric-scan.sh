@@ -37,9 +37,8 @@ try:
             hostname = info.get('hostname', ip)
             username = info.get('username', default_username)
         elif isinstance(info, str):
-            import re
-            match = re.match(r'^(.+?)\s+@\w+$', info.strip())
-            hostname = match.group(1).strip() if match else info.strip()
+            # Keep hostname with @role suffix for grouped file naming
+            hostname = info.strip()
             username = default_username
         else:
             hostname = ip
@@ -389,6 +388,24 @@ echo "========================================"
 # Get devices into array
 devices_list=$(get_devices)
 device_count=$(echo "$devices_list" | wc -l)
+
+# Clean stale files — remove .json files for devices no longer in devices.yaml
+# This handles role changes (old filename stays, new one created)
+if [ -d "$OUTPUT_DIR" ]; then
+    # Build list of expected hostnames from devices_list
+    expected_hosts=$(echo "$devices_list" | awk -F'|' '{print $2}')
+    stale_count=0
+    for f in "$OUTPUT_DIR"/*.json; do
+        [ ! -f "$f" ] && continue
+        basename=$(basename "$f" .json)
+        [ "$basename" = "summary" ] && continue
+        if ! echo "$expected_hosts" | grep -qxF "$basename"; then
+            rm -f "$f"
+            stale_count=$((stale_count + 1))
+        fi
+    done
+    [ "$stale_count" -gt 0 ] && echo "Cleaned $stale_count stale files"
+fi
 
 echo "Devices: $device_count"
 echo "Collecting..."

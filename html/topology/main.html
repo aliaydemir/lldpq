@@ -452,7 +452,6 @@
 <body>
     <div class="toolbar">
         <button onclick="runLLDPCheck()" id="runLLDPCheck">▶ Run LLDPq</button>
-        <button onclick="openTopologyEditor()" id="btn-edit-topology" style="display: none;">✎ Edit Topology</button>
         <button onclick="openConfigEditor()" id="btn-edit-order" style="display: none;">⚙ Edit Order</button>
         <button onclick="location.reload()">↻ Refresh</button>
         <button onclick="setLayout('dagre-lr')" id="btn-hlr">→ Horizontal</button>
@@ -575,31 +574,6 @@
         </div>
     </div>
     
-    <!-- Topology Editor Modal -->
-    <div class="modal-overlay" id="topologyEditorModal" onclick="closeTopologyEditor(event)">
-        <div class="modal" style="width: 80%; max-width: 900px;" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <h3>Edit Topology (topology.dot)</h3>
-                <button class="modal-close" onclick="closeTopologyEditorModal()">&times;</button>
-            </div>
-            <div class="modal-body" style="padding: 0;">
-                <div style="padding: 15px; background: #333; border-bottom: 1px solid #4a4a4a; font-size: 12px; color: #888;">
-                    Format: <code style="color: #76b900;">"device1":"port1" -- "device2":"port2"</code>
-                    &nbsp;|&nbsp; One link per line &nbsp;|&nbsp; Lines starting with # are comments
-                </div>
-                <div id="topologyEditorContainer" style="height: 400px; border: none;"></div>
-                <div style="padding: 15px; background: #333; border-top: 1px solid #4a4a4a; display: flex; justify-content: space-between; align-items: center;">
-                    <span id="topologyEditorStatus" style="color: #888; font-size: 12px;"></span>
-                    <div>
-                        <button onclick="closeTopologyEditorModal()" style="background: #555; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">Cancel</button>
-                        <button onclick="saveTopologyOnly()" style="background: #607d8b; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-right: 10px;">Save</button>
-                        <button onclick="saveTopology()" style="background: #76b900; color: #000; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">Save & Run LLDPq</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
     <!-- Config Editor Modal -->
     <div class="modal-overlay" id="configEditorModal" onclick="closeConfigEditor(event)">
         <div class="modal" style="width: 80%; max-width: 900px;" onclick="event.stopPropagation()">
@@ -631,8 +605,7 @@
         (async function() {
             await LLDPqAuth.check();
             if (LLDPqAuth.isAdmin()) {
-                // Show topology and config edit buttons for admin only
-                document.getElementById('btn-edit-topology').style.display = '';
+                // Show config edit button for admin only
                 document.getElementById('btn-edit-order').style.display = '';
             }
         })();

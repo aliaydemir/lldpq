@@ -122,11 +122,18 @@
             border: 1px solid #3c3c3c;
             border-radius: 8px;
             padding: 20px;
-            min-height: 400px;
+            min-height: calc(100vh - 160px);
         }
 
         .tab-content.active {
             display: block;
+        }
+
+        /* Discover and Inventory tabs use flex to fill viewport */
+        #tab-discover.active,
+        #tab-bindings.active {
+            display: flex;
+            flex-direction: column;
         }
 
         /* Toolbar */
@@ -231,9 +238,10 @@
             gap: 5px;
         }
 
-        /* Scrollable table wrapper */
+        /* Scrollable table wrapper — fills remaining space in tab */
         .table-wrapper {
-            max-height: 500px;
+            flex: 1;
+            min-height: 200px;
             overflow-y: auto;
             border: 1px solid #3c3c3c;
             border-radius: 6px;
@@ -733,7 +741,7 @@
 <div class="page-header">
     <div>
         <div class="page-title">Provision</div>
-        <div class="page-subtitle">ZTP Management & Base Config Deployment</div>
+        <div class="page-subtitle">Device discovery, inventory management, DHCP provisioning, ZTP and base config deployment</div>
     </div>
     <div class="header-actions">
         <div class="header-status">
@@ -750,16 +758,124 @@
 
 <!-- Tab Navigation -->
 <div class="tab-nav">
-    <button class="tab-btn active" data-tab="dhcpd">DHCP Server</button>
-    <button class="tab-btn" data-tab="bindings">Bindings</button>
-    <button class="tab-btn" data-tab="ztp-script">ZTP Script</button>
+    <button class="tab-btn active" data-tab="discover">Discover</button>
+    <button class="tab-btn" data-tab="bindings">Inventory</button>
+    <button class="tab-btn" data-tab="dhcpd">DHCP Server</button>
+    <button class="tab-btn" data-tab="ztp-script">ZTP</button>
     <button class="tab-btn" data-tab="base-config">Base Config</button>
 </div>
 
-<!-- ==================== TAB 0: DHCPd ==================== -->
-<div class="tab-content active" id="tab-dhcpd">
+<!-- ==================== TAB 0: DISCOVER ==================== -->
+<div class="tab-content active" id="tab-discover">
 
-    <!-- DHCP Server Configuration -->
+    <!-- Discovery & Post-Provision Settings -->
+    <div style="padding: 15px; background: #1e1e1e; border-radius: 6px; border: 1px solid #3c3c3c; margin-bottom: 20px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <div class="section-title" style="font-size: 13px; margin-bottom: 8px;">Discovery Range</div>
+                <div class="section-desc" style="margin-bottom: 8px; font-size: 11px;">IP range to scan for device discovery. Only IPs in this range will be pinged and probed.</div>
+                <input type="text" class="form-input" id="discoveryRange" style="width: 100%; font-family: 'Cascadia Code','Consolas',monospace;" placeholder="192.168.100.10-192.168.100.249">
+                <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                    <label style="font-size: 11px; color: #888; white-space: nowrap;">Auto-scan every</label>
+                    <select class="form-input" id="scanInterval" onchange="applyScanInterval()" style="width: 90px; padding: 3px 6px; font-size: 12px;">
+                        <option value="0">Off</option>
+                        <option value="180">3 min</option>
+                        <option value="300" selected>5 min</option>
+                        <option value="600">10 min</option>
+                        <option value="900">15 min</option>
+                    </select>
+                    <span id="scanIntervalInfo" style="font-size: 11px; color: #555;"></span>
+                </div>
+            </div>
+            <div>
+                <div class="section-title" style="font-size: 13px; margin-bottom: 8px;">Post-Provision Actions</div>
+                <div class="section-desc" style="margin-bottom: 8px; font-size: 11px;">Automatically run on newly provisioned devices (SSH key auth OK + no marker).</div>
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: #ccc;">
+                        <input type="checkbox" id="autoBaseConfig" checked> Deploy Base Config (sw-base files)
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: #ccc;">
+                        <input type="checkbox" id="autoZtpDisable" checked> Disable ZTP (sudo ztp -d)
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: #ccc;">
+                        <input type="checkbox" id="autoSetHostname" checked> Set hostname from binding (nv set)
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div style="margin-top: 10px;">
+            <button class="btn btn-secondary btn-sm" onclick="saveDiscoverySettings()">Save Discovery Settings</button>
+        </div>
+    </div>
+
+    <!-- Discovered Devices -->
+    <div class="section-title" style="margin-top: 10px;">Discovered Devices</div>
+    <div class="section-desc">Subnet-wide discovery with SSH classification. Provisioned devices get auto-configured.</div>
+    <div class="stats-row" id="discoveredStats">
+        <div class="stat-card" style="border-left-color:#4caf50; cursor:pointer;" onclick="setDiscoveredFilter('reachable')"><div class="stat-value" id="statReachable">-</div><div class="stat-label">Reachable</div></div>
+        <div class="stat-card" style="cursor:pointer;" onclick="setDiscoveredFilter('provisioned')"><div class="stat-value" id="statProvisioned">-</div><div class="stat-label">Provisioned</div></div>
+        <div class="stat-card" style="border-left-color:#42a5f5; cursor:pointer;" onclick="setDiscoveredFilter('no_binding')"><div class="stat-value" id="statNoBinding">-</div><div class="stat-label">Not in Inventory</div></div>
+        <div class="stat-card" style="border-left-color:#78909c; cursor:pointer;" onclick="setDiscoveredFilter('other')"><div class="stat-value" id="statOther">-</div><div class="stat-label">Other Devices</div></div>
+        <div class="stat-card" style="border-left-color:#e53935; cursor:pointer;" onclick="setDiscoveredFilter('mismatch')"><div class="stat-value" id="statMismatch">-</div><div class="stat-label">MAC Mismatch</div></div>
+        <div class="stat-card" style="border-left-color:#ff9800; cursor:pointer;" onclick="setDiscoveredFilter('not_provisioned')"><div class="stat-value" id="statNotProv">-</div><div class="stat-label">No Key</div></div>
+        <div class="stat-card" style="border-left-color:#f44336; cursor:pointer;" onclick="setDiscoveredFilter('unreachable')"><div class="stat-value" id="statUnreachable">-</div><div class="stat-label">Unreachable</div></div>
+        <div class="stat-card" style="border-left-color:#888; cursor:pointer;" onclick="setDiscoveredFilter('all')"><div class="stat-value" id="statAll">-</div><div class="stat-label">All</div></div>
+    </div>
+    <div class="toolbar">
+        <div class="toolbar-left">
+            <input type="text" class="search-filter" id="discoveredSearch" placeholder="Filter..." oninput="filterDiscovered()">
+            <select class="form-input" id="discoveredFilter" onchange="filterDiscovered()" style="width:180px;">
+                <option value="reachable" selected>Reachable</option>
+                <option value="provisioned">Provisioned</option>
+                <option value="not_provisioned">No Key</option>
+                <option value="other">Other Devices</option>
+                <option value="has_binding">In Inventory</option>
+                <option value="no_binding">Not in Inventory</option>
+                <option value="mismatch">MAC Mismatch</option>
+                <option value="all">All (incl. Unreachable)</option>
+            </select>
+            <span id="discoveredInfo" style="font-size: 11px; color: #666;"></span>
+        </div>
+        <div class="toolbar-right">
+            <button class="btn btn-secondary btn-sm" onclick="downloadDiscoveredCSV()">
+                <svg viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                Download CSV
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="exportDiscoveredToDevicesYaml()" title="Add all provisioned devices to inventory and write devices.yaml">
+                <svg viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm1 9h-2v2h-2v-2H9V9h2V7h2v2h2v2zm-3 7H6V4h7v5h5v9z"/></svg>
+                Export to devices.yaml
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="runSubnetScan()" id="btnScan">
+                <svg viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                Scan
+            </button>
+        </div>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table" id="discoveredTable">
+            <thead>
+                <tr>
+                    <th style="cursor:pointer;" onclick="sortDiscovered('hostname')">Hostname <span id="sort-hostname" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="cursor:pointer;" onclick="sortDiscovered('discovered_mac')">MAC Address <span id="sort-discovered_mac" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="cursor:pointer;" onclick="sortDiscovered('ip')">IP Address <span id="sort-ip" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="cursor:pointer;" onclick="sortDiscovered('serial')">Serial <span id="sort-serial" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="cursor:pointer;" onclick="sortDiscovered('role')">Role <span id="sort-role" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="cursor:pointer;" onclick="sortDiscovered('device_type')">Access <span id="sort-device_type" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="cursor:pointer;" onclick="sortDiscovered('post_provision')">Base Config <span id="sort-post_provision" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="cursor:pointer;" onclick="sortDiscovered('mac_status')">Status <span id="sort-mac_status" style="opacity:0.4;">&#9650;</span></th>
+                </tr>
+            </thead>
+            <tbody id="discoveredBody">
+                <tr><td colspan="8" class="loading">Click Scan to discover devices...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ==================== TAB 1: INVENTORY (was Bindings) ==================== -->
+
+<!-- ==================== TAB 2: DHCPd ==================== -->
+<div class="tab-content" id="tab-dhcpd">
     <div class="section-title">DHCP Server Configuration</div>
     <div class="section-desc">Subnet, IP range, gateway, DNS and ZTP settings. Changes require DHCP restart.</div>
     <div style="padding: 15px; background: #1e1e1e; border-radius: 6px; border: 1px solid #3c3c3c; margin-bottom: 20px;">
@@ -813,94 +929,13 @@
             <button class="btn btn-secondary btn-sm" onclick="loadDHCPConfig()">Reload</button>
         </div>
     </div>
-
-    <!-- Discovery & Post-Provision Settings -->
-    <div style="padding: 15px; background: #1e1e1e; border-radius: 6px; border: 1px solid #3c3c3c; margin-bottom: 20px;">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-            <div>
-                <div class="section-title" style="font-size: 13px; margin-bottom: 8px;">Discovery Range</div>
-                <div class="section-desc" style="margin-bottom: 8px; font-size: 11px;">IP range to scan for device discovery. Only IPs in this range will be pinged and probed.</div>
-                <input type="text" class="form-input" id="discoveryRange" style="width: 100%; font-family: 'Cascadia Code','Consolas',monospace;" placeholder="192.168.100.10-192.168.100.249">
-            </div>
-            <div>
-                <div class="section-title" style="font-size: 13px; margin-bottom: 8px;">Post-Provision Actions</div>
-                <div class="section-desc" style="margin-bottom: 8px; font-size: 11px;">Automatically run on newly provisioned devices (SSH key auth OK + no marker).</div>
-                <div style="display: flex; flex-direction: column; gap: 6px;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: #ccc;">
-                        <input type="checkbox" id="autoBaseConfig" checked> Deploy Base Config (sw-base files)
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: #ccc;">
-                        <input type="checkbox" id="autoZtpDisable" checked> Disable ZTP (sudo ztp -d)
-                    </label>
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; color: #ccc;">
-                        <input type="checkbox" id="autoSetHostname" checked> Set hostname from binding (nv set)
-                    </label>
-                </div>
-            </div>
-        </div>
-        <div style="margin-top: 10px;">
-            <button class="btn btn-secondary btn-sm" onclick="saveDiscoverySettings()">Save Discovery Settings</button>
-        </div>
-    </div>
-
-    <!-- Discovered Section (inside DHCP Server tab) -->
-    <div class="section-title" style="margin-top: 10px;">Discovered Devices</div>
-    <div class="section-desc">Subnet-wide discovery with SSH classification. Provisioned devices get auto-configured.</div>
-    <div class="stats-row" id="discoveredStats">
-        <div class="stat-card" style="cursor:pointer;" onclick="setDiscoveredFilter('provisioned')"><div class="stat-value" id="statProvisioned">-</div><div class="stat-label">Provisioned</div></div>
-        <div class="stat-card" style="border-left-color:#ff9800; cursor:pointer;" onclick="setDiscoveredFilter('not_provisioned')"><div class="stat-value" id="statNotProv">-</div><div class="stat-label">Not Provisioned</div></div>
-        <div class="stat-card" style="border-left-color:#78909c; cursor:pointer;" onclick="setDiscoveredFilter('other')"><div class="stat-value" id="statOther">-</div><div class="stat-label">Other</div></div>
-        <div class="stat-card" style="border-left-color:#f44336; cursor:pointer;" onclick="setDiscoveredFilter('unreachable')"><div class="stat-value" id="statUnreachable">-</div><div class="stat-label">Unreachable</div></div>
-        <div class="stat-card" style="border-left-color:#e53935; cursor:pointer;" onclick="setDiscoveredFilter('mismatch')"><div class="stat-value" id="statMismatch">-</div><div class="stat-label">MAC Mismatch</div></div>
-        <div class="stat-card" style="border-left-color:#42a5f5; cursor:pointer;" onclick="setDiscoveredFilter('no_binding')"><div class="stat-value" id="statNoBinding">-</div><div class="stat-label">No Binding</div></div>
-        <div class="stat-card" style="border-left-color:#888; cursor:pointer;" onclick="setDiscoveredFilter('all')"><div class="stat-value" id="statAll">-</div><div class="stat-label">All</div></div>
-    </div>
-    <div class="toolbar">
-        <div class="toolbar-left">
-            <input type="text" class="search-filter" id="discoveredSearch" placeholder="Filter..." oninput="filterDiscovered()">
-            <select class="form-input" id="discoveredFilter" onchange="filterDiscovered()" style="width:180px;">
-                <option value="all">All</option>
-                <option value="provisioned">Provisioned</option>
-                <option value="not_provisioned">Not Provisioned</option>
-                <option value="other">Other Device</option>
-                <option value="unreachable">Unreachable</option>
-                <option value="has_binding">Has Binding</option>
-                <option value="no_binding">No Binding</option>
-                <option value="mismatch">MAC Mismatch</option>
-            </select>
-            <span id="discoveredInfo" style="font-size: 11px; color: #666;"></span>
-        </div>
-        <div class="toolbar-right">
-            <button class="btn btn-primary btn-sm" onclick="runSubnetScan()" id="btnScan">
-                <svg viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-                Scan
-            </button>
-        </div>
-    </div>
-    <div class="table-wrapper">
-        <table class="data-table" id="discoveredTable">
-            <thead>
-                <tr>
-                    <th style="cursor:pointer;" onclick="sortDiscovered('hostname')">Hostname <span id="sort-hostname" style="opacity:0.4;">&#9650;</span></th>
-                    <th style="cursor:pointer;" onclick="sortDiscovered('ip')">IP <span id="sort-ip" style="opacity:0.4;">&#9650;</span></th>
-                    <th style="cursor:pointer;" onclick="sortDiscovered('binding_mac')">Binding MAC <span id="sort-binding_mac" style="opacity:0.4;">&#9650;</span></th>
-                    <th style="cursor:pointer;" onclick="sortDiscovered('discovered_mac')">Discovered MAC <span id="sort-discovered_mac" style="opacity:0.4;">&#9650;</span></th>
-                    <th style="cursor:pointer;" onclick="sortDiscovered('device_type')">Device Type <span id="sort-device_type" style="opacity:0.4;">&#9650;</span></th>
-                    <th style="cursor:pointer;" onclick="sortDiscovered('mac_status')">Status <span id="sort-mac_status" style="opacity:0.4;">&#9650;</span></th>
-                </tr>
-            </thead>
-            <tbody id="discoveredBody">
-                <tr><td colspan="6" class="loading">Loading...</td></tr>
-            </tbody>
-        </table>
-    </div>
 </div>
 
-<!-- ==================== TAB 1: BINDINGS ==================== -->
+<!-- ==================== TAB 1: INVENTORY (was Bindings) ==================== -->
 <div class="tab-content" id="tab-bindings">
     <div class="toolbar">
         <div class="toolbar-left">
-            <input type="text" class="search-filter" id="bindingSearch" placeholder="Filter by hostname, MAC, or IP..." oninput="filterBindings()">
+            <input type="text" class="search-filter" id="bindingSearch" placeholder="Filter by hostname, MAC, IP, serial, or role..." oninput="filterBindings()">
             <span id="bindingCount" style="font-size: 12px; color: #888;"></span>
         </div>
         <div class="toolbar-right">
@@ -920,28 +955,35 @@
                 <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM12 17l-4-4h2.5v-4h3v4H16l-4 4z"/></svg>
                 Download CSV
             </button>
+            <button class="btn btn-secondary" onclick="rebuildDevicesYaml()" title="Rebuild devices.yaml from inventory: groups by role, sorted by IP. Active entries are written normally, planned entries are commented out.">
+                <svg viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V8l-6-6zm1 9h-2v2h-2v-2H9V9h2V7h2v2h2v2zm-3 7H6V4h7v5h5v9z"/></svg>
+                Rebuild devices.yaml
+            </button>
             <button class="btn btn-warning" onclick="saveBindings()" id="btnSaveBindings" style="display:none;">
                 <svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
-                Save &amp; Restart DHCP
+                Save
             </button>
+            <button class="btn btn-primary" onclick="discardBindingChanges()" id="btnDiscardBindings" style="display:none;">Cancel</button>
         </div>
     </div>
     <div class="table-wrapper">
         <table class="data-table" id="bindingsTable">
             <thead>
                 <tr>
-                    <th style="width:30px;"><input type="checkbox" id="selectAllBindings" onchange="toggleSelectAllBindings()"></th>
                     <th style="cursor:pointer;" onclick="sortBindings('hostname')">Hostname <span id="bsort-hostname" style="opacity:0.4;">&#9650;</span></th>
                     <th style="cursor:pointer;" onclick="sortBindings('mac')">MAC Address <span id="bsort-mac" style="opacity:0.4;">&#9650;</span></th>
                     <th style="cursor:pointer;" onclick="sortBindings('ip')">IP Address <span id="bsort-ip" style="opacity:1;">&#9650;</span></th>
-                    <th>Discovered MAC</th>
-                    <th style="cursor:pointer;" onclick="sortBindings('status')">Status <span id="bsort-status" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="cursor:pointer;" onclick="sortBindings('serial')">Serial <span id="bsort-serial" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="cursor:pointer;" onclick="sortBindings('role')">Role <span id="bsort-role" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="cursor:pointer;" onclick="sortBindings('inv_status')">Status <span id="bsort-inv_status" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="width:50px; text-align:center;" title="DHCP binding required"><input type="checkbox" id="dhcpSelectAll" onchange="toggleAllDhcp(this.checked)" checked style="cursor:pointer;"> DHCP</th>
                     <th style="width:50px; text-align:center;">Live</th>
+                    <th style="width:70px; text-align:center;" title="Base Config deployed">Base</th>
                     <th style="width:120px;">Actions</th>
                 </tr>
             </thead>
             <tbody id="bindingsBody">
-                <tr><td colspan="8" class="loading">Loading bindings...</td></tr>
+                <tr><td colspan="10" class="loading">Loading bindings...</td></tr>
             </tbody>
         </table>
     </div>
@@ -1111,11 +1153,23 @@
         </div>
         <div class="modal-field">
             <label>MAC Address</label>
-            <input type="text" id="modalMAC" class="mono" placeholder="e.g. 54:9b:24:aa:68:16" oninput="formatMAC(this)">
+            <input type="text" id="modalMAC" class="mono" placeholder="Leave empty if unknown (Planned)" oninput="formatMAC(this)">
         </div>
         <div class="modal-field">
             <label>IP Address</label>
             <input type="text" id="modalIP" class="mono" placeholder="e.g. 192.168.100.11">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="modal-field" style="margin-bottom:0;">
+                <label>Serial Number</label>
+                <input type="text" id="modalSerial" class="mono" list="modalSerialList" placeholder="Select or type" oninput="onModalSerialSelect()" autocomplete="off">
+                <datalist id="modalSerialList"></datalist>
+            </div>
+            <div class="modal-field" style="margin-bottom:0;">
+                <label>Role</label>
+                <input type="text" id="modalRole" list="modalRoleList" placeholder="Select or type" autocomplete="off">
+                <datalist id="modalRoleList"></datalist>
+            </div>
         </div>
         <input type="hidden" id="modalOrigHostname">
         <div class="modal-actions">
@@ -1127,18 +1181,20 @@
 
 <!-- Bulk Import Modal -->
 <div class="modal-overlay" id="bulkImportModal" style="display: none;" onclick="if(event.target===this)closeBulkImport()">
-    <div class="modal" style="min-width: 600px;">
-        <h3>Bulk Import Bindings</h3>
+    <div class="modal" style="min-width: 800px; max-width: 90vw;">
+        <h3>Bulk Import Inventory</h3>
         <div class="section-desc" style="margin-bottom: 10px;">
-            Paste one binding per line. Format: <code style="color:#76b900;">hostname  MAC  IP</code> (separated by space or tab)
+            Paste one entry per line. Column order: <strong>Hostname  MAC  IP  Serial  Role</strong>. Use <code style="color:#76b900;">-</code> for unknown fields. DHCP is auto-enabled for entries with a MAC address; static IP devices (no MAC) get DHCP disabled.
         </div>
-        <div style="margin-bottom: 10px; padding: 10px; background: #1e1e1e; border-radius: 4px; font-size: 12px; color: #888; font-family: 'Cascadia Code','Consolas',monospace;">
-            Example:<br>
-            leaf-01&nbsp;&nbsp;54:9b:24:aa:68:16&nbsp;&nbsp;192.168.100.11<br>
-            leaf-02&nbsp;&nbsp;54:9b:24:8d:35:44&nbsp;&nbsp;192.168.100.12<br>
-            spine-01&nbsp;8c:91:3a:b4:aa:60&nbsp;&nbsp;192.168.100.17
-        </div>
-        <textarea id="bulkImportText" style="width:100%; min-height:250px; padding:12px; background:#1a1a1a; color:#d4d4d4; border:1px solid #555; border-radius:4px; font-family:'Cascadia Code','Consolas',monospace; font-size:13px; line-height:1.6; resize:vertical;" spellcheck="false" placeholder="hostname  MAC  IP&#10;hostname  MAC  IP&#10;..."></textarea>
+        <div style="margin-bottom: 10px; padding: 10px; background: #1e1e1e; border-radius: 4px; font-size: 12px; color: #888; font-family: 'Cascadia Code','Consolas',monospace; white-space: pre; overflow-x: auto; line-height: 1.8;">
+<span style="color:#76b900;">Hostname  MAC                IP               Serial       Role</span>
+<span style="color:#666;">leaf-01   54:9b:24:aa:68:16  192.168.100.11   MT253520027  oob_leaf</span>
+<span style="color:#666;">leaf-02   -                  192.168.100.12   -            oob_leaf</span>
+<span style="color:#666;">leaf-03   -                  192.168.100.13   -            -</span>
+<span style="color:#666;">leaf-04   -                  -                -            -</span>
+<span style="color:#666;">leaf-05   -                  -                -            oob_leaf</span>
+<span style="color:#666;">leaf-06</span></div>
+        <textarea id="bulkImportText" style="width:100%; min-height:250px; padding:12px; background:#1a1a1a; color:#d4d4d4; border:1px solid #555; border-radius:4px; font-family:'Cascadia Code','Consolas',monospace; font-size:13px; line-height:1.6; resize:vertical;" spellcheck="false" placeholder="hostname  MAC  IP  serial  role&#10;leaf-01  54:9b:24:aa:68:16  192.168.100.11  MT253520027  oob_leaf&#10;leaf-02  -  192.168.100.12  -  oob_leaf&#10;leaf-03  -  192.168.100.13"></textarea>
         <div id="bulkImportPreview" style="margin-top: 10px; font-size: 12px; color: #888;"></div>
         <div class="modal-actions">
             <button class="btn btn-secondary" onclick="closeBulkImport()">Cancel</button>
@@ -1156,6 +1212,8 @@ let allBindings = [];
 let bindingsModified = false;
 let allDiscovered = [];
 let deviceList = [];
+let knownRoles = []; // populated from devices.yaml via list-roles API
+let pendingRemovals = []; // hostnames to remove from devices.yaml on save
 
 const BASE_CONFIG_FILES = [
     { name: 'bash.bashrc', dest: '/etc/bash.bashrc', destAlt: '/home/cumulus/.bashrc', type: 'config', desc: 'Shell aliases & VRF helpers' },
@@ -1182,15 +1240,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Load initial data
-    loadDHCPConfig();
+    loadDiscoverySettings();
     loadDiscoveryCache();
     loadDeviceList();
+    loadKnownRoles();
     checkDHCPStatus();
 });
 
 function onTabSwitch(tab) {
-    if (tab === 'dhcpd') { loadDHCPConfig(); loadDiscoveryCache(); }
-    if (tab === 'bindings' && allBindings.length === 0) loadBindings();
+    if (tab === 'discover') { loadDiscoveryCache(); }
+    if (tab === 'dhcpd') { loadDHCPConfig(); }
+    if (tab === 'bindings') {
+        if (allBindings.length === 0) loadBindings();
+        // Ensure discovery data is loaded for serial picker
+        if (allDiscovered.length === 0) loadDiscoveryCache();
+    }
     if (tab === 'ztp-script') loadZTPScript();
 }
 
@@ -1335,6 +1399,7 @@ async function saveDiscoverySettings() {
         auto_base_config: document.getElementById('autoBaseConfig').checked,
         auto_ztp_disable: document.getElementById('autoZtpDisable').checked,
         auto_set_hostname: document.getElementById('autoSetHostname').checked,
+        scan_interval: parseInt(document.getElementById('scanInterval').value) || 0,
     };
     const data = await apiCall('save-post-provision', settings);
     if (data.success) {
@@ -1344,7 +1409,44 @@ async function saveDiscoverySettings() {
     }
 }
 
+async function loadDiscoverySettings() {
+    const data = await apiCall('get-dhcp-config');
+    if (data.success) {
+        document.getElementById('discoveryRange').value = data.discovery_range || '';
+        document.getElementById('autoBaseConfig').checked = data.auto_base_config !== false;
+        document.getElementById('autoZtpDisable').checked = data.auto_ztp_disable !== false;
+        document.getElementById('autoSetHostname').checked = data.auto_set_hostname !== false;
+        // Restore scan interval (default 300 = 5min)
+        const interval = data.scan_interval !== undefined ? String(data.scan_interval) : '300';
+        document.getElementById('scanInterval').value = interval;
+        applyScanInterval();
+    }
+}
+
 // ===================== DOWNLOAD CSV =====================
+async function rebuildDevicesYaml() {
+    // Count what will be written
+    const withRole = allBindings.filter(b => b.hostname && b.ip && b.role);
+    const active = withRole.filter(b => b.inv_status === 'active' || (b.mac && b.mac !== '-'));
+    const planned = withRole.filter(b => b.inv_status === 'planned' || !b.mac || b.mac === '-');
+    const noRole = allBindings.filter(b => b.hostname && b.ip && !b.role);
+
+    let msg = `Rebuild devices.yaml from inventory?<br><br>`;
+    msg += `<strong>${active.length}</strong> active entries (written normally)<br>`;
+    msg += `<strong>${planned.length}</strong> planned entries (commented with #)<br>`;
+    if (noRole.length > 0) msg += `<span style="color:#ff9800;"><strong>${noRole.length}</strong> entries without role (skipped)</span><br>`;
+    msg += `<br><span style="color:#888;font-size:12px;">Grouped by role, sorted by IP within each group.</span>`;
+
+    showConfirmModal('Rebuild devices.yaml', msg, async () => {
+        const data = await apiCall('rebuild-devices-yaml', { bindings: allBindings });
+        if (data.success) {
+            showToast(data.message || 'devices.yaml rebuilt', 'success');
+        } else {
+            showToast('Failed: ' + (data.error || ''), 'error');
+        }
+    }, 'Rebuild');
+}
+
 function downloadBindingsCSV() {
     if (allBindings.length === 0) {
         showToast('No bindings to download', 'error');
@@ -1358,14 +1460,14 @@ function downloadBindingsCSV() {
             const pb = b.ip.split('.').map(n => n.padStart(3, '0')).join('.');
             return pa.localeCompare(pb);
         })
-        .map(b => `${b.hostname},${b.mac},${b.ip}`);
-    const header = 'Hostname,MAC,IP';
+        .map(b => `${b.hostname},${b.mac},${b.ip},${b.serial || ''},${b.role || ''}`);
+    const header = 'Hostname,MAC,IP,Serial,Role';
     const content = header + '\n' + lines.join('\n') + '\n';
     const blob = new Blob([content], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'dhcp-bindings.csv';
+    a.download = 'inventory-bindings.csv';
     a.click();
     URL.revokeObjectURL(url);
     showToast(`Downloaded ${lines.length} bindings`, 'success');
@@ -1388,28 +1490,43 @@ function parseBulkText(text) {
     const entries = [];
     const errors = [];
 
+    const clean = v => (!v || v === '-') ? '' : v.trim();
+    const isMAC = v => /^([0-9a-fx]{2}:){5}[0-9a-fx]{2}$/.test(v);
+    const isIP = v => /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(v);
+
     lines.forEach((line, idx) => {
         // Skip CSV header row
         if (idx === 0 && /^hostname/i.test(line.trim())) return;
         // Split by comma, tab, or whitespace
-        const parts = line.trim().split(/[,\t]\s*|\s+/);
-        if (parts.length < 3) {
-            errors.push(`Line ${idx + 1}: Need 3 columns (hostname MAC IP), got ${parts.length}`);
-            return;
-        }
-        const hostname = parts[0];
-        const mac = parts[1].toLowerCase();
-        const ip = parts[2];
+        const parts = line.trim().split(/[,\t]\s*|\s+/).filter(Boolean);
+        if (parts.length < 1) return;
 
-        if (!/^([0-9a-fx]{2}:){5}[0-9a-fx]{2}$/.test(mac)) {
-            errors.push(`Line ${idx + 1}: Invalid MAC "${parts[1]}"`);
-            return;
+        // Fixed column order: Hostname  MAC  IP  Serial  Role
+        // Use "-" for empty fields. Short lines OK (missing = empty).
+        let hostname = parts[0];
+        let mac = clean(parts[1]) || '';
+        let ip = clean(parts[2]) || '';
+        let serial = clean(parts[3]) || '';
+        let role = clean(parts[4]) || '';
+
+        // Smart fallback for 2-column lines: detect MAC vs IP
+        if (parts.length === 2) {
+            mac = ''; ip = ''; serial = ''; role = '';
+            if (isIP(parts[1])) ip = parts[1];
+            else if (isMAC(parts[1])) mac = parts[1].toLowerCase();
         }
-        if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
-            errors.push(`Line ${idx + 1}: Invalid IP "${ip}"`);
-            return;
-        }
-        entries.push({ hostname, mac, ip, commented: false });
+
+        // Normalize MAC
+        if (mac && isMAC(mac)) mac = mac.toLowerCase();
+        else if (mac && !isMAC(mac)) mac = '';
+
+        // Normalize: empty mac shows as '-'
+        if (!mac) mac = '-';
+
+        // Auto-detect DHCP: if MAC is provided, device needs DHCP; if no MAC (static IP), it doesn't
+        const dhcp = (mac && mac !== '-');
+
+        entries.push({ hostname, mac, ip, serial, role: role.toLowerCase(), commented: false, dhcp });
     });
 
     return { entries, errors };
@@ -1436,12 +1553,20 @@ function applyBulkImport() {
         return;
     }
 
-    // Merge with existing bindings
+    // Merge with existing bindings (preserve existing fields not in import)
     let added = 0, updated = 0;
     entries.forEach(entry => {
         const existing = allBindings.findIndex(b => b.hostname === entry.hostname);
         if (existing >= 0) {
-            allBindings[existing] = entry;
+            // Merge: keep existing values for fields not provided in import
+            const old = allBindings[existing];
+            allBindings[existing] = {
+                ...old,
+                ...entry,
+                mac: entry.mac !== '-' ? entry.mac : old.mac,
+                serial: entry.serial || old.serial || '',
+                role: entry.role || old.role || '',
+            };
             updated++;
         } else {
             allBindings.push(entry);
@@ -1450,7 +1575,7 @@ function applyBulkImport() {
     });
 
     bindingsModified = true;
-    document.getElementById('btnSaveBindings').style.display = '';
+    document.getElementById('btnSaveBindings').style.display = ''; document.getElementById('btnDiscardBindings').style.display = '';
     closeBulkImport();
     renderBindings();
     showToast(`Imported: ${added} added, ${updated} updated (unsaved)`, 'info');
@@ -1458,15 +1583,15 @@ function applyBulkImport() {
 
 // ===================== TAB 1: BINDINGS =====================
 async function loadBindings() {
-    document.getElementById('bindingsBody').innerHTML = '<tr><td colspan="8" class="loading">Loading bindings...</td></tr>';
+    document.getElementById('bindingsBody').innerHTML = '<tr><td colspan="9" class="loading">Loading bindings...</td></tr>';
     const data = await apiCall('list-bindings');
     if (data.success) {
         allBindings = data.bindings || [];
         bindingsModified = false;
-        document.getElementById('btnSaveBindings').style.display = 'none';
+        document.getElementById('btnSaveBindings').style.display = 'none'; document.getElementById('btnDiscardBindings').style.display = 'none';
         renderBindings();
     } else {
-        document.getElementById('bindingsBody').innerHTML = `<tr><td colspan="8" style="color:#f44336;padding:20px;">Error: ${data.error}</td></tr>`;
+        document.getElementById('bindingsBody').innerHTML = `<tr><td colspan="9" style="color:#f44336;padding:20px;">Error: ${data.error}</td></tr>`;
     }
 }
 
@@ -1476,7 +1601,7 @@ let bindSortAsc = true;
 function sortBindings(col) {
     if (bindSortCol === col) { bindSortAsc = !bindSortAsc; }
     else { bindSortCol = col; bindSortAsc = true; }
-    document.querySelectorAll('[id^="bsort-"]').forEach(el => { el.style.opacity = '0.4'; el.innerHTML = '&#9650;'; });
+    document.querySelectorAll('[id^="bsort-"]').forEach(el => { if (el) { el.style.opacity = '0.4'; el.innerHTML = '&#9650;'; } });
     const ind = document.getElementById('bsort-' + col);
     if (ind) { ind.style.opacity = '1'; ind.innerHTML = bindSortAsc ? '&#9650;' : '&#9660;'; }
     renderBindings();
@@ -1487,7 +1612,10 @@ function renderBindings() {
     const filtered = allBindings.filter(b =>
         b.hostname.toLowerCase().includes(filter) ||
         b.mac.toLowerCase().includes(filter) ||
-        b.ip.includes(filter)
+        b.ip.includes(filter) ||
+        (b.serial || '').toLowerCase().includes(filter) ||
+        (b.role || '').toLowerCase().includes(filter) ||
+        (b.inv_status || '').toLowerCase().includes(filter)
     );
 
     // Sort
@@ -1497,21 +1625,49 @@ function renderBindings() {
         if (bindSortCol === 'ip') {
             return bindSortAsc ? ipToNum(va) - ipToNum(vb) : ipToNum(vb) - ipToNum(va);
         }
-        if (bindSortCol === 'status') {
-            va = a.commented ? 'z' : 'a'; vb = b.commented ? 'z' : 'a';
-        } else {
-            va = va.toLowerCase(); vb = vb.toLowerCase();
+        if (bindSortCol === 'inv_status') {
+            const order = {planned: 0, discovered: 1, active: 2};
+            va = order[a.inv_status] ?? 3; vb = order[b.inv_status] ?? 3;
+            return bindSortAsc ? va - vb : vb - va;
         }
+        va = va.toLowerCase(); vb = vb.toLowerCase();
         const cmp = va < vb ? -1 : va > vb ? 1 : 0;
         return bindSortAsc ? cmp : -cmp;
     });
 
-    document.getElementById('bindingCount').textContent = `${filtered.length} of ${allBindings.length} bindings`;
+    // Stats — use discovery cache to show reachability breakdown
+    const discByIpStats = {};
+    (allDiscovered || []).forEach(d => { if (d.ip) discByIpStats[d.ip] = d; });
+    
+    let statActive = 0, statUnreachable = 0, statPlanned = 0, statDiscovered = 0;
+    allBindings.forEach(b => {
+        const disc = discByIpStats[b.ip];
+        if (disc && disc.device_type === 'provisioned') statActive++;
+        else if (disc && disc.device_type === 'not_provisioned') statDiscovered++;
+        else if (disc && disc.device_type === 'unreachable') statUnreachable++;
+        else statPlanned++;  // not in discovery cache = not scanned
+    });
+    
+    // Count devices in scan but NOT in inventory
+    const invIps = new Set(allBindings.map(b => b.ip));
+    const noBinding = (allDiscovered || []).filter(d => d.ip && !invIps.has(d.ip)).length;
+    
+    const parts = [`${filtered.length} of ${allBindings.length} entries`];
+    if (statActive) parts.push(`Active: ${statActive}`);
+    if (statDiscovered) parts.push(`Discovered: ${statDiscovered}`);
+    if (statUnreachable) parts.push(`Unreachable: ${statUnreachable}`);
+    if (statPlanned) parts.push(`Not Scanned: ${statPlanned}`);
+    
+    let statsHtml = parts.join('  |  ');
+    if (noBinding > 0) {
+        statsHtml += `  |  <a href="#" onclick="document.querySelector('[data-tab=discover]').click();setTimeout(()=>setDiscoveredFilter('no_binding'),100);return false;" style="color:#42a5f5;text-decoration:none;" title="Devices found in scan but not in inventory">${noBinding} not in inventory</a>`;
+    }
+    document.getElementById('bindingCount').innerHTML = statsHtml;
 
     if (filtered.length === 0) {
         document.getElementById('bindingsBody').innerHTML = `
-            <tr><td colspan="8" style="text-align:center; padding:40px; color:#666;">
-                ${allBindings.length === 0 ? 'No bindings configured. Click "Add Binding" to create one.' : 'No matches found.'}
+            <tr><td colspan="10" style="text-align:center; padding:40px; color:#666;">
+                ${allBindings.length === 0 ? 'No inventory entries. Click "Add Binding" to create one.' : 'No matches found.'}
             </td></tr>`;
         return;
     }
@@ -1522,17 +1678,7 @@ function renderBindings() {
 
     document.getElementById('bindingsBody').innerHTML = filtered.map((b, i) => {
         const disc = discByIp[b.ip] || {};
-        const dmac = disc.discovered_mac || '';
         const isAlive = disc.device_type && disc.device_type !== 'unreachable';
-        const macMatch = dmac && b.mac && dmac === b.mac.toLowerCase();
-        const macMismatch = dmac && b.mac && !b.mac.toLowerCase().includes('x') && dmac !== b.mac.toLowerCase();
-        
-        let dmacHtml = '-';
-        if (dmac) {
-            if (macMismatch) dmacHtml = `<span style="color:#ff6b6b;" title="Mismatch!">${escHtml(dmac)}</span>`;
-            else if (macMatch) dmacHtml = `<span style="color:#4caf50;">${escHtml(dmac)}</span>`;
-            else dmacHtml = escHtml(dmac);
-        }
         
         let liveIcon;
         if (!disc.device_type) {
@@ -1543,14 +1689,79 @@ function renderBindings() {
             liveIcon = '<span style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:4px;background:rgba(244,67,54,0.2);color:#e57373;font-size:13px;" title="Unreachable">&#10007;</span>';
         }
 
+        // Status badge
+        let statusBadge;
+        const st = b.inv_status || 'active';
+        if (st === 'planned') statusBadge = '<span class="badge badge-pending">Planned</span>';
+        else if (st === 'discovered') statusBadge = '<span class="badge badge-info">Discovered</span>';
+        else statusBadge = '<span class="badge badge-active">Active</span>';
+
+        // Role — if empty, show inline select directly; if set, show clickable badge
+        let roleHtml;
+        if (b.role) {
+            roleHtml = `<span class="role-edit" onclick="editRole('${escAttr(b.hostname)}','${escAttr(b.ip)}',this)" style="cursor:pointer;padding:2px 8px;border-radius:3px;font-size:11px;background:#2d2d2d;color:#aaa;" title="Click to change role">${escHtml(b.role)}</span>`;
+        } else {
+            const roleOpts = knownRoles.map(r => `<option value="${escHtml(r)}">${escHtml(r)}</option>`).join('');
+            roleHtml = `<select class="inline-select" onchange="inlineRoleSave('${escAttr(b.hostname)}','${escAttr(b.ip)}',this.value)" style="background:#1a1a1a;color:#888;border:1px solid #3c3c3c;border-radius:3px;padding:1px 4px;font-size:11px;outline:none;max-width:110px;cursor:pointer;"><option value="">—</option>${roleOpts}</select>`;
+        }
+
+        // Serial — if empty, check discovery for same IP first, then show dropdown of unbound
+        let serialHtml;
+        if (b.serial) {
+            serialHtml = `<span class="serial-edit" onclick="editSerial('${escAttr(b.hostname)}','${escAttr(b.ip)}',this)" style="cursor:pointer;font-family:'Cascadia Code','Consolas',monospace; font-size:11px; color:#aaa;" title="Click to change serial">${escHtml(b.serial)}</span>`;
+        } else {
+            // Option 1: discovery has serial for same IP → quick-fill button
+            const discForIp = disc;
+            if (discForIp.serial) {
+                serialHtml = `<span onclick="fillFromDiscovery('${escAttr(b.hostname)}','serial','${escAttr(discForIp.serial)}')" style="cursor:pointer;padding:2px 6px;border-radius:3px;font-size:10px;background:rgba(66,165,245,0.15);color:#42a5f5;font-family:'Cascadia Code','Consolas',monospace;" title="Fill from discovery">${escHtml(discForIp.serial)}</span>`;
+            } else {
+                // Option 2: dropdown of unbound serials from other discovered devices
+                const boundSerials = new Set(allBindings.map(x => x.serial).filter(Boolean));
+                const availSerials = (allDiscovered || []).filter(d => d.serial && !boundSerials.has(d.serial));
+                if (availSerials.length > 0) {
+                    const serialOpts = availSerials.map(d => `<option value="${escHtml(d.serial)}" data-mac="${escHtml(d.discovered_mac || '')}">${escHtml(d.serial)} (${escHtml(d.hostname || d.ip)})</option>`).join('');
+                    serialHtml = `<select class="inline-select" onchange="inlineSerialSave('${escAttr(b.hostname)}','${escAttr(b.ip)}',this)" style="background:#1a1a1a;color:#888;border:1px solid #3c3c3c;border-radius:3px;padding:1px 4px;font-size:11px;outline:none;max-width:140px;cursor:pointer;font-family:'Cascadia Code','Consolas',monospace;"><option value="">—</option>${serialOpts}</select>`;
+                } else {
+                    serialHtml = '-';
+                }
+            }
+        }
+
+        // DHCP checkbox — disabled for entries without valid MAC (DHCP not applicable)
+        const hasValidMac = b.mac && b.mac !== '-' && !b.mac.includes('x');
+        const dhcpChecked = b.dhcp !== false ? 'checked' : '';
+        const dhcpHtml = hasValidMac
+            ? `<input type="checkbox" ${dhcpChecked} onchange="toggleDhcp('${escAttr(b.hostname)}', this.checked)" style="cursor:pointer;" title="DHCP binding">`
+            : `<span style="color:#444;font-size:11px;" title="No MAC — DHCP not applicable">—</span>`;
+
+        // Base Config badge
+        let baseHtml;
+        if (b.base_config) {
+            baseHtml = '<span style="display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;background:rgba(76,175,80,0.15);color:#81c784;">Yes</span>';
+        } else {
+            baseHtml = '<span style="color:#555;font-size:11px;">-</span>';
+        }
+
+        // MAC — if empty and discovery has MAC for same IP, show clickable auto-fill
+        let macHtml;
+        if (hasValidMac) {
+            macHtml = escHtml(b.mac);
+        } else if (disc.discovered_mac) {
+            macHtml = `<span onclick="fillFromDiscovery('${escAttr(b.hostname)}','mac','${escAttr(disc.discovered_mac)}')" style="cursor:pointer;padding:2px 6px;border-radius:3px;font-size:11px;background:rgba(66,165,245,0.15);color:#42a5f5;font-family:'Cascadia Code','Consolas',monospace;" title="Fill MAC from discovery: ${escAttr(disc.discovered_mac)}">${escHtml(disc.discovered_mac)}</span>`;
+        } else {
+            macHtml = '<span style="color:#555;">-</span>';
+        }
+
         return `<tr data-idx="${i}">
-            <td><input type="checkbox" class="binding-cb" data-hostname="${b.hostname}"></td>
             <td><strong>${escHtml(b.hostname)}</strong></td>
-            <td style="font-family:'Cascadia Code','Consolas',monospace; font-size:12px;">${escHtml(b.mac)}</td>
+            <td style="font-family:'Cascadia Code','Consolas',monospace; font-size:12px;">${macHtml}</td>
             <td style="font-family:'Cascadia Code','Consolas',monospace; font-size:12px;">${escHtml(b.ip)}</td>
-            <td style="font-family:'Cascadia Code','Consolas',monospace; font-size:12px;">${dmacHtml}</td>
-            <td>${b.mac.toLowerCase().includes('x') ? '<span class="badge badge-warning">Pending MAC</span>' : b.commented ? '<span class="badge badge-pending">Disabled</span>' : '<span class="badge badge-active">Active</span>'}</td>
+            <td>${serialHtml}</td>
+            <td>${roleHtml}</td>
+            <td>${statusBadge}</td>
+            <td style="text-align:center;">${dhcpHtml}</td>
             <td style="text-align:center;">${liveIcon}</td>
+            <td style="text-align:center;">${baseHtml}</td>
             <td class="row-actions">
                 <button class="btn btn-secondary btn-sm" onclick="editBinding('${escAttr(b.hostname)}')">Edit</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteBinding('${escAttr(b.hostname)}')">Del</button>
@@ -1559,15 +1770,276 @@ function renderBindings() {
     }).join('');
 }
 
+function fillFromDiscovery(hostname, field, value) {
+    const b = allBindings.find(x => x.hostname === hostname);
+    if (!b) return;
+    b[field] = value;
+    bindingsModified = true;
+    document.getElementById('btnSaveBindings').style.display = '';
+    document.getElementById('btnDiscardBindings').style.display = '';
+    
+    // If filling MAC, also fill serial from discovery if available
+    if (field === 'mac') {
+        const disc = (allDiscovered || []).find(d => d.ip === b.ip);
+        if (disc && disc.serial && !b.serial) {
+            b.serial = disc.serial;
+            showToast(`MAC + Serial filled from discovery`, 'success');
+        } else {
+            showToast(`MAC filled: ${value}`, 'success');
+        }
+    } else if (field === 'serial') {
+        // If filling serial, also fill MAC if available
+        const disc = (allDiscovered || []).find(d => d.ip === b.ip);
+        if (disc && disc.discovered_mac && (!b.mac || b.mac === '-')) {
+            b.mac = disc.discovered_mac;
+            showToast(`Serial + MAC filled from discovery`, 'success');
+        } else {
+            showToast(`Serial filled: ${value}`, 'success');
+        }
+    }
+    renderBindings();
+}
+
+function toggleDhcp(hostname, checked) {
+    const b = allBindings.find(x => x.hostname === hostname);
+    if (b) {
+        b.dhcp = checked;
+        bindingsModified = true;
+        document.getElementById('btnSaveBindings').style.display = '';
+        document.getElementById('btnDiscardBindings').style.display = '';
+    }
+}
+
+function toggleAllDhcp(checked) {
+    allBindings.forEach(b => { b.dhcp = checked; });
+    bindingsModified = true;
+    document.getElementById('btnSaveBindings').style.display = '';
+    document.getElementById('btnDiscardBindings').style.display = '';
+    renderBindings();
+}
+
 function filterBindings() { renderBindings(); }
+
+async function loadKnownRoles() {
+    const data = await apiCall('list-roles');
+    if (data.success && data.roles) {
+        knownRoles = data.roles;
+    }
+}
+
+async function inlineRoleSave(hostname, ip, newRole) {
+    if (!newRole) return;
+    const data = await apiCall('update-role', { hostname, ip, role: newRole });
+    if (data.success) {
+        const b = allBindings.find(x => x.hostname === hostname);
+        if (b) b.role = newRole;
+        const d = (allDiscovered || []).find(x => x.hostname === hostname);
+        if (d) d.role = newRole;
+        if (!knownRoles.includes(newRole)) knownRoles.push(newRole);
+        showToast(`Role: ${hostname} → ${newRole}`, 'success');
+    } else {
+        showToast('Role update failed: ' + (data.error || ''), 'error');
+    }
+    renderBindings();
+}
+
+function inlineSerialSave(hostname, ip, selectEl) {
+    const newSerial = selectEl.value;
+    if (!newSerial) return;
+    const selectedOpt = selectEl.options[selectEl.selectedIndex];
+    const discMac = selectedOpt.dataset.mac || '';
+    const b = allBindings.find(x => x.hostname === hostname);
+    if (b) {
+        b.serial = newSerial;
+        if (discMac && (!b.mac || b.mac === '-' || b.mac.includes('x'))) {
+            b.mac = discMac;
+            bindingsModified = true;
+            document.getElementById('btnSaveBindings').style.display = ''; document.getElementById('btnDiscardBindings').style.display = '';
+            showToast(`Serial assigned + MAC auto-filled: ${discMac}`, 'success');
+        } else {
+            showToast(`Serial assigned: ${newSerial}`, 'info');
+        }
+    }
+    renderBindings();
+}
+
+function editRole(hostname, ip, el) {
+    const currentRole = el.textContent.trim();
+    // Build role options from devices.yaml only (no hardcoded defaults)
+    const allRoles = ['', ...knownRoles];
+
+    // Create combo box: wrapper with select + text input
+    const wrapper = document.createElement('span');
+    wrapper.style.cssText = 'display:inline-flex;align-items:center;gap:2px;';
+
+    const select = document.createElement('select');
+    select.style.cssText = 'background:#1a1a1a;color:#d4d4d4;border:1px solid #76b900;border-radius:3px 0 0 3px;padding:2px 4px;font-size:11px;outline:none;max-width:100px;';
+    allRoles.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.textContent = r || '(none)';
+        if (r === currentRole || (r === '' && currentRole === '-')) opt.selected = true;
+        select.appendChild(opt);
+    });
+    // Add "custom..." option at the end
+    const customOpt = document.createElement('option');
+    customOpt.value = '__custom__';
+    customOpt.textContent = '✎ custom...';
+    select.appendChild(customOpt);
+
+    const textInput = document.createElement('input');
+    textInput.type = 'text';
+    textInput.style.cssText = 'display:none;background:#1a1a1a;color:#d4d4d4;border:1px solid #76b900;border-radius:0 3px 3px 0;padding:2px 4px;font-size:11px;outline:none;width:80px;';
+    textInput.placeholder = 'type role';
+
+    wrapper.appendChild(select);
+    wrapper.appendChild(textInput);
+    el.replaceWith(wrapper);
+    select.focus();
+
+    let saving = false;
+
+    async function saveRole(newRole) {
+        if (saving) return;
+        saving = true;
+        select.disabled = true;
+        textInput.disabled = true;
+        const data = await apiCall('update-role', { hostname, ip, role: newRole });
+        if (data.success) {
+            const b = allBindings.find(x => x.hostname === hostname);
+            if (b) b.role = newRole;
+            // Also update discovered data
+            const d = (allDiscovered || []).find(x => x.hostname === hostname);
+            if (d) d.role = newRole;
+            // Add to known roles if new
+            if (newRole && !knownRoles.includes(newRole)) knownRoles.push(newRole);
+            showToast(`Role updated: ${hostname} → ${newRole || '(none)'}`, 'success');
+        } else {
+            showToast('Role update failed: ' + (data.error || ''), 'error');
+        }
+        renderBindings();
+    }
+
+    select.addEventListener('change', () => {
+        if (select.value === '__custom__') {
+            textInput.style.display = '';
+            textInput.focus();
+        } else {
+            textInput.style.display = 'none';
+            saveRole(select.value);
+        }
+    });
+
+    textInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const val = textInput.value.trim().toLowerCase();
+            saveRole(val);
+        } else if (e.key === 'Escape') {
+            renderBindings();
+        }
+    });
+
+    textInput.addEventListener('blur', () => {
+        if (!saving) {
+            const val = textInput.value.trim().toLowerCase();
+            if (val) saveRole(val);
+            else renderBindings();
+        }
+    });
+
+    select.addEventListener('blur', () => {
+        // Only cancel if custom input is not shown (not switching to text input)
+        setTimeout(() => {
+            if (!saving && textInput.style.display === 'none' && document.activeElement !== textInput) {
+                renderBindings();
+            }
+        }, 150);
+    });
+}
+
+function editSerial(hostname, ip, el) {
+    // Build dropdown from discovered devices that have serial but no binding, plus current serial
+    const currentSerial = el.textContent.trim();
+    const boundSerials = new Set(allBindings.map(b => b.serial).filter(Boolean));
+    // Unbound serials from discovered data
+    const available = (allDiscovered || [])
+        .filter(d => d.serial && (!boundSerials.has(d.serial) || d.serial === currentSerial))
+        .map(d => ({ serial: d.serial, hostname: d.hostname, ip: d.ip, mac: d.discovered_mac }));
+
+    const select = document.createElement('select');
+    select.style.cssText = 'background:#1a1a1a;color:#d4d4d4;border:1px solid #76b900;border-radius:3px;padding:2px 4px;font-size:11px;outline:none;max-width:180px;';
+
+    // "(none)" option
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = '(none)';
+    if (!currentSerial || currentSerial === '-') noneOpt.selected = true;
+    select.appendChild(noneOpt);
+
+    // Available serials
+    available.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.serial;
+        opt.textContent = `${d.serial} (${d.hostname || d.ip})`;
+        opt.dataset.mac = d.mac || '';
+        opt.dataset.discHostname = d.hostname || '';
+        if (d.serial === currentSerial) opt.selected = true;
+        select.appendChild(opt);
+    });
+
+    if (available.length === 0) {
+        const noOpt = document.createElement('option');
+        noOpt.value = '';
+        noOpt.textContent = '— no discovered serials —';
+        noOpt.disabled = true;
+        select.appendChild(noOpt);
+    }
+
+    el.replaceWith(select);
+    select.focus();
+
+    let saving = false;
+
+    select.addEventListener('change', () => {
+        if (saving) return;
+        saving = true;
+        const selectedOpt = select.options[select.selectedIndex];
+        const newSerial = select.value;
+        const discMac = selectedOpt.dataset.mac || '';
+
+        // Update local binding
+        const b = allBindings.find(x => x.hostname === hostname);
+        if (b) {
+            b.serial = newSerial;
+            // Auto-fill MAC from discovered data if current MAC is empty/placeholder
+            if (discMac && (!b.mac || b.mac === '-' || b.mac.includes('x'))) {
+                b.mac = discMac;
+                bindingsModified = true;
+                document.getElementById('btnSaveBindings').style.display = ''; document.getElementById('btnDiscardBindings').style.display = '';
+                showToast(`Serial assigned + MAC auto-filled: ${discMac}`, 'success');
+            } else {
+                showToast(`Serial assigned: ${newSerial || '(none)'}`, 'info');
+            }
+        }
+        renderBindings();
+    });
+
+    select.addEventListener('blur', () => {
+        if (!saving) renderBindings();
+    });
+}
 
 function showAddBinding() {
     document.getElementById('modalTitle').textContent = 'Add Binding';
     document.getElementById('modalHostname').value = '';
-    document.getElementById('modalMAC').value = 'xx:xx:xx:xx:xx:xx';
+    document.getElementById('modalMAC').value = '';
     document.getElementById('modalIP').value = '';
+    document.getElementById('modalSerial').value = '';
+    document.getElementById('modalRole').value = '';
     document.getElementById('modalOrigHostname').value = '';
     document.getElementById('modalSaveBtn').textContent = 'Add';
+    populateModalSerialDropdown('');
+    populateModalRoleDropdown('');
     document.getElementById('bindingModal').style.display = 'flex';
     document.getElementById('modalHostname').focus();
 }
@@ -1579,10 +2051,53 @@ function editBinding(hostname) {
     document.getElementById('modalHostname').value = b.hostname;
     document.getElementById('modalMAC').value = b.mac;
     document.getElementById('modalIP').value = b.ip;
+    document.getElementById('modalSerial').value = b.serial || '';
+    document.getElementById('modalRole').value = b.role || '';
     document.getElementById('modalOrigHostname').value = b.hostname;
     document.getElementById('modalSaveBtn').textContent = 'Update';
+    populateModalSerialDropdown(b.serial || '');
+    populateModalRoleDropdown(b.role || '');
     document.getElementById('bindingModal').style.display = 'flex';
     document.getElementById('modalHostname').focus();
+}
+
+function populateModalSerialDropdown(currentSerial) {
+    const list = document.getElementById('modalSerialList');
+    if (!list) return;
+    list.innerHTML = '';
+    const boundSerials = new Set(allBindings.map(b => b.serial).filter(Boolean));
+    (allDiscovered || [])
+        .filter(d => d.serial && (!boundSerials.has(d.serial) || d.serial === currentSerial))
+        .forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.serial;
+            opt.textContent = `${d.serial} (${d.hostname || d.ip})`;
+            list.appendChild(opt);
+        });
+}
+
+function populateModalRoleDropdown(currentRole) {
+    const list = document.getElementById('modalRoleList');
+    if (!list) return;
+    list.innerHTML = '';
+    knownRoles.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r;
+        list.appendChild(opt);
+    });
+}
+
+function onModalSerialSelect() {
+    const serial = document.getElementById('modalSerial').value;
+    if (!serial) return;
+    // Find discovered device with this serial and auto-fill MAC if empty
+    const disc = (allDiscovered || []).find(d => d.serial === serial);
+    if (disc && disc.discovered_mac) {
+        const macInput = document.getElementById('modalMAC');
+        if (!macInput.value || macInput.value === '-' || macInput.value.includes('x')) {
+            macInput.value = disc.discovered_mac;
+        }
+    }
 }
 
 function closeBindingModal() {
@@ -1591,19 +2106,26 @@ function closeBindingModal() {
 
 function saveBinding() {
     const hostname = document.getElementById('modalHostname').value.trim();
-    const mac = document.getElementById('modalMAC').value.trim().toLowerCase();
+    let mac = document.getElementById('modalMAC').value.trim().toLowerCase();
     const ip = document.getElementById('modalIP').value.trim();
+    const serial = document.getElementById('modalSerial').value.trim();
+    const role = document.getElementById('modalRole').value.trim().toLowerCase();
     const origHostname = document.getElementById('modalOrigHostname').value;
 
-    if (!hostname || !mac || !ip) {
-        showToast('All fields are required', 'error');
+    if (!hostname || !ip) {
+        showToast('Hostname and IP are required', 'error');
         return;
     }
 
-    // MAC format validation — allow placeholder like xx:xx:xx:xx:xx:xx
-    if (!/^([0-9a-fx]{2}:){5}[0-9a-fx]{2}$/.test(mac)) {
-        showToast('Invalid MAC format. Use xx:xx:xx:xx:xx:xx', 'error');
-        return;
+    // Empty MAC → placeholder dash (will be written as xx:xx:xx:xx:xx:xx in dhcpd.hosts)
+    if (!mac || mac === '-') {
+        mac = '-';
+    } else {
+        // MAC format validation — allow placeholder like xx:xx:xx:xx:xx:xx
+        if (!/^([0-9a-fx]{2}:){5}[0-9a-fx]{2}$/.test(mac)) {
+            showToast('Invalid MAC format. Use xx:xx:xx:xx:xx:xx', 'error');
+            return;
+        }
     }
 
     // IP format validation
@@ -1616,7 +2138,7 @@ function saveBinding() {
         // Edit existing
         const idx = allBindings.findIndex(x => x.hostname === origHostname);
         if (idx >= 0) {
-            allBindings[idx] = { hostname, mac, ip, commented: false };
+            allBindings[idx] = { ...allBindings[idx], hostname, mac, ip, serial, role, commented: false };
         }
     } else {
         // Check duplicate
@@ -1624,24 +2146,34 @@ function saveBinding() {
             showToast(`Hostname "${hostname}" already exists`, 'error');
             return;
         }
-        allBindings.push({ hostname, mac, ip, commented: false });
+        allBindings.push({ hostname, mac, ip, serial, role, commented: false });
+    }
+
+    // Save role to devices.yaml if changed
+    if (role !== undefined) {
+        apiCall('update-role', { hostname, ip, role }).then(data => {
+            if (data.success && role && !knownRoles.includes(role)) knownRoles.push(role);
+        });
     }
 
     bindingsModified = true;
-    document.getElementById('btnSaveBindings').style.display = '';
+    document.getElementById('btnSaveBindings').style.display = ''; document.getElementById('btnDiscardBindings').style.display = '';
     closeBindingModal();
     renderBindings();
     showToast(origHostname ? 'Binding updated (unsaved)' : 'Binding added (unsaved)', 'info');
 }
 
 function deleteBinding(hostname) {
-    showConfirmModal('Delete Binding', `Delete binding for <strong>${hostname}</strong>?`, () => {
-        allBindings = allBindings.filter(x => x.hostname !== hostname);
-        bindingsModified = true;
-        document.getElementById('btnSaveBindings').style.display = '';
-        renderBindings();
-        showToast(`Binding "${hostname}" deleted (unsaved)`, 'info');
-    });
+    showConfirmModal('Delete Binding',
+        `Delete binding for <strong>${hostname}</strong>?<br><br><span style="color:#ff9800;font-size:12px;">This will also remove the device from devices.yaml (inventory).</span>`,
+        () => {
+            allBindings = allBindings.filter(x => x.hostname !== hostname);
+            pendingRemovals.push(hostname);
+            bindingsModified = true;
+            document.getElementById('btnSaveBindings').style.display = ''; document.getElementById('btnDiscardBindings').style.display = '';
+            renderBindings();
+            showToast(`Binding "${hostname}" deleted (unsaved)`, 'info');
+        });
 }
 
 async function saveBindings() {
@@ -1649,22 +2181,47 @@ async function saveBindings() {
     btn.disabled = true;
     btn.textContent = 'Saving...';
 
-    const data = await apiCall('save-bindings', { bindings: allBindings });
+    const data = await apiCall('save-bindings', {
+        bindings: allBindings,
+        sync_devices: true,
+        remove_devices: pendingRemovals,
+        restart_dhcp: false
+    });
     if (data.success) {
         bindingsModified = false;
+        pendingRemovals = [];
         btn.style.display = 'none';
-        showToast('Bindings saved & DHCP restarted', 'success');
-        checkDHCPStatus();
+        document.getElementById('btnDiscardBindings').style.display = 'none';
+        showToast(data.message || 'Saved', 'success');
+        loadKnownRoles();
+        // Ask if user wants to restart DHCP
+        showConfirmModal('Restart DHCP?',
+            'Bindings saved successfully.<br><br>Restart DHCP server to apply changes?<br><span style="color:#888;font-size:12px;">Skip if DHCP is not running (e.g. Docker without DHCP).</span>',
+            async () => {
+                const r = await apiCall('dhcp-service-control', { action: 'restart' });
+                if (r.success) {
+                    showToast('DHCP restarted: ' + (r.message || 'OK'), 'success');
+                } else {
+                    showToast('DHCP restart failed: ' + (r.error || ''), 'error');
+                }
+                checkDHCPStatus();
+            }, 'Restart', 'No');
     } else {
         showToast('Save failed: ' + (data.error || 'Unknown error'), 'error');
     }
     btn.disabled = false;
-    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg> Save &amp; Restart DHCP';
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg> Save';
 }
 
-function toggleSelectAllBindings() {
-    const checked = document.getElementById('selectAllBindings').checked;
-    document.querySelectorAll('.binding-cb').forEach(cb => cb.checked = checked);
+
+function discardBindingChanges() {
+    showConfirmModal('Discard Changes', 'Discard all unsaved changes and reload bindings from server?', () => {
+        pendingRemovals = [];
+        bindingsModified = false;
+        document.getElementById('btnSaveBindings').style.display = 'none'; document.getElementById('btnDiscardBindings').style.display = 'none';
+        loadBindings();
+        showToast('Changes discarded', 'info');
+    });
 }
 
 function formatMAC(input) {
@@ -1688,7 +2245,7 @@ async function loadDiscoveryCache() {
         if (data.stale) silentSubnetScan();
     } else {
         // No cache — silent scan
-        document.getElementById('discoveredBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#666;">No scan data yet. Click Scan or wait...</td></tr>';
+        document.getElementById('discoveredBody').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#666;">No scan data yet. Click Scan or wait...</td></tr>';
         silentSubnetScan();
     }
 }
@@ -1713,16 +2270,33 @@ async function silentSubnetScan() {
     }
 }
 
-// Start periodic background scan (every 5 minutes)
-setInterval(silentSubnetScan, 300000);
+// Periodic background scan — interval controlled by dropdown
+let scanIntervalId = null;
+
+function applyScanInterval() {
+    const sec = parseInt(document.getElementById('scanInterval').value) || 0;
+    const info = document.getElementById('scanIntervalInfo');
+    if (scanIntervalId) { clearInterval(scanIntervalId); scanIntervalId = null; }
+    if (sec > 0) {
+        scanIntervalId = setInterval(silentSubnetScan, sec * 1000);
+        info.textContent = '';
+    } else {
+        info.textContent = '(manual only)';
+    }
+}
+
+// Initialize default interval (5 min)
+applyScanInterval();
 
 function renderDiscoveredStats() {
     const provisioned = allDiscovered.filter(d => d.device_type === 'provisioned').length;
     const notProv = allDiscovered.filter(d => d.device_type === 'not_provisioned').length;
     const other = allDiscovered.filter(d => d.device_type === 'other').length;
     const unreachable = allDiscovered.filter(d => d.device_type === 'unreachable').length;
+    const reachable = allDiscovered.filter(d => d.device_type && d.device_type !== 'unreachable').length;
     const mismatch = allDiscovered.filter(d => d.mac_status === 'mismatch').length;
     const noBinding = allDiscovered.filter(d => !d.has_binding).length;
+    document.getElementById('statReachable').textContent = reachable;
     document.getElementById('statProvisioned').textContent = provisioned;
     document.getElementById('statNotProv').textContent = notProv;
     document.getElementById('statOther').textContent = other;
@@ -1732,12 +2306,71 @@ function renderDiscoveredStats() {
     document.getElementById('statAll').textContent = allDiscovered.length;
 }
 
+async function exportDiscoveredToDevicesYaml() {
+    // Get provisioned devices from discovery
+    const provisioned = (allDiscovered || []).filter(d => d.device_type === 'provisioned' && d.hostname);
+    if (provisioned.length === 0) {
+        showToast('No provisioned devices found. Run a scan first.', 'error');
+        return;
+    }
+
+    const inInv = provisioned.filter(d => allBindings.some(b => b.ip === d.ip)).length;
+    const notInInv = provisioned.length - inInv;
+
+    let msg = `Export ${provisioned.length} provisioned devices to devices.yaml?<br><br>`;
+    msg += `<strong>${inInv}</strong> already in inventory<br>`;
+    if (notInInv > 0) msg += `<strong>${notInInv}</strong> will be added to inventory<br>`;
+    msg += `<br><span style="color:#888;font-size:12px;">Adds missing devices to inventory, saves, then rebuilds devices.yaml (grouped by role, sorted by IP).</span>`;
+
+    showConfirmModal('Export to devices.yaml', msg, async () => {
+        // 1. Add missing provisioned devices to inventory
+        let added = 0;
+        for (const d of provisioned) {
+            if (!allBindings.some(b => b.ip === d.ip)) {
+                allBindings.push({
+                    hostname: d.hostname,
+                    mac: d.discovered_mac || '-',
+                    ip: d.ip,
+                    serial: d.serial || '',
+                    role: d.role || '',
+                    inv_status: 'active',
+                    dhcp: !!(d.discovered_mac),
+                });
+                added++;
+            }
+        }
+
+        // 2. Save inventory
+        const saveData = await apiCall('save-bindings', {
+            bindings: allBindings,
+            sync_devices: false,
+            remove_devices: [],
+            restart_dhcp: false
+        });
+        if (!saveData.success) {
+            showToast('Save failed: ' + (saveData.error || ''), 'error');
+            return;
+        }
+
+        // 3. Rebuild devices.yaml
+        const rebuildData = await apiCall('rebuild-devices-yaml', { bindings: allBindings });
+        if (rebuildData.success) {
+            showToast(`Exported: ${rebuildData.active || 0} active, ${rebuildData.planned || 0} planned. ${added} new devices added.`, 'success');
+        } else {
+            showToast('Rebuild failed: ' + (rebuildData.error || ''), 'error');
+        }
+
+        // Refresh bindings if on inventory tab
+        if (allBindings.length > 0) renderBindings();
+    }, 'Export');
+}
+
 async function runSubnetScan() {
     // Manual scan — shows loading indicator
     const btn = document.getElementById('btnScan');
     btn.disabled = true;
     btn.textContent = 'Scanning...';
-    document.getElementById('discoveredBody').innerHTML = '<tr><td colspan="6" class="loading">Scanning subnet: ping + SSH probe + post-provision...</td></tr>';
+    document.getElementById('discoveredBody').innerHTML = '<tr><td colspan="8" class="loading">Scanning subnet: ping + SSH probe + post-provision...</td></tr>';
     
     const data = await apiCall('subnet-scan');
     if (data.success) {
@@ -1753,7 +2386,7 @@ async function runSubnetScan() {
         updateDiscoveryInfo(0);
         if (allBindings.length > 0) renderBindings();
     } else {
-        document.getElementById('discoveredBody').innerHTML = `<tr><td colspan="6" style="color:#f44336;padding:20px;">Scan failed: ${data.error}</td></tr>`;
+        document.getElementById('discoveredBody').innerHTML = `<tr><td colspan="8" style="color:#f44336;padding:20px;">Scan failed: ${data.error}</td></tr>`;
         showToast('Scan failed: ' + (data.error || ''), 'error');
     }
     btn.disabled = false;
@@ -1766,7 +2399,8 @@ function renderDiscovered() {
 
     let filtered = allDiscovered;
     if (typeFilter !== 'all') {
-        if (typeFilter === 'has_binding') filtered = filtered.filter(d => d.has_binding);
+        if (typeFilter === 'reachable') filtered = filtered.filter(d => d.device_type && d.device_type !== 'unreachable');
+        else if (typeFilter === 'has_binding') filtered = filtered.filter(d => d.has_binding);
         else if (typeFilter === 'no_binding') filtered = filtered.filter(d => !d.has_binding);
         else if (typeFilter === 'mismatch') filtered = filtered.filter(d => d.mac_status === 'mismatch');
         else filtered = filtered.filter(d => d.device_type === typeFilter);
@@ -1774,8 +2408,9 @@ function renderDiscovered() {
     if (filter) {
         filtered = filtered.filter(d =>
             (d.hostname || '').toLowerCase().includes(filter) ||
-            (d.binding_mac || '').toLowerCase().includes(filter) ||
             (d.discovered_mac || '').toLowerCase().includes(filter) ||
+            (d.serial || '').toLowerCase().includes(filter) ||
+            (d.role || '').toLowerCase().includes(filter) ||
             (d.ip || '').includes(filter)
         );
     }
@@ -1793,7 +2428,7 @@ function renderDiscovered() {
     });
 
     if (filtered.length === 0) {
-        document.getElementById('discoveredBody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:#666;">No entries found.</td></tr>';
+        document.getElementById('discoveredBody').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#666;">No entries found.</td></tr>';
         return;
     }
 
@@ -1801,33 +2436,41 @@ function renderDiscovered() {
         // Device type badge
         const dtBadge = {
             'provisioned': '<span class="badge badge-match">Provisioned</span>',
-            'not_provisioned': '<span class="badge badge-warning">Not Provisioned</span>',
+            'not_provisioned': '<span class="badge badge-warning">No Key</span>',
             'other': '<span class="badge" style="background:rgba(120,144,156,0.15);color:#78909c;">Other</span>',
             'unreachable': '<span class="badge badge-unreachable">Unreachable</span>'
-        }[d.device_type] || '';
+        }[d.device_type] || '-';
         
-        // Post-provision indicator
-        let ppIcon = '';
-        if (d.post_provision === 'deployed') ppIcon = ' <span title="Just configured" style="color:#4caf50;">&#10004;</span>';
-        else if (d.post_provision === 'already') ppIcon = ' <span title="Already configured" style="color:#888;">&#10003;</span>';
+        // Post-provision badge (separate column)
+        let ppBadge = '-';
+        if (d.post_provision === 'deployed') ppBadge = '<span class="badge badge-match" style="font-size:10px;">Just Now</span>';
+        else if (d.post_provision === 'already') ppBadge = '<span class="badge" style="font-size:10px;background:rgba(100,100,100,0.2);color:#aaa;">Yes</span>';
+        else if (d.device_type === 'provisioned') ppBadge = '<span class="badge" style="font-size:10px;background:rgba(255,152,0,0.15);color:#ff9800;">Pending</span>';
+        else if (d.device_type === 'not_provisioned') ppBadge = 'No SSH';
+        else if (d.device_type === 'unreachable') ppBadge = '-';
         
         // MAC status badge
-        let macBadge = '';
+        let macBadge = '-';
         if (d.mac_status === 'match') macBadge = '<span class="badge badge-match" style="font-size:10px;">Match</span>';
         else if (d.mac_status === 'mismatch') macBadge = '<span class="badge badge-mismatch" style="font-size:10px;">Mismatch</span>';
-        else if (d.mac_status === 'no_binding') macBadge = '<span class="badge badge-info" style="font-size:10px;">No Binding</span>';
+        else if (d.mac_status === 'no_binding') macBadge = '<span class="badge badge-info" style="font-size:10px;">Not in Inventory</span>';
         else if (d.mac_status === 'unreachable' && d.has_binding) macBadge = '<span class="badge badge-unreachable" style="font-size:10px;">Unreachable</span>';
 
         // Discovered MAC color
         const dmac = d.discovered_mac || '-';
         const dmacHtml = d.mac_status === 'mismatch' ? `<span style="color:#ff6b6b;">${escHtml(dmac)}</span>` : escHtml(dmac);
 
+        // Role badge
+        const roleHtml = d.role ? `<span style="padding:2px 8px;border-radius:3px;font-size:11px;background:#2d2d2d;color:#aaa;">${escHtml(d.role)}</span>` : '-';
+
         return `<tr>
             <td><strong>${escHtml(d.hostname || '-')}</strong></td>
-            <td style="font-family:monospace;font-size:12px;">${escHtml(d.ip || '-')}</td>
-            <td style="font-family:monospace;font-size:12px;">${escHtml(d.binding_mac || '-')}</td>
             <td style="font-family:monospace;font-size:12px;">${dmacHtml}</td>
-            <td>${dtBadge}${ppIcon}</td>
+            <td style="font-family:monospace;font-size:12px;">${escHtml(d.ip || '-')}</td>
+            <td style="font-family:monospace;font-size:11px;color:#aaa;">${escHtml(d.serial || '-')}</td>
+            <td>${roleHtml}</td>
+            <td>${dtBadge}</td>
+            <td>${ppBadge}</td>
             <td>${macBadge}</td>
         </tr>`;
     }).join('');
@@ -1847,6 +2490,60 @@ function sortDiscovered(col) {
     const indicator = document.getElementById('sort-' + col);
     if (indicator) { indicator.style.opacity = '1'; indicator.innerHTML = discSortAsc ? '&#9650;' : '&#9660;'; }
     renderDiscovered();
+}
+
+function downloadDiscoveredCSV() {
+    if (allDiscovered.length === 0) {
+        showToast('No discovered data. Run a Scan first.', 'error');
+        return;
+    }
+    // Apply current filter (same as table view)
+    const searchFilter = document.getElementById('discoveredSearch').value.toLowerCase();
+    const typeFilter = document.getElementById('discoveredFilter').value;
+
+    let filtered = allDiscovered;
+    if (typeFilter !== 'all') {
+        if (typeFilter === 'reachable') filtered = filtered.filter(d => d.device_type && d.device_type !== 'unreachable');
+        else if (typeFilter === 'has_binding') filtered = filtered.filter(d => d.has_binding);
+        else if (typeFilter === 'no_binding') filtered = filtered.filter(d => !d.has_binding);
+        else if (typeFilter === 'mismatch') filtered = filtered.filter(d => d.mac_status === 'mismatch');
+        else filtered = filtered.filter(d => d.device_type === typeFilter);
+    }
+    if (searchFilter) {
+        filtered = filtered.filter(d =>
+            (d.hostname || '').toLowerCase().includes(searchFilter) ||
+            (d.discovered_mac || '').toLowerCase().includes(searchFilter) ||
+            (d.serial || '').toLowerCase().includes(searchFilter) ||
+            (d.role || '').toLowerCase().includes(searchFilter) ||
+            (d.ip || '').includes(searchFilter)
+        );
+    }
+
+    if (filtered.length === 0) {
+        showToast('No devices match current filter', 'error');
+        return;
+    }
+
+    // Same column order as Bulk Import: Hostname, MAC, IP, Serial, Role
+    const lines = filtered
+        .sort((a, b) => ipToNum(a.ip) - ipToNum(b.ip))
+        .map(d => [
+            d.hostname || '-',
+            d.discovered_mac || '-',
+            d.ip || '-',
+            d.serial || '-',
+            d.role || '-'
+        ].join(','));
+    const header = 'Hostname,MAC,IP,Serial,Role';
+    const content = header + '\n' + lines.join('\n') + '\n';
+    const blob = new Blob([content], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'discovered-devices.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`Downloaded ${filtered.length} devices (filter: ${typeFilter})`, 'success');
 }
 
 function ipToNum(ip) {
@@ -2044,7 +2741,7 @@ function applyQuickSettings() {
 }
 
 function generateZTPTemplate(os, pw, ip, key) {
-    const keyLine = key ? `\necho "$KEY" >> /root/.ssh/authorized_keys\necho "$KEY" >> /home/cumulus/.ssh/authorized_keys\nchown -R cumulus:cumulus /home/cumulus/.ssh` : '# No SSH key configured — generate one in Provision → ZTP Script';
+    const keyLine = key ? `\necho "$KEY" >> /root/.ssh/authorized_keys\necho "$KEY" >> /home/cumulus/.ssh/authorized_keys\nchown -R cumulus:cumulus /home/cumulus/.ssh` : '# No SSH key configured — generate one in Provision → ZTP';
     const keyVar = key ? `KEY="${key}"` : 'KEY=""';
     return `#!/bin/bash
 
@@ -2298,22 +2995,26 @@ function escAttr(s) {
 
 // ===================== CUSTOM CONFIRM MODAL =====================
 let _confirmCallback = null;
-function showConfirmModal(title, message, callback, btnText) {
+function showConfirmModal(title, message, callback, btnText, cancelText) {
     document.getElementById('confirm-modal-title').textContent = title;
     document.getElementById('confirm-modal-message').innerHTML = message;
-    // Set button text based on context
+    // Set action button text
     const btn = document.querySelector('.btn-confirm-action');
     if (btnText) btn.textContent = btnText;
     else if (title.toLowerCase().includes('delete')) btn.textContent = 'Delete';
     else if (title.toLowerCase().includes('stop')) btn.textContent = 'Stop';
     else if (title.toLowerCase().includes('generate')) btn.textContent = 'Generate';
     else btn.textContent = 'Confirm';
+    // Set cancel button text (default: Cancel)
+    document.querySelector('.confirm-modal-footer .btn-cancel').textContent = cancelText || 'Cancel';
     _confirmCallback = callback;
     document.getElementById('confirm-modal').classList.add('visible');
 }
 function closeConfirmModal() {
     document.getElementById('confirm-modal').classList.remove('visible');
     _confirmCallback = null;
+    // Reset cancel button text to default
+    document.querySelector('.confirm-modal-footer .btn-cancel').textContent = 'Cancel';
 }
 function executeConfirmModal() {
     if (_confirmCallback) _confirmCallback();

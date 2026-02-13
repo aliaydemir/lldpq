@@ -381,6 +381,7 @@
                 </select>
                 <button id="clearSearchBtn" class="clear-search-btn" onclick="clearDeviceSearch()">✕</button>
             </div>
+            <input type="text" id="tableFilter" placeholder="Filter Device..." oninput="filterTable()" style="height:34px;padding:0 10px;background:#3c3c3c;color:#d4d4d4;border:1px solid #555;border-radius:4px;font-size:13px;width:220px;outline:none;" autocomplete="off">
             <button id="run-lldp" onclick="runLLDPCheck()" class="btn btn-secondary">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M8,5.14V19.14L19,12.14L8,5.14Z"/>
@@ -559,15 +560,18 @@
                 document.getElementById('total-connections').parentElement.classList.add('active');
             }
             
-            // Show filter info for all filters except TOTAL
-            if (filterType !== 'ALL' && filterType !== 'TOTAL') {
-                document.getElementById('filter-info').style.display = 'block';
-                document.getElementById('filter-text').textContent = filterText;
+            // If text filter is active, apply it on top
+            if (document.getElementById('tableFilter').value.trim()) {
+                filterTable();
             } else {
-                document.getElementById('filter-info').style.display = 'none';
+                if (filterType !== 'ALL' && filterType !== 'TOTAL') {
+                    document.getElementById('filter-info').style.display = 'block';
+                    document.getElementById('filter-text').textContent = filterText;
+                } else {
+                    document.getElementById('filter-info').style.display = 'none';
+                }
+                renderConnectionsTable(filteredConnections);
             }
-            
-            renderConnectionsTable(filteredConnections);
         }
         
         function clearFilter() {
@@ -576,6 +580,7 @@
                 card.classList.remove('active');
             });
             document.getElementById('filter-info').style.display = 'none';
+            document.getElementById('tableFilter').value = '';
             
             // Also clear device search
             if (deviceSearchActive) {
@@ -586,6 +591,62 @@
             }
             
             renderConnectionsTable(allConnections);
+        }
+
+        function filterTable() {
+            const query = document.getElementById('tableFilter').value.toLowerCase().trim();
+            
+            // Start from current card/device filter, then apply text filter on top
+            let base = allConnections;
+            let baseLabel = 'All';
+            
+            if (currentFilter === 'SUCCESS') {
+                base = allConnections.filter(conn => determineLLDPStatus(conn).status === 'SUCCESS');
+                baseLabel = 'Successful';
+            } else if (currentFilter === 'FAILED') {
+                base = allConnections.filter(conn => determineLLDPStatus(conn).status === 'FAILED');
+                baseLabel = 'Failed';
+            } else if (currentFilter === 'WARNING') {
+                base = allConnections.filter(conn => determineLLDPStatus(conn).status === 'WARNING');
+                baseLabel = 'Warning';
+            } else if (currentFilter === 'NO_INFO') {
+                base = allConnections.filter(conn => determineLLDPStatus(conn).status === 'NO INFO');
+                baseLabel = 'No Info';
+            } else if (currentFilter === 'TOTAL') {
+                base = allConnections;
+                baseLabel = 'All';
+            }
+            
+            if (deviceSearchActive && selectedDevice) {
+                base = base.filter(conn => conn.localDevice === selectedDevice || conn.expectedDevice === selectedDevice || conn.actualDevice === selectedDevice);
+                baseLabel = selectedDevice;
+            }
+            
+            if (!query) {
+                if (currentFilter !== 'ALL' || deviceSearchActive) {
+                    document.getElementById('filter-info').style.display = 'block';
+                    document.getElementById('filter-text').textContent = `Showing ${base.length} ${baseLabel} Ports`;
+                } else {
+                    document.getElementById('filter-info').style.display = 'none';
+                }
+                renderConnectionsTable(base);
+                return;
+            }
+            
+            // Apply text filter on top of card/device filter
+            const filtered = base.filter(conn => {
+                const texts = [
+                    conn.localDevice, conn.localPort, conn.portStatus,
+                    conn.expectedDevice, conn.expectedPort,
+                    conn.actualDevice, conn.actualPort,
+                    determineLLDPStatus(conn).status,
+                    determineLLDPStatus(conn).detail
+                ].map(s => (s || '').toLowerCase());
+                return texts.some(t => t.includes(query));
+            });
+            document.getElementById('filter-info').style.display = 'block';
+            document.getElementById('filter-text').textContent = `${baseLabel}: "${document.getElementById('tableFilter').value}" — ${filtered.length} of ${base.length} ports`;
+            renderConnectionsTable(filtered);
         }
 
         function determineLLDPStatus(connection) {
@@ -1169,11 +1230,14 @@
         // CSV Download Function
         function downloadCSV() {
             try {
-                // Get current date for filename
+                // Get current date + active filter for filename
                 const now = new Date();
-                const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
-                const timeStr = now.toTimeString().slice(0, 5).replace(':', '-'); // HH-MM
-                const filename = `LLDP_Topology_Report_${dateStr}_${timeStr}.csv`;
+                const dateStr = now.toISOString().slice(0, 10);
+                const timeStr = now.toTimeString().slice(0, 5).replace(':', '-');
+                const filterSuffix = (currentFilter && currentFilter !== 'ALL') ? `_${currentFilter}` : '';
+                const textFilter = document.getElementById('tableFilter').value.trim();
+                const textSuffix = textFilter ? `_${textFilter.replace(/[^a-zA-Z0-9-]/g, '')}` : '';
+                const filename = `LLDP_Report${filterSuffix}${textSuffix}_${dateStr}_${timeStr}.csv`;
                 
                 // Create CSV header
                 const headers = [
@@ -1505,7 +1569,8 @@
         (async function() {
             await LLDPqAuth.check();
             if (LLDPqAuth.isAdmin()) {
-                document.getElementById('edit-topology').style.display = 'flex';
+                const editBtn = document.getElementById('edit-topology');
+                if (editBtn) editBtn.style.display = 'flex';
             }
         })();
     </script>

@@ -538,28 +538,31 @@
                     <th class="sortable" data-column="0" data-type="string">
                         Device Name <span class="sort-arrow">▲▼</span>
                     </th>
-                    <th class="sortable" data-column="1" data-type="ip">
-                        IP Address <span class="sort-arrow">▲▼</span>
-                    </th>
-                    <th class="sortable" data-column="2" data-type="string">
+                    <th class="sortable" data-column="1" data-type="string">
                         MAC Address <span class="sort-arrow">▲▼</span>
+                    </th>
+                    <th class="sortable" data-column="2" data-type="ip">
+                        IP Address <span class="sort-arrow">▲▼</span>
                     </th>
                     <th class="sortable" data-column="3" data-type="string">
                         Serial Number <span class="sort-arrow">▲▼</span>
                     </th>
                     <th class="sortable" data-column="4" data-type="string">
-                        Model <span class="sort-arrow">▲▼</span>
+                        Role <span class="sort-arrow">▲▼</span>
                     </th>
                     <th class="sortable" data-column="5" data-type="string">
+                        Model <span class="sort-arrow">▲▼</span>
+                    </th>
+                    <th class="sortable" data-column="6" data-type="string">
                         Release <span class="sort-arrow">▲▼</span>
                     </th>
-                    <th class="sortable" data-column="6" data-type="uptime">
+                    <th class="sortable" data-column="7" data-type="uptime">
                         Uptime <span class="sort-arrow">▲▼</span>
                     </th>
-                    <th class="sortable" data-column="7" data-type="status">
+                    <th class="sortable" data-column="8" data-type="status">
                         Status <span class="sort-arrow">▲▼</span>
                     </th>
-                    <th class="sortable" data-column="8" data-type="string">
+                    <th class="sortable" data-column="9" data-type="string">
                         Last Seen <span class="sort-arrow">▲▼</span>
                     </th>
                 </tr>
@@ -577,27 +580,40 @@
     <script src="/css/select2.min.js"></script>
 
 <script>
+    // Global role map: hostname -> role (loaded from devices.yaml via provision-api)
+    let deviceRoleMap = {};
+
     function fetchAndDisplayAssetResults() {
-        fetch('assets.ini')
-            .then(response => response.text())
-            .then(data => {
-                // Extract timestamp from data (first line: "Created on YYYY-MM-DD HH-MM")
-                const firstLine = data.split('\n')[0];
-                if (firstLine.startsWith('Created on ')) {
-                    const timestampStr = firstLine.replace('Created on ', '');
-                    setLastUpdated(timestampStr);
-                } else {
-                    setLastUpdated();
-                }
-                
-                displayAssetResults(data);
-                generateAssetTable(data);
-            })
-            .catch(error => {
-                console.error('Error fetching Asset results:', error);
-                document.getElementById('metinAlani-1').innerHTML = '<p style="color: red;">Error loading asset data: ' + error.message + '</p>';
-                setLastUpdated(); // Fallback to current time on error
-            });
+        // Load assets data and role data in parallel
+        Promise.all([
+            fetch('assets.ini').then(r => r.text()),
+            fetch('/provision-api.sh?action=list-devices').then(r => r.json()).catch(() => ({ success: false }))
+        ]).then(([data, roleData]) => {
+            // Build role map from devices.yaml
+            if (roleData.success && roleData.devices) {
+                roleData.devices.forEach(d => {
+                    if (d.hostname && d.role && d.role !== 'ungrouped') {
+                        deviceRoleMap[d.hostname] = d.role;
+                    }
+                });
+            }
+
+            // Extract timestamp from data (first line: "Created on YYYY-MM-DD HH-MM")
+            const firstLine = data.split('\n')[0];
+            if (firstLine.startsWith('Created on ')) {
+                const timestampStr = firstLine.replace('Created on ', '');
+                setLastUpdated(timestampStr);
+            } else {
+                setLastUpdated();
+            }
+            
+            displayAssetResults(data);
+            generateAssetTable(data);
+        }).catch(error => {
+            console.error('Error fetching Asset results:', error);
+            document.getElementById('metinAlani-1').innerHTML = '<p style="color: red;">Error loading asset data: ' + error.message + '</p>';
+            setLastUpdated();
+        });
     }
     
     function setLastUpdated(timestampFromFile) {
@@ -742,13 +758,17 @@
             // Format last seen for display
             const lastSeenDisplay = lastSeen.replace(/_/g, ' ');
             
+            // Look up role from devices.yaml
+            const role = deviceRoleMap[deviceName] || 'N/A';
+
             const row = document.createElement('tr');
             row.setAttribute('data-health', healthClass);
             row.innerHTML = `
                 <td><a href="device.html?device=${deviceName}" target="_blank" rel="noopener noreferrer" class="device-link">${deviceName}</a></td>
-                <td>${ipAddress || 'N/A'}</td>
                 <td>${macAddress || 'N/A'}</td>
+                <td>${ipAddress || 'N/A'}</td>
                 <td>${serialNumber || 'N/A'}</td>
+                <td>${role}</td>
                 <td>${model || 'N/A'}</td>
                 <td>${release || 'N/A'}</td>
                 <td>${uptime || 'N/A'}</td>
@@ -782,8 +802,8 @@
         const rows = Array.from(tbody.rows);
         
         rows.sort((a, b) => {
-            const aStatus = a.cells[7].textContent.trim(); // Status is column 7 (8th column)
-            const bStatus = b.cells[7].textContent.trim();
+            const aStatus = a.cells[8].textContent.trim(); // Status is column 8 (9th column)
+            const bStatus = b.cells[8].textContent.trim();
             
             const priority = {
                 'FAILED': 0,
@@ -1052,9 +1072,10 @@
             // Create CSV header
             const headers = [
                 'Device Name',
-                'IP Address', 
                 'MAC Address',
+                'IP Address', 
                 'Serial Number',
+                'Role',
                 'Model',
                 'Release',
                 'Uptime',
@@ -1082,16 +1103,17 @@
             rows.forEach(row => {
                 if (row.style.display !== 'none') {
                     const cells = row.querySelectorAll('td');
-                    if (cells.length >= 8) {
+                    if (cells.length >= 9) {
                         const rowData = [
                             cells[0].textContent.trim(), // Device Name
-                            cells[1].textContent.trim(), // IP Address
-                            cells[2].textContent.trim(), // MAC Address
+                            cells[1].textContent.trim(), // MAC Address
+                            cells[2].textContent.trim(), // IP Address
                             cells[3].textContent.trim(), // Serial Number
-                            cells[4].textContent.trim(), // Model
-                            cells[5].textContent.trim(), // Release
-                            cells[6].textContent.trim(), // Uptime
-                            cells[7].textContent.trim()  // Status
+                            cells[4].textContent.trim(), // Role
+                            cells[5].textContent.trim(), // Model
+                            cells[6].textContent.trim(), // Release
+                            cells[7].textContent.trim(), // Uptime
+                            cells[8].textContent.trim()  // Status
                         ];
                         
                         // Escape commas and quotes in data
@@ -1156,7 +1178,7 @@
         document.querySelectorAll('.summary-card').forEach(card => card.classList.remove('active-filter'));
         
         rows.forEach(row => {
-            const statusCell = row.cells[7]; // Status is column 7
+            const statusCell = row.cells[8]; // Status is column 8
             const statusText = statusCell.querySelector('span')?.textContent || statusCell.textContent;
             let shouldShow = true;
             

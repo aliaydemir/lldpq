@@ -68,6 +68,7 @@ AUTO_BASE_CONFIG = os.environ.get('AUTO_BASE_CONFIG', 'true') == 'true'
 AUTO_ZTP_DISABLE = os.environ.get('AUTO_ZTP_DISABLE', 'true') == 'true'
 AUTO_SET_HOSTNAME = os.environ.get('AUTO_SET_HOSTNAME', 'true') == 'true'
 DISCOVERY_CACHE_FILE = f'{WEB_ROOT}/discovery-cache.json'
+INVENTORY_FILE = f'{WEB_ROOT}/inventory.json'
 
 def update_lldpq_conf(key, value):
     """Update or add a key=value in /etc/lldpq.conf."""
@@ -104,16 +105,23 @@ def read_lldpq_conf_key(key, default=''):
     return default
 
 def ip_range_to_list(range_str):
-    """Parse comma-separated IP ranges to list of IPs.
+    """Parse comma-separated IP ranges and single IPs to list of IPs.
     Supports: '192.168.100.10-192.168.100.249'
               '192.168.100.11-192.168.100.199,192.168.100.201-192.168.100.252'
+              '10.128.131.6' (single IP)
+              '192.168.58.11-192.168.58.199,10.128.131.6' (mixed)
     """
     if not range_str:
         return []
     result = []
     for segment in range_str.split(','):
         segment = segment.strip()
-        if not segment or '-' not in segment:
+        if not segment:
+            continue
+        if '-' not in segment:
+            # Single IP
+            if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', segment):
+                result.append(segment)
             continue
         try:
             start_s, end_s = segment.split('-', 1)
@@ -190,44 +198,77 @@ def parse_dhcp_hosts(filepath):
 
 def generate_dhcp_hosts(bindings, orig_filepath):
     """Generate ISC dhcpd.hosts file content from bindings list.
+    Only writes entries with valid hostname + MAC + IP (no placeholders, no commented entries).
     Preserves the group header from original file if present.
     """
     lines = []
     
     # Try to preserve header from original file
+    # Extract group header (everything before first 'host' line, or the whole content if no host lines)
     header = ""
     if os.path.exists(orig_filepath):
         with open(orig_filepath, 'r') as f:
             orig = f.read()
-        # Extract everything before first 'host' line
         first_host = re.search(r'^#?\s*host\s+', orig, re.MULTILINE)
         if first_host:
             header = orig[:first_host.start()]
+        elif 'group' in orig:
+            # No host lines but has group header — preserve everything except closing brace
+            header = re.sub(r'\n\s*\}\s*$', '', orig.rstrip())
     
     if not header.strip():
-        # Default header — use gateway from dhcpd.conf if available
+        # Default header — use settings from dhcpd.conf if available
         server_ip = get_server_ip()
         gw = server_ip.rsplit('.', 1)[0] + '.1' if '.' in server_ip else server_ip
+        # Read domain-name from dhcpd.conf if exists
+        domain = 'example.com'
+        conf_path = os.environ.get('DHCP_CONF_FILE', '/etc/dhcp/dhcpd.conf')
+        if os.path.exists(conf_path):
+            try:
+                with open(conf_path, 'r') as f:
+                    conf_content = f.read()
+                dm = re.search(r'option\s+domain-name\s+"([^"]*)"', conf_content)
+                if dm:
+                    domain = dm.group(1)
+            except Exception:
+                pass
         header = f"""group {{
 
-  option domain-name "example.com";
+  option domain-name "{domain}";
   option domain-name-servers {gw};
   option routers {gw};
+  option www-server {server_ip};
+  option default-url "http://{server_ip}/";
+  option cumulus-provision-url "http://{server_ip}/cumulus-ztp.sh";
 
 """
     
     lines.append(header.rstrip() + '\n')
     
+    skipped = 0
     for b in bindings:
-        # Auto-comment entries with placeholder MACs (contain 'x')
-        is_placeholder = 'x' in b.get('mac', '').lower()
-        prefix = '#' if (b.get('commented') or is_placeholder) else ''
+        mac = b.get('mac', '').strip()
+        hostname = b.get('hostname', '').strip()
+        ip = b.get('ip', '').strip()
+        
+        # Skip entries without complete info (no placeholder MACs, no commented entries)
+        if not hostname or not ip:
+            skipped += 1
+            continue
+        if not mac or mac == '-' or 'x' in mac.lower():
+            skipped += 1
+            continue
+        # Skip entries where DHCP is disabled (static IP devices)
+        if not b.get('dhcp', True):
+            skipped += 1
+            continue
+        
         line = (
-            f'{prefix}host {b["hostname"]} '
-            f'{{hardware ethernet {b["mac"]}; '
-            f'fixed-address {b["ip"]}; '
-            f'option host-name "{b["hostname"]}"; '
-            f'option fqdn.hostname "{b["hostname"]}"; '
+            f'host {hostname} '
+            f'{{hardware ethernet {mac}; '
+            f'fixed-address {ip}; '
+            f'option host-name "{hostname}"; '
+            f'option fqdn.hostname "{hostname}"; '
             f'option cumulus-provision-url "http://{get_server_ip()}/cumulus-ztp.sh";}}'
         )
         lines.append(line)
@@ -236,7 +277,7 @@ def generate_dhcp_hosts(bindings, orig_filepath):
     if 'group {' in header or 'group{' in header:
         lines.append('\n}')
     
-    return '\n'.join(lines) + '\n'
+    return '\n'.join(lines) + '\n', skipped
 
 def get_server_ip():
     """Try to determine this server's IP for ZTP URL.
@@ -274,9 +315,111 @@ def get_server_ip():
     return '127.0.0.1'
 
 def action_list_bindings():
-    filepath = get_dhcp_hosts_path()
-    bindings = parse_dhcp_hosts(filepath)
-    result_json({"success": True, "bindings": bindings, "file": filepath})
+    """Load inventory from inventory.json (primary) or dhcpd.hosts (fallback).
+    inventory.json is the source of truth — it preserves ALL entries including planned (no MAC).
+    dhcpd.hosts only contains active DHCP entries with valid MACs.
+    """
+    # Primary: read from inventory.json (preserves planned entries)
+    bindings = []
+    source = 'inventory'
+    if os.path.exists(INVENTORY_FILE):
+        try:
+            with open(INVENTORY_FILE, 'r') as f:
+                inv_data = json.load(f)
+            bindings = inv_data.get('bindings', [])
+        except Exception:
+            bindings = []
+    
+    # Fallback: read from dhcpd.hosts (legacy / first run)
+    if not bindings:
+        filepath = get_dhcp_hosts_path()
+        bindings = parse_dhcp_hosts(filepath)
+        source = 'dhcpd.hosts'
+        # Legacy entries from dhcpd.hosts are all DHCP entries
+        for b in bindings:
+            b['dhcp'] = True
+    
+    # Enrich with role from devices.yaml and serial from discovery cache
+    roles = {}
+    try:
+        devices_file = os.path.join(LLDPQ_DIR, 'devices.yaml')
+        if os.path.exists(devices_file):
+            import yaml
+            with open(devices_file, 'r') as f:
+                ddata = yaml.safe_load(f) or {}
+            for ip, info in ddata.get('devices', ddata).items():
+                if ip in ('defaults', 'endpoint_hosts'):
+                    continue
+                if isinstance(info, str):
+                    import re as _re
+                    m = _re.match(r'^(.+?)\s+@(\w+)$', info.strip())
+                    if m:
+                        roles[m.group(1).strip()] = m.group(2).lower()
+                elif isinstance(info, dict):
+                    h = info.get('hostname', '')
+                    r = info.get('role', '')
+                    if h and r:
+                        roles[h] = r.lower()
+    except Exception:
+        pass
+    
+    # Load discovery cache for serial numbers
+    disc_cache = {}
+    try:
+        if os.path.exists(DISCOVERY_CACHE_FILE):
+            with open(DISCOVERY_CACHE_FILE, 'r') as f:
+                cdata = json.load(f)
+            for entry in cdata.get('entries', []):
+                if entry.get('ip'):
+                    disc_cache[entry['ip']] = entry
+    except Exception:
+        pass
+    
+    # Enrich each binding
+    for b in bindings:
+        is_placeholder = 'x' in b.get('mac', '').lower() or b.get('mac', '') in ('', '-')
+        # Show '-' instead of xx:xx:xx in UI
+        if 'x' in b.get('mac', '').lower():
+            b['mac'] = '-'
+        disc = disc_cache.get(b['ip'], {})
+        
+        # Status: planned / active / discovered
+        # - active: fully operational (has MAC, or static IP + reachable)
+        # - planned: incomplete record (DHCP device without MAC, or unreachable static)
+        # - discovered: reachable but not provisioned (no SSH key)
+        needs_dhcp = b.get('dhcp', True)
+        if is_placeholder and needs_dhcp:
+            # DHCP device without MAC = always planned (waiting for MAC)
+            b['inv_status'] = 'planned'
+        elif is_placeholder and not needs_dhcp:
+            # Static IP device without MAC — status depends on reachability
+            if disc.get('device_type') == 'provisioned':
+                b['inv_status'] = 'active'
+            elif disc.get('device_type') and disc['device_type'] != 'unreachable':
+                b['inv_status'] = 'discovered'
+            else:
+                b['inv_status'] = 'planned'
+        elif disc.get('device_type') == 'provisioned':
+            b['inv_status'] = 'active'
+        elif disc.get('device_type') == 'not_provisioned':
+            b['inv_status'] = 'discovered'
+        elif b.get('commented'):
+            b['inv_status'] = 'planned'
+        else:
+            b['inv_status'] = 'active'
+        
+        # Only overwrite role from devices.yaml if binding has no role yet
+        if not b.get('role'):
+            b['role'] = roles.get(b['hostname'], '')
+        if not b.get('serial'):
+            b['serial'] = disc.get('serial', '')
+        # DHCP flag: default True for backward compat (existing entries without flag)
+        if 'dhcp' not in b:
+            b['dhcp'] = True
+        # Base config status from discovery cache
+        b['base_config'] = disc.get('post_provision', '') in ('already', 'deployed')
+    
+    result_json({"success": True, "bindings": bindings, "source": source})
 
 def action_save_bindings():
     try:
@@ -285,18 +428,39 @@ def action_save_bindings():
         error_json("Invalid JSON data")
     
     bindings = data.get('bindings', [])
+    sync_devices = data.get('sync_devices', False)
+    remove_devices = data.get('remove_devices', [])  # hostnames to remove from devices.yaml
+    do_restart = data.get('restart_dhcp', True)  # default True for backward compat
     filepath = get_dhcp_hosts_path()
     
-    # Generate new content
-    content = generate_dhcp_hosts(bindings, filepath)
-    
-    # Write file (may need sudo)
+    # 1. Save ALL bindings to inventory.json (source of truth, includes planned)
+    inv_entries = []
+    for b in bindings:
+        inv_entries.append({
+            'hostname': b.get('hostname', ''),
+            'mac': b.get('mac', ''),
+            'ip': b.get('ip', ''),
+            'serial': b.get('serial', ''),
+            'role': b.get('role', ''),
+            'inv_status': b.get('inv_status', ''),
+            'dhcp': b.get('dhcp', True),
+        })
+    inv_data = {'bindings': inv_entries, 'timestamp': time.time()}
     try:
-        # Try direct write first
+        with open(INVENTORY_FILE, 'w') as f:
+            json.dump(inv_data, f, indent=2)
+    except PermissionError:
+        subprocess.run(['sudo', 'tee', INVENTORY_FILE],
+                      input=json.dumps(inv_data, indent=2), capture_output=True, text=True, timeout=10)
+    
+    # 2. Write dhcpd.hosts (only complete entries with valid MAC for DHCP)
+    content, skipped = generate_dhcp_hosts(bindings, filepath)
+    written = len(bindings) - skipped
+    
+    try:
         with open(filepath, 'w') as f:
             f.write(content)
     except PermissionError:
-        # Use sudo via tee
         try:
             proc = subprocess.run(
                 ['sudo', 'tee', filepath],
@@ -307,15 +471,136 @@ def action_save_bindings():
         except Exception as e:
             error_json(f"Failed to write {filepath}: {e}")
     
-    # Restart DHCP
-    restart_ok, restart_msg = restart_dhcp()
+    # 3. Sync to devices.yaml: add/update complete bindings, remove deleted ones
+    devices_msg = ''
+    if sync_devices or remove_devices:
+        devices_msg = sync_bindings_to_devices_yaml(bindings, remove_devices)
+    
+    # 4. Restart DHCP only if requested
+    restart_ok = None
+    restart_msg = ''
+    if do_restart:
+        restart_ok, restart_msg = restart_dhcp()
     
     result_json({
         "success": True,
-        "message": f"Saved {len(bindings)} bindings",
+        "message": f"{written} active bindings saved ({skipped} planned). {devices_msg}",
         "dhcp_restart": restart_ok,
-        "dhcp_message": restart_msg
+        "dhcp_message": restart_msg,
+        "written": written,
+        "skipped": skipped
     })
+
+def sync_bindings_to_devices_yaml(bindings, remove_hostnames):
+    """Sync inventory bindings to devices.yaml.
+    - Add/update devices that have complete info (hostname + IP + MAC)
+    - Remove devices listed in remove_hostnames
+    - Preserves existing comments and structure using ruamel.yaml
+    """
+    devices_file = os.path.join(LLDPQ_DIR, 'devices.yaml')
+    if not os.path.exists(devices_file):
+        return 'devices.yaml not found'
+    
+    try:
+        from ruamel.yaml import YAML
+        yaml = YAML()
+        yaml.preserve_quotes = True
+        with open(devices_file, 'r') as f:
+            ddata = yaml.load(f) or {}
+    except ImportError:
+        import yaml as pyyaml
+        with open(devices_file, 'r') as f:
+            ddata = pyyaml.safe_load(f) or {}
+        yaml = None
+    
+    devices = ddata.get('devices', ddata)
+    added = 0
+    updated = 0
+    removed = 0
+    
+    # Build IP→hostname map from current devices.yaml
+    ip_to_key = {}
+    hostname_to_key = {}
+    for key, info in list(devices.items()):
+        if key in ('defaults', 'endpoint_hosts'):
+            continue
+        if isinstance(info, str):
+            m = re.match(r'^(.+?)\s+@(\w+)$', info.strip())
+            h = m.group(1).strip() if m else info.strip()
+        elif isinstance(info, dict):
+            h = info.get('hostname', str(key))
+        else:
+            h = str(key)
+        ip_to_key[str(key)] = key
+        hostname_to_key[h] = key
+    
+    # Remove devices
+    for h in remove_hostnames:
+        key = hostname_to_key.get(h)
+        if key and key in devices:
+            del devices[key]
+            removed += 1
+    
+    # Add/update complete bindings (must have hostname + IP + valid MAC)
+    for b in bindings:
+        hostname = b.get('hostname', '').strip()
+        ip = b.get('ip', '').strip()
+        mac = b.get('mac', '').strip()
+        role = b.get('role', '').strip().lower()
+        
+        # Only sync devices with complete DHCP info
+        if not hostname or not ip or not mac or mac == '-' or 'x' in mac.lower():
+            continue
+        
+        existing_key = hostname_to_key.get(hostname) or ip_to_key.get(ip)
+        
+        if existing_key and existing_key in devices:
+            # Update existing — preserve format, just update role
+            info = devices[existing_key]
+            if isinstance(info, str):
+                old_m = re.match(r'^(.+?)\s+@\w+$', info.strip())
+                old_h = old_m.group(1).strip() if old_m else info.strip()
+                if role:
+                    devices[existing_key] = f"{old_h} @{role}"
+                # Don't change if no role update needed
+            elif isinstance(info, dict):
+                if role:
+                    info['role'] = role
+            updated += 1
+        else:
+            # Add new device
+            if role:
+                devices[ip] = f"{hostname} @{role}"
+            else:
+                devices[ip] = hostname
+            added += 1
+    
+    # Write back
+    try:
+        if yaml and hasattr(yaml, 'dump'):
+            with open(devices_file, 'w') as f:
+                yaml.dump(ddata, f)
+        else:
+            import yaml as pyyaml
+            with open(devices_file, 'w') as f:
+                pyyaml.dump(ddata, f, default_flow_style=False, allow_unicode=True)
+    except PermissionError:
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tmp:
+            if yaml and hasattr(yaml, 'dump'):
+                yaml.dump(ddata, tmp)
+            else:
+                import yaml as pyyaml
+                pyyaml.dump(ddata, tmp, default_flow_style=False, allow_unicode=True)
+            tmp_path = tmp.name
+        subprocess.run(['sudo', 'cp', tmp_path, devices_file], capture_output=True, timeout=5)
+        os.unlink(tmp_path)
+    
+    parts = []
+    if added: parts.append(f'{added} added')
+    if updated: parts.append(f'{updated} updated')
+    if removed: parts.append(f'{removed} removed')
+    return f"devices.yaml: {', '.join(parts)}." if parts else ''
 
 def restart_dhcp():
     """Restart ISC DHCP server. Returns (success, message)."""
@@ -605,24 +890,50 @@ def action_subnet_scan():
     if not all_ips:
         error_json(f"Invalid discovery range: {disc_range}")
     
-    # Load bindings for cross-reference
-    bindings = parse_dhcp_hosts(get_dhcp_hosts_path())
-    binding_by_ip = {b['ip']: b for b in bindings}
-    binding_by_hostname = {b['hostname']: b for b in bindings}
+    # Load inventory for cross-reference (inventory.json is source of truth, fallback to dhcpd.hosts)
+    inv_bindings = []
+    if os.path.exists(INVENTORY_FILE):
+        try:
+            with open(INVENTORY_FILE, 'r') as f:
+                inv_bindings = json.load(f).get('bindings', [])
+        except Exception:
+            pass
+    if not inv_bindings:
+        inv_bindings = parse_dhcp_hosts(get_dhcp_hosts_path())
+    binding_by_ip = {b['ip']: b for b in inv_bindings}
+    binding_by_hostname = {b.get('hostname',''): b for b in inv_bindings if b.get('hostname')}
     
-    # Load devices.yaml for hostname resolution
-    devices_yaml = {}
+    # Load devices.yaml for hostname resolution + roles
+    devices_yaml = {}    # ip -> hostname
+    devices_roles = {}   # hostname -> role
     try:
         devices_path = os.path.join(LLDPQ_DIR, 'devices.yaml')
         if os.path.exists(devices_path):
             import yaml
             with open(devices_path, 'r') as f:
                 data = yaml.safe_load(f) or {}
-            for section in data.values():
-                if isinstance(section, dict):
-                    for host, info in section.items():
-                        if isinstance(info, dict) and 'ip' in info:
-                            devices_yaml[info['ip']] = host
+            for section_key, section in data.items():
+                if not isinstance(section, dict) or section_key in ('defaults',):
+                    continue
+                for host_ip, info in section.items():
+                    if host_ip in ('defaults', 'endpoint_hosts'):
+                        continue
+                    if isinstance(info, dict):
+                        hostname = info.get('hostname', str(host_ip))
+                        if info.get('ip'):
+                            devices_yaml[info['ip']] = hostname
+                        role = info.get('role', '')
+                        if role:
+                            devices_roles[hostname] = role.lower()
+                    elif isinstance(info, str):
+                        raw = info.strip()
+                        m = re.match(r'^(.+?)\s+@(\w+)$', raw)
+                        if m:
+                            hostname = m.group(1).strip()
+                            devices_roles[hostname] = m.group(2).lower()
+                        else:
+                            hostname = raw
+                        devices_yaml[str(host_ip)] = hostname
     except Exception:
         pass
     
@@ -659,36 +970,44 @@ def action_subnet_scan():
     
     reachable_ips = [ip for ip, alive in ping_results.items() if alive]
     
-    # Step 3: SSH probe reachable IPs for device classification
+    # Step 3: SSH probe reachable IPs for device classification + serial collection
     def ssh_probe(ip):
         """Try SSH with key auth as cumulus user (runs as LLDPQ_USER to use correct SSH keys).
-        Returns: 'provisioned', 'not_provisioned', 'other'"""
+        Returns: (ip, device_type, serial)  device_type: 'provisioned', 'not_provisioned', 'other'"""
         try:
             r = subprocess.run(
                 ['sudo', '-u', LLDPQ_USER, 'ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=3',
                  '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
-                 '-o', 'LogLevel=ERROR', f'cumulus@{ip}', 'echo OK'],
-                capture_output=True, text=True, timeout=8
+                 '-o', 'LogLevel=ERROR', f'cumulus@{ip}',
+                 'echo OK; sudo dmidecode -s system-serial-number 2>/dev/null | head -1'],
+                capture_output=True, text=True, timeout=10
             )
             if r.returncode == 0 and 'OK' in r.stdout:
-                return ip, 'provisioned'
+                lines = r.stdout.strip().split('\n')
+                serial = lines[1].strip() if len(lines) > 1 else ''
+                if not serial or serial.lower() in ('', 'na', 'n/a', 'not specified', 'none'):
+                    serial = ''
+                return ip, 'provisioned', serial
             stderr = r.stderr.lower()
             if 'permission denied' in stderr:
-                return ip, 'not_provisioned'
+                return ip, 'not_provisioned', ''
             if 'connection refused' in stderr:
-                return ip, 'other'
-            return ip, 'not_provisioned'
+                return ip, 'other', ''
+            return ip, 'not_provisioned', ''
         except subprocess.TimeoutExpired:
-            return ip, 'other'
+            return ip, 'other', ''
         except Exception:
-            return ip, 'other'
+            return ip, 'other', ''
     
     ssh_results = {}
+    serial_results = {}
     with ThreadPoolExecutor(max_workers=20) as executor:
         futures = {executor.submit(ssh_probe, ip): ip for ip in reachable_ips}
         for future in as_completed(futures):
-            ip, device_type = future.result()
+            ip, device_type, serial = future.result()
             ssh_results[ip] = device_type
+            if serial:
+                serial_results[ip] = serial
     
     # Step 4: Build entries with cross-reference
     entries = []
@@ -720,6 +1039,9 @@ def action_subnet_scan():
         else:
             device_type = ssh_results.get(ip, 'other')
         
+        # Resolve role from devices.yaml
+        entry_role = devices_roles.get(hostname, '')
+        
         entry = {
             'ip': ip,
             'hostname': hostname,
@@ -727,6 +1049,8 @@ def action_subnet_scan():
             'discovered_mac': disc_mac,
             'device_type': device_type,
             'mac_status': mac_status,
+            'serial': serial_results.get(ip, ''),
+            'role': entry_role,
             'source': 'Ping+ARP' if disc_mac else ('Ping' if alive else ''),
             'has_binding': binding is not None,
             'post_provision': None,
@@ -890,6 +1214,8 @@ def action_save_post_provision():
         update_lldpq_conf('AUTO_SET_HOSTNAME', 'true' if data['auto_set_hostname'] else 'false')
     if 'discovery_range' in data:
         update_lldpq_conf('DISCOVERY_RANGE', data['discovery_range'])
+    if 'scan_interval' in data:
+        update_lldpq_conf('SCAN_INTERVAL', str(int(data['scan_interval'])))
     
     result_json({"success": True, "message": "Settings saved"})
 
@@ -1107,6 +1433,13 @@ def action_get_dhcp_config():
         prefix = '.'.join(config['subnet'].split('.')[:3])
         discovery_range = f'{prefix}.10-{prefix}.249'
     
+    # Scan interval (default 300 = 5 min)
+    scan_interval_str = read_lldpq_conf_key('SCAN_INTERVAL', '300')
+    try:
+        scan_interval = int(scan_interval_str)
+    except ValueError:
+        scan_interval = 300
+    
     result_json({
         "success": True,
         "interfaces": interfaces,
@@ -1114,6 +1447,7 @@ def action_get_dhcp_config():
         "auto_base_config": read_lldpq_conf_key('AUTO_BASE_CONFIG', 'true') == 'true',
         "auto_ztp_disable": read_lldpq_conf_key('AUTO_ZTP_DISABLE', 'true') == 'true',
         "auto_set_hostname": read_lldpq_conf_key('AUTO_SET_HOSTNAME', 'true') == 'true',
+        "scan_interval": scan_interval,
         **config
     })
 
@@ -1450,6 +1784,9 @@ def deploy_to_device(device, files, disable_ztp):
     if disable_ztp:
         mv_commands.append('sudo ztp -d 2>/dev/null || true')
     
+    # Write marker so Discover tab shows "Yes" instead of "Pending"
+    mv_commands.append('sudo touch /etc/lldpq-base-deployed')
+    
     # Cleanup tmp files
     cleanup = ' '.join(f'/tmp/{fname}' for fname in files)
     mv_commands.append(f'rm -f {cleanup}')
@@ -1756,6 +2093,280 @@ def action_delete_os_image():
     
     result_json({"success": True, "message": f"Deleted {name}"})
 
+# ======================== UPDATE ROLE ========================
+
+def action_update_role():
+    """Update device role in devices.yaml. Adds @role suffix or updates existing."""
+    try:
+        data = json.loads(POST_DATA)
+    except Exception:
+        error_json("Invalid JSON data")
+    
+    hostname = data.get('hostname', '').strip()
+    ip = data.get('ip', '').strip()
+    role = data.get('role', '').strip().lower()
+    
+    if not hostname:
+        error_json("Hostname required")
+    
+    devices_file = os.path.join(LLDPQ_DIR, 'devices.yaml')
+    if not os.path.exists(devices_file):
+        error_json("devices.yaml not found")
+    
+    try:
+        # Read with ruamel.yaml to preserve comments
+        from ruamel.yaml import YAML
+        yaml = YAML()
+        yaml.preserve_quotes = True
+        
+        with open(devices_file, 'r') as f:
+            ddata = yaml.load(f)
+        
+        if not ddata:
+            ddata = {}
+        
+        devices = ddata.get('devices', ddata)
+        
+        # Find the device by hostname
+        found = False
+        for dev_ip, info in devices.items():
+            if dev_ip in ('defaults', 'endpoint_hosts'):
+                continue
+            if isinstance(info, str):
+                # Parse "Hostname @role" format
+                import re
+                m = re.match(r'^(.+?)\s+@\w+$', info.strip())
+                h = m.group(1).strip() if m else info.strip()
+                if h == hostname:
+                    # Update: set new value with role
+                    if role:
+                        devices[dev_ip] = f"{hostname} @{role}"
+                    else:
+                        devices[dev_ip] = hostname
+                    found = True
+                    break
+            elif isinstance(info, dict):
+                if info.get('hostname', '') == hostname:
+                    if role:
+                        info['role'] = role
+                    elif 'role' in info:
+                        del info['role']
+                    found = True
+                    break
+        
+        # If not found and we have IP, add it
+        if not found and ip:
+            if role:
+                devices[ip] = f"{hostname} @{role}"
+            else:
+                devices[ip] = hostname
+            found = True
+        
+        if not found:
+            error_json(f"Device {hostname} not found in devices.yaml")
+        
+        # Write back
+        try:
+            with open(devices_file, 'w') as f:
+                yaml.dump(ddata, f)
+        except PermissionError:
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as tmp:
+                yaml.dump(ddata, tmp)
+                tmp_path = tmp.name
+            subprocess.run(['sudo', 'cp', tmp_path, devices_file], capture_output=True, timeout=5)
+            os.unlink(tmp_path)
+        
+        result_json({"success": True, "message": f"Role updated: {hostname} -> {role or '(none)'}"})
+    
+    except ImportError:
+        # Fallback: use pyyaml (no comment preservation)
+        import yaml as pyyaml
+        with open(devices_file, 'r') as f:
+            ddata = pyyaml.safe_load(f) or {}
+        
+        devices = ddata.get('devices', ddata)
+        found = False
+        for dev_ip, info in list(devices.items()):
+            if dev_ip in ('defaults', 'endpoint_hosts'):
+                continue
+            if isinstance(info, str):
+                import re
+                m = re.match(r'^(.+?)\s+@\w+$', info.strip())
+                h = m.group(1).strip() if m else info.strip()
+                if h == hostname:
+                    devices[dev_ip] = f"{hostname} @{role}" if role else hostname
+                    found = True
+                    break
+            elif isinstance(info, dict) and info.get('hostname', '') == hostname:
+                if role:
+                    info['role'] = role
+                elif 'role' in info:
+                    del info['role']
+                found = True
+                break
+        
+        if not found and ip:
+            devices[ip] = f"{hostname} @{role}" if role else hostname
+            found = True
+        
+        if found:
+            with open(devices_file, 'w') as f:
+                pyyaml.dump(ddata, f, default_flow_style=False, allow_unicode=True)
+            result_json({"success": True, "message": f"Role updated: {hostname} -> {role or '(none)'}"})
+        else:
+            error_json(f"Device {hostname} not found")
+    
+    except Exception as e:
+        error_json(f"Failed to update role: {str(e)}")
+
+# ======================== LIST ROLES ========================
+
+def action_rebuild_devices_yaml():
+    """Rebuild devices.yaml from inventory bindings.
+    - Grouped by role (comment header per group)
+    - Sorted by IP within each group
+    - Active entries: normal YAML lines
+    - Planned entries (no valid MAC): commented with #
+    - Entries without role: placed in 'ungrouped' section
+    - Preserves defaults and endpoint_hosts from existing file
+    """
+    try:
+        data = json.loads(POST_DATA)
+    except Exception:
+        error_json("Invalid JSON")
+    
+    bindings = data.get('bindings', [])
+    devices_file = os.path.join(LLDPQ_DIR, 'devices.yaml')
+    
+    # Read existing file to preserve defaults, endpoint_hosts, and header
+    defaults_username = 'cumulus'
+    endpoint_hosts = []
+    if os.path.exists(devices_file):
+        try:
+            import yaml
+            with open(devices_file, 'r') as f:
+                existing = yaml.safe_load(f) or {}
+            d = existing.get('defaults', {})
+            if isinstance(d, dict) and d.get('username'):
+                defaults_username = d['username']
+            eh = existing.get('endpoint_hosts', [])
+            if isinstance(eh, list):
+                endpoint_hosts = eh
+        except Exception:
+            pass
+    
+    # Group bindings by role, sort by IP within each group
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for b in bindings:
+        hostname = b.get('hostname', '').strip()
+        ip = b.get('ip', '').strip()
+        if not hostname or not ip:
+            continue
+        role = b.get('role', '').strip() or 'ungrouped'
+        # Use inv_status to decide: active/discovered → normal line, planned → commented
+        # Static IP devices (dhcp=false) without MAC can still be active
+        is_planned = b.get('inv_status', '') == 'planned'
+        groups[role].append({
+            'hostname': hostname,
+            'ip': ip,
+            'role': role,
+            'planned': is_planned,
+            'ip_num': sum(int(p) * (256 ** (3 - i)) for i, p in enumerate(ip.split('.'))) if ip.count('.') == 3 else 0,
+        })
+    
+    # Sort groups alphabetically, sort entries by IP within each group
+    sorted_roles = sorted(groups.keys())
+    
+    # Build YAML content
+    lines = []
+    lines.append('# devices.yaml — Auto-generated from Provision Inventory')
+    lines.append(f'# Generated: {time.strftime("%Y-%m-%d %H:%M:%S")}')
+    lines.append('#')
+    lines.append('')
+    lines.append('defaults:')
+    lines.append(f'  username: {defaults_username}')
+    lines.append('')
+    lines.append('devices:')
+    
+    active_count = 0
+    planned_count = 0
+    
+    for role in sorted_roles:
+        entries = sorted(groups[role], key=lambda e: e['ip_num'])
+        lines.append('')
+        lines.append(f'  # {role}')
+        for e in entries:
+            role_suffix = f" @{e['role']}" if e['role'] != 'ungrouped' else ''
+            if e['planned']:
+                lines.append(f"#  {e['ip']}: {e['hostname']}{role_suffix}")
+                planned_count += 1
+            else:
+                lines.append(f"  {e['ip']}: {e['hostname']}{role_suffix}")
+                active_count += 1
+    
+    # Preserve endpoint_hosts
+    if endpoint_hosts:
+        lines.append('')
+        lines.append('endpoint_hosts:')
+        for eh in endpoint_hosts:
+            lines.append(f'- "{eh}"')
+    
+    lines.append('')
+    content = '\n'.join(lines)
+    
+    # Write with backup
+    backup_path = None
+    if os.path.exists(devices_file):
+        backup_path = f"{devices_file}.bak"
+        try:
+            import shutil
+            shutil.copy2(devices_file, backup_path)
+        except Exception:
+            pass
+    
+    try:
+        with open(devices_file, 'w') as f:
+            f.write(content)
+    except PermissionError:
+        proc = subprocess.run(['sudo', 'tee', devices_file],
+                            input=content, capture_output=True, text=True, timeout=10)
+        if proc.returncode != 0:
+            error_json(f"Failed to write: {proc.stderr}")
+    
+    msg = f"devices.yaml rebuilt: {active_count} active, {planned_count} planned (commented)"
+    if backup_path:
+        msg += f". Backup: {os.path.basename(backup_path)}"
+    result_json({"success": True, "message": msg, "active": active_count, "planned": planned_count})
+
+def action_list_roles():
+    """List all unique roles from devices.yaml for dropdown population."""
+    roles = set()
+    try:
+        devices_file = os.path.join(LLDPQ_DIR, 'devices.yaml')
+        if os.path.exists(devices_file):
+            import yaml
+            with open(devices_file, 'r') as f:
+                ddata = yaml.safe_load(f) or {}
+            for section_key, section in ddata.items():
+                if not isinstance(section, dict) or section_key in ('defaults',):
+                    continue
+                for ip, info in section.items():
+                    if ip in ('defaults', 'endpoint_hosts'):
+                        continue
+                    if isinstance(info, str):
+                        m = re.match(r'^.+?\s+@(\w+)$', info.strip())
+                        if m:
+                            roles.add(m.group(1).lower())
+                    elif isinstance(info, dict):
+                        r = info.get('role', '')
+                        if r:
+                            roles.add(r.lower())
+    except Exception:
+        pass
+    result_json({"success": True, "roles": sorted(roles)})
+
 # ======================== ROUTER ========================
 
 if ACTION == 'list-bindings':
@@ -1802,6 +2413,12 @@ elif ACTION == 'upload-os-image':
     action_upload_os_image()
 elif ACTION == 'delete-os-image':
     action_delete_os_image()
+elif ACTION == 'update-role':
+    action_update_role()
+elif ACTION == 'list-roles':
+    action_list_roles()
+elif ACTION == 'rebuild-devices-yaml':
+    action_rebuild_devices_yaml()
 else:
     error_json(f"Unknown action: {ACTION}")
 
