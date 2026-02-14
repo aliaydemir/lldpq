@@ -2456,7 +2456,7 @@
                         Please start it first before enabling telemetry on switches.
                     </p>
                     <div class="command-preview" style="margin-bottom: 20px;">
-                        <div class="cmd">./update.sh --enable-telemetry</div>
+                        <div class="cmd">./install.sh --enable-telemetry</div>
                     </div>
                     <div class="modal-actions">
                         <button class="btn btn-secondary" onclick="closeStackWarningModal()">OK</button>
@@ -2574,7 +2574,7 @@
                         addLogEntry('Telemetry stack started', 'success');
                     }
                 } else if (stackResult.installed === false) {
-                    addLogEntry('Telemetry stack not installed. Run: ./update.sh --enable-telemetry', 'error');
+                    addLogEntry('Telemetry stack not installed. Run: ./install.sh --enable-telemetry', 'error');
                     document.getElementById('progressTitle').textContent = 'Stack Not Installed';
                     document.getElementById('progressSpinner').style.display = 'none';
                     showNotification('Telemetry stack not installed', 'error');

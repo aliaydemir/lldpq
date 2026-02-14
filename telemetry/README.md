@@ -53,10 +53,10 @@ The telemetry stack (Docker containers) is managed separately from device config
 
 ```bash
 # Start stack
-./update.sh --enable-telemetry
+./install.sh --enable-telemetry
 
 # Stop stack
-./update.sh --disable-telemetry
+./install.sh --disable-telemetry
 ```
 
 The stack runs continuously once started. Enabling/disabling telemetry on devices does NOT stop the stack.
