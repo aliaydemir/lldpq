@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant - LLDPq</title>
+    <link rel="shortcut icon" href="/png/favicon.ico">
+    <style>
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px #1a1a1a inset !important;
+            -webkit-text-fill-color: #fff !important;
+            caret-color: #fff !important;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1e1e1e; color: #d4d4d4; height: 100vh; display: flex; flex-direction: column; }
+
+        /* Header */
+        .header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid #3c3c3c; background: #252526; flex-shrink: 0; }
+        .header-left { display: flex; align-items: center; gap: 12px; }
+        .header-title { font-size: 18px; font-weight: 600; color: #76b900; }
+        .header-subtitle { font-size: 12px; color: #888; }
+        .header-right { display: flex; align-items: center; gap: 10px; }
+
+        /* Context bar */
+        .context-bar { padding: 8px 20px; background: #1a1a1a; border-bottom: 1px solid #2d2d2d; font-size: 11px; color: #666; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .context-dot { width: 6px; height: 6px; border-radius: 50%; background: #555; flex-shrink: 0; }
+        .context-dot.connected { background: #4caf50; }
+        .context-dot.error { background: #f44336; }
+
+        /* Chat area */
+        .chat-area { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+        .chat-area::-webkit-scrollbar { width: 8px; }
+        .chat-area::-webkit-scrollbar-track { background: #1e1e1e; }
+        .chat-area::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+
+        /* Messages */
+        .msg { max-width: 85%; padding: 12px 16px; border-radius: 10px; line-height: 1.6; font-size: 13px; word-wrap: break-word; }
+        .msg-user { align-self: flex-end; background: #2d4a00; color: #d4d4d4; border-bottom-right-radius: 3px; }
+        .msg-assistant { align-self: flex-start; background: #2d2d2d; color: #d4d4d4; border-bottom-left-radius: 3px; }
+        .msg-system { align-self: center; background: transparent; color: #666; font-size: 12px; font-style: italic; }
+        .msg-error { align-self: center; background: #3a1515; color: #f44336; border: 1px solid #5a2020; }
+
+        /* Markdown in messages */
+        .msg-assistant h1, .msg-assistant h2, .msg-assistant h3 { color: #76b900; margin: 8px 0 4px; }
+        .msg-assistant h1 { font-size: 16px; }
+        .msg-assistant h2 { font-size: 14px; }
+        .msg-assistant h3 { font-size: 13px; }
+        .msg-assistant strong { color: #e0e0e0; }
+        .msg-assistant code { background: #1a1a1a; padding: 1px 5px; border-radius: 3px; font-family: 'Cascadia Code', Consolas, monospace; font-size: 12px; color: #76b900; }
+        .msg-assistant pre { background: #1a1a1a; padding: 10px; border-radius: 4px; overflow-x: auto; margin: 8px 0; }
+        .msg-assistant pre code { padding: 0; background: none; }
+        .msg-assistant ul, .msg-assistant ol { margin: 6px 0 6px 20px; }
+        .msg-assistant li { margin: 3px 0; }
+        .msg-assistant table { border-collapse: collapse; margin: 8px 0; font-size: 12px; }
+        .msg-assistant th, .msg-assistant td { border: 1px solid #3c3c3c; padding: 4px 8px; }
+        .msg-assistant th { background: #1a1a1a; color: #888; }
+
+        /* Streaming cursor */
+        .streaming::after { content: '|'; animation: blink 0.8s step-end infinite; color: #76b900; }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* Input area */
+        .input-area { padding: 12px 20px; border-top: 1px solid #3c3c3c; background: #252526; display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+        .input-wrapper { flex: 1; position: relative; }
+        .input-wrapper textarea { width: 100%; padding: 10px 14px; background: #1a1a1a; border: 1px solid #555; border-radius: 8px; color: #d4d4d4; font-size: 13px; font-family: inherit; resize: none; min-height: 42px; max-height: 150px; line-height: 1.5; }
+        .input-wrapper textarea:focus { outline: none; border-color: #76b900; }
+        .input-wrapper textarea::placeholder { color: #666; }
+
+        /* Buttons */
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+        .btn svg { width: 16px; height: 16px; fill: currentColor; }
+        .btn-primary { background: #76b900; color: #000; }
+        .btn-primary:hover { background: #8cd000; }
+        .btn-primary:disabled { background: #3d5e00; color: #666; cursor: not-allowed; }
+        .btn-secondary { background: #3c3c3c; color: #d4d4d4; }
+        .btn-secondary:hover { background: #4a4a4a; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+        .btn-icon { padding: 8px; border-radius: 6px; background: transparent; border: none; color: #888; cursor: pointer; }
+        .btn-icon:hover { background: #3c3c3c; color: #d4d4d4; }
+
+        /* Settings panel */
+        .settings-panel { display: none; position: fixed; top: 0; right: 0; width: 380px; height: 100%; background: #252526; border-left: 1px solid #3c3c3c; z-index: 100; flex-direction: column; box-shadow: -5px 0 20px rgba(0,0,0,0.3); }
+        .settings-panel.open { display: flex; }
+        .settings-header { padding: 15px 20px; border-bottom: 1px solid #3c3c3c; display: flex; justify-content: space-between; align-items: center; }
+        .settings-header h3 { color: #76b900; font-size: 16px; }
+        .settings-body { flex: 1; overflow-y: auto; padding: 20px; }
+        .settings-field { margin-bottom: 18px; }
+        .settings-field label { display: block; font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 5px; }
+        .settings-field input, .settings-field select { width: 100%; padding: 8px 12px; background: #1a1a1a; border: 1px solid #555; border-radius: 4px; color: #d4d4d4; font-size: 13px; font-family: inherit; }
+        .settings-field input:focus, .settings-field select:focus { outline: none; border-color: #76b900; }
+        .settings-footer { padding: 15px 20px; border-top: 1px solid #3c3c3c; display: flex; gap: 10px; justify-content: flex-end; }
+
+        /* Analysis badge */
+        .analysis-badge { background: #e65100; color: white; font-size: 10px; padding: 1px 6px; border-radius: 8px; font-weight: bold; display: none; }
+
+        /* Provider indicator */
+        .provider-badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; background: #2d2d2d; color: #888; font-family: 'Cascadia Code', Consolas, monospace; }
+
+        /* Suggestion chips */
+        .suggestions { display: flex; flex-wrap: wrap; gap: 8px; padding: 15px 20px; justify-content: center; }
+        .suggestion-chip { padding: 8px 16px; background: #2d2d2d; border: 1px solid #3c3c3c; border-radius: 18px; font-size: 13px; color: #aaa; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+        .suggestion-chip:hover { border-color: #76b900; color: #76b900; background: #1a2e00; }
+
+        /* Message wrapper for actions */
+        .msg-wrapper { display: flex; flex-direction: column; max-width: 85%; }
+        .msg-wrapper.user { align-self: flex-end; }
+        .msg-wrapper.assistant { align-self: flex-start; }
+        .msg-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; padding: 0 4px; }
+        .msg-time { font-size: 10px; color: #555; }
+        .msg-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
+        .msg-wrapper:hover .msg-actions { opacity: 1; }
+        .msg-action-btn { background: none; border: none; color: #666; cursor: pointer; padding: 2px 4px; border-radius: 3px; font-size: 10px; display: flex; align-items: center; gap: 3px; }
+        .msg-action-btn:hover { color: #76b900; background: #2d2d2d; }
+        .msg-action-btn svg { width: 12px; height: 12px; fill: currentColor; }
+
+        /* Typing indicator */
+        .typing-indicator { display: flex; gap: 4px; padding: 12px 16px; align-self: flex-start; }
+        .typing-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; animation: typingBounce 1.4s infinite; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typingBounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); background: #76b900; } }
+
+        /* Toast */
+        .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 6px; font-size: 13px; z-index: 10000; transform: translateX(120%); transition: transform 0.3s; max-width: 400px; }
+        .toast.show { transform: translateX(0); }
+        .toast-success { background: #1b5e20; color: #4caf50; border: 1px solid #2e7d32; }
+        .toast-error { background: #4a1515; color: #f44336; border: 1px solid #c62828; }
+        .toast-info { background: #0d3b66; color: #42a5f5; border: 1px solid #1565c0; }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <div class="header-left">
+        <div>
+            <div class="header-title">AI Assistant</div>
+            <div class="header-subtitle">Ask anything about your network fabric</div>
+        </div>
+    </div>
+    <div class="header-right">
+        <span class="provider-badge" id="providerBadge">--</span>
+        <button class="btn btn-secondary btn-sm" onclick="runAnalysis()" title="Run fabric health analysis">
+            <svg viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0012 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 000 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>
+            Analyze
+            <span class="analysis-badge" id="analysisBadge">!</span>
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="exportChat()" title="Export chat as markdown">
+            <svg viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="clearChat()">Clear</button>
+        <button class="btn-icon" onclick="toggleSettings()" title="Settings">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.488.488 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.6 3.6 0 0112 15.6z"/></svg>
+        </button>
+    </div>
+</div>
+
+<!-- Context bar -->
+<div class="context-bar">
+    <div class="context-dot" id="contextDot"></div>
+    <span id="contextText">Loading fabric context...</span>
+</div>
+
+<!-- Chat area -->
+<div class="chat-area" id="chatArea">
+    <div class="msg msg-system">Ask about your fabric — device status, BGP, LLDP, topology, troubleshooting, or anything else.</div>
+    <div id="suggestions"></div>
+</div>
+
+<!-- Input area -->
+<div class="input-area">
+    <div class="input-wrapper">
+        <textarea id="chatInput" placeholder="Ask about your fabric..." rows="1" onkeydown="handleKeydown(event)" oninput="autoResize(this)"></textarea>
+    </div>
+    <button class="btn btn-primary" onclick="sendMessage()" id="btnSend" style="height: 42px; padding: 0 16px; flex-shrink: 0;">
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </button>
+</div>
+
+<!-- Settings panel -->
+<div class="settings-panel" id="settingsPanel">
+    <div class="settings-header">
+        <h3>AI Settings</h3>
+        <button class="btn-icon" onclick="toggleSettings()"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <div class="settings-body">
+        <div class="settings-field">
+            <label>Provider</label>
+            <select id="cfgProvider" onchange="onProviderChange()">
+                <option value="ollama">Local (Ollama)</option>
+                <option value="gemini">Google Gemini</option>
+                <option value="openai">OpenAI</option>
+                <option value="claude">Claude (Anthropic)</option>
+                <option value="custom">Custom (OpenAI-compatible)</option>
+            </select>
+        </div>
+        <div class="settings-field" id="cfgOllamaGroup">
+            <label>Ollama URL</label>
+            <input type="text" id="cfgOllamaUrl" value="http://localhost:11434" placeholder="http://localhost:11434">
+            <div style="margin-top: 6px;">
+                <label>Model</label>
+                <div style="display: flex; gap: 6px;">
+                    <input type="text" id="cfgModel" placeholder="llama3.2" style="flex:1;">
+                    <button class="btn btn-secondary btn-sm" onclick="fetchOllamaModels()">List</button>
+                </div>
+                <div id="ollamaModelList" style="margin-top: 6px; font-size: 11px; color: #888;"></div>
+            </div>
+        </div>
+        <div class="settings-field" id="cfgCloudGroup" style="display:none;">
+            <label>API URL</label>
+            <input type="text" id="cfgApiUrl" placeholder="https://api.openai.com/v1">
+            <div style="margin-top: 10px;">
+                <label>API Key</label>
+                <input type="password" id="cfgApiKey" placeholder="sk-... or key-..." autocomplete="off">
+            </div>
+            <div style="margin-top: 10px;">
+                <label>Model</label>
+                <input type="text" id="cfgModelCloud" placeholder="gpt-4o / claude-sonnet-4-20250514">
+            </div>
+        </div>
+        <div class="settings-field" style="margin-top:10px; padding-top:10px; border-top:1px solid #3c3c3c;">
+            <label>HTTP Proxy</label>
+            <input type="text" id="cfgProxyUrl" placeholder="http://localhost:8080">
+        </div>
+        <div style="margin-top: 15px;">
+            <button class="btn btn-secondary btn-sm" onclick="testConnection()" id="btnTest">Test Connection</button>
+            <span id="testResult" style="font-size: 12px; margin-left: 10px;"></span>
+        </div>
+    </div>
+    <div class="settings-footer">
+        <button class="btn btn-secondary" onclick="toggleSettings()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ===================== STATE =====================
+let chatHistory = [];
+let isStreaming = false;
+const STORAGE_KEY = 'lldpq_ai_chat_history';
+
+// ===================== LOCALSTORAGE =====================
+function saveChatToStorage() {
+    try {
+        // Keep last 50 messages to avoid storage bloat
+        const toSave = chatHistory.slice(-50);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    } catch (e) { /* storage full or unavailable */ }
+}
+
+function loadChatFromStorage() {
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            chatHistory = JSON.parse(saved);
+            if (chatHistory.length > 0) {
+                // Restore messages to UI
+                const area = document.getElementById('chatArea');
+                area.innerHTML = '<div class="msg msg-system">Chat history restored. ' +
+                    '<a href="#" onclick="clearChat();return false;" style="color:#76b900;">Clear</a> to start fresh.</div>';
+                chatHistory.forEach(msg => {
+                    const div = document.createElement('div');
+                    div.className = `msg msg-${msg.role === 'user' ? 'user' : 'assistant'}`;
+                    if (msg.role === 'user') div.textContent = msg.content;
+                    else div.innerHTML = renderMarkdown(msg.content);
+                    area.appendChild(div);
+                });
+                area.scrollTop = area.scrollHeight;
+                return true;
+            }
+        }
+    } catch (e) { /* parse error */ }
+    return false;
+}
+
+// ===================== INIT =====================
+document.addEventListener('DOMContentLoaded', () => {
+    loadConfig();
+    loadContext();
+    loadAnalysisBadge();
+    const restored = loadChatFromStorage();
+    if (!restored) {
+        // Show welcome + suggestions only if no history
+    }
+    document.getElementById('chatInput').focus();
+});
+
+// ===================== API =====================
+async function apiCall(action, data = null) {
+    try {
+        const opts = {};
+        if (data) {
+            opts.method = 'POST';
+            opts.headers = { 'Content-Type': 'application/json' };
+            opts.body = JSON.stringify(data);
+        }
+        const resp = await fetch(`/ai-api.sh?action=${action}`, opts);
+        return await resp.json();
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+}
+
+// ===================== TOAST =====================
+function showToast(msg, type = 'info') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `toast toast-${type} show`;
+    setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+// ===================== CONTEXT =====================
+async function loadContext() {
+    const dot = document.getElementById('contextDot');
+    const text = document.getElementById('contextText');
+    const data = await apiCall('get-context');
+    if (data.success) {
+        dot.className = 'context-dot connected';
+        const roles = Object.entries(data.roles || {}).map(([r, c]) => `${c} ${r}`).join(', ');
+        text.textContent = `${data.device_count} devices (${roles})`;
+        // Cache device names for auto-linking
+        if (data.device_names) _knownDevices = data.device_names;
+    } else {
+        dot.className = 'context-dot error';
+        text.textContent = 'Failed to load fabric context';
+    }
+}
+
+function showTypingIndicator() {
+    const area = document.getElementById('chatArea');
+    const div = document.createElement('div');
+    div.className = 'typing-indicator';
+    div.id = 'typingIndicator';
+    div.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+    area.appendChild(div);
+    area.scrollTop = area.scrollHeight;
+}
+
+function removeTypingIndicator() {
+    const el = document.getElementById('typingIndicator');
+    if (el) el.remove();
+}
+
+function exportChat() {
+    if (chatHistory.length === 0) { showToast('No chat to export', 'error'); return; }
+    let md = `# LLDPq AI Chat Export\n# ${new Date().toLocaleString()}\n\n`;
+    chatHistory.forEach(msg => {
+        if (msg.role === 'user') md += `## User\n${msg.content}\n\n`;
+        else md += `## AI Assistant\n${msg.content}\n\n---\n\n`;
+    });
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lldpq-ai-chat-${new Date().toISOString().slice(0,10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Chat exported', 'success');
+}
+
+// ===================== CONFIG =====================
+async function loadConfig() {
+    const data = await apiCall('get-config');
+    if (data.success) {
+        document.getElementById('cfgProvider').value = data.provider || 'ollama';
+        document.getElementById('cfgOllamaUrl').value = data.ollama_url || 'http://localhost:11434';
+        document.getElementById('cfgApiUrl').value = data.api_url || 'https://api.openai.com/v1';
+        document.getElementById('cfgModel').value = data.model || 'llama3.2';
+        document.getElementById('cfgModelCloud').value = data.model || '';
+        document.getElementById('cfgProxyUrl').value = data.proxy_url || '';
+        updateProviderBadge(data.provider, data.model);
+        onProviderChange();
+    }
+}
+
+function updateProviderBadge(provider, model) {
+    const badge = document.getElementById('providerBadge');
+    const short = (model || '').split(':')[0].split('/').pop();
+    badge.textContent = `${short} on ${provider}`;
+}
+
+function onProviderChange() {
+    const provider = document.getElementById('cfgProvider').value;
+    document.getElementById('cfgOllamaGroup').style.display = provider === 'ollama' ? '' : 'none';
+    document.getElementById('cfgCloudGroup').style.display = provider !== 'ollama' ? '' : 'none';
+    if (provider === 'gemini') {
+        document.getElementById('cfgApiUrl').value = 'https://generativelanguage.googleapis.com';
+        document.getElementById('cfgApiUrl').disabled = true;
+        document.getElementById('cfgModelCloud').value = 'gemini-2.0-flash';
+        document.getElementById('cfgModelCloud').placeholder = 'gemini-2.0-flash / gemini-1.5-pro';
+    } else if (provider === 'openai') {
+        document.getElementById('cfgApiUrl').value = 'https://api.openai.com/v1';
+        document.getElementById('cfgApiUrl').disabled = false;
+        document.getElementById('cfgModelCloud').placeholder = 'gpt-4o / gpt-4o-mini';
+    } else if (provider === 'claude') {
+        document.getElementById('cfgApiUrl').value = 'https://api.anthropic.com/v1';
+        document.getElementById('cfgApiUrl').disabled = false;
+        document.getElementById('cfgModelCloud').placeholder = 'claude-sonnet-4-20250514 / claude-3-haiku-20240307';
+    } else if (provider === 'custom') {
+        document.getElementById('cfgApiUrl').disabled = false;
+        document.getElementById('cfgApiUrl').placeholder = 'https://your-server/v1';
+        document.getElementById('cfgModelCloud').placeholder = 'model-name';
+    }
+}
+
+async function saveSettings() {
+    const provider = document.getElementById('cfgProvider').value;
+    const config = { provider };
+    if (provider === 'ollama') {
+        config.ollama_url = document.getElementById('cfgOllamaUrl').value.trim();
+        config.model = document.getElementById('cfgModel').value.trim();
+    } else {
+        config.api_url = document.getElementById('cfgApiUrl').value.trim();
+        config.api_key = document.getElementById('cfgApiKey').value.trim();
+        config.model = document.getElementById('cfgModelCloud').value.trim();
+    }
+    config.proxy_url = document.getElementById('cfgProxyUrl').value.trim();
+    const data = await apiCall('save-config', config);
+    if (data.success) {
+        showToast('Settings saved', 'success');
+        updateProviderBadge(provider, config.model);
+        toggleSettings();
+    } else {
+        showToast('Save failed: ' + (data.error || ''), 'error');
+    }
+}
+
+async function testConnection() {
+    const btn = document.getElementById('btnTest');
+    const result = document.getElementById('testResult');
+    btn.disabled = true;
+    result.innerHTML = '<span style="color:#888;">Testing...</span>';
+    
+    const provider = document.getElementById('cfgProvider').value;
+    const payload = { provider };
+    if (provider === 'ollama') {
+        payload.ollama_url = document.getElementById('cfgOllamaUrl').value.trim();
+        payload.model = document.getElementById('cfgModel').value.trim();
+    } else {
+        payload.api_url = document.getElementById('cfgApiUrl').value.trim();
+        payload.api_key = document.getElementById('cfgApiKey').value.trim();
+        payload.model = document.getElementById('cfgModelCloud').value.trim();
+    }
+    payload.proxy_url = document.getElementById('cfgProxyUrl').value.trim();
+    
+    const data = await apiCall('test-connection', payload);
+    if (data.success) {
+        result.innerHTML = `<span style="color:#4caf50;">Connected! "${data.reply}" (${data.elapsed}s)</span>`;
+    } else {
+        result.innerHTML = `<span style="color:#f44336;">${data.error || 'Failed'} (${data.elapsed || '?'}s)</span>`;
+    }
+    btn.disabled = false;
+}
+
+async function fetchOllamaModels() {
+    const data = await apiCall('list-models');
+    const container = document.getElementById('ollamaModelList');
+    if (data.models && data.models.length > 0) {
+        container.innerHTML = data.models.map(m => 
+            `<span onclick="document.getElementById('cfgModel').value='${m}'" style="cursor:pointer;padding:2px 6px;border-radius:3px;background:#1a1a1a;margin:2px;display:inline-block;color:#76b900;">${m}</span>`
+        ).join(' ');
+    } else {
+        container.innerHTML = '<span style="color:#f44336;">No models found. Is Ollama running?</span>';
+    }
+}
+
+function toggleSettings() {
+    document.getElementById('settingsPanel').classList.toggle('open');
+}
+
+// ===================== CHAT =====================
+function addMessage(role, content) {
+    const area = document.getElementById('chatArea');
+    
+    if (role === 'system') {
+        const div = document.createElement('div');
+        div.className = 'msg msg-system';
+        div.textContent = content;
+        area.appendChild(div);
+        area.scrollTop = area.scrollHeight;
+        return div;
+    }
+    
+    // Wrapper: message + meta (timestamp + actions)
+    const wrapper = document.createElement('div');
+    wrapper.className = `msg-wrapper ${role === 'user' ? 'user' : 'assistant'}`;
+    
+    const div = document.createElement('div');
+    div.className = `msg msg-${role}`;
+    if (role === 'assistant') {
+        div.innerHTML = renderMarkdown(content);
+        // Auto-link device names to Details page
+        linkDeviceNames(div);
+    } else {
+        div.textContent = content;
+    }
+    wrapper.appendChild(div);
+    
+    // Meta row: timestamp + action buttons
+    const meta = document.createElement('div');
+    meta.className = 'msg-meta';
+    meta.innerHTML = `<span class="msg-time">${formatTime(new Date())}</span>`;
+    
+    const actions = document.createElement('div');
+    actions.className = 'msg-actions';
+    
+    if (role === 'assistant' && content) {
+        // Copy button
+        actions.innerHTML += `<button class="msg-action-btn" onclick="copyMsgContent(this)" title="Copy"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>Copy</button>`;
+    }
+    if (role === 'user') {
+        // Re-ask button
+        actions.innerHTML += `<button class="msg-action-btn" onclick="reaskMessage(this)" title="Ask again"><svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>Re-ask</button>`;
+    }
+    
+    meta.appendChild(actions);
+    wrapper.appendChild(meta);
+    area.appendChild(wrapper);
+    area.scrollTop = area.scrollHeight;
+    return div;
+}
+
+function formatTime(date) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function copyMsgContent(btn) {
+    const msg = btn.closest('.msg-wrapper').querySelector('.msg-assistant');
+    if (!msg) return;
+    const text = msg.innerText;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => showToast('Copied', 'success')).catch(() => fallbackCopyText(text));
+    } else {
+        fallbackCopyText(text);
+    }
+}
+
+function fallbackCopyText(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;left:-9999px;';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showToast('Copied', 'success'); }
+    catch(e) { showToast('Copy failed', 'error'); }
+    document.body.removeChild(ta);
+}
+
+function reaskMessage(btn) {
+    const msg = btn.closest('.msg-wrapper').querySelector('.msg-user');
+    if (!msg) return;
+    document.getElementById('chatInput').value = msg.textContent;
+    sendMessage();
+}
+
+function linkDeviceNames(el) {
+    // Find device hostnames in text and make them clickable links to Details page
+    // Uses the devices from context (loaded on init)
+    if (!_knownDevices || _knownDevices.length === 0) return;
+    // Only process text nodes to avoid breaking HTML
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+    
+    textNodes.forEach(node => {
+        let text = node.textContent;
+        let changed = false;
+        _knownDevices.forEach(name => {
+            if (text.includes(name)) {
+                text = text.split(name).join(`\x00${name}\x00`);
+                changed = true;
+            }
+        });
+        if (changed) {
+            const span = document.createElement('span');
+            text.split('\x00').forEach((part, i) => {
+                if (_knownDevices.includes(part)) {
+                    const a = document.createElement('a');
+                    a.href = `device.html?device=${encodeURIComponent(part)}`;
+                    a.target = 'content-iframe';
+                    a.style.cssText = 'color:#76b900;text-decoration:none;border-bottom:1px dotted #76b900;';
+                    a.title = `Open ${part} in Details`;
+                    a.textContent = part;
+                    span.appendChild(a);
+                } else {
+                    span.appendChild(document.createTextNode(part));
+                }
+            });
+            node.parentNode.replaceChild(span, node);
+        }
+    });
+}
+
+let _knownDevices = [];
+
+async function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    if (!message || isStreaming) return;
+    
+    // Remove suggestions on first message
+    const suggestions = document.getElementById('suggestions');
+    if (suggestions) suggestions.remove();
+    
+    // Add user message
+    addMessage('user', message);
+    chatHistory.push({ role: 'user', content: message });
+    saveChatToStorage();
+    input.value = '';
+    autoResize(input);
+    
+    // Show typing indicator while waiting for LLM response
+    isStreaming = true;
+    const btn = document.getElementById('btnSend');
+    btn.disabled = true;
+    showTypingIndicator();
+    
+    try {
+        const data = await apiCall('chat', { message, history: chatHistory.slice(-10) });
+        removeTypingIndicator();
+        
+        if (data.success && data.response) {
+            const assistantDiv = addMessage('assistant', data.response);
+            linkDeviceNames(assistantDiv);
+            chatHistory.push({ role: 'assistant', content: data.response });
+            saveChatToStorage();
+        } else {
+            addMessage('system', 'Error: ' + (data.error || 'No response from AI'));
+        }
+    } catch (e) {
+        removeTypingIndicator();
+        addMessage('system', 'Connection error: ' + e.message);
+    }
+    
+    isStreaming = false;
+    btn.disabled = false;
+    input.focus();
+}
+
+function sendSuggestion(el) {
+    document.getElementById('chatInput').value = el.textContent;
+    sendMessage();
+}
+
+function clearChat() {
+    chatHistory = [];
+    try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+    const area = document.getElementById('chatArea');
+    area.innerHTML = '<div class="msg msg-system">Chat cleared. Ask anything about your fabric.</div>' + getSuggestionsHTML();
+}
+
+function handleKeydown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+}
+
+function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 150) + 'px';
+}
+
+// ===================== ANALYSIS =====================
+async function loadAnalysisBadge() {
+    const data = await apiCall('get-analysis');
+    if (data.success && data.analysis && !data.stale) {
+        document.getElementById('analysisBadge').style.display = '';
+    }
+}
+
+async function runAnalysis() {
+    showToast('Running fabric health analysis...', 'info');
+    const data = await apiCall('analyze');
+    if (data.success && data.analysis) {
+        // Remove suggestions if present
+        const suggestions = document.getElementById('suggestions');
+        if (suggestions) suggestions.remove();
+        
+        addMessage('system', 'Autonomous fabric health analysis:');
+        addMessage('assistant', data.analysis);
+        chatHistory.push({ role: 'assistant', content: data.analysis });
+        document.getElementById('analysisBadge').style.display = 'none';
+        showToast('Analysis complete', 'success');
+    } else {
+        showToast('Analysis failed: ' + (data.error || ''), 'error');
+    }
+}
+
+// ===================== PREDEFINED PROMPTS =====================
+// Short labels for chips, full prompt sent to AI
+const PROMPT_CATEGORIES = [
+    {
+        label: 'Health',
+        prompts: [
+            { chip: 'Morning health check', full: 'Give me a morning health check — summarize all issues, BGP status, LLDP problems, and any devices that need attention. Rate severity.' },
+            { chip: 'Unreachable devices', full: 'Show all unreachable devices. Are they expected to be down or is this a problem?' },
+            { chip: 'Recent reboots', full: 'Any devices with very short uptime (recently rebooted)? What might have caused it?' },
+        ]
+    },
+    {
+        label: 'BGP',
+        prompts: [
+            { chip: 'BGP issues', full: 'Any BGP sessions down or not established? Show affected devices, neighbors, and suggested remediation.' },
+            { chip: 'Missing sessions', full: 'Which devices have fewer BGP sessions than their peers of the same role? This could indicate missing connections.' },
+            { chip: 'Zero prefixes', full: 'Are there any devices with BGP sessions established but zero prefixes exchanged? This indicates a policy or config issue.' },
+        ]
+    },
+    {
+        label: 'Physical',
+        prompts: [
+            { chip: 'LLDP problems', full: 'List all LLDP problems (Fail status). What do these failures mean?' },
+            { chip: 'Link flaps', full: 'Which devices have link flaps? How many carrier transitions? Suggest troubleshooting steps.' },
+            { chip: 'Bond failures', full: 'Any bonds with missing or down members? This indicates partial LAG failure.' },
+        ]
+    },
+    {
+        label: 'Discovery',
+        prompts: [
+            { chip: 'MAC mismatches', full: 'Any MAC mismatches between inventory bindings and discovered devices? This usually means hardware was replaced.' },
+            { chip: 'Not in inventory', full: 'Which discovered devices are not in the inventory yet? Should they be added?' },
+        ]
+    },
+    {
+        label: 'Config',
+        prompts: [
+            { chip: 'Config consistency', full: 'Check config consistency across all devices: compare ASN, MTU, VRFs, VLANs, and BGP peer counts for same-role devices. Report any mismatches.' },
+            { chip: 'MTU mismatches', full: 'Check for MTU mismatches across fabric interfaces. All fabric-facing ports should have the same MTU. Report any differences.' },
+            { chip: 'Pending changes', full: 'Are there any devices with pending/uncommitted config changes (Ansible diff)? What changes are waiting?' },
+        ]
+    },
+    {
+        label: 'Analysis',
+        prompts: [
+            { chip: 'Single points of failure', full: 'Are there any single points of failure in this fabric? What would happen if a spine went down?' },
+            { chip: 'Compare spines', full: 'Compare all spine devices — do they have the same number of BGP sessions and LLDP neighbors? Asymmetry indicates problems.' },
+        ]
+    }
+];
+
+function getSuggestionsHTML() {
+    let html = '<div id="suggestions" style="padding:20px 40px; max-width:700px; margin:0 auto;">';
+    html += '<table style="width:100%; border-collapse:collapse;">';
+    PROMPT_CATEGORIES.forEach(cat => {
+        html += '<tr>';
+        html += `<td style="padding:8px 16px 8px 0; vertical-align:middle; white-space:nowrap; width:1%;"><span style="font-size:12px;color:#666;text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">${cat.label}</span></td>`;
+        html += '<td style="padding:8px 0;">';
+        html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+        cat.prompts.forEach(p => {
+            const escaped = p.full.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            html += `<div class="suggestion-chip" onclick="sendPrompt('${escaped}')">${p.chip}</div>`;
+        });
+        html += '</div></td></tr>';
+    });
+    html += '</table></div>';
+    return html;
+}
+
+function sendPrompt(fullPrompt) {
+    document.getElementById('chatInput').value = fullPrompt;
+    sendMessage();
+}
+
+// Populate suggestions on load (if no chat history)
+document.addEventListener('DOMContentLoaded', () => {
+    const sugDiv = document.getElementById('suggestions');
+    if (sugDiv && chatHistory.length === 0) {
+        sugDiv.outerHTML = getSuggestionsHTML();
+    }
+});
+
+// ===================== MARKDOWN RENDERER =====================
+function renderMarkdown(text) {
+    if (!text) return '';
+    // Code blocks
+    text = text.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code class="lang-$1">$2</code></pre>');
+    // Inline code
+    text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // Headers
+    text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    text = text.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+    // Bold
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Lists
+    text = text.replace(/^\- (.+)$/gm, '<li>$1</li>');
+    text = text.replace(/^\* (.+)$/gm, '<li>$1</li>');
+    text = text.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+    text = text.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+    // Line breaks
+    text = text.replace(/\n\n/g, '</p><p>');
+    text = text.replace(/\n/g, '<br>');
+    text = '<p>' + text + '</p>';
+    // Clean up empty paragraphs
+    text = text.replace(/<p><\/p>/g, '');
+    text = text.replace(/<p>(<h[123]>)/g, '$1');
+    text = text.replace(/(<\/h[123]>)<\/p>/g, '$1');
+    text = text.replace(/<p>(<pre>)/g, '$1');
+    text = text.replace(/(<\/pre>)<\/p>/g, '$1');
+    text = text.replace(/<p>(<ul>)/g, '$1');
+    text = text.replace(/(<\/ul>)<\/p>/g, '$1');
+    return text;
+}
+
+function escHtml(s) {
+    if (!s) return '';
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+</script>
+</body>
+</html>

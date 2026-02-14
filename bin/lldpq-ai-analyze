@@ -1,0 +1,26 @@
+#!/bin/bash
+# lldpq-ai-analyze - Autonomous fabric health analysis via AI
+# Called by cron hourly (or as configured)
+# Calls ai-api.sh analyze action via curl
+
+if [[ -f /etc/lldpq.conf ]]; then
+    source /etc/lldpq.conf
+fi
+
+WEB_ROOT="${WEB_ROOT:-/var/www/html}"
+
+# Only run if AI is configured (provider + model set)
+if [[ -z "$AI_PROVIDER" ]] || [[ -z "$AI_MODEL" ]]; then
+    exit 0
+fi
+
+# Check if provider is reachable before wasting time
+if [[ "$AI_PROVIDER" == "ollama" ]]; then
+    OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
+    if ! curl -sf "${OLLAMA_URL}/api/tags" > /dev/null 2>&1; then
+        exit 0  # Ollama not running, skip silently
+    fi
+fi
+
+# Call the analyze endpoint
+curl -sf "http://localhost/ai-api.sh?action=analyze" > /dev/null 2>&1

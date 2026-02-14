@@ -493,6 +493,11 @@ if [[ "$INSTALL_MODE" == "update" ]]; then
     _SAVE_AUTO_SET_HOSTNAME="${AUTO_SET_HOSTNAME:-true}"
     _SAVE_TELEMETRY_COLLECTOR_PORT="${TELEMETRY_COLLECTOR_PORT:-}"
     _SAVE_TELEMETRY_COLLECTOR_VRF="${TELEMETRY_COLLECTOR_VRF:-}"
+    _SAVE_AI_PROVIDER="${AI_PROVIDER:-ollama}"
+    _SAVE_AI_MODEL="${AI_MODEL:-llama3.2}"
+    _SAVE_AI_API_KEY="${AI_API_KEY:-}"
+    _SAVE_AI_API_URL="${AI_API_URL:-https://api.openai.com/v1}"
+    _SAVE_OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
     # Save Ansible dir from sourced config
     _SAVE_ANSIBLE_DIR="${ANSIBLE_DIR:-}"
 fi
@@ -811,6 +816,11 @@ echo "BASE_CONFIG_DIR=$LLDPQ_INSTALL_DIR/sw-base" | sudo tee -a /etc/lldpq.conf 
 echo "AUTO_BASE_CONFIG=true" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AUTO_ZTP_DISABLE=true" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AUTO_SET_HOSTNAME=true" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "AI_PROVIDER=ollama" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "AI_MODEL=llama3.2" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "AI_API_KEY=" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "AI_API_URL=https://api.openai.com/v1" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "OLLAMA_URL=http://localhost:11434" | sudo tee -a /etc/lldpq.conf > /dev/null
 
 # Preserve telemetry settings (update mode)
 if [[ "$INSTALL_MODE" == "update" ]]; then
@@ -831,6 +841,12 @@ if [[ "$INSTALL_MODE" == "update" ]]; then
     sudo sed -i "s/^AUTO_BASE_CONFIG=.*/AUTO_BASE_CONFIG=$_SAVE_AUTO_BASE_CONFIG/" /etc/lldpq.conf
     sudo sed -i "s/^AUTO_ZTP_DISABLE=.*/AUTO_ZTP_DISABLE=$_SAVE_AUTO_ZTP_DISABLE/" /etc/lldpq.conf
     sudo sed -i "s/^AUTO_SET_HOSTNAME=.*/AUTO_SET_HOSTNAME=$_SAVE_AUTO_SET_HOSTNAME/" /etc/lldpq.conf
+    # Preserve AI settings
+    sudo sed -i "s/^AI_PROVIDER=.*/AI_PROVIDER=$_SAVE_AI_PROVIDER/" /etc/lldpq.conf
+    sudo sed -i "s/^AI_MODEL=.*/AI_MODEL=$_SAVE_AI_MODEL/" /etc/lldpq.conf
+    [[ -n "$_SAVE_AI_API_KEY" ]] && sudo sed -i "s/^AI_API_KEY=.*/AI_API_KEY=$_SAVE_AI_API_KEY/" /etc/lldpq.conf
+    sudo sed -i "s|^AI_API_URL=.*|AI_API_URL=$_SAVE_AI_API_URL|" /etc/lldpq.conf
+    sudo sed -i "s|^OLLAMA_URL=.*|OLLAMA_URL=$_SAVE_OLLAMA_URL|" /etc/lldpq.conf
 fi
 
 # Create discovery cache and inventory files
@@ -840,11 +856,17 @@ sudo chmod 664 "$WEB_ROOT/discovery-cache.json"
 sudo touch "$WEB_ROOT/inventory.json"
 sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/inventory.json"
 sudo chmod 664 "$WEB_ROOT/inventory.json"
+sudo touch "$WEB_ROOT/ai-analysis.json"
+sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/ai-analysis.json"
+sudo chmod 664 "$WEB_ROOT/ai-analysis.json"
 
 # Set permissions so web server can update telemetry config
 USER_GROUP=$(id -gn)
 sudo chown root:$USER_GROUP /etc/lldpq.conf
 sudo chmod 664 /etc/lldpq.conf
+sudo touch /etc/lldpq.conf.lock
+sudo chown root:$USER_GROUP /etc/lldpq.conf.lock
+sudo chmod 664 /etc/lldpq.conf.lock
 sudo usermod -a -G $USER_GROUP www-data 2>/dev/null || true
 echo "  Configuration saved to /etc/lldpq.conf"
 
@@ -1016,13 +1038,14 @@ echo "  nginx and fcgiwrap configured and restarted"
 step "Configuring cron jobs..."
 
 # Remove existing LLDPq cron jobs and re-add (ensures latest)
-sudo sed -i '/lldpq\|monitor\|get-conf\|fabric-scan/d' /etc/crontab
+sudo sed -i '/lldpq\|monitor\|get-conf\|fabric-scan\|ai-analyze/d' /etc/crontab
 
 echo "*/5 * * * * $LLDPQ_USER /usr/local/bin/lldpq" | sudo tee -a /etc/crontab > /dev/null
 echo "0 */12 * * * $LLDPQ_USER /usr/local/bin/get-conf" | sudo tee -a /etc/crontab > /dev/null
 echo "* * * * * $LLDPQ_USER /usr/local/bin/lldpq-trigger" | sudo tee -a /etc/crontab > /dev/null
 echo "* * * * * $LLDPQ_USER cd $LLDPQ_INSTALL_DIR && ./fabric-scan.sh >/dev/null 2>&1" | sudo tee -a /etc/crontab > /dev/null
 echo "0 0 * * * $LLDPQ_USER cd $LLDPQ_INSTALL_DIR && cp /var/www/html/topology.dot topology.dot.bkp 2>/dev/null; cp /var/www/html/topology_config.yaml topology_config.yaml.bkp 2>/dev/null; git add -A; git diff --cached --quiet || git commit -m 'auto: \$(date +\\%Y-\\%m-\\%d)'" | sudo tee -a /etc/crontab > /dev/null
+echo "0 * * * * $LLDPQ_USER /usr/local/bin/lldpq-ai-analyze" | sudo tee -a /etc/crontab > /dev/null
 
 if [[ "$ANSIBLE_DIR" != "NoNe" ]] && [[ -d "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR/playbooks" ]]; then
     echo "33 3 * * * $LLDPQ_USER $LLDPQ_INSTALL_DIR/fabric-scan-cron.sh" | sudo tee -a /etc/crontab > /dev/null
