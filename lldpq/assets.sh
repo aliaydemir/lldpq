@@ -24,7 +24,8 @@ rm -f "$TMPFILE" "$UNREACH"
 init_cache() {
   if [[ ! -f "$CACHE_FILE" ]]; then
     echo '{}' | sudo tee "$CACHE_FILE" > /dev/null
-    sudo chmod o+r "$CACHE_FILE"
+    sudo chown "${LLDPQ_USER:-$(whoami)}:www-data" "$CACHE_FILE"
+    sudo chmod 664 "$CACHE_FILE"
   fi
 }
 

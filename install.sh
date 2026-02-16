@@ -849,16 +849,14 @@ if [[ "$INSTALL_MODE" == "update" ]]; then
     sudo sed -i "s|^OLLAMA_URL=.*|OLLAMA_URL=$_SAVE_OLLAMA_URL|" /etc/lldpq.conf
 fi
 
-# Create discovery cache and inventory files
-sudo touch "$WEB_ROOT/discovery-cache.json"
-sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/discovery-cache.json"
-sudo chmod 664 "$WEB_ROOT/discovery-cache.json"
-sudo touch "$WEB_ROOT/inventory.json"
-sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/inventory.json"
-sudo chmod 664 "$WEB_ROOT/inventory.json"
-sudo touch "$WEB_ROOT/ai-analysis.json"
-sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/ai-analysis.json"
-sudo chmod 664 "$WEB_ROOT/ai-analysis.json"
+# Create cache and data files with correct permissions
+for f in device-cache.json fabric-scan-cache.json discovery-cache.json inventory.json ai-analysis.json; do
+    if [ ! -f "$WEB_ROOT/$f" ]; then
+        echo '{}' | sudo tee "$WEB_ROOT/$f" > /dev/null
+    fi
+    sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/$f"
+    sudo chmod 664 "$WEB_ROOT/$f"
+done
 
 # Set permissions so web server can update telemetry config
 USER_GROUP=$(id -gn)
@@ -1050,9 +1048,6 @@ echo "0 * * * * $LLDPQ_USER /usr/local/bin/lldpq-ai-analyze" | sudo tee -a /etc/
 if [[ "$ANSIBLE_DIR" != "NoNe" ]] && [[ -d "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_DIR/playbooks" ]]; then
     echo "33 3 * * * $LLDPQ_USER $LLDPQ_INSTALL_DIR/fabric-scan-cron.sh" | sudo tee -a /etc/crontab > /dev/null
     chmod +x "$LLDPQ_INSTALL_DIR/fabric-scan-cron.sh" 2>/dev/null || true
-    sudo touch "$WEB_ROOT/fabric-scan-cache.json"
-    sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/fabric-scan-cache.json"
-    sudo chmod 664 "$WEB_ROOT/fabric-scan-cache.json"
     echo "  - fabric-scan: daily at 03:33 (Ansible diff check)"
 fi
 
