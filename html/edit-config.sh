@@ -215,10 +215,14 @@ except:
 ' 2>/dev/null)
     
     if [ -n "$CONTENT" ]; then
-        # Write new content
-        echo "$CONTENT" > "$CONFIG_FILE"
-        
-        if [ $? -eq 0 ]; then
+        # Write new content (try direct, fallback to sudo tee)
+        if echo "$CONTENT" > "$CONFIG_FILE" 2>/dev/null; then
+            sudo chown "${LLDPQ_USER:-lldpq}:www-data" "$CONFIG_FILE" 2>/dev/null
+            sudo chmod 664 "$CONFIG_FILE" 2>/dev/null
+            echo "{\"success\": true, \"message\": \"Config saved successfully\"}"
+        elif echo "$CONTENT" | sudo tee "$CONFIG_FILE" > /dev/null 2>&1; then
+            sudo chown "${LLDPQ_USER:-lldpq}:www-data" "$CONFIG_FILE" 2>/dev/null
+            sudo chmod 664 "$CONFIG_FILE" 2>/dev/null
             echo "{\"success\": true, \"message\": \"Config saved successfully\"}"
         else
             echo "{\"success\": false, \"error\": \"Failed to write file\"}"

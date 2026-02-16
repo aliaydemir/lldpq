@@ -47,10 +47,14 @@ except:
 ' 2>/dev/null)
     
     if [ -n "$CONTENT" ]; then
-        # Write new content
-        echo "$CONTENT" > "$TOPOLOGY_FILE"
-        
-        if [ $? -eq 0 ]; then
+        # Write new content (try direct, fallback to sudo tee)
+        if echo "$CONTENT" > "$TOPOLOGY_FILE" 2>/dev/null; then
+            sudo chown "${LLDPQ_USER:-lldpq}:www-data" "$TOPOLOGY_FILE" 2>/dev/null
+            sudo chmod 664 "$TOPOLOGY_FILE" 2>/dev/null
+            echo "{\"success\": true, \"message\": \"Topology saved successfully\"}"
+        elif echo "$CONTENT" | sudo tee "$TOPOLOGY_FILE" > /dev/null 2>&1; then
+            sudo chown "${LLDPQ_USER:-lldpq}:www-data" "$TOPOLOGY_FILE" 2>/dev/null
+            sudo chmod 664 "$TOPOLOGY_FILE" 2>/dev/null
             echo "{\"success\": true, \"message\": \"Topology saved successfully\"}"
         else
             echo "{\"success\": false, \"error\": \"Failed to write file\"}"

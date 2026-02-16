@@ -49,6 +49,7 @@ import glob
 ACTION = os.environ.get('ACTION', '')
 POST_DATA = os.environ.get('POST_DATA', '')
 LLDPQ_DIR = os.environ.get('LLDPQ_DIR', '/home/lldpq/lldpq')
+LLDPQ_USER = os.environ.get('LLDPQ_USER', 'lldpq')
 WEB_ROOT = os.environ.get('WEB_ROOT', '/var/www/html')
 AI_PROVIDER = os.environ.get('AI_PROVIDER', 'ollama')
 AI_MODEL = os.environ.get('AI_MODEL', 'llama3.2')
@@ -1152,6 +1153,8 @@ DEVICE LIST:
         import subprocess
         subprocess.run(['sudo', 'tee', ANALYSIS_FILE],
                       input=json.dumps(analysis, indent=2), capture_output=True, text=True, timeout=10)
+        subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', ANALYSIS_FILE], capture_output=True, timeout=5)
+        subprocess.run(['sudo', 'chmod', '664', ANALYSIS_FILE], capture_output=True, timeout=5)
     
     result_json({"success": True, "analysis": response, "timestamp": analysis['timestamp']})
 

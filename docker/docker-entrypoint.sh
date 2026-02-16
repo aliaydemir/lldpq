@@ -92,8 +92,8 @@ done
 # Symlink monitor-results to web root
 ln -sf /home/lldpq/lldpq/monitor-results /var/www/html/monitor-results 2>/dev/null || true
 
-# ─── Cache files (assets.sh, fabric-scan.sh need these writable by lldpq) ───
-for f in /var/www/html/device-cache.json /var/www/html/fabric-scan-cache.json; do
+# ─── Cache files (assets.sh, fabric-scan.sh, provision, AI need these writable by lldpq) ───
+for f in /var/www/html/device-cache.json /var/www/html/fabric-scan-cache.json /var/www/html/discovery-cache.json /var/www/html/inventory.json /var/www/html/ai-analysis.json; do
     [ ! -f "$f" ] && echo '{}' > "$f"
     chown lldpq:www-data "$f"
     chmod 664 "$f"
@@ -137,11 +137,6 @@ touch /var/lib/dhcp/dhcpd.leases
 [ ! -f /etc/dhcp/dhcpd.hosts ] && touch /etc/dhcp/dhcpd.hosts
 chown lldpq:www-data /etc/dhcp/dhcpd.hosts
 chmod 664 /etc/dhcp/dhcpd.hosts
-
-# Discovery cache file
-touch /var/www/html/discovery-cache.json
-chown lldpq:www-data /var/www/html/discovery-cache.json
-chmod 664 /var/www/html/discovery-cache.json
 
 # Default post-provision settings in lldpq.conf (if not present)
 for key_val in "AUTO_BASE_CONFIG=true" "AUTO_ZTP_DISABLE=true" "AUTO_SET_HOSTNAME=true"; do

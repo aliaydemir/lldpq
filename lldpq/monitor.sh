@@ -584,7 +584,9 @@ analysis_duration=$((analysis_end - analysis_start))
 # COPY RESULTS
 # ============================================================================
 sudo cp -r monitor-results "$WEB_ROOT/"
-sudo chmod -R o+rX "$WEB_ROOT/monitor-results/" 2>/dev/null
+sudo chown -R "${LLDPQ_USER:-$(whoami)}:www-data" "$WEB_ROOT/monitor-results/"
+sudo find "$WEB_ROOT/monitor-results/" -type d -exec chmod 775 {} \;
+sudo find "$WEB_ROOT/monitor-results/" -type f -exec chmod 664 {} \;
 
 rm -f "$unreachable_hosts_file"
 rm -f "$active_jobs_file"

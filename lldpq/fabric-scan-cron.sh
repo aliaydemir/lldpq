@@ -44,4 +44,10 @@ done <<< "$OUTPUT"
 
 # Write JSON cache
 TIMESTAMP=$(date +%s)000
-echo "{\"timestamp\":$TIMESTAMP,\"pendingDevices\":[$PENDING]}" > "$CACHE_FILE"
+if [[ -w "$CACHE_FILE" ]]; then
+    echo "{\"timestamp\":$TIMESTAMP,\"pendingDevices\":[$PENDING]}" > "$CACHE_FILE"
+else
+    echo "{\"timestamp\":$TIMESTAMP,\"pendingDevices\":[$PENDING]}" | sudo tee "$CACHE_FILE" > /dev/null
+    sudo chown "${LLDPQ_USER:-$(whoami)}:www-data" "$CACHE_FILE"
+    sudo chmod 664 "$CACHE_FILE"
+fi

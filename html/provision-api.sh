@@ -499,6 +499,8 @@ def action_save_bindings():
     except PermissionError:
         subprocess.run(['sudo', 'tee', INVENTORY_FILE],
                       input=json.dumps(inv_data, indent=2), capture_output=True, text=True, timeout=10)
+        subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', INVENTORY_FILE], capture_output=True, timeout=5)
+        subprocess.run(['sudo', 'chmod', '664', INVENTORY_FILE], capture_output=True, timeout=5)
     
     # 2. Write dhcpd.hosts (only complete entries with valid MAC for DHCP)
     content, skipped = generate_dhcp_hosts(bindings, filepath)
@@ -515,6 +517,8 @@ def action_save_bindings():
             )
             if proc.returncode != 0:
                 error_json(f"Failed to write {filepath}: {proc.stderr}")
+            subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', filepath], capture_output=True, timeout=5)
+            subprocess.run(['sudo', 'chmod', '664', filepath], capture_output=True, timeout=5)
         except Exception as e:
             error_json(f"Failed to write {filepath}: {e}")
     
@@ -1259,6 +1263,8 @@ def action_subnet_scan():
     except PermissionError:
         subprocess.run(['sudo', 'tee', DISCOVERY_CACHE_FILE],
                       input=json.dumps(cache_data), capture_output=True, text=True, timeout=5)
+        subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', DISCOVERY_CACHE_FILE], capture_output=True, timeout=5)
+        subprocess.run(['sudo', 'chmod', '664', DISCOVERY_CACHE_FILE], capture_output=True, timeout=5)
     
     result_json({
         "success": True,
@@ -1347,7 +1353,8 @@ def action_save_ztp_script():
             )
             if proc.returncode != 0:
                 error_json(f"Failed to write: {proc.stderr}")
-            subprocess.run(['sudo', 'chmod', '755', filepath], capture_output=True, timeout=5)
+            subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', filepath], capture_output=True, timeout=5)
+            subprocess.run(['sudo', 'chmod', '775', filepath], capture_output=True, timeout=5)
         except Exception as e:
             error_json(str(e))
     
@@ -1618,6 +1625,8 @@ include "{hosts_path}";
         proc = subprocess.run(['sudo', 'tee', conf_path], input=conf, capture_output=True, text=True, timeout=10)
         if proc.returncode != 0:
             error_json(f"Failed to write dhcpd.conf: {proc.stderr}")
+        subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', conf_path], capture_output=True, timeout=5)
+        subprocess.run(['sudo', 'chmod', '664', conf_path], capture_output=True, timeout=5)
     
     # Write interface config
     isc_default = '/etc/default/isc-dhcp-server'
@@ -2223,7 +2232,8 @@ def action_upload_os_image():
     except PermissionError:
         # Fallback: use sudo cp from temp file (body already extracted)
         subprocess.run(['sudo', 'cp', tmp_upload.name, dest], capture_output=True, timeout=300)
-        subprocess.run(['sudo', 'chmod', '644', dest], capture_output=True, timeout=5)
+        subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', dest], capture_output=True, timeout=5)
+        subprocess.run(['sudo', 'chmod', '664', dest], capture_output=True, timeout=5)
         try: os.unlink(tmp_upload.name)
         except: pass
         if os.path.exists(dest):
@@ -2502,6 +2512,8 @@ def action_rebuild_devices_yaml():
                             input=content, capture_output=True, text=True, timeout=10)
         if proc.returncode != 0:
             error_json(f"Failed to write: {proc.stderr}")
+        subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', devices_file], capture_output=True, timeout=5)
+        subprocess.run(['sudo', 'chmod', '664', devices_file], capture_output=True, timeout=5)
     
     msg = f"devices.yaml rebuilt: {active_count} active, {planned_count} planned (commented)"
     if backup_path:

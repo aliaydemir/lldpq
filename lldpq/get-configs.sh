@@ -78,6 +78,7 @@ fi
 sudo rm -rf "$WEB_ROOT/configs/"*
 sudo cp ~/configs/configs-${date}/nv-set/* "$WEB_ROOT/configs/"
 sudo cp ~/configs/configs-${date}/nv-yaml/* "$WEB_ROOT/configs/"
+sudo chown -R "${LLDPQ_USER:-$(whoami)}:www-data" "$WEB_ROOT/configs/"
 sudo chmod -R o+rX "$WEB_ROOT/configs/"
 
 # Use PROJECT_DIR from lldpq.conf or search for it

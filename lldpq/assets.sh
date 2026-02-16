@@ -226,7 +226,8 @@ printf '%-20s %-15s %-17s %-12s %-20s %-10s %-15s %-12s %s\n' \
 tail -n +2 "$SCRIPT_DIR/assets.sorted2" >> "$FINAL.tmp"
 mv "$FINAL.tmp" "$FINAL"
 sudo cp "$FINAL" "$WEB_ROOT/"
-sudo chmod o+r "$WEB_ROOT/$(basename $FINAL)"
+sudo chown "${LLDPQ_USER:-$(whoami)}:www-data" "$WEB_ROOT/$(basename $FINAL)"
+sudo chmod 664 "$WEB_ROOT/$(basename $FINAL)"
 rm -f "$TMPFILE" "$UNREACH"
 rm -rf "$SCRIPT_DIR/assets.sorted2"
 
@@ -295,6 +296,7 @@ except Exception as e:
     print(f"Cache rebuild error: {e}", file=sys.stderr)
 REBUILD_CACHE
 
-sudo chmod o+r "$CACHE_FILE" 2>/dev/null
+sudo chown "${LLDPQ_USER:-$(whoami)}:www-data" "$CACHE_FILE" 2>/dev/null
+sudo chmod 664 "$CACHE_FILE" 2>/dev/null
 
 exit 0

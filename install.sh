@@ -550,7 +550,7 @@ sudo chown -R "$LLDPQ_USER:www-data" "$WEB_ROOT/"
 sudo find "$WEB_ROOT" -type d -exec chmod 775 {} \;
 sudo find "$WEB_ROOT" -type f -exec chmod 664 {} \;
 sudo find "$WEB_ROOT" -name '*.sh' -exec chmod 775 {} \;
-sudo mkdir -p "$WEB_ROOT/hstr" "$WEB_ROOT/configs" "$WEB_ROOT/monitor-results"
+sudo mkdir -p "$WEB_ROOT/hstr" "$WEB_ROOT/configs" "$WEB_ROOT/monitor-results" "$WEB_ROOT/topology"
 
 echo "  - Copying bin/* to /usr/local/bin/"
 sudo cp bin/* /usr/local/bin/

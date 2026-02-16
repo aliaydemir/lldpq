@@ -110,11 +110,14 @@ RUN ADMIN_HASH=$(echo -n "admin" | openssl dgst -sha256 | awk '{print $2}') \
     && chown -R www-data:www-data /var/lib/lldpq \
     && chmod 700 /var/lib/lldpq/sessions
 
-# Create cache files with correct permissions (assets.sh and fabric-scan need these)
-RUN echo '{}' > /var/www/html/device-cache.json \
-    && echo '{}' > /var/www/html/fabric-scan-cache.json \
+# Create cache files with correct permissions (assets.sh, fabric-scan, provision, AI need these)
+RUN for f in device-cache.json fabric-scan-cache.json discovery-cache.json inventory.json ai-analysis.json; do \
+        echo '{}' > /var/www/html/$f; \
+    done \
     && chown lldpq:www-data /var/www/html/device-cache.json /var/www/html/fabric-scan-cache.json \
-    && chmod 664 /var/www/html/device-cache.json /var/www/html/fabric-scan-cache.json
+       /var/www/html/discovery-cache.json /var/www/html/inventory.json /var/www/html/ai-analysis.json \
+    && chmod 664 /var/www/html/device-cache.json /var/www/html/fabric-scan-cache.json \
+       /var/www/html/discovery-cache.json /var/www/html/inventory.json /var/www/html/ai-analysis.json
 
 # Copy entrypoint
 COPY docker/docker-entrypoint.sh /docker-entrypoint.sh
