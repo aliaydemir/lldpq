@@ -4488,7 +4488,7 @@ try:
     
     if result.returncode == 0 and os.path.exists(local_file) and os.path.getsize(local_file) > 0:
         # Fix permissions
-        os.chmod(local_file, 0o644)
+        os.chmod(local_file, 0o664)
         print(json.dumps({'success': True, 'download_url': f'/downloads/{filename}', 'filename': filename}))
     else:
         if os.path.exists(local_file):

@@ -2224,7 +2224,7 @@ def action_upload_os_image():
             if boundary_idx >= 0:
                 f.seek(max(0, written - 256) + boundary_idx)
                 f.truncate()
-        os.chmod(dest, 0o644)
+        os.chmod(dest, 0o664)
         final_size = os.path.getsize(dest)
         try: os.unlink(tmp_upload.name)
         except: pass

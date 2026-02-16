@@ -222,10 +222,12 @@ case "$ACTION" in
         # Get current role for target user
         TARGET_ROLE=$(get_user_role "$TARGET_USER")
         
-        # Update users file
-        grep -v "^$TARGET_USER:" "$USERS_FILE" > "$USERS_FILE.tmp"
-        echo "$TARGET_USER:$NEW_HASH:$TARGET_ROLE" >> "$USERS_FILE.tmp"
-        mv "$USERS_FILE.tmp" "$USERS_FILE"
+        # Update users file (use /tmp for temp file — www-data can't create files in /etc/)
+        TMP_FILE=$(mktemp)
+        grep -v "^$TARGET_USER:" "$USERS_FILE" > "$TMP_FILE"
+        echo "$TARGET_USER:$NEW_HASH:$TARGET_ROLE" >> "$TMP_FILE"
+        cat "$TMP_FILE" > "$USERS_FILE"
+        rm -f "$TMP_FILE"
         chmod 600 "$USERS_FILE"
         
         json_response '{"success": true, "message": "Password changed successfully"}'
@@ -356,9 +358,11 @@ case "$ACTION" in
             exit 0
         fi
         
-        # Delete user from file
-        grep -v "^$TARGET_USER:" "$USERS_FILE" > "$USERS_FILE.tmp"
-        mv "$USERS_FILE.tmp" "$USERS_FILE"
+        # Delete user from file (use /tmp for temp file — www-data can't create files in /etc/)
+        TMP_FILE=$(mktemp)
+        grep -v "^$TARGET_USER:" "$USERS_FILE" > "$TMP_FILE"
+        cat "$TMP_FILE" > "$USERS_FILE"
+        rm -f "$TMP_FILE"
         chmod 600 "$USERS_FILE"
         
         # Remove any active sessions for this user

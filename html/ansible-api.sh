@@ -27,7 +27,7 @@ export HOME="$ANSIBLE_HOME"
 export ANSIBLE_LOCAL_TEMP="/tmp/ansible-tmp"
 export ANSIBLE_CACHE_PLUGIN_CONNECTION="/tmp/ansible-cache"
 mkdir -p "$ANSIBLE_HOME" "$ANSIBLE_LOCAL_TEMP" "$ANSIBLE_CACHE_PLUGIN_CONNECTION" 2>/dev/null || true
-chmod 777 "$ANSIBLE_HOME" "$ANSIBLE_LOCAL_TEMP" "$ANSIBLE_CACHE_PLUGIN_CONNECTION" 2>/dev/null || true
+chmod 775 "$ANSIBLE_HOME" "$ANSIBLE_LOCAL_TEMP" "$ANSIBLE_CACHE_PLUGIN_CONNECTION" 2>/dev/null || true
 
 # Fix git directory permissions after git operations
 fix_git_permissions() {

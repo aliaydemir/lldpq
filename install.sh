@@ -542,7 +542,7 @@ fi
 
 echo "  - Copying VERSION to $WEB_ROOT/"
 sudo cp VERSION "$WEB_ROOT/"
-sudo chmod 644 "$WEB_ROOT/VERSION"
+sudo chmod 664 "$WEB_ROOT/VERSION"
 
 echo "  - Setting permissions on web directories"
 sudo chmod o+rx /var/www 2>/dev/null || true
