@@ -981,6 +981,7 @@
                     <th style="width:50px; text-align:center;" title="DHCP binding required"><input type="checkbox" id="dhcpSelectAll" onchange="toggleAllDhcp(this.checked)" checked style="cursor:pointer;"> DHCP</th>
                     <th style="width:50px; text-align:center;">Live</th>
                     <th style="width:70px; text-align:center;" title="Base Config deployed">Base</th>
+                    <th style="width:50px; text-align:center;" title="Generated config available in generated_config_folder/">Config</th>
                     <th style="width:120px;">Actions</th>
                 </tr>
             </thead>
@@ -1065,6 +1066,72 @@
             </label>
             <span id="uploadProgress" style="font-size: 12px; color: #888;"></span>
         </div>
+    </div>
+
+    <!-- Serial Mapping Section -->
+    <div style="margin-bottom: 20px; padding: 15px; background: #1e1e1e; border-radius: 6px; border: 1px solid #3c3c3c;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div>
+                <div class="section-title" style="font-size: 14px; margin-bottom: 2px;">Serial Mapping</div>
+                <div class="section-desc">Map switch serial numbers to hostnames. ZTP script uses this to resolve which config to apply.</div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary btn-sm" onclick="loadSerialMapping()">Reload</button>
+                <button class="btn btn-primary btn-sm" onclick="saveSerialMapping()">
+                    <svg viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>
+                    Save
+                </button>
+            </div>
+        </div>
+        <div id="serialMappingTable" style="max-height: 300px; overflow-y: auto;">
+            <table class="data-table" style="width: 100%; table-layout: fixed;">
+                <thead><tr>
+                    <th style="width: 40%;">Serial Number</th>
+                    <th style="width: 40%;">Hostname</th>
+                    <th style="width: 10%; text-align:center;" title="Green checkmark = generated config YAML exists in generated_config_folder/ for this hostname">Config</th>
+                    <th style="width: 10%; text-align:center;">Del</th>
+                </tr></thead>
+                <tbody id="serialMappingBody"><tr><td colspan="4" style="color:#888; text-align:center;">Loading...</td></tr></tbody>
+            </table>
+        </div>
+        <div style="margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="addSerialMappingRow()">+ Add</button>
+            <button class="btn btn-secondary btn-sm" onclick="toggleBulkSerialMapping()">Bulk Import</button>
+            <button class="btn btn-secondary btn-sm" onclick="autoFillFromInventory()" title="Fill serial/hostname pairs from Inventory bindings">Auto-fill from Inventory</button>
+            <span style="font-size: 11px; color: #555; margin-left: 4px;" title="Cfg column: &#10004; = generated config YAML exists for this hostname">&#10004; = config ready</span>
+            <span id="serialMappingStatus" style="font-size: 12px; color: #888; margin-left: auto;"></span>
+        </div>
+        <!-- Bulk Import Area (hidden) -->
+        <div id="bulkSerialArea" style="display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #3c3c3c;">
+            <div style="margin-bottom: 8px; padding: 8px; background: #1a1a1a; border-radius: 4px; font-size: 12px; color: #888; font-family: 'Cascadia Code','Consolas',monospace; white-space: pre; line-height: 1.8;"><span style="color:#76b900;">Serial         Hostname</span>
+<span style="color:#666;">ABC123XYZ001   leaf-01</span>
+<span style="color:#666;">ABC123XYZ002   leaf-02</span>
+<span style="color:#666;">ABC123XYZ003   spine-01</span></div>
+            <div class="section-desc" style="margin-bottom: 8px;">Paste one mapping per line: <strong>SERIAL  HOSTNAME</strong> (space or tab separated). Header line and <code style="color:#76b900;">#</code> comments are skipped. Duplicates ignored.</div>
+            <textarea id="bulkSerialText" spellcheck="false" placeholder="SERIAL  HOSTNAME&#10;SERIAL  HOSTNAME&#10;..." style="width:100%; height:120px; padding:10px; background:#1a1a1a; color:#76b900; border:1px solid #555; border-radius:4px; font-family:'Cascadia Code','Consolas',monospace; font-size:12px; resize:vertical; box-sizing:border-box;"></textarea>
+            <div style="margin-top: 8px; display: flex; gap: 8px;">
+                <button class="btn btn-primary btn-sm" onclick="importBulkSerialMapping()">Import</button>
+                <button class="btn btn-secondary btn-sm" onclick="toggleBulkSerialMapping()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generated Configs Section -->
+    <div style="margin-bottom: 20px; padding: 15px; background: #1e1e1e; border-radius: 6px; border: 1px solid #3c3c3c;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div>
+                <div class="section-title" style="font-size: 14px; margin-bottom: 2px;">Generated Configs</div>
+                <div class="section-desc">NVUE YAML configs in <code style="background:#252526;padding:1px 4px;border-radius:3px;font-size:11px;">/var/www/html/generated_config_folder/</code> — served via HTTP for ZTP <code style="background:#252526;padding:1px 4px;border-radius:3px;font-size:11px;">-t</code> flag.</div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary btn-sm" onclick="syncGeneratedConfigs()" title="Copy from Ansible generated_config_folder">Sync from Ansible</button>
+                <button class="btn btn-secondary btn-sm" onclick="loadGeneratedConfigs()">Refresh</button>
+            </div>
+        </div>
+        <div id="generatedConfigsList" style="max-height: 200px; overflow-y: auto;">
+            <span style="color:#888;">Loading...</span>
+        </div>
+        <div id="generatedConfigsStatus" style="margin-top: 8px; font-size: 12px; color: #888;"></div>
     </div>
 
     <!-- Script Editor (collapsed by default) -->
@@ -1273,6 +1340,8 @@ function onTabSwitch(tab) {
         if (allBindings.length === 0) loadBindings();
         // Ensure discovery data is loaded for serial picker
         if (allDiscovered.length === 0) loadDiscoveryCache();
+        // Load generated configs for Cfg column (if not loaded yet)
+        if (generatedConfigs.length === 0) apiCall('list-generated-configs').then(d => { if (d.success) { generatedConfigs = d.configs || []; renderBindings(); } });
     }
     if (tab === 'ztp-script') loadZTPScript();
 }
@@ -1714,7 +1783,7 @@ function renderBindings() {
 
     if (filtered.length === 0) {
         document.getElementById('bindingsBody').innerHTML = `
-            <tr><td colspan="10" style="text-align:center; padding:40px; color:#666;">
+            <tr><td colspan="11" style="text-align:center; padding:40px; color:#666;">
                 ${allBindings.length === 0 ? 'No inventory entries. Click "Add Binding" to create one.' : 'No matches found.'}
             </td></tr>`;
         return;
@@ -1790,6 +1859,13 @@ function renderBindings() {
             baseHtml = '<span style="color:#555;font-size:11px;">-</span>';
         }
 
+        // Generated Config status
+        const gcSet = new Set((generatedConfigs || []).map(c => c.hostname));
+        const hasCfg = gcSet.has(b.hostname);
+        const cfgHtml = hasCfg
+            ? '<span style="color:#76b900;" title="Generated config available">&#10004;</span>'
+            : '<span style="color:#555;font-size:11px;" title="No generated config">-</span>';
+
         // MAC — if empty and discovery has MAC for same IP, show clickable auto-fill
         let macHtml;
         if (hasValidMac) {
@@ -1810,6 +1886,7 @@ function renderBindings() {
             <td style="text-align:center;">${dhcpHtml}</td>
             <td style="text-align:center;">${liveIcon}</td>
             <td style="text-align:center;">${baseHtml}</td>
+            <td style="text-align:center;">${cfgHtml}</td>
             <td class="row-actions">
                 <button class="btn btn-secondary btn-sm" onclick="editBinding('${escAttr(b.hostname)}')">Edit</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteBinding('${escAttr(b.hostname)}')">Del</button>
@@ -2616,20 +2693,235 @@ function filterDiscovered() { renderDiscovered(); }
 // ===================== TAB 3: ZTP SCRIPT =====================
 let ztpLoaded = false;
 let scriptEditorVisible = false;
+let serialMappings = [];
+let generatedConfigs = [];
+
+// ---- Serial Mapping ----
+
+async function loadSerialMapping() {
+    const data = await apiCall('get-serial-mapping');
+    if (data.success) {
+        serialMappings = data.mappings || [];
+        renderSerialMapping();
+        renderGeneratedConfigsBadges();
+    }
+}
+
+function renderSerialMapping() {
+    const tbody = document.getElementById('serialMappingBody');
+    if (serialMappings.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color:#888; text-align:center;">No mappings yet. Click "+ Add Mapping" to start.</td></tr>';
+        return;
+    }
+    const configSet = new Set(generatedConfigs.map(c => c.hostname));
+    tbody.innerHTML = serialMappings.map((m, i) => {
+        const hasConfig = configSet.has(m.hostname);
+        return `<tr>
+            <td><input type="text" class="form-input" value="${escHtml(m.serial)}" onchange="serialMappings[${i}].serial=this.value;document.getElementById('serialMappingStatus').textContent='Unsaved changes — click Save';document.getElementById('serialMappingStatus').style.color='#ff8c00';" style="width:100%;font-family:'Cascadia Code','Consolas',monospace;font-size:12px;" placeholder="Serial number"></td>
+            <td><input type="text" class="form-input" value="${escHtml(m.hostname)}" onchange="serialMappings[${i}].hostname=this.value;document.getElementById('serialMappingStatus').textContent='Unsaved changes — click Save';document.getElementById('serialMappingStatus').style.color='#ff8c00';" style="width:100%;font-size:12px;" placeholder="Hostname"></td>
+            <td style="text-align:center;">${hasConfig ? '<span style="color:#76b900;" title="Config available">&#10004;</span>' : '<span style="color:#666;" title="No config file">&#8212;</span>'}</td>
+            <td style="text-align:center;"><button class="btn btn-sm" onclick="serialMappings.splice(${i},1);renderSerialMapping();document.getElementById('serialMappingStatus').textContent='Unsaved changes — click Save';document.getElementById('serialMappingStatus').style.color='#ff8c00';" style="color:#ff4444;background:none;border:none;cursor:pointer;font-size:16px;" title="Remove">&times;</button></td>
+        </tr>`;
+    }).join('');
+}
+
+function addSerialMappingRow() {
+    serialMappings.push({ serial: '', hostname: '' });
+    renderSerialMapping();
+    const tbody = document.getElementById('serialMappingBody');
+    const inputs = tbody.querySelectorAll('input');
+    if (inputs.length >= 2) inputs[inputs.length - 2].focus();
+}
+
+async function saveSerialMapping() {
+    const valid = serialMappings.filter(m => m.serial.trim() && m.hostname.trim());
+    const data = await apiCall('save-serial-mapping', { mappings: valid });
+    if (data.success) {
+        showToast(data.message, 'success');
+        serialMappings = valid;
+        renderSerialMapping();
+        document.getElementById('serialMappingStatus').textContent = '';
+    } else {
+        showToast('Save failed: ' + (data.error || 'Unknown error'), 'error');
+    }
+}
+
+function toggleBulkSerialMapping() {
+    const area = document.getElementById('bulkSerialArea');
+    area.style.display = area.style.display === 'none' ? '' : 'none';
+    if (area.style.display !== 'none') document.getElementById('bulkSerialText').focus();
+}
+
+function importBulkSerialMapping() {
+    const text = document.getElementById('bulkSerialText').value.trim();
+    if (!text) { showToast('Nothing to import', 'error'); return; }
+
+    const existing = new Set(serialMappings.map(m => m.serial.toUpperCase()));
+    let added = 0, skipped = 0;
+
+    text.split('\n').forEach(line => {
+        line = line.trim();
+        if (!line || line.startsWith('#')) return;
+        // Split by whitespace (space or tab)
+        const parts = line.split(/\s+/);
+        if (parts.length >= 2) {
+            const serial = parts[0].trim();
+            const hostname = parts[1].trim();
+            if (serial && hostname && !existing.has(serial.toUpperCase())) {
+                serialMappings.push({ serial, hostname });
+                existing.add(serial.toUpperCase());
+                added++;
+            } else {
+                skipped++;
+            }
+        }
+    });
+
+    renderSerialMapping();
+    document.getElementById('bulkSerialText').value = '';
+    toggleBulkSerialMapping();
+
+    if (added > 0) {
+        document.getElementById('serialMappingStatus').textContent = 'Unsaved changes — click Save';
+        document.getElementById('serialMappingStatus').style.color = '#ff8c00';
+        showToast(`Imported ${added} mapping(s)${skipped ? `, ${skipped} skipped (duplicate)` : ''}`, 'success');
+    } else {
+        showToast('No new mappings to import (all duplicates or empty)', 'info');
+    }
+}
+
+async function autoFillFromInventory() {
+    // Load bindings if not already loaded
+    if (allBindings.length === 0) {
+        const data = await apiCall('list-bindings');
+        if (data.success) allBindings = data.bindings || [];
+    }
+    const existing = new Set(serialMappings.map(m => m.serial.toUpperCase()));
+    let added = 0;
+    allBindings.forEach(b => {
+        if (b.serial && b.hostname && !existing.has(b.serial.toUpperCase())) {
+            serialMappings.push({ serial: b.serial, hostname: b.hostname });
+            existing.add(b.serial.toUpperCase());
+            added++;
+        }
+    });
+    renderSerialMapping();
+    if (added > 0) {
+        showToast(`Added ${added} mapping(s) from Inventory`, 'success');
+        document.getElementById('serialMappingStatus').textContent = 'Unsaved changes — click Save';
+        document.getElementById('serialMappingStatus').style.color = '#ff8c00';
+    } else {
+        showToast('No new serial+hostname pairs found in Inventory', 'info');
+    }
+}
+
+// ---- Generated Configs ----
+
+async function loadGeneratedConfigs() {
+    const data = await apiCall('list-generated-configs');
+    if (data.success) {
+        generatedConfigs = data.configs || [];
+        renderGeneratedConfigsBadges();
+        renderSerialMapping();
+    } else {
+        document.getElementById('generatedConfigsList').innerHTML = `<span style="color:#ff4444;">${data.error || 'Failed to load'}</span>`;
+    }
+}
+
+function renderGeneratedConfigsBadges() {
+    const container = document.getElementById('generatedConfigsList');
+    if (!container) return;
+    if (generatedConfigs.length === 0) {
+        container.innerHTML = '<span style="color:#888;">No configs found in generated_config_folder/. Use "Sync from Ansible" or copy YAML files manually.</span>';
+        document.getElementById('generatedConfigsStatus').textContent = '';
+        return;
+    }
+    const mappedSet = new Set(serialMappings.map(m => m.hostname));
+    container.innerHTML = `<div style="display:flex;flex-wrap:wrap;gap:6px;">` +
+        generatedConfigs.map(c => {
+            const mapped = mappedSet.has(c.hostname);
+            const size = c.size > 1024 ? (c.size / 1024).toFixed(0) + 'K' : c.size + 'B';
+            const date = new Date(c.mtime * 1000).toLocaleDateString();
+            const style = mapped
+                ? 'background:#1a2e00;border:1px solid #76b900;color:#76b900;'
+                : 'background:#252526;border:1px solid #404040;color:#999;';
+            return `<span style="${style}padding:3px 8px;border-radius:4px;font-size:11px;cursor:default;" title="${c.filename} (${size}, ${date})${mapped ? ' — serial mapped' : ' — no serial mapping'}">${c.hostname} ${mapped ? '&#10004;' : ''}</span>`;
+        }).join('') +
+        `</div>`;
+    document.getElementById('generatedConfigsStatus').textContent =
+        `${generatedConfigs.length} config(s) — ${generatedConfigs.filter(c => mappedSet.has(c.hostname)).length} with serial mapping`;
+}
+
+async function syncGeneratedConfigs() {
+    showToast('Syncing configs from Ansible...', 'info');
+    const data = await apiCall('sync-generated-configs');
+    if (data.success) {
+        showToast(data.message, 'success');
+        loadGeneratedConfigs();
+    } else {
+        showToast('Sync failed: ' + (data.error || 'Unknown error'), 'error');
+    }
+}
 
 async function loadZTPScript() {
     const editor = document.getElementById('ztpEditor');
     editor.value = '# Loading...';
-    const data = await apiCall('get-ztp-script');
-    if (data.success) {
-        editor.value = data.content || '';
-        ztpLoaded = true;
-        parseQuickSettings(data.content);
-    } else {
-        editor.value = `# Error loading: ${data.error}\n# You may need to create the file first.`;
+
+    // Single API call loads everything for ZTP tab
+    const data = await apiCall('load-ztp-tab');
+    if (!data.success) {
+        editor.value = '# Error loading ZTP data';
+        return;
     }
-    loadSSHKey();
-    loadOSImages();
+
+    // ZTP script
+    if (data.ztp_script && data.ztp_script.success) {
+        editor.value = data.ztp_script.content || '';
+        ztpLoaded = true;
+        parseQuickSettings(data.ztp_script.content);
+    }
+
+    // SSH key
+    if (data.ssh_key) {
+        const keyInput = document.getElementById('ztpSSHKey');
+        const status = document.getElementById('sshKeyStatus');
+        if (data.ssh_key.success && data.ssh_key.public_key) {
+            keyInput.value = data.ssh_key.public_key;
+            status.innerHTML = `<span style="color:#76b900;">Key found:</span> ${data.ssh_key.key_type || 'ssh'} (${data.ssh_key.key_file || ''})`;
+        } else {
+            keyInput.value = '';
+            status.innerHTML = '<span style="color:#ff9800;">No SSH key found.</span> Click Generate to create one.';
+        }
+    }
+
+    // OS images
+    if (data.os_images && data.os_images.success) {
+        const images = data.os_images.images || [];
+        const container = document.getElementById('imageList');
+        if (images.length > 0) {
+            container.innerHTML = images.map(img => `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 10px; background:#252526; border-radius:4px; margin-bottom:4px;">
+                    <span style="font-family:'Cascadia Code','Consolas',monospace; font-size:12px;">&#128196; ${escHtml(img.name)}</span>
+                    <span style="color:#888; font-size:11px; display:flex; align-items:center; gap:10px;">
+                        ${(img.size / 1048576).toFixed(0)} MB
+                        <button class="btn btn-danger btn-sm" onclick="deleteOSImage('${escAttr(img.name)}')" style="padding:2px 8px;font-size:11px;">Del</button>
+                    </span>
+                </div>
+            `).join('');
+        } else {
+            container.innerHTML = '<span style="color:#888;">No OS images found in web root. Upload a .bin image for ZTP.</span>';
+        }
+    }
+
+    // Serial mapping + generated configs (cross-dependent)
+    if (data.generated_configs && data.generated_configs.success) {
+        generatedConfigs = data.generated_configs.configs || [];
+    }
+    if (data.serial_mapping && data.serial_mapping.success) {
+        serialMappings = data.serial_mapping.mappings || [];
+    }
+    renderGeneratedConfigsBadges();
+    renderSerialMapping();
 }
 
 // --- SSH Key ---
@@ -2805,11 +3097,32 @@ function applyQuickSettings() {
     const ip = document.getElementById('ztpImageServer').value.trim() || '192.168.100.200';
     const key = document.getElementById('ztpSSHKey').value.trim();
 
+    const hasSerialLogic = content.includes('resolve_hostname') || content.includes('serial-mapping');
+    const isOldTemplate = content.includes('CUMULUS_TARGET_RELEASE') && !hasSerialLogic;
+
     // If script is placeholder/empty, generate full template
     if (!content.includes('CUMULUS_TARGET_RELEASE') && !content.includes('init_ztp')) {
         content = generateZTPTemplate(os, pw, ip, key);
+    } else if (isOldTemplate) {
+        // Old template without serial config resolution — offer upgrade
+        showConfirmModal('Upgrade ZTP Script',
+            'Current script uses the old template without serial-based config resolution.<br><br>' +
+            'Upgrade to the new template with:<br>' +
+            '&bull; Serial number detection (<code>decode-syseeprom</code>)<br>' +
+            '&bull; Hostname resolution via <code>serial-mapping.txt</code><br>' +
+            '&bull; Auto config download via <code>onie-install -t</code><br>' +
+            '&bull; Direct config apply via <code>nv config replace</code><br><br>' +
+            'Quick Settings (OS version, password, IP, SSH key) will be preserved.',
+            () => {
+                const newContent = generateZTPTemplate(os, pw, ip, key);
+                document.getElementById('ztpEditor').value = newContent;
+                if (!scriptEditorVisible) toggleScriptEditor();
+                showToast('Script upgraded to serial-based template (unsaved — click Save)', 'success');
+            }
+        );
+        return;
     } else {
-        // Update existing script via regex
+        // Update existing script via regex (already has serial logic or custom)
         if (os) content = content.replace(/CUMULUS_TARGET_RELEASE=\S+/, `CUMULUS_TARGET_RELEASE=${os}`);
         if (pw) content = content.replace(/echo\s+'cumulus:.+?'\s*\|\s*chpasswd/, `echo 'cumulus:${pw}' | chpasswd`);
         if (ip) content = content.replace(/IMAGE_SERVER_HOSTNAME=\S+/, `IMAGE_SERVER_HOSTNAME=${ip}`);
@@ -2823,7 +3136,6 @@ function applyQuickSettings() {
 }
 
 function generateZTPTemplate(os, pw, ip, key) {
-    const keyLine = key ? `\necho "$KEY" >> /root/.ssh/authorized_keys\necho "$KEY" >> /home/cumulus/.ssh/authorized_keys\nchown -R cumulus:cumulus /home/cumulus/.ssh` : '# No SSH key configured — generate one in Provision → ZTP';
     const keyVar = key ? `KEY="${key}"` : 'KEY=""';
     return `#!/bin/bash
 
@@ -2854,6 +3166,18 @@ function set_password(){
     echo 'cumulus:${pw}' | chpasswd
 }
 
+# Resolve hostname from serial number via mapping file on HTTP server
+function resolve_hostname(){
+    local serial="$1"
+    local mapping_url="http://$IMAGE_SERVER_HOSTNAME/serial-mapping.txt"
+    local hostname=""
+    local mapping=$(curl -sf "$mapping_url" 2>/dev/null)
+    if [ -n "$mapping" ]; then
+        hostname=$(echo "$mapping" | grep -v '^#' | grep -i "$serial" | awk '{print $2}' | head -1)
+    fi
+    echo "$hostname"
+}
+
 function init_ztp(){
     echo "Running ZTP..."
 
@@ -2873,21 +3197,62 @@ function init_ztp(){
         echo "SSH key installed"
     fi
 
+    # Apply generated config if version was already correct
+    if [ -n "$CONFIG_URL" ]; then
+        echo "Applying generated config for $MY_HOSTNAME..."
+        curl -sf "$CONFIG_URL" -o /tmp/startup.yaml
+        if [ -s /tmp/startup.yaml ]; then
+            nv config replace /tmp/startup.yaml
+            nv config apply -y
+            nv config save
+            echo "Config applied and saved for $MY_HOSTNAME"
+        fi
+    fi
+
     exit 0
 }
 
-# Check the Cumulus Linux Release
-echo "Checking if the device is running the correct version..."
+# ---- Main ----
+
+IMAGE_SERVER_HOSTNAME=${ip}
 CUMULUS_TARGET_RELEASE=${os}
 CUMULUS_CURRENT_RELEASE=$(cat /etc/lsb-release | grep RELEASE | cut -d "=" -f2)
-IMAGE_SERVER_HOSTNAME=${ip}
 IMAGE_SERVER=http://$IMAGE_SERVER_HOSTNAME/cumulus-linux-$CUMULUS_TARGET_RELEASE-mlx-amd64.bin
 ZTP_URL=http://$IMAGE_SERVER_HOSTNAME/cumulus-ztp.sh
 
+# Get this switch's serial number and resolve hostname
+MY_SERIAL=$(decode-syseeprom 2>/dev/null | grep "Serial Number" | awk '{print $NF}')
+[ -z "$MY_SERIAL" ] && MY_SERIAL=$(onie-syseeprom -g 0x23 2>/dev/null | tr -d ' ')
+echo "Serial: $MY_SERIAL"
+
+MY_HOSTNAME=$(resolve_hostname "$MY_SERIAL")
+echo "Resolved hostname: $MY_HOSTNAME"
+
+# Check if a generated config exists for this switch
+CONFIG_URL=""
+if [ -n "$MY_HOSTNAME" ]; then
+    URL="http://$IMAGE_SERVER_HOSTNAME/generated_config_folder/\${MY_HOSTNAME}.yaml"
+    if curl -sf --head "$URL" 2>/dev/null | head -1 | grep -q "200"; then
+        CONFIG_URL="$URL"
+        echo "Config available: $CONFIG_URL"
+    else
+        echo "No generated config found for $MY_HOSTNAME"
+    fi
+else
+    echo "Serial $MY_SERIAL not found in mapping — no config will be applied"
+fi
+
+echo "Checking if the device is running the correct version..."
 if [ "$CUMULUS_TARGET_RELEASE" != "$CUMULUS_CURRENT_RELEASE" ]; then
-    echo "Version is incorrect: $CUMULUS_CURRENT_RELEASE, proceeding to download the correct version: $CUMULUS_TARGET_RELEASE"
+    echo "Version mismatch: $CUMULUS_CURRENT_RELEASE -> $CUMULUS_TARGET_RELEASE"
     ping_until_reachable $IMAGE_SERVER_HOSTNAME
-    /usr/cumulus/bin/onie-install -fa -i $IMAGE_SERVER -z $ZTP_URL && reboot
+    if [ -n "$CONFIG_URL" ]; then
+        echo "Installing OS + config for $MY_HOSTNAME..."
+        /usr/cumulus/bin/onie-install -fa -i $IMAGE_SERVER -z $ZTP_URL -t $CONFIG_URL && reboot
+    else
+        echo "Installing OS only (no config)..."
+        /usr/cumulus/bin/onie-install -fa -i $IMAGE_SERVER -z $ZTP_URL && reboot
+    fi
 else
     echo "Version is correct: $CUMULUS_TARGET_RELEASE"
     init_ztp

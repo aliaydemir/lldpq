@@ -99,6 +99,16 @@ for f in /var/www/html/device-cache.json /var/www/html/fabric-scan-cache.json /v
     chmod 664 "$f"
 done
 
+# ─── Generated configs dir + serial mapping (ZTP config resolution) ───
+mkdir -p /var/www/html/generated_config_folder
+chown lldpq:www-data /var/www/html/generated_config_folder
+chmod 775 /var/www/html/generated_config_folder
+if [ ! -f /var/www/html/serial-mapping.txt ]; then
+    printf '# Serial → Hostname mapping for ZTP config resolution\n# Format: SERIAL_NUMBER  HOSTNAME\n\n' > /var/www/html/serial-mapping.txt
+fi
+chown lldpq:www-data /var/www/html/serial-mapping.txt
+chmod 664 /var/www/html/serial-mapping.txt
+
 # ─── Auth Setup (self-healing: recreate if missing) ───
 if [ ! -f /etc/lldpq-users.conf ]; then
     echo "  Creating default users file..."

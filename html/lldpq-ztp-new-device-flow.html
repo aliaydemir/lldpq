@@ -90,39 +90,64 @@ h1 { color: #76b900; font-size: 28px; margin-bottom: 5px; }
 <p class="subtitle">What happens when a new switch (Cumulus Linux or other) connects to the OOB management network — traced from actual LLDPq source code.</p>
 
 <!-- KEY INSIGHT BOX -->
-<div style="margin-bottom: 25px; padding: 18px 22px; background: linear-gradient(135deg, #1a2e00 0%, #252526 100%); border: 1px solid #76b900; border-radius: 8px;">
-    <div style="font-size: 16px; font-weight: 600; color: #76b900; margin-bottom: 10px;">What do you need to provision a new switch?</div>
-    <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 12px;">
-        <div style="flex: 1; min-width: 200px; padding: 12px; background: #1e1e1e; border-radius: 6px; border-left: 3px solid #76b900;">
-            <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 4px;">You provide</div>
-            <div style="font-size: 14px; color: #e0e0e0; line-height: 1.8;">
-                <strong style="color:#76b900;">Hostname</strong> — from your naming plan<br>
-                <strong style="color:#76b900;">Serial Number</strong> — from purchase order<br>
-                <strong style="color:#76b900;">IP Address</strong> — your allocation<br>
-                <span style="color:#888; font-size:12px;">Optional: Role (leaf, spine, etc.)</span>
+<div style="margin-bottom: 25px; padding: 22px 26px; background: linear-gradient(135deg, #1a2e00 0%, #252526 100%); border: 1px solid #76b900; border-radius: 8px;">
+    <div style="font-size: 18px; font-weight: 600; color: #76b900; margin-bottom: 14px;">What do you need to provision a new switch?</div>
+
+    <div style="display: grid; grid-template-columns: 55fr 45fr; gap: 16px; margin-bottom: 16px;">
+        <!-- LEFT: You provide -->
+        <div style="padding: 16px; background: #1e1e1e; border-radius: 8px; border-left: 4px solid #76b900;">
+            <div style="font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">You prepare (before hardware arrives)</div>
+            <div style="font-size: 13px; color: #e0e0e0; line-height: 2.0;">
+                <strong style="color:#76b900;">1.</strong> Create Ansible <strong style="color:#76b900;">host_vars</strong> for each switch (BGP, VLANs, VRFs, ports)<br>
+                <strong style="color:#76b900;">2.</strong> Run <strong style="color:#76b900;">ansible-playbook generate.yml</strong> → creates per-device NVUE YAML configs<br>
+                <strong style="color:#76b900;">3.</strong> In LLDPq Provision → ZTP tab:<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;• <strong style="color:#76b900;">Sync from Ansible</strong> → copies generated configs to web root<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;• <strong style="color:#76b900;">Serial Mapping</strong> → map serial numbers to hostnames<br>
+                <strong style="color:#76b900;">4.</strong> <strong style="color:#76b900;">Bulk Import</strong> in Inventory tab: hostname + IP + serial + role
             </div>
         </div>
-        <div style="flex: 1; min-width: 200px; padding: 12px; background: #1e1e1e; border-radius: 6px; border-left: 3px solid #42a5f5;">
-            <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 4px;">LLDPq discovers automatically</div>
-            <div style="font-size: 14px; color: #e0e0e0; line-height: 1.8;">
-                <strong style="color:#42a5f5;">MAC Address</strong> — from subnet scan (matched via serial or IP)<br>
-                <strong style="color:#42a5f5;">DHCP Binding</strong> — written to dhcpd.hosts on Save<br>
-                <strong style="color:#42a5f5;">OS + SSH Key + Base Config</strong> — via ZTP + post-provision
-            </div>
-        </div>
-        <div style="flex: 1; min-width: 200px; padding: 12px; background: #1e1e1e; border-radius: 6px; border-left: 3px solid #4caf50;">
-            <div style="font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 4px;">End result</div>
-            <div style="font-size: 14px; color: #e0e0e0; line-height: 1.8;">
-                Switch fully provisioned:<br>
-                Correct OS, SSH key auth, hostname set,<br>
-                base tools deployed, DHCP reserved IP,<br>
-                visible in all LLDPq modules.
+
+        <!-- RIGHT: What happens automatically -->
+        <div style="padding: 16px; background: #1e1e1e; border-radius: 8px; border-left: 4px solid #42a5f5;">
+            <div style="font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">What happens when you power on the switch</div>
+            <div style="font-size: 13px; color: #e0e0e0; line-height: 2.0;">
+                <strong style="color:#42a5f5;">1.</strong> Switch gets a temporary IP from DHCP dynamic range<br>
+                <strong style="color:#42a5f5;">2.</strong> ZTP script downloads and runs automatically<br>
+                <strong style="color:#42a5f5;">3.</strong> ZTP reads switch serial: <strong style="color:#42a5f5;">decode-syseeprom</strong><br>
+                <strong style="color:#42a5f5;">4.</strong> Resolves serial → hostname via <strong style="color:#42a5f5;">serial-mapping.txt</strong><br>
+                <strong style="color:#42a5f5;">5.</strong> Downloads <strong style="color:#42a5f5;">generated_config_folder/{hostname}.yaml</strong><br>
+                <strong style="color:#42a5f5;">6.</strong> Installs OS + applies config via <strong style="color:#42a5f5;">onie-install -t</strong><br>
+                <strong style="color:#42a5f5;">7.</strong> Sets password, SSH key, passwordless sudo
             </div>
         </div>
     </div>
-    <div style="font-size: 12px; color: #aaa; border-top: 1px solid #3c3c3c; padding-top: 10px;">
-        <strong>Workflow:</strong> Bulk Import (hostname + IP + serial) → rack &amp; cable the switch → power on → <em>everything else is automatic.</em>
-        The entire inventory can be planned before hardware arrives. When a switch connects, discovery matches it by serial, auto-fills the MAC, and the provisioning pipeline takes over.
+
+    <!-- RESULT -->
+    <div style="padding: 16px; background: #1e1e1e; border-radius: 8px; border-left: 4px solid #4caf50; margin-bottom: 14px;">
+        <div style="font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">End result — fully configured switch</div>
+        <div style="display: flex; gap: 30px; flex-wrap: wrap; font-size: 13px; color: #e0e0e0; line-height: 1.8;">
+            <div>
+                &#10003; Correct OS version<br>
+                &#10003; Full NVUE config (BGP, VLANs, VRFs, interfaces)<br>
+                &#10003; Static management IP from config
+            </div>
+            <div>
+                &#10003; SSH key authentication<br>
+                &#10003; Hostname set<br>
+                &#10003; Passwordless sudo
+            </div>
+            <div>
+                &#10003; Base tools (tmux, exa, motd, etc.)<br>
+                &#10003; Registered in all LLDPq modules<br>
+                <strong style="color:#76b900;">&#10003; No Ansible deploy needed</strong>
+            </div>
+        </div>
+    </div>
+
+    <div style="font-size: 13px; color: #bbb; border-top: 1px solid #3c3c3c; padding-top: 12px; line-height: 1.8;">
+        <strong style="color:#76b900;">Summary:</strong> Ansible generates configs → LLDPq serves them via HTTP → ZTP reads switch serial, resolves hostname, downloads config →
+        <code style="color:#76b900; background:#1a1a1a; padding:1px 6px; border-radius:3px;">onie-install -t</code> applies OS + config in one shot.
+        The switch boots fully configured. No manual SSH, no Ansible deploy, no MAC address needed upfront.
     </div>
 </div>
 
@@ -148,7 +173,7 @@ h1 { color: #76b900; font-size: 28px; margin-bottom: 5px; }
         </div>
         <div class="step decision">
             <div class="step-title">DHCP Server receives request — binding lookup</div>
-            <div class="step-desc">ISC DHCP server on the LLDPq host checks <span class="step-code">dhcpd.hosts</span> for a MAC → IP static reservation.<br>
+            <div class="step-desc">ISC DHCP server checks <span class="step-code">dhcpd.hosts</span> for a MAC → IP static reservation.<br>
             Format: <span class="step-code">host HOSTNAME {hardware ethernet MAC; fixed-address IP; option host-name "HOSTNAME";}</span></div>
             <div class="step-file">provision-api.sh → generate_dhcp_hosts()</div>
         </div>
@@ -161,12 +186,13 @@ h1 { color: #76b900; font-size: 28px; margin-bottom: 5px; }
             <div class="branch-path no">
                 <div class="branch-label">MAC not found (new/unknown device)</div>
                 <div class="branch-text">Switch gets an IP from the <strong>dynamic range</strong> (e.g., .210–.249).<br>
-                Still receives ZTP URL via the subnet-level option 239.</div>
+                Still receives ZTP URL via the subnet-level option 239.<br>
+                This is only temporary — generated config applies a <strong>static management IP</strong> after ZTP, freeing the dynamic lease.</div>
             </div>
         </div>
         <div class="step active">
             <div class="step-title">Switch has an IP address and can reach the LLDPq server</div>
-            <div class="step-desc">At this point the switch is on the network but not yet provisioned.</div>
+            <div class="step-desc">At this point the switch is on the network but not yet provisioned. The IP may be temporary (dynamic) — if the generated config includes a static management IP, it will take effect after ZTP applies the config.</div>
         </div>
     </div>
 </div>
@@ -177,28 +203,71 @@ h1 { color: #76b900; font-size: 28px; margin-bottom: 5px; }
 <div class="phase p2">
     <div class="phase-header">
         <div class="phase-num">2</div>
-        <div class="phase-title">ZTP (Zero Touch Provisioning)</div>
-        <div class="phase-source">cumulus-ztp.sh</div>
+        <div class="phase-title">ZTP (Zero Touch Provisioning) + Config Resolution</div>
+        <div class="phase-source">cumulus-ztp.sh &bull; serial-mapping.txt &bull; generated_config_folder/</div>
     </div>
     <div class="steps">
         <div class="step active">
             <div class="step-title">Switch downloads and executes ZTP script</div>
             <div class="step-desc">Cumulus Linux checks DHCP option 239 → fetches <span class="step-code">http://server/cumulus-ztp.sh</span> via HTTP and runs it as root.</div>
         </div>
+        <div class="step active" style="border-color: #ff9800;">
+            <div class="step-title" style="color: #ff9800;">ZTP: Read serial number from hardware EEPROM</div>
+            <div class="step-desc">
+                <span class="step-code">decode-syseeprom | grep "Serial Number" | awk '{print $NF}'</span><br>
+                Fallback: <span class="step-code">onie-syseeprom -g 0x23</span><br>
+                Example: <span style="color:#76b900;">MT1607X11210</span>
+            </div>
+            <div class="step-file">cumulus-ztp.sh → MY_SERIAL</div>
+        </div>
+        <div class="step active" style="border-color: #ff9800;">
+            <div class="step-title" style="color: #ff9800;">ZTP: Resolve hostname from serial mapping</div>
+            <div class="step-desc">
+                Downloads <span class="step-code">http://server/serial-mapping.txt</span> and looks up serial → hostname.<br>
+                Format: <span class="step-code">MT1607X11210  lsw-3na-01-28</span><br>
+                Managed in Provision → ZTP → Serial Mapping table.
+            </div>
+            <div class="step-file">cumulus-ztp.sh → resolve_hostname() → MY_HOSTNAME</div>
+        </div>
         <div class="step decision">
-            <div class="step-title">ZTP script checks OS version</div>
-            <div class="step-desc"><span class="step-code">CUMULUS_TARGET_RELEASE</span> vs current version. If mismatch → download + install + reboot.</div>
-            <div class="step-file">cumulus-ztp.sh → CUMULUS_TARGET_RELEASE check</div>
+            <div class="step-title">ZTP: Check if generated config exists for this hostname</div>
+            <div class="step-desc">
+                <span class="step-code">curl -sf --head http://server/generated_config_folder/${MY_HOSTNAME}.yaml</span><br>
+                If HTTP 200 → config is available. These are Ansible-generated NVUE YAML configs.
+            </div>
+            <div class="step-file">cumulus-ztp.sh → CONFIG_URL</div>
+        </div>
+        <div class="branch">
+            <div class="branch-path yes">
+                <div class="branch-label">Config found</div>
+                <div class="branch-text">Config URL set. Will be used with <span class="step-code">-t</span> flag (OS upgrade) or <span class="step-code">nv config replace</span> (version correct).</div>
+            </div>
+            <div class="branch-path no">
+                <div class="branch-label">No config / no serial mapping</div>
+                <div class="branch-text">Proceeds without config. Device gets OS + SSH + password only (basic provisioning).</div>
+            </div>
+        </div>
+        <div class="step decision">
+            <div class="step-title">ZTP: Check OS version</div>
+            <div class="step-desc"><span class="step-code">CUMULUS_TARGET_RELEASE</span> vs current version from <span class="step-code">/etc/lsb-release</span>.</div>
         </div>
         <div class="branch">
             <div class="branch-path no">
                 <div class="branch-label">Wrong OS version</div>
-                <div class="branch-text"><span class="step-code">onie-install -fa -i http://server/cumulus-linux-X.Y.Z.bin -z http://server/cumulus-ztp.sh</span><br>
-                Switch reboots, re-runs ZTP after install. Loop until version matches.</div>
+                <div class="branch-text">
+                    <strong>With config:</strong> <span class="step-code">onie-install -fa -i IMAGE -z ZTP -t http://server/generated_config_folder/{hostname}.yaml</span><br>
+                    <strong>Without config:</strong> <span class="step-code">onie-install -fa -i IMAGE -z ZTP</span><br>
+                    The <span class="step-code">-t</span> flag tells ONIE to restore the NVUE config as <span class="step-code">startup.yaml</span> after OS install.<br>
+                    Switch reboots → ONIE installs OS + applies config → ZTP re-runs (version now correct).
+                </div>
             </div>
             <div class="branch-path yes">
-                <div class="branch-label">Correct OS version</div>
-                <div class="branch-text">Proceeds to <span class="step-code">init_ztp()</span> — runs provisioning steps below.</div>
+                <div class="branch-label">Correct OS version → init_ztp()</div>
+                <div class="branch-text">
+                    <strong>With config:</strong> <span class="step-code">nv config replace /tmp/startup.yaml && nv config apply -y && nv config save</span><br>
+                    <strong>Without config:</strong> Skips config step.<br>
+                    Then proceeds to password, SSH key, sudo setup below.
+                </div>
             </div>
         </div>
         <div class="step active">
@@ -216,9 +285,12 @@ h1 { color: #76b900; font-size: 28px; margin-bottom: 5px; }
             <div class="step-desc"><span class="step-code">echo "cumulus ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/10_cumulus</span></div>
         </div>
         <div class="step active">
-            <div class="step-title">ZTP completes — switch is now SSH-accessible with key auth</div>
-            <div class="step-desc">The switch has: correct OS, known password, SSH key, and an IP address. It is ready for discovery.</div>
-            <div class="timeline-note">Elapsed: 2–10 minutes (depends on OS upgrade)</div>
+            <div class="step-title">ZTP completes — switch has OS + config + SSH access</div>
+            <div class="step-desc">
+                <strong>If generated config was applied:</strong> Switch has full NVUE config (hostname, BGP, VLANs, interfaces, VRFs). Ready for production. <strong>No Ansible deploy needed.</strong><br>
+                <strong>If no config:</strong> Switch has correct OS, known password, SSH key. Ready for discovery and manual configuration.
+            </div>
+            <div class="timeline-note">Elapsed: 2–15 minutes (depends on OS upgrade and config size)</div>
         </div>
     </div>
 </div>
@@ -419,13 +491,15 @@ h1 { color: #76b900; font-size: 28px; margin-bottom: 5px; }
             <div class="step-desc">
                 The device now has:<br>
                 &#10003; Correct OS version (via ZTP)<br>
+                &#10003; <strong>Full NVUE config</strong> — BGP, VLANs, VRFs, interfaces (via ZTP <span class="step-code">-t</span> or <span class="step-code">nv config replace</span>)<br>
                 &#10003; SSH key authentication (via ZTP)<br>
                 &#10003; Base config: shell aliases, tmux, motd, tools (via post-provision)<br>
-                &#10003; Hostname set (via post-provision)<br>
+                &#10003; Hostname set (via generated config or post-provision)<br>
                 &#10003; ZTP disabled (won't re-run on reboot)<br>
                 &#10003; Registered in inventory (devices.yaml + inventory.json + dhcpd.hosts)<br>
                 &#10003; Visible in all LLDPq modules (Assets, Search, Topology, Telemetry)<br>
-                &#10003; Marker file prevents redundant re-provisioning
+                &#10003; Marker file prevents redundant re-provisioning<br>
+                <span style="color:#76b900; font-weight:600;">No Ansible deploy was needed — config applied during ZTP.</span>
             </div>
         </div>
     </div>
@@ -549,9 +623,42 @@ h1 { color: #76b900; font-size: 28px; margin-bottom: 5px; }
         </div>
     </div>
 
-    <!-- ALT 7: PRE-PLANNED -->
-    <div style="padding: 15px; background: #1e1e1e; border-left: 3px solid #76b900; border-radius: 4px;">
-        <div style="font-weight: 600; color: #76b900; margin-bottom: 6px;">F. Pre-planned deployment (inventory before hardware)</div>
+    <!-- ALT 7: SERIAL-BASED FULL CONFIG -->
+    <div style="margin-bottom: 20px; padding: 15px; background: #1e1e1e; border-left: 3px solid #76b900; border-radius: 4px;">
+        <div style="font-weight: 600; color: #76b900; margin-bottom: 6px;">G. Serial-based full config deployment (ZTP + Ansible-generated config)</div>
+        <div style="font-size: 12px; color: #bbb; line-height: 1.8;">
+            <strong>This is the recommended workflow for production deployments.</strong> Combines Ansible config generation with ZTP for zero-touch full configuration.<br><br>
+            <strong>Preparation (before hardware):</strong><br>
+            <div style="margin: 8px 0; padding: 10px; background: #252526; border-radius: 4px; font-size: 12px; line-height: 2;">
+                1. Create Ansible <span class="step-code">host_vars/{hostname}.yaml</span> with full switch config (BGP, VLANs, VRFs, ports)<br>
+                2. Run <span class="step-code">ansible-playbook generate.yml</span> → creates <span class="step-code">generated_config_folder/{hostname}.yaml</span><br>
+                3. In LLDPq Provision → ZTP tab:<br>
+                &nbsp;&nbsp;&nbsp;• Click <strong>"Sync from Ansible"</strong> → copies configs to <span class="step-code">/var/www/html/generated_config_folder/</span><br>
+                &nbsp;&nbsp;&nbsp;• Add <strong>Serial Mapping</strong>: serial number → hostname (from purchase order)<br>
+                &nbsp;&nbsp;&nbsp;• Or click <strong>"Auto-fill from Discovery"</strong> after initial scan to populate mappings<br>
+                4. Bulk Import inventory: hostname + IP + serial + role
+            </div>
+            <strong>When switch connects:</strong><br>
+            <div style="margin: 8px 0; padding: 10px; background: #252526; border-radius: 4px; font-size: 12px; line-height: 2;">
+                1. DHCP → dynamic IP → ZTP runs<br>
+                2. ZTP reads switch serial: <span class="step-code">decode-syseeprom</span> → e.g., <span style="color:#76b900;">MT1607X11210</span><br>
+                3. Downloads <span class="step-code">serial-mapping.txt</span> → resolves: MT1607X11210 = <span style="color:#76b900;">lsw-3na-01-28</span><br>
+                4. Checks <span class="step-code">generated_config_folder/lsw-3na-01-28.yaml</span> → found!<br>
+                5a. <strong>Wrong OS:</strong> <span class="step-code">onie-install -fa -i IMAGE -z ZTP <strong style="color:#ff9800;">-t CONFIG</strong></span> → OS + config in one shot<br>
+                5b. <strong>Right OS:</strong> <span class="step-code">nv config replace + apply + save</span> → config applied directly<br>
+                6. Password + SSH key + sudo configured<br>
+                7. Switch boots fully configured — <strong style="color:#76b900;">no Ansible deploy needed</strong>
+            </div>
+            <strong>Key files:</strong><br>
+            &nbsp;&nbsp;• <span class="step-code">serial-mapping.txt</span> — serial → hostname lookup (managed in ZTP tab)<br>
+            &nbsp;&nbsp;• <span class="step-code">generated_config_folder/{hostname}.yaml</span> — full NVUE YAML config (from Ansible generate)<br>
+            <span style="color:#888; font-size:11px;">Code: cumulus-ztp.sh → resolve_hostname() + CONFIG_URL + onie-install -t</span>
+        </div>
+    </div>
+
+    <!-- ALT 8: PRE-PLANNED -->
+    <div style="margin-bottom: 20px; padding: 15px; background: #1e1e1e; border-left: 3px solid #76b900; border-radius: 4px;">
+        <div style="font-weight: 600; color: #76b900; margin-bottom: 6px;">H. Pre-planned deployment (inventory before hardware)</div>
         <div style="font-size: 12px; color: #bbb; line-height: 1.8;">
             <strong>When:</strong> Network architect plans the fabric before switches arrive. Hostnames, IPs, and roles are known; MACs are not.<br>
             <strong>Flow:</strong><br>
@@ -562,6 +669,23 @@ h1 { color: #76b900; font-size: 28px; margin-bottom: 5px; }
             &nbsp;&nbsp;5. Save → now written to <span class="step-code">dhcpd.hosts</span>. Status changes: Planned → Active.<br>
             &nbsp;&nbsp;6. DHCP restart → device gets reserved IP. If ZTP hasn't run, it runs now with the correct binding.<br>
             <span style="color:#888; font-size:11px;">Code: action_list_bindings() — inv_status='planned' when MAC is placeholder and dhcp=true</span>
+        </div>
+    </div>
+
+    <!-- ALT 9: EXISTING SWITCH OS UPGRADE -->
+    <div style="padding: 15px; background: #1e1e1e; border-left: 3px solid #ce93d8; border-radius: 4px;">
+        <div style="font-weight: 600; color: #ce93d8; margin-bottom: 6px;">I. Existing switch OS upgrade (with config preservation)</div>
+        <div style="font-size: 12px; color: #bbb; line-height: 1.8;">
+            <strong>When:</strong> An already-provisioned switch needs an OS upgrade (e.g., 5.11 → 5.14).<br>
+            <strong>Method 1 — ZTP-driven (automatic):</strong><br>
+            &nbsp;&nbsp;1. Update <span class="step-code">CUMULUS_TARGET_RELEASE</span> in ZTP script (Quick Settings)<br>
+            &nbsp;&nbsp;2. Ensure <span class="step-code">generated_config_folder/{hostname}.yaml</span> has the switch's config<br>
+            &nbsp;&nbsp;3. Re-enable ZTP on the switch: <span class="step-code">sudo ztp -R</span><br>
+            &nbsp;&nbsp;4. ZTP detects version mismatch → <span class="step-code">onie-install -fa -i IMAGE -z ZTP -t CONFIG</span> → reboot<br>
+            &nbsp;&nbsp;5. Switch comes back with new OS + full config restored<br><br>
+            <strong>Method 2 — Manual SSH (per-switch):</strong><br>
+            &nbsp;&nbsp;<span class="step-code">sudo onie-install -fa -i http://server/cumulus-linux-5.14.0.bin -z http://server/cumulus-ztp.sh -t http://server/generated_config_folder/{hostname}.yaml && sudo reboot</span><br><br>
+            <strong>Config preservation:</strong> The <span class="step-code">-t</span> flag restores the NVUE startup.yaml from the generated config. No manual config restore needed. No Ansible deploy needed.
         </div>
     </div>
 </div>
@@ -576,9 +700,9 @@ h1 { color: #76b900; font-size: 28px; margin-bottom: 5px; }
             <td style="padding: 8px; color: #666;">Automatic</td>
         </tr>
         <tr style="border-bottom: 1px solid #3c3c3c;">
-            <td style="padding: 8px; color: #888;">Phase 2: ZTP</td>
-            <td style="padding: 8px;">2–10 minutes</td>
-            <td style="padding: 8px; color: #666;">Automatic (longer if OS upgrade needed)</td>
+            <td style="padding: 8px; color: #888;">Phase 2: ZTP + Config</td>
+            <td style="padding: 8px;">2–15 minutes</td>
+            <td style="padding: 8px; color: #666;">Automatic — serial resolution + config + OS upgrade if needed</td>
         </tr>
         <tr style="border-bottom: 1px solid #3c3c3c;">
             <td style="padding: 8px; color: #888;">Phase 3: Discovery</td>
@@ -649,7 +773,19 @@ h1 { color: #76b900; font-size: 28px; margin-bottom: 5px; }
                 <td style="padding: 8px; font-family: monospace; color: #76b900;">cumulus-ztp.sh</td>
                 <td style="padding: 8px;">ZTP tab (admin)</td>
                 <td style="padding: 8px;">New switches via HTTP</td>
-                <td style="padding: 8px;">Zero Touch Provisioning script</td>
+                <td style="padding: 8px;">Zero Touch Provisioning script (serial-based config resolution)</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #2d2d2d;">
+                <td style="padding: 8px; font-family: monospace; color: #ff9800;">serial-mapping.txt</td>
+                <td style="padding: 8px;">ZTP tab (Serial Mapping editor)</td>
+                <td style="padding: 8px;">cumulus-ztp.sh on each switch</td>
+                <td style="padding: 8px;">Serial number → hostname mapping for config resolution</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #2d2d2d;">
+                <td style="padding: 8px; font-family: monospace; color: #ff9800;">generated_config_folder/*.yaml</td>
+                <td style="padding: 8px;">Ansible generate playbook (synced via ZTP tab)</td>
+                <td style="padding: 8px;">cumulus-ztp.sh via onie-install -t or nv config replace</td>
+                <td style="padding: 8px;">Full NVUE YAML switch configs (BGP, VLANs, VRFs, interfaces)</td>
             </tr>
             <tr>
                 <td style="padding: 8px; font-family: monospace; color: #76b900;">/etc/lldpq.conf</td>
@@ -662,7 +798,7 @@ h1 { color: #76b900; font-size: 28px; margin-bottom: 5px; }
 </div>
 
 <div style="margin-top: 30px; text-align: center; color: #555; font-size: 12px;">
-    Generated from LLDPq source code analysis &bull; provision-api.sh + provision.html + install.sh
+    Generated from LLDPq source code analysis &bull; provision-api.sh + provision.html + cumulus-ztp.sh + serial-mapping.txt
 </div>
 
 </div>

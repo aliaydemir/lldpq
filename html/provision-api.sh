@@ -73,6 +73,8 @@ AUTO_ZTP_DISABLE = os.environ.get('AUTO_ZTP_DISABLE', 'true') == 'true'
 AUTO_SET_HOSTNAME = os.environ.get('AUTO_SET_HOSTNAME', 'true') == 'true'
 DISCOVERY_CACHE_FILE = f'{WEB_ROOT}/discovery-cache.json'
 INVENTORY_FILE = f'{WEB_ROOT}/inventory.json'
+SERIAL_MAPPING_FILE = f'{WEB_ROOT}/serial-mapping.txt'
+GENERATED_CONFIGS_DIR = f'{WEB_ROOT}/generated_config_folder'
 
 def update_lldpq_conf(key, value):
     """Update or add a key=value in /etc/lldpq.conf (with file locking)."""
@@ -1340,23 +1342,28 @@ def action_save_ztp_script():
     
     filepath = ZTP_SCRIPT_FILE
     
+    written = False
     try:
         with open(filepath, 'w') as f:
             f.write(content)
-        # Ensure executable
-        os.chmod(filepath, 0o755)
+        written = True
     except PermissionError:
+        pass
+
+    if not written:
         try:
             proc = subprocess.run(
-                ['sudo', 'tee', filepath],
+                ['sudo', '-u', LLDPQ_USER, 'tee', filepath],
                 input=content, capture_output=True, text=True, timeout=10
             )
             if proc.returncode != 0:
                 error_json(f"Failed to write: {proc.stderr}")
-            subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', filepath], capture_output=True, timeout=5)
-            subprocess.run(['sudo', 'chmod', '775', filepath], capture_output=True, timeout=5)
         except Exception as e:
             error_json(str(e))
+
+    # Fix permissions (always use sudo — www-data can't chmod files owned by LLDPQ_USER)
+    subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', filepath], capture_output=True, timeout=5)
+    subprocess.run(['sudo', 'chmod', '775', filepath], capture_output=True, timeout=5)
     
     result_json({"success": True, "message": "ZTP script saved"})
 
@@ -2271,6 +2278,136 @@ def action_delete_os_image():
     
     result_json({"success": True, "message": f"Deleted {name}"})
 
+# ======================== SERIAL MAPPING ========================
+
+def action_get_serial_mapping():
+    """Read serial-mapping.txt and return as structured data."""
+    mappings = []
+    if os.path.exists(SERIAL_MAPPING_FILE):
+        with open(SERIAL_MAPPING_FILE, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                parts = line.split(None, 1)
+                if len(parts) == 2:
+                    mappings.append({'serial': parts[0], 'hostname': parts[1]})
+    result_json({"success": True, "mappings": mappings, "file": SERIAL_MAPPING_FILE})
+
+def action_save_serial_mapping():
+    """Save serial-mapping.txt from structured data."""
+    try:
+        data = json.loads(POST_DATA)
+    except Exception:
+        error_json("Invalid JSON data")
+
+    mappings = data.get('mappings', [])
+    lines = ["# Serial → Hostname mapping for ZTP config resolution",
+             "# Format: SERIAL_NUMBER  HOSTNAME",
+             ""]
+    for m in mappings:
+        serial = m.get('serial', '').strip()
+        hostname = m.get('hostname', '').strip()
+        if serial and hostname:
+            lines.append(f"{serial}  {hostname}")
+
+    content = '\n'.join(lines) + '\n'
+    written = False
+    try:
+        with open(SERIAL_MAPPING_FILE, 'w') as f:
+            f.write(content)
+        written = True
+    except PermissionError:
+        pass
+
+    if not written:
+        subprocess.run(['sudo', '-u', LLDPQ_USER, 'tee', SERIAL_MAPPING_FILE],
+                       input=content, capture_output=True, text=True, timeout=10)
+
+    subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', SERIAL_MAPPING_FILE],
+                   capture_output=True, timeout=5)
+    subprocess.run(['sudo', 'chmod', '664', SERIAL_MAPPING_FILE],
+                   capture_output=True, timeout=5)
+
+    result_json({"success": True, "message": f"Saved {len(mappings)} mapping(s)"})
+
+# ======================== GENERATED CONFIGS ========================
+
+def action_list_generated_configs():
+    """List YAML config files in generated_config_folder."""
+    configs = []
+    if os.path.isdir(GENERATED_CONFIGS_DIR):
+        for f in sorted(os.listdir(GENERATED_CONFIGS_DIR)):
+            if f.endswith(('.yaml', '.yml')):
+                filepath = os.path.join(GENERATED_CONFIGS_DIR, f)
+                stat = os.stat(filepath)
+                hostname = f.rsplit('.', 1)[0]
+                configs.append({
+                    'filename': f,
+                    'hostname': hostname,
+                    'size': stat.st_size,
+                    'mtime': int(stat.st_mtime)
+                })
+    result_json({"success": True, "configs": configs, "dir": GENERATED_CONFIGS_DIR})
+
+def action_sync_generated_configs():
+    """Copy generated configs from Ansible directory to web root."""
+    ansible_dir = os.environ.get('ANSIBLE_DIR', '')
+    if not ansible_dir:
+        # Try reading from lldpq.conf
+        try:
+            with open('/etc/lldpq.conf', 'r') as f:
+                for line in f:
+                    if line.strip().startswith('ANSIBLE_DIR='):
+                        ansible_dir = line.strip().split('=', 1)[1].strip('"').strip("'")
+                        break
+        except Exception:
+            pass
+
+    if not ansible_dir:
+        error_json("ANSIBLE_DIR not configured. Set it in /etc/lldpq.conf or configure Ansible directory in install.sh")
+
+    src_dir = os.path.join(ansible_dir, 'files', 'generated_config_folder')
+    if not os.path.isdir(src_dir):
+        error_json(f"Source directory not found: {src_dir}")
+
+    # Ensure destination exists
+    os.makedirs(GENERATED_CONFIGS_DIR, exist_ok=True)
+
+    copied = 0
+    errors = []
+    for f in os.listdir(src_dir):
+        if f.endswith(('.yaml', '.yml')):
+            src = os.path.join(src_dir, f)
+            dst = os.path.join(GENERATED_CONFIGS_DIR, f)
+            try:
+                import shutil
+                shutil.copy2(src, dst)
+                os.chmod(dst, 0o664)
+                copied += 1
+            except PermissionError:
+                subprocess.run(['sudo', 'cp', src, dst], capture_output=True, timeout=5)
+                subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', dst],
+                               capture_output=True, timeout=5)
+                subprocess.run(['sudo', 'chmod', '664', dst], capture_output=True, timeout=5)
+                copied += 1
+            except Exception as e:
+                errors.append(f"{f}: {str(e)}")
+
+    # Fix directory permissions
+    try:
+        subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', GENERATED_CONFIGS_DIR],
+                       capture_output=True, timeout=5)
+        subprocess.run(['sudo', 'chmod', '775', GENERATED_CONFIGS_DIR],
+                       capture_output=True, timeout=5)
+    except Exception:
+        pass
+
+    msg = f"Synced {copied} config(s) from {src_dir}"
+    if errors:
+        msg += f" ({len(errors)} error(s))"
+    result_json({"success": True, "message": msg, "copied": copied, "errors": errors})
+
 # ======================== UPDATE ROLE ========================
 
 def action_update_role():
@@ -2557,6 +2694,72 @@ def action_list_roles():
         pass
     result_json({"success": True, "roles": sorted(roles)})
 
+# ======================== ZTP TAB BULK LOAD ========================
+
+def action_load_ztp_tab():
+    """Load all ZTP tab data in a single request to avoid multiple CGI startups."""
+    result = {}
+
+    # ZTP script
+    try:
+        if os.path.exists(ZTP_SCRIPT_FILE):
+            with open(ZTP_SCRIPT_FILE, 'r') as f:
+                result['ztp_script'] = {"success": True, "content": f.read(), "file": ZTP_SCRIPT_FILE}
+        else:
+            result['ztp_script'] = {"success": True, "content": "", "file": ZTP_SCRIPT_FILE}
+    except Exception as e:
+        result['ztp_script'] = {"success": False, "error": str(e)}
+
+    # SSH key
+    try:
+        pub_key, key_type, key_file = get_ssh_key_info()
+        result['ssh_key'] = {"success": True, "public_key": pub_key or "", "key_type": key_type or "", "key_file": key_file or ""}
+    except Exception as e:
+        result['ssh_key'] = {"success": False, "error": str(e)}
+
+    # OS images
+    try:
+        images = []
+        for f in sorted(os.listdir(WEB_ROOT)):
+            if f.endswith(('.bin', '.img', '.iso')) and os.path.isfile(os.path.join(WEB_ROOT, f)):
+                stat = os.stat(os.path.join(WEB_ROOT, f))
+                images.append({'name': f, 'size': stat.st_size, 'mtime': int(stat.st_mtime)})
+        result['os_images'] = {"success": True, "images": images}
+    except Exception as e:
+        result['os_images'] = {"success": False, "error": str(e)}
+
+    # Serial mapping
+    try:
+        mappings = []
+        if os.path.exists(SERIAL_MAPPING_FILE):
+            with open(SERIAL_MAPPING_FILE, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    parts = line.split(None, 1)
+                    if len(parts) == 2:
+                        mappings.append({'serial': parts[0], 'hostname': parts[1]})
+        result['serial_mapping'] = {"success": True, "mappings": mappings}
+    except Exception as e:
+        result['serial_mapping'] = {"success": False, "error": str(e)}
+
+    # Generated configs
+    try:
+        configs = []
+        if os.path.isdir(GENERATED_CONFIGS_DIR):
+            for f in sorted(os.listdir(GENERATED_CONFIGS_DIR)):
+                if f.endswith(('.yaml', '.yml')):
+                    filepath = os.path.join(GENERATED_CONFIGS_DIR, f)
+                    stat = os.stat(filepath)
+                    configs.append({'filename': f, 'hostname': f.rsplit('.', 1)[0], 'size': stat.st_size, 'mtime': int(stat.st_mtime)})
+        result['generated_configs'] = {"success": True, "configs": configs}
+    except Exception as e:
+        result['generated_configs'] = {"success": False, "error": str(e)}
+
+    result['success'] = True
+    result_json(result)
+
 # ======================== ROUTER ========================
 
 if ACTION == 'list-bindings':
@@ -2605,6 +2808,16 @@ elif ACTION == 'upload-os-image':
     action_upload_os_image()
 elif ACTION == 'delete-os-image':
     action_delete_os_image()
+elif ACTION == 'get-serial-mapping':
+    action_get_serial_mapping()
+elif ACTION == 'save-serial-mapping':
+    action_save_serial_mapping()
+elif ACTION == 'list-generated-configs':
+    action_list_generated_configs()
+elif ACTION == 'sync-generated-configs':
+    action_sync_generated_configs()
+elif ACTION == 'load-ztp-tab':
+    action_load_ztp_tab()
 elif ACTION == 'update-role':
     action_update_role()
 elif ACTION == 'list-roles':

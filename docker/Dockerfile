@@ -38,6 +38,7 @@ RUN mkdir -p /home/lldpq/lldpq/monitor-results/fabric-tables \
     && mkdir -p /var/www/html/configs \
     && mkdir -p /var/www/html/monitor-results \
     && mkdir -p /var/www/html/topology \
+    && mkdir -p /var/www/html/generated_config_folder \
     && mkdir -p /home/lldpq/.ssh \
     && chmod 700 /home/lldpq/.ssh
 
