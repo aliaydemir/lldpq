@@ -1124,6 +1124,11 @@
                 <div class="section-desc">NVUE YAML configs in <code style="background:#252526;padding:1px 4px;border-radius:3px;font-size:11px;">/var/www/html/generated_config_folder/</code> — served via HTTP for ZTP <code style="background:#252526;padding:1px 4px;border-radius:3px;font-size:11px;">-t</code> flag.</div>
             </div>
             <div style="display: flex; gap: 8px;">
+                <label class="btn btn-secondary btn-sm" style="cursor: pointer;" title="Upload YAML config files to generated_config_folder/">
+                    <svg viewBox="0 0 24 24" style="width:14px;height:14px;"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>
+                    Upload Configs
+                    <input type="file" id="configUpload" style="display: none;" accept=".yaml,.yml" multiple onchange="uploadGeneratedConfigs(this)">
+                </label>
                 <button class="btn btn-secondary btn-sm" onclick="syncGeneratedConfigs()" title="Copy from Ansible generated_config_folder">Sync from Ansible</button>
                 <button class="btn btn-secondary btn-sm" onclick="loadGeneratedConfigs()">Refresh</button>
             </div>
@@ -2850,6 +2855,37 @@ function renderGeneratedConfigsBadges() {
         `</div>`;
     document.getElementById('generatedConfigsStatus').textContent =
         `${generatedConfigs.length} config(s) — ${generatedConfigs.filter(c => mappedSet.has(c.hostname)).length} with serial mapping`;
+}
+
+async function uploadGeneratedConfigs(input) {
+    const files = input.files;
+    if (!files || files.length === 0) return;
+
+    const yamlFiles = Array.from(files).filter(f => f.name.endsWith('.yaml') || f.name.endsWith('.yml'));
+    if (yamlFiles.length === 0) { showToast('No YAML files selected', 'error'); return; }
+
+    showToast(`Uploading ${yamlFiles.length} config(s)...`, 'info');
+    let ok = 0, fail = 0;
+
+    for (const file of yamlFiles) {
+        try {
+            const content = await file.text();
+            const resp = await fetch('/provision-api.sh?action=upload-generated-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: file.name, content })
+            });
+            const data = await resp.json();
+            if (data.success) ok++;
+            else fail++;
+        } catch (e) {
+            fail++;
+        }
+    }
+
+    input.value = '';
+    loadGeneratedConfigs().then(() => renderSerialMapping());
+    showToast(`Uploaded ${ok} config(s)${fail ? `, ${fail} failed` : ''}`, ok > 0 ? 'success' : 'error');
 }
 
 async function syncGeneratedConfigs() {

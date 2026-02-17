@@ -2399,6 +2399,51 @@ def action_sync_generated_configs():
         msg += f" ({len(errors)} error(s))"
     result_json({"success": True, "message": msg, "copied": copied, "errors": errors})
 
+def action_upload_generated_config():
+    """Upload a single YAML config file to generated_config_folder."""
+    try:
+        data = json.loads(POST_DATA)
+    except Exception:
+        error_json("Invalid JSON data")
+
+    filename = data.get('filename', '')
+    content = data.get('content', '')
+
+    if not filename or not content:
+        error_json("Missing filename or content")
+    if not filename.endswith(('.yaml', '.yml')):
+        error_json("Only .yaml/.yml files allowed")
+    if '/' in filename or '..' in filename:
+        error_json("Invalid filename")
+
+    # Ensure directory exists with correct permissions
+    if not os.path.isdir(GENERATED_CONFIGS_DIR):
+        try:
+            os.makedirs(GENERATED_CONFIGS_DIR, exist_ok=True)
+        except PermissionError:
+            subprocess.run(['sudo', 'mkdir', '-p', GENERATED_CONFIGS_DIR], capture_output=True, timeout=5)
+        subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', GENERATED_CONFIGS_DIR], capture_output=True, timeout=5)
+        subprocess.run(['sudo', 'chmod', '775', GENERATED_CONFIGS_DIR], capture_output=True, timeout=5)
+
+    dest = os.path.join(GENERATED_CONFIGS_DIR, filename)
+
+    written = False
+    try:
+        with open(dest, 'w') as f:
+            f.write(content)
+        written = True
+    except PermissionError:
+        pass
+
+    if not written:
+        subprocess.run(['sudo', '-u', LLDPQ_USER, 'tee', dest],
+                       input=content, capture_output=True, text=True, timeout=10)
+
+    subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', dest], capture_output=True, timeout=5)
+    subprocess.run(['sudo', 'chmod', '664', dest], capture_output=True, timeout=5)
+
+    result_json({"success": True, "message": f"Uploaded {filename}"})
+
 # ======================== UPDATE ROLE ========================
 
 def action_update_role():
@@ -2807,6 +2852,8 @@ elif ACTION == 'list-generated-configs':
     action_list_generated_configs()
 elif ACTION == 'sync-generated-configs':
     action_sync_generated_configs()
+elif ACTION == 'upload-generated-config':
+    action_upload_generated_config()
 elif ACTION == 'load-ztp-tab':
     action_load_ztp_tab()
 elif ACTION == 'update-role':
