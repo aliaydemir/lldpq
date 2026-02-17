@@ -1058,13 +1058,13 @@ def action_subnet_scan():
     # Step 3: SSH probe reachable IPs for device classification + serial collection
     def ssh_probe(ip):
         """Try SSH with key auth as cumulus user (runs as LLDPQ_USER to use correct SSH keys).
-        Returns: (ip, device_type, serial)  device_type: 'provisioned', 'not_provisioned', 'other'"""
+        Returns: (ip, device_type, serial, base_deployed)"""
         try:
             r = subprocess.run(
                 ['sudo', '-u', LLDPQ_USER, 'ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=3',
                  '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
                  '-o', 'LogLevel=ERROR', f'cumulus@{ip}',
-                 'echo OK; sudo dmidecode -s system-serial-number 2>/dev/null | head -1'],
+                 'echo OK; sudo dmidecode -s system-serial-number 2>/dev/null | head -1; test -f /etc/lldpq-base-deployed && echo BASE_DEPLOYED || echo BASE_PENDING'],
                 capture_output=True, text=True, timeout=10
             )
             if r.returncode == 0 and 'OK' in r.stdout:
@@ -1072,27 +1072,31 @@ def action_subnet_scan():
                 serial = lines[1].strip() if len(lines) > 1 else ''
                 if not serial or serial.lower() in ('', 'na', 'n/a', 'not specified', 'none'):
                     serial = ''
-                return ip, 'provisioned', serial
+                base_deployed = 'BASE_DEPLOYED' in r.stdout
+                return ip, 'provisioned', serial, base_deployed
             stderr = r.stderr.lower()
             if 'permission denied' in stderr:
-                return ip, 'not_provisioned', ''
+                return ip, 'not_provisioned', '', False
             if 'connection refused' in stderr:
-                return ip, 'other', ''
-            return ip, 'not_provisioned', ''
+                return ip, 'other', '', False
+            return ip, 'not_provisioned', '', False
         except subprocess.TimeoutExpired:
-            return ip, 'other', ''
+            return ip, 'other', '', False
         except Exception:
-            return ip, 'other', ''
+            return ip, 'other', '', False
     
     ssh_results = {}
     serial_results = {}
+    base_results = {}
     with ThreadPoolExecutor(max_workers=20) as executor:
         futures = {executor.submit(ssh_probe, ip): ip for ip in reachable_ips}
         for future in as_completed(futures):
-            ip, device_type, serial = future.result()
+            ip, device_type, serial, base_deployed = future.result()
             ssh_results[ip] = device_type
             if serial:
                 serial_results[ip] = serial
+            if base_deployed:
+                base_results[ip] = True
     
     # Step 4: Build entries with cross-reference
     entries = []
@@ -1138,7 +1142,7 @@ def action_subnet_scan():
             'role': entry_role,
             'source': 'Ping+ARP' if disc_mac else ('Ping' if alive else ''),
             'has_binding': binding is not None,
-            'post_provision': None,
+            'post_provision': 'already' if base_results.get(ip) else None,
         }
         entries.append(entry)
     
@@ -1148,25 +1152,12 @@ def action_subnet_scan():
     auto_host = read_lldpq_conf_key('AUTO_SET_HOSTNAME', 'true') == 'true'
     
     if auto_base or auto_ztp or auto_host:
-        provisioned_entries = [e for e in entries if e['device_type'] == 'provisioned' and e['has_binding']]
+        # Only post-provision devices that have a binding AND haven't been deployed yet
+        provisioned_entries = [e for e in entries if e['device_type'] == 'provisioned' and e['has_binding'] and e['post_provision'] != 'already']
         
         def post_provision_one(entry):
             ip = entry['ip']
             hostname = entry['hostname']
-            
-            # Check marker
-            try:
-                r = subprocess.run(
-                    ['sudo', '-u', LLDPQ_USER, 'ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=3',
-                     '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
-                     '-o', 'LogLevel=ERROR', f'cumulus@{ip}',
-                     'test -f /etc/lldpq-base-deployed && echo DONE || echo NEW'],
-                    capture_output=True, text=True, timeout=8
-                )
-                if 'DONE' in r.stdout:
-                    return ip, 'already'
-            except Exception:
-                return ip, None
             
             # Execute post-provision actions
             cmds = []
