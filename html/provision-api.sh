@@ -2444,6 +2444,85 @@ def action_upload_generated_config():
 
     result_json({"success": True, "message": f"Uploaded {filename}"})
 
+# ======================== DEPLOY GENERATED CONFIG ========================
+
+def deploy_config_to_device(ip, hostname, server_ip):
+    """SSH into switch, curl config from web server, nv config replace/apply/save."""
+    config_url = f"http://{server_ip}/generated_config_folder/{hostname}.yaml"
+    ssh_opts = ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
+                '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
+                '-o', 'LogLevel=ERROR']
+
+    remote_cmd = (
+        f'curl -sf {config_url} -o /tmp/startup.yaml && '
+        f'test -s /tmp/startup.yaml && '
+        f'sudo nv config replace /tmp/startup.yaml && '
+        f'sudo nv config apply -y && '
+        f'sudo nv config save && '
+        f'rm -f /tmp/startup.yaml'
+    )
+
+    try:
+        r = subprocess.run(
+            ['sudo', '-u', LLDPQ_USER, 'ssh'] + ssh_opts + [f'cumulus@{ip}', remote_cmd],
+            capture_output=True, text=True, timeout=120
+        )
+        if r.returncode == 0:
+            return {'ip': ip, 'hostname': hostname, 'success': True, 'message': 'Config applied'}
+        return {'ip': ip, 'hostname': hostname, 'success': False, 'error': r.stderr.strip()[:200] or 'Command failed'}
+    except subprocess.TimeoutExpired:
+        return {'ip': ip, 'hostname': hostname, 'success': False, 'error': 'Timeout (120s)'}
+    except Exception as e:
+        return {'ip': ip, 'hostname': hostname, 'success': False, 'error': str(e)}
+
+def action_deploy_generated_config():
+    """Deploy generated NVUE config to one or more switches via SSH."""
+    try:
+        data = json.loads(POST_DATA)
+    except Exception:
+        error_json("Invalid JSON data")
+
+    devices = data.get('devices', [])
+    # Single device shorthand
+    if not devices and data.get('hostname') and data.get('ip'):
+        devices = [{'hostname': data['hostname'], 'ip': data['ip']}]
+
+    if not devices:
+        error_json("No devices specified")
+
+    server_ip = get_server_ip()
+    if not server_ip or server_ip == '127.0.0.1':
+        error_json("Cannot determine server IP for config download")
+
+    # Validate configs exist
+    for dev in devices:
+        config_path = os.path.join(GENERATED_CONFIGS_DIR, f"{dev['hostname']}.yaml")
+        if not os.path.exists(config_path):
+            # Try .yml
+            config_path = os.path.join(GENERATED_CONFIGS_DIR, f"{dev['hostname']}.yml")
+            if not os.path.exists(config_path):
+                error_json(f"No generated config found for {dev['hostname']}")
+
+    # Deploy in parallel
+    results = []
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        futures = {
+            executor.submit(deploy_config_to_device, dev['ip'], dev['hostname'], server_ip): dev
+            for dev in devices
+        }
+        for future in as_completed(futures):
+            results.append(future.result())
+
+    results.sort(key=lambda x: x['hostname'])
+    ok = sum(1 for r in results if r['success'])
+    fail = len(results) - ok
+
+    result_json({
+        "success": True,
+        "results": results,
+        "summary": {"ok": ok, "fail": fail, "total": len(results)}
+    })
+
 # ======================== UPDATE ROLE ========================
 
 def action_update_role():
@@ -2854,6 +2933,8 @@ elif ACTION == 'sync-generated-configs':
     action_sync_generated_configs()
 elif ACTION == 'upload-generated-config':
     action_upload_generated_config()
+elif ACTION == 'deploy-generated-config':
+    action_deploy_generated_config()
 elif ACTION == 'load-ztp-tab':
     action_load_ztp_tab()
 elif ACTION == 'update-role':

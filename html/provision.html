@@ -865,6 +865,7 @@
                     <th style="cursor:pointer;" onclick="sortDiscovered('device_type')">Access <span id="sort-device_type" style="opacity:0.4;">&#9650;</span></th>
                     <th style="cursor:pointer;" onclick="sortDiscovered('post_provision')">Base Config <span id="sort-post_provision" style="opacity:0.4;">&#9650;</span></th>
                     <th style="cursor:pointer;" onclick="sortDiscovered('mac_status')">Status <span id="sort-mac_status" style="opacity:0.4;">&#9650;</span></th>
+                    <th style="width:80px;"></th>
                 </tr>
             </thead>
             <tbody id="discoveredBody">
@@ -1339,7 +1340,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function onTabSwitch(tab) {
-    if (tab === 'discover') { loadDiscoveryCache(); }
+    if (tab === 'discover') {
+        loadDiscoveryCache();
+        if (generatedConfigs.length === 0) apiCall('list-generated-configs').then(d => { if (d.success) generatedConfigs = d.configs || []; });
+    }
     if (tab === 'dhcpd') { loadDHCPConfig(); }
     if (tab === 'bindings') {
         if (allBindings.length === 0) loadBindings();
@@ -2603,6 +2607,13 @@ function renderDiscovered() {
         // Role badge
         const roleHtml = d.role ? `<span style="padding:2px 8px;border-radius:3px;font-size:11px;background:#2d2d2d;color:#aaa;">${escHtml(d.role)}</span>` : '-';
 
+        // Deploy Config button: show only for provisioned devices with a generated config
+        const gcSet = new Set((generatedConfigs || []).map(c => c.hostname));
+        const canDeploy = d.device_type === 'provisioned' && d.hostname && gcSet.has(d.hostname);
+        const deployHtml = canDeploy
+            ? `<button class="btn btn-primary btn-sm" onclick="deployGeneratedConfig('${escAttr(d.hostname)}','${escAttr(d.ip)}')" style="font-size:11px;padding:2px 8px;">Deploy</button>`
+            : '';
+
         return `<tr>
             <td><strong>${escHtml(d.hostname || '-')}</strong></td>
             <td style="font-family:monospace;font-size:12px;">${dmacHtml}</td>
@@ -2612,6 +2623,7 @@ function renderDiscovered() {
             <td>${dtBadge}</td>
             <td>${ppBadge}</td>
             <td>${macBadge}</td>
+            <td class="row-actions">${deployHtml}</td>
         </tr>`;
     }).join('');
 }
@@ -2694,6 +2706,29 @@ function ipToNum(ip) {
 }
 
 function filterDiscovered() { renderDiscovered(); }
+
+async function deployGeneratedConfig(hostname, ip) {
+    showConfirmModal('Deploy Generated Config',
+        `Deploy NVUE config to <strong>${escHtml(hostname)}</strong> (${escHtml(ip)})?<br><br>` +
+        `This will run:<br>` +
+        `<code style="font-size:11px;color:#76b900;">nv config replace + apply + save</code><br><br>` +
+        `<span style="color:#ff9800;">The switch configuration will be fully replaced.</span>`,
+        async () => {
+            showToast(`Deploying config to ${hostname}...`, 'info');
+            const data = await apiCall('deploy-generated-config', { hostname, ip });
+            if (data.success && data.results) {
+                const r = data.results[0];
+                if (r && r.success) {
+                    showToast(`Config deployed to ${hostname}`, 'success');
+                } else {
+                    showToast(`Deploy failed: ${r ? r.error : 'Unknown'}`, 'error');
+                }
+            } else {
+                showToast(`Deploy failed: ${data.error || 'Unknown error'}`, 'error');
+            }
+        }
+    );
+}
 
 // ===================== TAB 3: ZTP SCRIPT =====================
 let ztpLoaded = false;
