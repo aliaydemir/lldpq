@@ -238,17 +238,16 @@ if [ -d /home/lldpq/lldpq/sw-base ]; then
     echo "✓ sw-base files ready ($(ls /home/lldpq/lldpq/sw-base/ 2>/dev/null | wc -l) files)"
 fi
 
-# Start DHCP server if config exists
-if [ -f /etc/dhcp/dhcpd.conf ]; then
-    # Determine interface
+# DHCP server: only start if explicitly enabled via DHCP_AUTOSTART=true
+# By default DHCP is OFF — admin enables from Provision → DHCP Server → Start
+if [ "${DHCP_AUTOSTART:-false}" = "true" ] && [ -f /etc/dhcp/dhcpd.conf ]; then
     DHCP_IFACE="eth0"
     if [ -f /etc/default/isc-dhcp-server ]; then
         DHCP_IFACE=$(grep '^INTERFACES=' /etc/default/isc-dhcp-server 2>/dev/null | sed 's/INTERFACES="//;s/"//' || echo "eth0")
     fi
-    # Start dhcpd
-    dhcpd -cf /etc/dhcp/dhcpd.conf "$DHCP_IFACE" 2>/dev/null && echo "✓ DHCP server started (interface: $DHCP_IFACE)" || echo "  DHCP: not started (no config or interface issue)"
+    dhcpd -cf /etc/dhcp/dhcpd.conf "$DHCP_IFACE" 2>/dev/null && echo "✓ DHCP server started (interface: $DHCP_IFACE)" || echo "  DHCP: not started (interface issue)"
 else
-    echo "  DHCP: no /etc/dhcp/dhcpd.conf (configure from Provision page)"
+    echo "  DHCP: not started (start from Provision page or set DHCP_AUTOSTART=true)"
 fi
 
 # ─── Start Services ───
