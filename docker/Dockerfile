@@ -4,7 +4,7 @@ FROM ubuntu:22.04
 
 LABEL maintainer="ali@lldpq.dev"
 LABEL description="LLDPq Network Monitoring"
-LABEL version="2.2.3"
+LABEL version="3.5.3"
 
 # Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
@@ -33,7 +33,7 @@ COPY docker/dotf/exa-${TARGETARCH} /usr/bin/exa
 COPY docker/dotf/nanorc /etc/nanorc
 COPY docker/dotf/bashrc /etc/bash.bashrc
 COPY docker/dotf/UTC /etc/localtime
-RUN chmod 755 /usr/bin/exa && echo "UTC" > /etc/timezone
+RUN chmod 755 /usr/bin/exa && chmod 644 /etc/nanorc /etc/bash.bashrc && echo "UTC" > /etc/timezone
 
 # Ansible + dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
