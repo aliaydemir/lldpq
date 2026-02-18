@@ -42,7 +42,7 @@ Open `http://<host-ip>` in your browser. That's it.
 
 **macOS note:** `--network host` does not work on macOS (Docker runs inside a Linux VM). Use port mapping instead:
 ```bash
-docker run -d --name lldpq -p 80:80 lldpq:latest
+docker run -d --name lldpq -p 80:80 -p 2033:2033 lldpq:latest
 ```
 Then open `http://localhost`.
 
@@ -121,6 +121,12 @@ sudo docker cp ~/my_ansible_project lldpq:/home/lldpq/ansible
 sudo docker exec lldpq chown -R lldpq:www-data /home/lldpq/ansible
 ```
 
+**SSH access to the container** (port 2033):
+```bash
+ssh -p 2033 lldpq@<host-ip>
+# password: lldpq
+```
+
 **Useful Docker commands:**
 ```bash
 sudo docker logs lldpq                        # Container logs
@@ -131,7 +137,7 @@ sudo docker ps -a --filter name=lldpq          # Container status
 ```
 
 **Built-in tools** (available inside the container shell):
-`exa`, `nano`, `colordiff`, `dos2unix`, `bash-completion`, `net-tools`, `bzip2`, `jq`, `git`, `curl`, `tcpdump`, `ansible`, `ansible-lint`, `ansible-galaxy`
+`exa`, `nano`, `tmux`, `colordiff`, `dos2unix`, `bash-completion`, `net-tools`, `bzip2`, `jq`, `git`, `curl`, `tcpdump`, `ansible`, `ansible-lint`, `ansible-galaxy`
 
 ## Requirements (non-Docker install)
 

@@ -250,6 +250,9 @@ else
     echo "  DHCP: not started (start from Provision page or set DHCP_AUTOSTART=true)"
 fi
 
+# ─── SSH Server Setup ───
+echo "lldpq:lldpq" | chpasswd 2>/dev/null
+
 # ─── Start Services ───
 echo ""
 echo "Starting services..."
@@ -265,10 +268,14 @@ chown www-data:www-data /var/run/fcgiwrap.socket
 chmod 660 /var/run/fcgiwrap.socket
 echo "  ✓ fcgiwrap"
 
+# Start SSH server (port 2033)
+/usr/sbin/sshd 2>/dev/null && echo "  ✓ sshd (port 2033)" || echo "  ⚠ sshd failed to start"
+
 # Start nginx (foreground - keeps container alive)
 echo "  ✓ nginx (port 80)"
 echo ""
 echo "LLDPq is ready! Access: http://localhost:${LLDPQ_PORT:-80}"
+echo "  SSH: ssh -p 2033 lldpq@<host-ip>"
 echo ""
 
 exec nginx -g 'daemon off;'

@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iproute2 iputils-ping dnsutils tcpdump \
     curl jq git bsdmainutils bsdextrautils \
     dos2unix bash-completion colordiff net-tools bzip2 nano \
+    tmux openssh-server \
     isc-dhcp-server \
     && pip3 install --no-cache-dir ruamel.yaml requests \
     && rm -rf /var/lib/apt/lists/*
@@ -33,7 +34,14 @@ COPY docker/dotf/exa-${TARGETARCH} /usr/bin/exa
 COPY docker/dotf/nanorc /etc/nanorc
 COPY docker/dotf/bashrc /etc/bash.bashrc
 COPY docker/dotf/UTC /etc/localtime
-RUN chmod 755 /usr/bin/exa && chmod 644 /etc/nanorc /etc/bash.bashrc && echo "UTC" > /etc/timezone
+COPY etc/tmux.conf /etc/tmux.conf
+RUN chmod 755 /usr/bin/exa && chmod 644 /etc/nanorc /etc/bash.bashrc /etc/tmux.conf && echo "UTC" > /etc/timezone
+
+# SSH server (port 2033 for container access)
+RUN mkdir -p /run/sshd && \
+    sed -i 's/^#Port 22/Port 2033/' /etc/ssh/sshd_config && \
+    sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/^#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
 
 # Ansible + dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -143,6 +151,6 @@ RUN for f in device-cache.json fabric-scan-cache.json discovery-cache.json inven
 COPY docker/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-EXPOSE 80
+EXPOSE 80 2033
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
