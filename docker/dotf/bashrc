@@ -39,7 +39,7 @@ fi
 #    . /etc/bash_completion
 #  fi
 #fi
-BASE_PS1='\[\e[1;33m\][\[\e[0;31m\]\h\[\e[1;33m\]] \[\e[1;35m\][\[\e[0;33m\]\W\[\e[1;35m\]] '
+BASE_PS1='\[\e[1;33m\][\[\e[0;31m\]LLDPq\[\e[1;33m\]] \[\e[1;35m\][\[\e[0;33m\]\W\[\e[1;35m\]] '
 
 if [ -f /usr/lib/git-core/git-sh-prompt ]; then
   . /usr/lib/git-core/git-sh-prompt
