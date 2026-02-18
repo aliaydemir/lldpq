@@ -8,6 +8,7 @@ LABEL version="2.2.3"
 
 # Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
 
 # Install all dependencies in one layer
 # bsdmainutils + bsdextrautils: 'column' command (moved in Ubuntu 22.04)
@@ -16,18 +17,35 @@ ENV DEBIAN_FRONTEND=noninteractive
 # ruamel.yaml via pip: comment-preserving YAML editing
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx fcgiwrap \
-    python3 python3-yaml python3-pip \
+    python3 python3-yaml python3-pip python3-netaddr \
     openssh-client sshpass \
     sudo cron \
     iproute2 iputils-ping dnsutils tcpdump \
     curl jq git bsdmainutils bsdextrautils \
+    dos2unix bash-completion colordiff net-tools bzip2 nano \
     isc-dhcp-server \
     && pip3 install --no-cache-dir ruamel.yaml requests \
     && rm -rf /var/lib/apt/lists/*
 
+# Shell usability tools (exa, syntax-highlighted nano, custom bashrc)
+COPY docker/dotf/exa /usr/bin/exa
+COPY docker/dotf/nanorc /etc/nanorc
+COPY docker/dotf/bashrc /etc/bash.bashrc
+COPY docker/dotf/UTC /etc/localtime
+RUN chmod 755 /usr/bin/exa && echo "UTC" > /etc/timezone
+
+# Ansible + dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ansible ansible-lint \
+    python3-jmespath python3-wheel \
+    && rm -rf /var/lib/apt/lists/*
+RUN ansible-galaxy collection install nvidia.nvue community.general ansible.netcommon
+
 # Create lldpq user (matches host user pattern)
 RUN useradd -m -s /bin/bash -G www-data lldpq \
-    && echo "lldpq ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/lldpq
+    && echo "lldpq ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/lldpq \
+    && rm -f /home/lldpq/.bashrc /home/lldpq/.profile /home/lldpq/.bash_logout \
+    && rm -f /root/.bashrc /root/.profile /root/.bash_logout
 
 # Allow www-data to sudo as lldpq (for SSH operations from CGI + SSH Setup)
 RUN echo "www-data ALL=(lldpq) NOPASSWD: ALL" > /etc/sudoers.d/www-data-lldpq

@@ -1,0 +1,156 @@
+#######################################################################
+#######################################################################
+## Valid colors are "green", "red", "blue", "white", "yellow",       ##
+## "cyan", "magenta" and "black",  with the optional prefix:         ##
+## "bright" for foreground colors.                                   ##
+#######################################################################
+#######################################################################
+
+syntax "Default" "\.*$"
+#syntax "Default" "." ".*$" "bash" "\.sh$" "\.bash$" "/.bash_profile$" "(\.|/)profile$" "\rc$" "(\.|/)control$"
+#header "^#!.*/(ba|k|pdk)?sh[-0-9_]*"
+
+color red               start="\/" end="([[:graph:]]|_)*"
+color brightred         start="\/\/" end="([[:graph:]]|_)*"
+color ,white            "[[:space:]]+$"
+icolor brightcyan       "\b(([A-Z]+://|www[.])[A-Z0-9/:#?&$=_\.\-]+)(\b|$| )"
+color green             "#.*$"
+color brightgreen       "##.*$"
+color brightwhite       "[;]"
+color brightwhite       "[:]"
+color cyan              "[{}]"
+color cyan              "[()]"
+color brightblue        "[[]"
+color brightblue        "[]]"
+color brightblue        "[<]"
+color brightblue        "[>]"
+color brightmagenta     "[&]"
+color brightyellow      ""(\\.|[^"])*"" "'(\\.|[^'])*'"
+
+
+color red               "\<(case|do|done|elif|else|esac|exit|fi|for|function|if|in|local|read|return|select|shift|then|time|until|while)\>"
+color green             "-[Ldefgruwx]\>"
+color green             "-(eq|ne|gt|lt|ge|le|s|n|z)\>"
+color brightcyan        "\<(cat|cd|chmod|chown|cp|echo|env|export|grep|install|let|ln|make|mkdir|mv|rm|sed|set|tar|touch|umask|unset)\>"
+color brightcyan        "\<(awk|bunzip2|bzcat|bzcmp|bzdiff|bzegrep|bzfgrep|bzgrep|bzip2|bzip2recover|bzless|bzmore|cat|chattr|chgrp|chmod|chown|chvt|cp|date|dd|deallocvt|df|dir|dircolors|dmesg|dnsdomainname|domainname|du|dumpkeys|echo|ed|egrep|false|fgconsole|fgrep|fuser|gawk|getkeycodes|gocr|grep|groups|gunzip|gzexe|gzip|hostname|igawk|install|kbd_mode|kbdrate|killall|last|lastb|link|ln|loadkeys|loadunimap|login|ls|lsattr|lsmod|lsmod.old|mapscrn|mesg|mkdir|mkfifo|mknod|mktemp|more|mount|mv|nano|netstat|nisdomainname|openvt|pgawk|pidof|ping|ps|pstree|pwd|rbash|readlink|resizecons|rm|rmdir|run-parts|sash|sed|setfont|setkeycodes|setleds|setmetamode|setserial|sh|showkey|shred|sleep|ssed|stat|stty|su|sync|tar|tempfile|touch|true|umount|uname|unicode_start|unicode_stop|unlink|utmpdump|uuidgen|vdir|wall|wc|ypdomainname|zcat|zcmp|zdiff|zegrep|zfgrep|zforce|zgrep|zless|zmore|znew|zsh)\>"
+color brightcyan        "\<(aclocal|aconnect|aplay|apm|apmsleep|apropos|ar|arecord|as|as86|autoconf|autoheader|automake|awk|basename|bc|bison|c\+\+|cal|cat|cc|cdda2wav|cdparanoia|cdrdao|cd-read|cdrecord|chfn|chgrp|chmod|chown|chroot|chsh|clear|cmp|co|col|comm|cp|cpio|cpp|cut|dc|dd|df|diff|diff3|dir|dircolors|directomatic|dirname|du|env|expr|fbset|file|find|flex|flex\+\+|fmt|free|ftp|funzip|fuser|g\+\+|gawk|gc|gcc|gdb|getent|getopt|gettext|gettextize|gimp|gimp-remote|gimptool|gmake|gs|head|hexdump|id|install|join|kill|killall|ld|ld86|ldd|less|lex|ln|locate|lockfile|logname|lp|lpr|ls|lynx|m4|make|man|mkdir|mknod|msgfmt|mv|namei|nasm|nawk|nc|nice|nl|nm|nm86|nmap|nohup|nop|od|passwd|patch|pcregrep|pcretest|perl|perror|pidof|pr|printf|procmail|prune|ps2ascii|ps2epsi|ps2frag|ps2pdf|ps2ps|psbook|psmerge|psnup|psresize|psselect|pstops|rcs|rev|rm|scp|sed|seq|setterm|shred|size|size86|skill|slogin|snice|sort|sox|split|ssh|ssh-add|ssh-agent|ssh-keygen|ssh-keyscan|stat|strings|strip|sudo|suidperl|sum|tac|tail|tee|test|tr|uniq|unlink|unzip|updatedb|updmap|uptime|users|vmstat|w|wc|wget|whatis|whereis|which|who|whoami|write|xargs|yacc|yes|zip|zsoelim)\>"
+
+
+color cyan              start="[$@%]" end="([[:alnum:]]|_)*"
+color ,red              "^#!.*/.*]*"
+
+
+#color brightgreen      start="\#\#" end="([[:alnum:]]|_)*"
+#color magenta          "[$]"
+#icolor brightred       "\$\{?[0-9A-Z_!@#$*?-]+\}?"
+#color yellow           "^.*$"
+#color white            "["].*$"
+#color brightwhite      "['].*$"
+#color brightyellow     "[$].*$"
+#color green            ":.*$"
+#color brightgreen      "::.*$"
+#color red              "!.*$"
+#color brightred        "!!.*$"
+#color yellow           "[\].*$"
+#color brightyellow     "[\][\].*$"
+#color blue start=      "<" end=">"
+#color red              "(^|\s|[[/:|<>(){}=,]|\])[-+]?[0-9](\.?[0-9])*%?($|\>)"
+#color yellow           "[\]"
+#color brightyellow     "[\][\]"
+#color brightwhite      "['']"
+#color brightwhite      "[""]"
+#color brightmagenta    "[`]"
+#color brightmagenta    "[~]"
+#color magenta          "[!]"
+#color brightmagenta    "[@]"
+#color brightmagenta    "[%]"
+#color brightmagenta    "[^]"
+#color brightmagenta    "[*]"
+#color brightmagenta    "[-]"
+#color brightmagenta    "[_]"
+#color brightmagenta    "[=]"
+#color brightmagenta    "[+]"
+#color brightmagenta    "[|]"
+#color brightmagenta    "[?]"
+#color brightmagenta    "[.]"
+#color brightmagenta    "[>]"
+#color brightmagenta    "[,]"
+#color brightmagenta    "[<]"
+#color green            "(\{|\}|\(|\)|\;|\]|\[|`|\\|\$|<|>|!|=|&|\|)"
+#color ,cyan            "(^|[[:space:]])#.*$"
+
+
+#######################################################################
+#######################################################################
+
+
+set titlecolor          black,yellow
+set functioncolor       green,black
+set keycolor            yellow,black
+set numbercolor         brightblue,black
+set selectedcolor       white,blue
+set statuscolor         brightwhite,red
+
+
+#######################################################################
+#######################################################################
+
+
+set autoindent
+#set nowrap
+#set smooth
+#set rawsequences
+#set guidestripe        4
+#set linenumbers
+
+#set softwrap
+set atblanks
+set nohelp
+set tabsize             4
+set tabstospaces
+set constantshow
+set brackets            ""')>]}"
+set matchbrackets       "(<[{)>]}"
+set positionlog
+set quickblank
+set regexp
+#set suspend
+set smarthome
+
+
+
+
+#bind F8 copy main
+#bind ^c copy main
+#bind ^v paste all
+
+bind ^z undo main
+bind ^y redo main
+bind ^f whereis main
+bind ^h replace main
+
+
+#include /usr/share/nano/*
+include /usr/share/nano/*.nanorc
+
+## F02 ve ctrl+s save and exit
+## F03 ve ctrl+o just save
+
+## F08 ve alt+6 ve ctrl+c   copy
+## F09 ve ctrl+k  cut
+## F10 ve ctrl+u  paste 
+
+## ctrl+6 marking 
+## ctrl+/ goto line number
+## ctrl+l center the page
+
+## alt+] goto bracket
+## alt+m enable mouse
+
+
+#######################################################################
+#######################################################################
+## Ali Aydemir                                                       ##
+#######################################################################
+#######################################################################
+

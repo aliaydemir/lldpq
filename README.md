@@ -33,6 +33,9 @@ sudo docker load < lldpq-amd64.tar.gz   # or lldpq-arm64.tar.gz
 
 # Run (example data included, ready to use)
 sudo docker run -d --name lldpq --network host --privileged lldpq:latest
+
+# Shell into container
+sudo docker exec -it -u lldpq lldpq bash
 ```
 
 Open `http://<host-ip>` in your browser. That's it.
@@ -67,16 +70,21 @@ sudo docker run -d --name lldpq --network host \
 
 **Ansible support** (optional — enables VLAN/BGP reports, Fabric Config/Editor):
 
-If your Ansible project is at `~/my_ansible_project`, mount it into the container:
+Ansible, ansible-lint, and collections (nvidia.nvue, community.general, ansible.netcommon) are pre-installed in the image. To use them, copy your Ansible project into the container:
+
 ```bash
+# Option A: Mount at startup (recommended — changes persist on host)
 sudo docker run -d --name lldpq --network host \
   -v ~/my_ansible_project:/home/lldpq/ansible:rw \
   -e ANSIBLE_DIR=/home/lldpq/ansible \
   lldpq:latest
+
+# Option B: Copy into a running container (offline / air-gapped environments)
+sudo docker cp ~/my_ansible_project lldpq:/home/lldpq/ansible
+sudo docker exec lldpq bash -c "chown -R lldpq:www-data /home/lldpq/ansible && \
+  sed -i 's|^ANSIBLE_DIR=.*|ANSIBLE_DIR=/home/lldpq/ansible|' /etc/lldpq.conf"
 ```
-- Replace `~/my_ansible_project` with the path to your Ansible directory on the host.
-- The container path (`/home/lldpq/ansible`) stays the same.
-- See [Ansible Integration](#ansible-integration) section below for structure requirements.
+See [Ansible Integration](#ansible-integration) section below for directory structure requirements.
 
 **Update/Rebuild Docker:**
 ```bash
@@ -95,13 +103,29 @@ sudo docker volume rm lldpq-data lldpq-configs lldpq-hstr 2>/dev/null
 rm -f ~/lldpq-*.tar.gz
 ```
 
+**Copy files into a running container:**
+```bash
+# Copy a single file
+sudo docker cp myfile.yaml lldpq:/home/lldpq/ansible/inventory/host_vars/
+
+# Copy an entire directory
+sudo docker cp ~/my_ansible_project lldpq:/home/lldpq/ansible
+
+# Fix permissions after copy
+sudo docker exec lldpq chown -R lldpq:www-data /home/lldpq/ansible
+```
+
 **Useful Docker commands:**
 ```bash
 sudo docker logs lldpq                        # Container logs
-sudo docker exec -it lldpq bash               # Shell into container
+sudo docker exec -it -u lldpq lldpq bash      # Shell as lldpq user
+sudo docker exec -it lldpq bash               # Shell as root
 sudo docker restart lldpq                     # Restart (keeps data + SSH keys)
 sudo docker ps -a --filter name=lldpq          # Container status
 ```
+
+**Built-in tools** (available inside the container shell):
+`exa`, `nano`, `colordiff`, `dos2unix`, `bash-completion`, `net-tools`, `bzip2`, `jq`, `git`, `curl`, `tcpdump`, `ansible`, `ansible-lint`, `ansible-galaxy`
 
 ## Requirements (non-Docker install)
 
