@@ -46,7 +46,7 @@ fi
 
 echo -e "${YELLOW}[1/4]${NC} Building Docker image..."
 cd "$REPO_ROOT"
-sudo docker build -f docker/Dockerfile -t ${IMAGE_NAME}:${IMAGE_TAG} -t ${IMAGE_NAME}:${VERSION} . 2>&1 | tail -5
+sudo docker build -f docker/Dockerfile --build-arg TARGETARCH=${ARCH_LABEL} -t ${IMAGE_NAME}:${IMAGE_TAG} -t ${IMAGE_NAME}:${VERSION} . 2>&1 | tail -5
 echo -e "${GREEN}  ✓ Built${NC}"
 echo ""
 
