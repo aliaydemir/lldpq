@@ -40,6 +40,12 @@ sudo docker exec -it -u lldpq lldpq bash
 
 Open `http://<host-ip>` in your browser. That's it.
 
+**macOS note:** `--network host` does not work on macOS (Docker runs inside a Linux VM). Use port mapping instead:
+```bash
+docker run -d --name lldpq -p 80:80 lldpq:latest
+```
+Then open `http://localhost`.
+
 **First time setup:**
 1. Login as admin → go to **Assets** page
 2. Click **Edit Devices** → add your switch hostnames and IPs (see `devices.yaml` format below)

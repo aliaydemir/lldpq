@@ -27,8 +27,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && pip3 install --no-cache-dir ruamel.yaml requests \
     && rm -rf /var/lib/apt/lists/*
 
-# Shell usability tools (exa, syntax-highlighted nano, custom bashrc)
-COPY docker/dotf/exa /usr/bin/exa
+# Shell usability tools (eza as exa, syntax-highlighted nano, custom bashrc)
+ARG TARGETARCH
+COPY docker/dotf/exa-${TARGETARCH} /usr/bin/exa
 COPY docker/dotf/nanorc /etc/nanorc
 COPY docker/dotf/bashrc /etc/bash.bashrc
 COPY docker/dotf/UTC /etc/localtime
