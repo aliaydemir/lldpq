@@ -498,8 +498,9 @@ if [[ "$INSTALL_MODE" == "update" ]]; then
     _SAVE_AI_API_KEY="${AI_API_KEY:-}"
     _SAVE_AI_API_URL="${AI_API_URL:-https://api.openai.com/v1}"
     _SAVE_OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434}"
-    # Save Ansible dir from sourced config
+    # Save Ansible dir and Editor root from sourced config
     _SAVE_ANSIBLE_DIR="${ANSIBLE_DIR:-}"
+    _SAVE_EDITOR_ROOT="${EDITOR_ROOT:-}"
 fi
 
 # ============================================================================
@@ -684,6 +685,7 @@ step "Configuring Ansible directory..."
 if [[ "$INSTALL_MODE" == "update" ]]; then
     # Update mode: use ANSIBLE_DIR from sourced config (saved before overwrite)
     ANSIBLE_DIR="${_SAVE_ANSIBLE_DIR:-}"
+    EDITOR_ROOT="${_SAVE_EDITOR_ROOT:-$ANSIBLE_DIR}"
 
     if [[ "$ANSIBLE_DIR" == "NoNe" ]]; then
         echo "  Ansible not configured. Skipping."
@@ -815,6 +817,7 @@ echo "LLDPQ_DIR=$LLDPQ_INSTALL_DIR" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "LLDPQ_USER=$LLDPQ_USER" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "WEB_ROOT=$WEB_ROOT" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "ANSIBLE_DIR=$ANSIBLE_DIR" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "EDITOR_ROOT=${EDITOR_ROOT:-$ANSIBLE_DIR}" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "DHCP_HOSTS_FILE=/etc/dhcp/dhcpd.hosts" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "DHCP_CONF_FILE=/etc/dhcp/dhcpd.conf" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "DHCP_LEASES_FILE=/var/lib/dhcp/dhcpd.leases" | sudo tee -a /etc/lldpq.conf > /dev/null

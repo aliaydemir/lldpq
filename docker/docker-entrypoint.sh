@@ -42,10 +42,14 @@ fi
 if [ -n "$ANSIBLE_DIR" ] && [ "$ANSIBLE_DIR" != "NoNe" ] && [ -d "$ANSIBLE_DIR" ]; then
     sed -i "s|^ANSIBLE_DIR=.*|ANSIBLE_DIR=$ANSIBLE_DIR|" /etc/lldpq.conf
     chown -R lldpq:www-data "$ANSIBLE_DIR" 2>/dev/null || true
-    echo "✓ Ansible directory: $ANSIBLE_DIR"
-else
-    echo "  Ansible: not configured (Ansible menu disabled)"
+    echo "  ✓ Ansible directory: $ANSIBLE_DIR"
 fi
+
+# ─── Editor Root Setup ───
+if [ -n "$EDITOR_ROOT" ] && [ -d "$EDITOR_ROOT" ]; then
+    sed -i "s|^EDITOR_ROOT=.*|EDITOR_ROOT=$EDITOR_ROOT|" /etc/lldpq.conf
+fi
+echo "  ✓ Fabric Editor: $(grep '^EDITOR_ROOT=' /etc/lldpq.conf | cut -d= -f2)"
 
 # ─── devices.yaml Setup ───
 if [ -f /home/lldpq/lldpq/devices.yaml ]; then

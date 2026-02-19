@@ -13,13 +13,20 @@
 source /etc/lldpq.conf 2>/dev/null || true
 LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
 
-# Ansible directory - check if configured
-if [[ "$ANSIBLE_DIR" == "NoNe" ]] || [[ -z "$ANSIBLE_DIR" ]]; then
+# EDITOR_ROOT: directory shown in Fabric Editor (falls back to ANSIBLE_DIR)
+EDITOR_ROOT="${EDITOR_ROOT:-$ANSIBLE_DIR}"
+
+# If neither EDITOR_ROOT nor ANSIBLE_DIR is usable, bail out
+if { [[ "$EDITOR_ROOT" == "NoNe" ]] || [[ -z "$EDITOR_ROOT" ]]; } && \
+   { [[ "$ANSIBLE_DIR" == "NoNe" ]] || [[ -z "$ANSIBLE_DIR" ]]; }; then
     echo "Content-Type: application/json"
     echo ""
     echo '{"success": false, "error": "Ansible not configured"}'
     exit 0
 fi
+
+# Normalize: if EDITOR_ROOT is NoNe but ANSIBLE_DIR is set, use ANSIBLE_DIR
+[[ "$EDITOR_ROOT" == "NoNe" || -z "$EDITOR_ROOT" ]] && EDITOR_ROOT="$ANSIBLE_DIR"
 
 # Setup ansible environment for www-data user
 export ANSIBLE_HOME="/tmp/ansible-www"
@@ -64,11 +71,11 @@ json_response() {
 # Security: validate file path is within allowed directories
 validate_path() {
     local file="$1"
-    local realpath=$(realpath -m "$ANSIBLE_DIR/$file" 2>/dev/null)
-    local ansible_realpath=$(realpath "$ANSIBLE_DIR" 2>/dev/null)
+    local realpath=$(realpath -m "$EDITOR_ROOT/$file" 2>/dev/null)
+    local editor_realpath=$(realpath "$EDITOR_ROOT" 2>/dev/null)
     
-    # Check if path is within ansible directory
-    if [[ "$realpath" != "$ansible_realpath"* ]]; then
+    # Check if path is within editor root directory
+    if [[ "$realpath" != "$editor_realpath"* ]]; then
         return 1
     fi
     
@@ -89,18 +96,24 @@ validate_path() {
 list_files() {
     # Find all files quickly using find with optimized options (no cache for fresh results)
     local files_json=""
-    if [ -d "$ANSIBLE_DIR" ]; then
-        files_json=$(find "$ANSIBLE_DIR" -type f \
+    if [ -d "$EDITOR_ROOT" ]; then
+        files_json=$(find "$EDITOR_ROOT" -type f \
             ! -path "*/.git/*" \
             ! -path "*/.vscode/*" \
             ! -path "*/.crossnote/*" \
             ! -path "*/__pycache__/*" \
             ! -path "*/.ansible/*" \
+            ! -path "*/.ssh/*" \
+            ! -path "*/.cache/*" \
+            ! -path "*/.local/*" \
             ! -name "*.pyc" \
             ! -name "*.swp" \
             ! -name "*.bak" \
             ! -name "*~" \
-            2>/dev/null | sed "s|^$ANSIBLE_DIR/||" | sort | python3 -c 'import sys,json; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))')
+            ! -name ".bash_history" \
+            ! -name ".sudo_as_admin_successful" \
+            ! -name ".wget-hsts" \
+            2>/dev/null | sed "s|^$EDITOR_ROOT/||" | sort | python3 -c 'import sys,json; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))')
     else
         files_json="[]"
     fi
@@ -145,7 +158,10 @@ list_files() {
     local groups_json=$(printf '%s\n' "${groups[@]}" | sort -u | python3 -c 'import sys,json; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))')
     local hosts_json=$(printf '%s\n' "${hosts[@]}" | sort -u | python3 -c 'import sys,json; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))')
     
-    json_response "{\"success\": true, \"files\": $files_json, \"groups\": $groups_json, \"hosts\": $hosts_json}"
+    local is_docker="false"
+    [ -f "/.dockerenv" ] && is_docker="true"
+    
+    json_response "{\"success\": true, \"files\": $files_json, \"groups\": $groups_json, \"hosts\": $hosts_json, \"is_docker\": $is_docker}"
 }
 
 # Read file
@@ -157,7 +173,7 @@ read_file() {
         return
     fi
     
-    local full_path="$ANSIBLE_DIR/$file"
+    local full_path="$EDITOR_ROOT/$file"
     
     if [ ! -f "$full_path" ]; then
         json_response '{"success": false, "error": "File not found"}'
@@ -177,7 +193,7 @@ write_file() {
         return
     fi
     
-    local full_path="$ANSIBLE_DIR/$file"
+    local full_path="$EDITOR_ROOT/$file"
     
     # Read POST data
     local post_data
@@ -221,7 +237,7 @@ delete_file() {
         return
     fi
     
-    local full_path="$ANSIBLE_DIR/$file"
+    local full_path="$EDITOR_ROOT/$file"
     
     if [ ! -f "$full_path" ]; then
         json_response '{"success": false, "error": "File not found"}'
@@ -580,7 +596,7 @@ case "$ACTION" in
             exit 0
         fi
         
-        cd "$ANSIBLE_DIR" || { json_response '{"success": false, "error": "Cannot access ansible directory"}'; exit 0; }
+        cd "$EDITOR_ROOT" || { json_response '{"success": false, "error": "Cannot access editor directory"}'; exit 0; }
         
         # Run grep like mgrep and properly preserve ANSI escape sequences via Python
         export GREP_QUERY="$QUERY"
@@ -658,7 +674,7 @@ PYEOF
     image)
         # Serve image file
         FILE=$(echo "$QUERY_STRING" | sed -n 's/.*file=\([^&]*\).*/\1/p' | python3 -c "import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read().strip()))")
-        FULL_PATH="$ANSIBLE_DIR/$FILE"
+        FULL_PATH="$EDITOR_ROOT/$FILE"
         if [ -f "$FULL_PATH" ]; then
             EXT="${FILE##*.}"
             case "$EXT" in

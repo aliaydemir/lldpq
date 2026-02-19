@@ -4,7 +4,7 @@ FROM ubuntu:22.04
 
 LABEL maintainer="ali@lldpq.dev"
 LABEL description="LLDPq Network Monitoring"
-LABEL version="3.5.3"
+LABEL version="3.5.4"
 
 # Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
@@ -67,6 +67,7 @@ RUN mkdir -p /home/lldpq/lldpq/monitor-results/fabric-tables \
     && mkdir -p /var/www/html/topology \
     && mkdir -p /var/www/html/generated_config_folder \
     && mkdir -p /home/lldpq/.ssh \
+    && mkdir -p /home/lldpq/ansible \
     && chmod 700 /home/lldpq/.ssh
 
 # Copy web content
@@ -124,7 +125,8 @@ DHCP_CONF_FILE=/etc/dhcp/dhcpd.conf\n\
 DHCP_LEASES_FILE=/var/lib/dhcp/dhcpd.leases\n\
 ZTP_SCRIPT_FILE=/var/www/html/cumulus-ztp.sh\n\
 BASE_CONFIG_DIR=/home/lldpq/lldpq/sw-base\n\
-ANSIBLE_DIR=NoNe' > /etc/lldpq.conf
+ANSIBLE_DIR=/home/lldpq/ansible\n\
+EDITOR_ROOT=/home/lldpq' > /etc/lldpq.conf
 
 # Create auth users file + sessions directory
 # Entrypoint also recreates these if missing (self-healing)

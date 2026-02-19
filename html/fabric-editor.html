@@ -1629,11 +1629,11 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
+                    state.isDocker = data.is_docker || false;
                     renderFileTree(data.files);
                     state.groups = data.groups || [];
                     state.hosts = data.hosts || [];
                     populateHostSelect();
-                    // Mark git modified files after tree is loaded
                     if (state.gitModifiedFiles && state.gitModifiedFiles.length > 0) {
                         markGitModifiedFiles();
                         updateModifiedFilter();
@@ -2376,7 +2376,9 @@
             });
             
             // Folders and files to hide from the tree (at root level)
-            const hiddenFolders = ['assets', 'configs', 'files', 'scripts', 'srv-configs'];
+            const hiddenFolders = state.isDocker
+                ? []
+                : ['assets', 'configs', 'files', 'scripts', 'srv-configs'];
             const hiddenFiles = ['.gitignore', 'ansible.cfg'];
             
             // Render tree recursively

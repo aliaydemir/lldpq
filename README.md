@@ -60,10 +60,12 @@ Then open `http://localhost`.
 
 **Works on:** Ubuntu, CentOS, RHEL, Debian, NVIDIA Cumulus Linux 5.x, macOS (Apple Silicon & Intel), any system with Docker.
 
-**Cumulus switch only** — open port 80 in the ACL before accessing the web UI:
+**Cumulus switch only** — open ports 80 and 2033 in the ACL before accessing the web UI and SSH:
 ```bash
 nv set acl acl-default-whitelist rule 200 match ip tcp dest-port 80
 nv set acl acl-default-whitelist rule 200 action permit
+nv set acl acl-default-whitelist rule 210 match ip tcp dest-port 2033
+nv set acl acl-default-whitelist rule 210 action permit
 nv config apply -y
 ```
 
@@ -76,19 +78,22 @@ sudo docker run -d --name lldpq --network host \
 
 **Ansible support** (optional — enables VLAN/BGP reports, Fabric Config/Editor):
 
-Ansible, ansible-lint, and collections (nvidia.nvue, community.general, ansible.netcommon) are pre-installed in the image. To use them, copy your Ansible project into the container:
+Ansible, ansible-lint, and collections (nvidia.nvue, community.general, ansible.netcommon) are pre-installed. The default Ansible directory is `/home/lldpq/ansible/` — just copy your project files there:
 
 ```bash
 # Option A: Mount at startup (recommended — changes persist on host)
 sudo docker run -d --name lldpq --network host \
   -v ~/my_ansible_project:/home/lldpq/ansible:rw \
-  -e ANSIBLE_DIR=/home/lldpq/ansible \
   lldpq:latest
 
-# Option B: Copy into a running container (offline / air-gapped environments)
-sudo docker cp ~/my_ansible_project lldpq:/home/lldpq/ansible
-sudo docker exec lldpq bash -c "chown -R lldpq:www-data /home/lldpq/ansible && \
-  sed -i 's|^ANSIBLE_DIR=.*|ANSIBLE_DIR=/home/lldpq/ansible|' /etc/lldpq.conf"
+# Option B: Copy into a running container
+sudo docker cp ~/my_ansible_project/. lldpq:/home/lldpq/ansible/
+
+# Option C: SCP via SSH (remote / over network)
+scp -P 2033 -r ~/my_ansible_project/* lldpq@<host-ip>:/home/lldpq/ansible/
+
+# Option D: Rsync via SSH (delta sync, faster for updates)
+rsync -avz -e 'ssh -p 2033' ~/my_ansible_project/ lldpq@<host-ip>:/home/lldpq/ansible/
 ```
 See [Ansible Integration](#ansible-integration) section below for directory structure requirements.
 
@@ -109,16 +114,16 @@ sudo docker volume rm lldpq-data lldpq-configs lldpq-hstr 2>/dev/null
 rm -f ~/lldpq-*.tar.gz
 ```
 
-**Copy files into a running container:**
+**Copy files into the container:**
 ```bash
-# Copy a single file
+# docker cp (from the host machine)
 sudo docker cp myfile.yaml lldpq:/home/lldpq/ansible/inventory/host_vars/
 
-# Copy an entire directory
-sudo docker cp ~/my_ansible_project lldpq:/home/lldpq/ansible
+# SCP (remote, over network — uses SSH on port 2033)
+scp -P 2033 myfile.yaml lldpq@<host-ip>:/home/lldpq/ansible/inventory/host_vars/
 
-# Fix permissions after copy
-sudo docker exec lldpq chown -R lldpq:www-data /home/lldpq/ansible
+# Rsync (remote, delta sync — ideal for large projects)
+rsync -avz -e 'ssh -p 2033' ~/my_project/ lldpq@<host-ip>:/home/lldpq/ansible/
 ```
 
 **SSH access to the container** (port 2033):
