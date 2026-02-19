@@ -1966,15 +1966,10 @@ def get_ssh_key_info():
     home = os.path.expanduser(f'~{LLDPQ_USER}')
     for key_type, key_name in [('ed25519', 'id_ed25519'), ('rsa', 'id_rsa')]:
         pub_path = os.path.join(home, '.ssh', f'{key_name}.pub')
-        if os.path.isfile(pub_path):
-            try:
-                with open(pub_path, 'r') as f:
-                    return f.read().strip(), key_type, pub_path
-            except PermissionError:
-                r = subprocess.run(['sudo', '-u', LLDPQ_USER, 'cat', pub_path],
-                                   capture_output=True, text=True, timeout=5)
-                if r.returncode == 0:
-                    return r.stdout.strip(), key_type, pub_path
+        r = subprocess.run(['sudo', '-u', LLDPQ_USER, 'cat', pub_path],
+                           capture_output=True, text=True, timeout=5)
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip(), key_type, pub_path
     return None, None, None
 
 def action_get_ssh_key():
