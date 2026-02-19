@@ -1986,28 +1986,23 @@ def action_generate_ssh_key():
     pub_path = key_path + '.pub'
     
     try:
-        # Create .ssh dir and remove old keys as LLDPQ_USER (not www-data)
+        # All commands run as LLDPQ_USER via sudo -n (non-interactive, no password prompt)
         subprocess.run(
-            ['sudo', '-u', LLDPQ_USER, 'mkdir', '-p', ssh_dir],
+            ['sudo', '-n', '-u', LLDPQ_USER, '/usr/bin/mkdir', '-p', '-m', '700', ssh_dir],
             capture_output=True, timeout=5)
         subprocess.run(
-            ['sudo', 'chmod', '700', ssh_dir],
-            capture_output=True, timeout=5)
-        subprocess.run(
-            ['sudo', '-u', LLDPQ_USER, 'rm', '-f', key_path, pub_path],
+            ['sudo', '-n', '-u', LLDPQ_USER, '/usr/bin/rm', '-f', key_path, pub_path],
             capture_output=True, timeout=5)
         
-        # Generate as LLDPQ_USER
         result = subprocess.run(
-            ['sudo', '-u', LLDPQ_USER, 'ssh-keygen', '-t', 'ed25519', '-N', '', '-f', key_path, '-C', f'lldpq@provision'],
+            ['sudo', '-n', '-u', LLDPQ_USER, '/usr/bin/ssh-keygen', '-t', 'ed25519', '-N', '', '-f', key_path, '-C', f'lldpq@provision'],
             capture_output=True, text=True, timeout=10
         )
         if result.returncode != 0:
-            error_json(f'ssh-keygen failed: {result.stderr}')
+            error_json(f'ssh-keygen failed (user={LLDPQ_USER}): {result.stderr}')
         
-        # Read public key (as LLDPQ_USER since file is owned by them)
         r = subprocess.run(
-            ['sudo', '-u', LLDPQ_USER, 'cat', pub_path],
+            ['sudo', '-n', '-u', LLDPQ_USER, '/usr/bin/cat', pub_path],
             capture_output=True, text=True, timeout=5)
         pub_key = r.stdout.strip() if r.returncode == 0 else ''
         
