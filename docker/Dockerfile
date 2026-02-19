@@ -4,7 +4,7 @@ FROM ubuntu:22.04
 
 LABEL maintainer="ali@lldpq.dev"
 LABEL description="LLDPq Network Monitoring"
-LABEL version="3.5.4"
+LABEL version="3.5.5"
 
 # Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive

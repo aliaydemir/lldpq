@@ -419,8 +419,10 @@ Monitor data grows ~50MB/day per fabric. Automatic cleanup keeps last 24 hours.
 ### CLI (bare metal install)
 
 ```
-cd ~/lldpq && ./send-key.sh   # auto-installs deps, generates key, prompts password
-cd ~/lldpq && ./sudo-fix.sh    # configures passwordless sudo for cumulus user
+cd ~/lldpq && ./send-key.sh             # distributes SSH key + sets up passwordless sudo
+cd ~/lldpq && ./send-key.sh --no-sudo   # key distribution only
+cd ~/lldpq && ./send-key.sh --sudo-only # sudo setup only
+cd ~/lldpq && ./send-key.sh -p "pass"   # non-interactive mode
 ```
 
 ## [09] cli tools
