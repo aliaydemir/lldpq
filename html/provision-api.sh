@@ -1986,27 +1986,36 @@ def action_generate_ssh_key():
     pub_path = key_path + '.pub'
     
     try:
-        # All commands run as LLDPQ_USER via sudo -n (non-interactive, no password prompt)
-        subprocess.run(
-            ['sudo', '-n', '-u', LLDPQ_USER, '/usr/bin/mkdir', '-p', '-m', '700', ssh_dir],
-            capture_output=True, timeout=5)
-        subprocess.run(
-            ['sudo', '-n', '-u', LLDPQ_USER, '/usr/bin/rm', '-f', key_path, pub_path],
-            capture_output=True, timeout=5)
-        
+        # Generate key in /tmp as www-data (no sudo needed for ssh-keygen)
+        tmp_key = '/tmp/.lldpq-keygen-tmp'
+        subprocess.run(['/usr/bin/rm', '-f', tmp_key, tmp_key + '.pub'], capture_output=True, timeout=5)
         result = subprocess.run(
-            ['sudo', '-n', '-u', LLDPQ_USER, '/usr/bin/ssh-keygen', '-t', 'ed25519', '-N', '', '-f', key_path, '-C', f'lldpq@provision'],
-            capture_output=True, text=True, timeout=10
-        )
+            ['/usr/bin/ssh-keygen', '-t', 'ed25519', '-N', '', '-f', tmp_key, '-C', f'lldpq@provision'],
+            capture_output=True, text=True, timeout=10)
         if result.returncode != 0:
-            error_json(f'ssh-keygen failed (user={LLDPQ_USER}): {result.stderr}')
+            error_json(f'ssh-keygen failed: {result.stderr}')
+            return
         
-        r = subprocess.run(
-            ['sudo', '-n', '-u', LLDPQ_USER, '/usr/bin/cat', pub_path],
-            capture_output=True, text=True, timeout=5)
-        pub_key = r.stdout.strip() if r.returncode == 0 else ''
+        with open(tmp_key, 'r') as f:
+            priv_content = f.read()
+        with open(tmp_key + '.pub', 'r') as f:
+            pub_content = f.read()
+        os.unlink(tmp_key)
+        os.unlink(tmp_key + '.pub')
         
-        result_json({"success": True, "public_key": pub_key, "key_type": "ed25519", "key_file": pub_path})
+        # Place keys into LLDPQ_USER's .ssh dir
+        subprocess.run(['sudo', '-n', '-u', LLDPQ_USER, '/usr/bin/mkdir', '-p', '-m', '700', ssh_dir],
+            capture_output=True, timeout=5)
+        subprocess.run(['sudo', '-n', '-u', LLDPQ_USER, '/usr/bin/rm', '-f', key_path, pub_path],
+            capture_output=True, timeout=5)
+        subprocess.run(['sudo', '-n', '-u', LLDPQ_USER, '/usr/bin/tee', key_path],
+            input=priv_content, capture_output=True, text=True, timeout=5)
+        subprocess.run(['sudo', '-n', '-u', LLDPQ_USER, '/usr/bin/tee', pub_path],
+            input=pub_content, capture_output=True, text=True, timeout=5)
+        subprocess.run(['sudo', '-n', '/usr/bin/chmod', '600', key_path], capture_output=True, timeout=5)
+        subprocess.run(['sudo', '-n', '/usr/bin/chmod', '644', pub_path], capture_output=True, timeout=5)
+        
+        result_json({"success": True, "public_key": pub_content.strip(), "key_type": "ed25519", "key_file": pub_path})
     except Exception as e:
         error_json(str(e))
 
