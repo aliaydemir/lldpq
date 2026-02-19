@@ -74,6 +74,17 @@ RUN mkdir -p /home/lldpq/lldpq/monitor-results/fabric-tables \
 COPY html/ /var/www/html/
 COPY VERSION /var/www/html/
 
+# Download Monaco Editor + js-yaml (not in repo, installed at runtime on native)
+RUN MONACO_VERSION="0.45.0" && TMP_DIR=$(mktemp -d) && \
+    curl -sL "https://registry.npmjs.org/monaco-editor/-/monaco-editor-${MONACO_VERSION}.tgz" -o "$TMP_DIR/monaco.tgz" && \
+    mkdir -p "$TMP_DIR/monaco" && \
+    tar -xzf "$TMP_DIR/monaco.tgz" -C "$TMP_DIR/monaco" --strip-components=1 && \
+    mkdir -p /var/www/html/monaco && \
+    cp -r "$TMP_DIR/monaco/min/vs" /var/www/html/monaco/ && \
+    rm -rf "$TMP_DIR" && \
+    curl -sL "https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js" \
+        -o /var/www/html/css/js-yaml.min.js
+
 # Copy lldpq scripts
 COPY lldpq/ /home/lldpq/lldpq/
 COPY bin/ /usr/local/bin/
