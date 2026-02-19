@@ -68,6 +68,11 @@ RUN mkdir -p /home/lldpq/lldpq/monitor-results/fabric-tables \
     && mkdir -p /var/www/html/generated_config_folder \
     && mkdir -p /home/lldpq/.ssh \
     && mkdir -p /home/lldpq/ansible \
+    && chown lldpq:www-data /home/lldpq/ansible \
+    && chmod 775 /home/lldpq/ansible \
+    && touch /home/lldpq/ansible/NOTES.txt \
+    && chown lldpq:www-data /home/lldpq/ansible/NOTES.txt \
+    && chmod 664 /home/lldpq/ansible/NOTES.txt \
     && chmod 700 /home/lldpq/.ssh
 
 # Copy web content
