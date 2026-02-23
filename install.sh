@@ -1194,14 +1194,17 @@ if [[ "$INSTALL_MODE" == "update" ]]; then
     if [[ -n "$BACKUP_DIR" ]]; then
         step "Restoring monitoring data..."
         [[ -d "$BACKUP_DIR/monitor-results" ]] && \
-            cp -r "$BACKUP_DIR/monitor-results" "$LLDPQ_INSTALL_DIR/" && echo "  • monitor-results/"
+            sudo cp -r "$BACKUP_DIR/monitor-results" "$LLDPQ_INSTALL_DIR/" && echo "  • monitor-results/"
         [[ -d "$BACKUP_DIR/lldp-results" ]] && \
-            cp -r "$BACKUP_DIR/lldp-results" "$LLDPQ_INSTALL_DIR/" && echo "  • lldp-results/"
+            sudo cp -r "$BACKUP_DIR/lldp-results" "$LLDPQ_INSTALL_DIR/" && echo "  • lldp-results/"
         [[ -d "$BACKUP_DIR/alert-states" ]] && \
-            cp -r "$BACKUP_DIR/alert-states" "$LLDPQ_INSTALL_DIR/" && echo "  • alert-states/"
-        # Fix permissions on restored data
-        chmod 750 "$LLDPQ_INSTALL_DIR/monitor-results" 2>/dev/null || true
-        chmod 750 "$LLDPQ_INSTALL_DIR/monitor-results/fabric-tables" 2>/dev/null || true
+            sudo cp -r "$BACKUP_DIR/alert-states" "$LLDPQ_INSTALL_DIR/" && echo "  • alert-states/"
+        # Fix ownership and permissions on restored data
+        sudo chown -R "$LLDPQ_USER:www-data" "$LLDPQ_INSTALL_DIR/monitor-results" 2>/dev/null || true
+        sudo chown -R "$LLDPQ_USER:www-data" "$LLDPQ_INSTALL_DIR/lldp-results" 2>/dev/null || true
+        sudo chown -R "$LLDPQ_USER:www-data" "$LLDPQ_INSTALL_DIR/alert-states" 2>/dev/null || true
+        sudo find "$LLDPQ_INSTALL_DIR/monitor-results" -type d -exec chmod 775 {} \; 2>/dev/null || true
+        sudo find "$LLDPQ_INSTALL_DIR/monitor-results" -type f -exec chmod 664 {} \; 2>/dev/null || true
         echo "  Monitoring data restored"
     fi
 
