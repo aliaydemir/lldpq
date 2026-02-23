@@ -1166,24 +1166,28 @@ def action_subnet_scan():
             scp_ok = False
             if auto_base and os.path.isdir(BASE_CONFIG_DIR):
                 files_map = {
-                    'bash.bashrc': '/etc/bash.bashrc',
-                    'motd.sh': '/etc/profile.d/motd.sh',
-                    'tmux.conf': '/home/cumulus/.tmux.conf',
-                    'nanorc': '/home/cumulus/.nanorc',
-                    'cmd': '/usr/local/bin/cmd',
-                    'nvc': '/usr/local/bin/nvc',
-                    'nvt': '/usr/local/bin/nvt',
-                    'exa': '/usr/bin/exa',
+                    'bash.bashrc': ['/etc/bash.bashrc', '/home/cumulus/.bashrc'],
+                    'motd.sh': ['/etc/profile.d/motd.sh'],
+                    'tmux.conf': ['/home/cumulus/.tmux.conf'],
+                    'nanorc': ['/home/cumulus/.nanorc'],
+                    'cmd': ['/usr/local/bin/cmd'],
+                    'nvc': ['/usr/local/bin/nvc'],
+                    'nvt': ['/usr/local/bin/nvt'],
+                    'exa': ['/usr/bin/exa'],
                 }
                 scp_files = []
                 copy_cmds = []
-                for fname, dest in files_map.items():
+                for fname, dests in files_map.items():
                     src = os.path.join(BASE_CONFIG_DIR, fname)
                     if os.path.exists(src):
                         scp_files.append(src)
-                        copy_cmds.append(f'sudo cp /tmp/{fname} {dest}')
-                        if dest.startswith('/usr/') or fname in ('cmd', 'nvc', 'nvt', 'exa', 'motd.sh'):
-                            copy_cmds.append(f'sudo chmod 755 {dest}')
+                        for dest in dests:
+                            copy_cmds.append(f'sudo cp /tmp/{fname} {dest}')
+                            if dest.startswith('/usr/') or fname in ('cmd', 'nvc', 'nvt', 'exa', 'motd.sh'):
+                                copy_cmds.append(f'sudo chmod 755 {dest}')
+                # Fix shell startup: remove .bash_login (blocks .profile) and ensure .profile sources .bashrc
+                copy_cmds.append('rm -f /home/cumulus/.bash_login')
+                copy_cmds.append("echo '[ -f ~/.bashrc ] && . ~/.bashrc' > /home/cumulus/.profile")
                 
                 if scp_files:
                     try:
@@ -1869,12 +1873,19 @@ def deploy_to_device(device, files, disable_ztp):
     
     # Step 3: SSH to move files to correct locations
     mv_commands = []
+    has_bashrc = False
     for fname in files:
         if fname in FILE_DEPLOY_MAP:
             for target in FILE_DEPLOY_MAP[fname]:
                 dest = target['dest']
                 mode = target['mode']
                 mv_commands.append(f'sudo cp /tmp/{fname} {dest} && sudo chmod {mode} {dest}')
+            if fname == 'bash.bashrc':
+                has_bashrc = True
+    
+    if has_bashrc:
+        mv_commands.append('rm -f /home/cumulus/.bash_login')
+        mv_commands.append("echo '[ -f ~/.bashrc ] && . ~/.bashrc' > /home/cumulus/.profile")
     
     if disable_ztp:
         mv_commands.append('sudo ztp -d 2>/dev/null || true')
