@@ -642,40 +642,29 @@ echo "  Files copied successfully"
 step "Setting up topology symlinks..."
 
 echo "  - topology.dot"
-if [[ -L "$LLDPQ_INSTALL_DIR/topology.dot" ]]; then
-    echo "    Symlink already exists"
-    if [[ -f "$WEB_ROOT/topology.dot" ]]; then
-        sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/topology.dot"
-        sudo chmod 664 "$WEB_ROOT/topology.dot"
-    fi
+if [[ -f "$WEB_ROOT/topology.dot" ]]; then
+    echo "    Existing topology.dot preserved in web root"
+    rm -f "$LLDPQ_INSTALL_DIR/topology.dot" 2>/dev/null
 elif [[ -f "$LLDPQ_INSTALL_DIR/topology.dot" ]]; then
     sudo mv "$LLDPQ_INSTALL_DIR/topology.dot" "$WEB_ROOT/topology.dot"
-    sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/topology.dot"
-    sudo chmod 664 "$WEB_ROOT/topology.dot"
-    ln -sf "$WEB_ROOT/topology.dot" "$LLDPQ_INSTALL_DIR/topology.dot"
 else
-    if [[ ! -f "$WEB_ROOT/topology.dot" ]]; then
-        echo "    Creating empty topology.dot"
-        echo "# LLDPq Topology Definition" | sudo tee "$WEB_ROOT/topology.dot" > /dev/null
-    fi
-    sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/topology.dot"
-    sudo chmod 664 "$WEB_ROOT/topology.dot"
-    ln -sf "$WEB_ROOT/topology.dot" "$LLDPQ_INSTALL_DIR/topology.dot"
+    echo "    Creating empty topology.dot"
+    echo "# LLDPq Topology Definition" | sudo tee "$WEB_ROOT/topology.dot" > /dev/null
 fi
+sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/topology.dot"
+sudo chmod 664 "$WEB_ROOT/topology.dot"
+ln -sf "$WEB_ROOT/topology.dot" "$LLDPQ_INSTALL_DIR/topology.dot"
 
 echo "  - topology_config.yaml"
-if [[ -L "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]]; then
-    echo "    Symlink already exists"
-    if [[ -f "$WEB_ROOT/topology_config.yaml" ]]; then
-        sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/topology_config.yaml"
-        sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
-    fi
+if [[ -f "$WEB_ROOT/topology_config.yaml" ]]; then
+    echo "    Existing topology_config.yaml preserved in web root"
+    rm -f "$LLDPQ_INSTALL_DIR/topology_config.yaml" 2>/dev/null
 elif [[ -f "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]]; then
     sudo mv "$LLDPQ_INSTALL_DIR/topology_config.yaml" "$WEB_ROOT/topology_config.yaml"
-    sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/topology_config.yaml"
-    sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
-    ln -sf "$WEB_ROOT/topology_config.yaml" "$LLDPQ_INSTALL_DIR/topology_config.yaml"
 fi
+sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/topology_config.yaml"
+sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
+ln -sf "$WEB_ROOT/topology_config.yaml" "$LLDPQ_INSTALL_DIR/topology_config.yaml"
 
 # ============================================================================
 # COMMON: Ansible directory
