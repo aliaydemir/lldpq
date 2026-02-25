@@ -69,6 +69,7 @@ devices = {}
 if hosts_file and os.path.isfile(hosts_file):
     source = 'ansible'
     current_group = None
+    skip_groups = {'local', 'all', 'ungrouped'}
     try:
         with open(hosts_file, 'r') as f:
             for line in f:
@@ -80,10 +81,11 @@ if hosts_file and os.path.isfile(hosts_file):
                     continue
                 if line.startswith('[') and line.endswith(']'):
                     current_group = line[1:-1]
-                    if ':children' in current_group:
+                    if ':children' in current_group or current_group in skip_groups:
                         current_group = None
                     else:
-                        devices[current_group] = []
+                        if current_group not in devices:
+                            devices[current_group] = []
                     continue
                 if current_group and '=' in line:
                     parts = line.split()
@@ -97,6 +99,7 @@ if hosts_file and os.path.isfile(hosts_file):
                         'hostname': hostname,
                         'ip': ip
                     })
+        devices = {k: v for k, v in devices.items() if v}
     except Exception as e:
         devices = {}
         source = None
