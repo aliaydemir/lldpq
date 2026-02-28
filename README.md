@@ -18,6 +18,8 @@
 simple network monitoring tool for Cumulus Linux switches
 
 > *LLDPq is an independent project. It does not contain, derive from, or incorporate any code from any NVIDIA product.*
+>
+> *This software is provided "as is" without warranty. Always test in a lab environment before deploying to production networks.*
 
 ## Docker (run anywhere — Linux, macOS, even on a Cumulus switch)
 
