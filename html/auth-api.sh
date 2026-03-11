@@ -143,10 +143,8 @@ case "$ACTION" in
                 COOKIE_EXPIRY=""
             fi
             
-            # Create session file
-            echo "$EXPIRY" > "$SESSIONS_DIR/$TOKEN"
-            echo "$USERNAME" >> "$SESSIONS_DIR/$TOKEN"
-            echo "$ROLE" >> "$SESSIONS_DIR/$TOKEN"
+            # Create session file (single write)
+            printf '%s\n%s\n%s\n' "$EXPIRY" "$USERNAME" "$ROLE" > "$SESSIONS_DIR/$TOKEN"
             
             # Set cookie and return success
             echo "Content-Type: application/json"
