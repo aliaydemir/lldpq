@@ -825,7 +825,7 @@
     </div>
     <div class="toolbar">
         <div class="toolbar-left">
-            <input type="text" class="search-filter" id="discoveredSearch" placeholder="Filter..." oninput="filterDiscovered()" autocomplete="off">
+            <input type="search" class="search-filter" id="discoveredSearch" placeholder="Filter..." oninput="filterDiscovered()" autocomplete="off">
             <select class="form-input" id="discoveredFilter" onchange="filterDiscovered()" style="width:180px;">
                 <option value="reachable" selected>Reachable</option>
                 <option value="provisioned">Provisioned</option>
@@ -938,7 +938,7 @@
 <div class="tab-content" id="tab-bindings">
     <div class="toolbar">
         <div class="toolbar-left">
-            <input type="text" class="search-filter" id="bindingSearch" placeholder="Filter by hostname, MAC, IP, serial, or role..." oninput="filterBindings()" autocomplete="off">
+            <input type="search" class="search-filter" id="bindingSearch" placeholder="Filter by hostname, MAC, IP, serial, or role..." oninput="filterBindings()" autocomplete="off">
             <span id="bindingCount" style="font-size: 12px; color: #888;"></span>
         </div>
         <div class="toolbar-right">
@@ -1328,6 +1328,9 @@ document.addEventListener('DOMContentLoaded', () => {
             onTabSwitch(btn.dataset.tab);
         });
     });
+
+    // Clear browser autofill from search inputs
+    document.querySelectorAll('input[type="text"].search-filter, input[id$="Search"], input[id$="search"]').forEach(el => { el.value = ''; });
 
     // Load initial data
     loadDiscoverySettings();
