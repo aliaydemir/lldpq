@@ -1188,7 +1188,7 @@
                 Fabric Editor
             </div>
             <div class="file-search-container">
-                <input type="text" id="file-search" class="file-search-input" placeholder="Search files..." oninput="filterFileTree(this.value)" onkeydown="handleSearchKeydown(event)">
+                <input type="text" id="file-search" class="file-search-input" autocomplete="off" placeholder="Search files..." oninput="filterFileTree(this.value)" onkeydown="handleSearchKeydown(event)">
                 <span id="file-search-count" class="file-search-count"></span>
             </div>
             <div id="file-tree" class="file-tree">
@@ -1344,7 +1344,7 @@
                 <span id="search-clear" onclick="clearSearch()" 
                       style="position: absolute; left: 6px; cursor: pointer; color: #888; font-size: 14px; display: none; z-index: 1;"
                       title="Clear search">✕</span>
-                <input type="text" id="inventory-search" placeholder="mgrep inventory" 
+                <input type="text" id="inventory-search" autocomplete="off" placeholder="mgrep inventory" 
                        style="background: #333; border: 1px solid #555; color: #ccc; padding: 4px 10px 4px 24px; border-radius: 4px; font-size: 12px; width: 190px;"
                        onkeydown="if(event.key==='Enter') searchInventory(this.value)"
                        oninput="document.getElementById('search-clear').style.display = this.value ? 'block' : 'none'">
