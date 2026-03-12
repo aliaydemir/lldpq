@@ -1329,8 +1329,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Clear browser autofill from search inputs
-    document.querySelectorAll('input[type="text"].search-filter, input[id$="Search"], input[id$="search"]').forEach(el => { el.value = ''; });
+    // Clear browser autofill from search inputs (delayed — Chrome autofills AFTER DOMContentLoaded)
+    const clearSearchInputs = () => document.querySelectorAll('input.search-filter, input[type="search"]').forEach(el => { el.value = ''; });
+    clearSearchInputs();
+    setTimeout(clearSearchInputs, 100);
+    setTimeout(clearSearchInputs, 500);
 
     // Load initial data
     loadDiscoverySettings();
