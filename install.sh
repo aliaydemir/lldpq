@@ -865,6 +865,7 @@ sudo touch /etc/lldpq.conf.lock
 sudo chown root:$USER_GROUP /etc/lldpq.conf.lock
 sudo chmod 664 /etc/lldpq.conf.lock
 sudo usermod -a -G $USER_GROUP www-data 2>/dev/null || true
+sudo usermod -a -G www-data "$LLDPQ_USER" 2>/dev/null || true
 echo "  Configuration saved to /etc/lldpq.conf"
 
 # ============================================================================
