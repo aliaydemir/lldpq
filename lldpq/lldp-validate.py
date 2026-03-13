@@ -121,16 +121,39 @@ def check_connections(topology_file, device_neighbors, device_port_status):
         expected_connections = file.readlines()
     results = {}
     valid_devices = device_neighbors.keys()
+    edge_re = re.compile(r'"([^"]+)"\s*:\s*"([^"]+)"\s*--\s*"([^"]+)"\s*:\s*"([^"]+)"')
     for device, neighbors in device_neighbors.items():
         port_status = device_port_status.get(device, {})
         device_results = []
+        in_block_comment = False
         for connection in expected_connections:
-            if '--' not in connection:
+            line = connection.strip()
+            if not line:
                 continue
-            connection = re.sub(r'\[.*?\]', '', connection)
-            left_port, right_port = connection.strip().split('--')
-            left, left_interface = left_port.replace('"', '').strip().split(':')
-            right, right_interface = right_port.replace('"', '').strip().split(':')
+            if '/*' in line:
+                in_block_comment = True
+            if in_block_comment:
+                if '*/' in line:
+                    in_block_comment = False
+                continue
+            if line.startswith('#') or line.startswith('//') or '--' not in line:
+                continue
+            # Remove edge attributes such as [color=...]
+            line = re.sub(r'\[.*?\]', '', line)
+            m = edge_re.search(line)
+            if m:
+                left, left_interface, right, right_interface = m.groups()
+            else:
+                # Fallback: unquoted format (Device:Interface -- Device:Interface)
+                parts = line.split('--', 1)
+                if len(parts) != 2:
+                    continue
+                lp = parts[0].replace('"', '').strip().split(':', 1)
+                rp = parts[1].replace('"', '').strip().split(':', 1)
+                if len(lp) != 2 or len(rp) != 2:
+                    continue
+                left, left_interface = lp[0].strip(), lp[1].strip()
+                right, right_interface = rp[0].strip(), rp[1].strip()
             if left != device and right != device:
                 continue
             expected_interface = left_interface if left == device else right_interface
