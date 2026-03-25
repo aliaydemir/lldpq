@@ -793,6 +793,21 @@ function renderMarkdown(text) {
     text = text.replace(/^\* (.+)$/gm, '<li>$1</li>');
     text = text.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
     text = text.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+    // Tables (pipe-delimited markdown)
+    text = text.replace(/((?:^\|.+\|$\n?)+)/gm, function(table) {
+        const rows = table.trim().split('\n').filter(r => r.trim());
+        if (rows.length < 2) return table;
+        const isSep = r => /^\|[\s\-:|]+\|$/.test(r.trim());
+        let html = '<table class="md-table">';
+        let headerDone = false;
+        rows.forEach((row, i) => {
+            if (isSep(row)) { headerDone = true; return; }
+            const cells = row.split('|').slice(1, -1).map(c => c.trim());
+            const tag = (!headerDone && i === 0) ? 'th' : 'td';
+            html += '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
+        });
+        return html + '</table>';
+    });
     // Line breaks
     text = text.replace(/\n\n/g, '</p><p>');
     text = text.replace(/\n/g, '<br>');
@@ -805,6 +820,8 @@ function renderMarkdown(text) {
     text = text.replace(/(<\/pre>)<\/p>/g, '$1');
     text = text.replace(/<p>(<ul>)/g, '$1');
     text = text.replace(/(<\/ul>)<\/p>/g, '$1');
+    text = text.replace(/<p>(<table)/g, '$1');
+    text = text.replace(/(<\/table>)<\/p>/g, '$1');
     return text;
 }
 
