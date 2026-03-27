@@ -1196,7 +1196,7 @@
                     document.querySelector('.card-critical').classList.add('active-filter');
                     break;
                 case 'warning':
-                    shouldShow = statusText === 'WARNING';
+                    shouldShow = statusText === 'WARNING' || statusText === 'UNREACHABLE';
                     document.querySelector('.card-warning').classList.add('active-filter');
                     break;
                 case 'no-info':
