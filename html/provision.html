@@ -932,6 +932,25 @@
             <button class="btn btn-secondary btn-sm" onclick="loadDHCPConfig()">Reload</button>
         </div>
     </div>
+
+    <div class="section-title" style="margin-top: 20px;">Current Bindings
+        <span style="font-size: 12px; color: #666; font-weight: normal; margin-left: 10px;" id="dhcp-hosts-file"></span>
+        <button class="btn btn-secondary btn-sm" style="margin-left: auto; float: right;" onclick="loadDHCPHosts()">Refresh</button>
+    </div>
+    <div class="section-desc">MAC-to-IP reservations from dhcpd.hosts. Read-only view.</div>
+    <div id="dhcp-hosts-table-container" style="background: #1e1e1e; border-radius: 6px; border: 1px solid #3c3c3c; overflow: hidden;">
+        <table class="data-table" style="margin: 0;">
+            <thead><tr>
+                <th style="width: 200px;">Hostname</th>
+                <th style="width: 160px;">MAC Address</th>
+                <th style="width: 140px;">IP Address</th>
+                <th style="width: 80px;">Status</th>
+            </tr></thead>
+            <tbody id="dhcp-hosts-tbody">
+                <tr><td colspan="4" style="text-align: center; color: #666; padding: 20px;">Click Refresh to load</td></tr>
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <!-- ==================== TAB 1: INVENTORY (was Bindings) ==================== -->
@@ -1350,7 +1369,7 @@ function onTabSwitch(tab) {
         loadDiscoveryCache();
         if (generatedConfigs.length === 0) apiCall('list-generated-configs').then(d => { if (d.success) generatedConfigs = d.configs || []; });
     }
-    if (tab === 'dhcpd') { loadDHCPConfig(); }
+    if (tab === 'dhcpd') { loadDHCPConfig(); loadDHCPHosts(); }
     if (tab === 'bindings') {
         if (allBindings.length === 0) loadBindings();
         // Ensure discovery data is loaded for serial picker
@@ -1426,6 +1445,29 @@ async function _dhcpServiceAction(action) {
         showToast(`DHCP ${action} failed: ${data.error || 'Unknown error'}`, 'error');
     }
     checkDHCPStatus();
+}
+
+// ===================== DHCP HOSTS (read-only) =====================
+async function loadDHCPHosts() {
+    const tbody = document.getElementById('dhcp-hosts-tbody');
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#666;padding:20px;">Loading...</td></tr>';
+    const data = await apiCall('get-dhcp-hosts');
+    if (!data.success) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#f44336;padding:20px;">' + (data.error || 'Failed to load') + '</td></tr>';
+        return;
+    }
+    document.getElementById('dhcp-hosts-file').textContent = data.file || '';
+    const bindings = data.bindings || [];
+    if (bindings.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#666;padding:20px;">No bindings found</td></tr>';
+        return;
+    }
+    tbody.innerHTML = bindings.map(b => `<tr style="${b.commented ? 'opacity:0.4;' : ''}">
+        <td>${b.hostname}</td>
+        <td style="font-family:monospace;font-size:12px;">${b.mac}</td>
+        <td style="font-family:monospace;">${b.ip}</td>
+        <td>${b.commented ? '<span style="color:#888;">Disabled</span>' : '<span style="color:#76b900;">Active</span>'}</td>
+    </tr>`).join('');
 }
 
 // ===================== DHCP CONFIG =====================

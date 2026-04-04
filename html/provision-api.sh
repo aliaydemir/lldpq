@@ -2902,6 +2902,10 @@ elif ACTION == 'dhcp-service-status':
     action_dhcp_service_status()
 elif ACTION == 'dhcp-service-control':
     action_dhcp_service_control()
+elif ACTION == 'get-dhcp-hosts':
+    hosts_path = get_dhcp_hosts_path()
+    bindings = parse_dhcp_hosts(hosts_path)
+    result_json({"success": True, "bindings": bindings, "file": hosts_path})
 elif ACTION == 'get-dhcp-config':
     action_get_dhcp_config()
 elif ACTION == 'save-dhcp-config':
