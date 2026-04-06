@@ -4235,7 +4235,8 @@ try:
                     'pg_name': pg_name,
                     'peers': peers_with_info,
                     'bfd_enabled': pg_config.get('enable_bfd', False),
-                    'description': pg_config.get('description', '')
+                    'description': pg_config.get('description', ''),
+                    'update_source': pg_config.get('update_source', '')
                 })
     
     # Load all devices and find those using external profiles
@@ -4268,6 +4269,7 @@ try:
                         local_ip = ''
                         interface_name = ''
                         
+                        # 1) Check subinterfaces (swpX.VLAN)
                         for if_name, if_config in interfaces.items():
                             subinterfaces = if_config.get('subinterfaces', {})
                             for sub_id, sub_config in subinterfaces.items():
@@ -4284,6 +4286,27 @@ try:
                                         break
                             if local_ip:
                                 break
+                        
+                        # 2) Check direct interface IPs (/31 match)
+                        if not local_ip:
+                            for if_name, if_config in interfaces.items():
+                                if_ip = if_config.get('ip', '')
+                                if not if_ip:
+                                    continue
+                                if_vrf = if_config.get('vrf', 'default')
+                                if if_vrf != vrf_name:
+                                    continue
+                                local_base = if_ip.split('/')[0].rsplit('.', 1)[0]
+                                peer_base = str(peer_ip).rsplit('.', 1)[0]
+                                if local_base == peer_base:
+                                    local_ip = if_ip
+                                    interface_name = if_name
+                                    break
+                        
+                        # 3) Fallback to update_source (eBGP multihop / loopback)
+                        if not local_ip and ext_pg.get('update_source', ''):
+                            local_ip = ext_pg['update_source']
+                            interface_name = 'lo'
                         
                         peers.append({
                             'device': hostname,
