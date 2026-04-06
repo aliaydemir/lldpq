@@ -2264,12 +2264,12 @@
                 return;
             }
             
-            // Sort: trunk first, then access
+            // Sort: trunk first, then access; natural number ordering within each group
             profiles.sort((a, b) => {
                 const modeA = a[1].sw_port_mode || 'access';
                 const modeB = b[1].sw_port_mode || 'access';
                 if (modeA !== modeB) return modeA === 'trunk' ? -1 : 1;
-                return a[0].localeCompare(b[0]);
+                return a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' });
             });
             
             let html = `

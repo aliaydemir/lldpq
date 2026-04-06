@@ -4551,7 +4551,7 @@
                     const modeA = portProfiles[a].sw_port_mode || 'access';
                     const modeB = portProfiles[b].sw_port_mode || 'access';
                     if (modeA !== modeB) return modeA === 'access' ? -1 : 1;
-                    return a.localeCompare(b);
+                    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
                 });
                 
                 for (const profileName of sortedProfiles) {
