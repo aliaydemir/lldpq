@@ -4180,6 +4180,7 @@ import json
 import yaml  # PyYAML - faster for read-only operations
 import os
 import glob
+import ipaddress
 
 ansible_dir = os.environ.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
 
@@ -4270,35 +4271,31 @@ try:
                         interface_name = ''
                         
                         # 1) Check subinterfaces (swpX.VLAN)
+                        peer_addr = ipaddress.ip_address(str(peer_ip))
                         for if_name, if_config in interfaces.items():
                             subinterfaces = if_config.get('subinterfaces', {})
                             for sub_id, sub_config in subinterfaces.items():
                                 sub_ip = sub_config.get('ip', '')
                                 sub_vrf = sub_config.get('vrf', '')
                                 
-                                if sub_vrf == vrf_name and sub_ip:
-                                    local_base = sub_ip.split('/')[0].rsplit('.', 1)[0]
-                                    peer_base = str(peer_ip).rsplit('.', 1)[0]
-                                    
-                                    if local_base == peer_base:
+                                if sub_vrf == vrf_name and sub_ip and '/' in sub_ip:
+                                    if peer_addr in ipaddress.ip_network(sub_ip, strict=False):
                                         local_ip = sub_ip
                                         interface_name = f"{if_name}.{sub_id}"
                                         break
                             if local_ip:
                                 break
                         
-                        # 2) Check direct interface IPs (/31 match)
+                        # 2) Check direct interface IPs (subnet match)
                         if not local_ip:
                             for if_name, if_config in interfaces.items():
                                 if_ip = if_config.get('ip', '')
-                                if not if_ip:
+                                if not if_ip or '/' not in if_ip:
                                     continue
                                 if_vrf = if_config.get('vrf', 'default')
                                 if if_vrf != vrf_name:
                                     continue
-                                local_base = if_ip.split('/')[0].rsplit('.', 1)[0]
-                                peer_base = str(peer_ip).rsplit('.', 1)[0]
-                                if local_base == peer_base:
+                                if peer_addr in ipaddress.ip_network(if_ip, strict=False):
                                     local_ip = if_ip
                                     interface_name = if_name
                                     break
