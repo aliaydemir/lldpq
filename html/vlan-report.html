@@ -141,7 +141,7 @@
         .data-table td {
             padding: 10px 14px;
             border-bottom: 1px solid #333;
-            font-size: 13px;
+            font-size: 11px;
         }
         
         .data-table tr:hover {
@@ -1368,7 +1368,7 @@
                         <td><span class="badge ${vrfBadgeClass}">${details.vrf}</span></td>
                         <td>${details.l2vni !== '-' ? details.l2vni : '-'}</td>
                         <td>${details.subnet !== '-' && leakedSubnets[details.subnet] ? `<span class="badge ${getVrfBadgeClass(leakedSubnets[details.subnet].target_vrf)}">${leakedSubnets[details.subnet].target_vrf}</span>` : '-'}</td>
-                        <td>${details.description}</td>
+                        <td style="color: #888;">${details.description}</td>
                         <td>
                             <span class="badge ${deviceCount > 0 ? 'badge-green' : 'badge-gray'}">
                                 ${deviceCount} device${deviceCount !== 1 ? 's' : ''}
