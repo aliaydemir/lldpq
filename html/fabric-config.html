@@ -1582,6 +1582,11 @@
                     // Don't show X for default VRF
                     const showRemove = vrfName !== 'default';
                     
+                    // Resolve loopback IP: VRF lo field → fallback to top-level lo_ip for default VRF
+                    let loopbackRaw = resolveJinja(vrfConfig.lo, config) || '';
+                    if (!loopbackRaw && vrfName === 'default' && config.lo_ip) loopbackRaw = config.lo_ip;
+                    const loopbackDisplay = loopbackRaw ? String(loopbackRaw).split('/')[0] : '-';
+                    
                     html += `
                         <tr>
                             <td>
@@ -1593,7 +1598,7 @@
                             <td>${vxlanInt !== '-' ? `<span class="badge badge-gray">${vxlanInt}</span>` : '-'}</td>
                             <td>${vrfConfig.l3vni || '-'}</td>
                             <td>${vrfConfig.bgp?.bgp_profile || '-'}</td>
-                            <td>${(resolveJinja(vrfConfig.lo, config) || (vrfName === 'default' ? config.lo_ip : ''))?.split('/')[0] || '-'}</td>
+                            <td>${loopbackDisplay}</td>
                             <td style="text-align: right;">${resolveJinja(vrfConfig.bgp?.asn, config) || '-'}</td>
                         </tr>
                     `;
