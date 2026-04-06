@@ -1339,6 +1339,13 @@
             }
         }
         
+        function resolveJinja(value, config) {
+            if (typeof value !== 'string' || !value.includes('{{')) return value;
+            return value.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, varName) => {
+                return config[varName] !== undefined ? config[varName] : _;
+            });
+        }
+        
         // Get BGP ASN from config (try top-level first, then from VRFs)
         function getBgpAsn(config) {
             // Check top-level bgp_asn
@@ -1541,11 +1548,12 @@
                         <table class="data-table" style="table-layout: fixed;">
                             <thead>
                                 <tr>
-                                    <th style="width: 20%;">VRF Name</th>
-                                    <th style="width: 22%;">VXLAN Interface</th>
-                                    <th style="width: 18%;">L3VNI</th>
-                                    <th style="width: 30%;">BGP Profile</th>
-                                    <th style="width: 10%; text-align: right;">ASN</th>
+                                    <th style="width: 18%;">VRF Name</th>
+                                    <th style="width: 18%;">VXLAN Interface</th>
+                                    <th style="width: 12%;">L3VNI</th>
+                                    <th style="width: 26%;">BGP Profile</th>
+                                    <th style="width: 14%;">Loopback IP</th>
+                                    <th style="width: 12%; text-align: right;">ASN</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1585,7 +1593,8 @@
                             <td>${vxlanInt !== '-' ? `<span class="badge badge-gray">${vxlanInt}</span>` : '-'}</td>
                             <td>${vrfConfig.l3vni || '-'}</td>
                             <td>${vrfConfig.bgp?.bgp_profile || '-'}</td>
-                            <td style="text-align: right;">${vrfConfig.bgp?.asn || '-'}</td>
+                            <td>${resolveJinja(vrfConfig.lo, config)?.split('/')[0] || '-'}</td>
+                            <td style="text-align: right;">${resolveJinja(vrfConfig.bgp?.asn, config) || '-'}</td>
                         </tr>
                     `;
                 }
