@@ -3627,11 +3627,16 @@ try:
     
     profiles = bgp_data.get('bgp_profiles', {})
     
-    # Check if current profile has External peer group
+    # Check if current profile has any fabric_exit peer group (fabric_exit: true or name == 'External')
     has_external = False
+    external_pg_name = 'External'
     if bgp_profile and bgp_profile in profiles:
         peer_groups = profiles[bgp_profile].get('peer_groups', {})
-        has_external = 'External' in peer_groups
+        for _pg_name, _pg_config in peer_groups.items():
+            if _pg_config.get('fabric_exit', False) or _pg_name == 'External':
+                has_external = True
+                external_pg_name = _pg_name
+                break
     
     # If no External and create_border_profile requested, create new OVERLAY_BORDER_XX profile
     if not has_external and create_border_profile:
@@ -3714,7 +3719,7 @@ try:
         if os.path.exists(_tmp_path): os.unlink(_tmp_path)
         raise
     
-    # If profile already had External, add peer to it
+    # If profile already had a fabric_exit peer group, add peer to it
     if has_external and not profile_created:
         # Reload bgp_profiles (might have been saved)
         with open(bgp_profiles_file, 'r') as f:
@@ -3722,7 +3727,7 @@ try:
         
         profiles = bgp_data.get('bgp_profiles', {})
         profile = profiles[bgp_profile]
-        external_pg = profile['peer_groups']['External']
+        external_pg = profile['peer_groups'][external_pg_name]
         
         # Initialize peers dict if needed
         if 'peers' not in external_pg:
@@ -3852,8 +3857,21 @@ try:
             profile = profiles[bgp_profile]
             peer_groups = profile.get('peer_groups', {})
             
-            if 'External' in peer_groups:
-                external_pg = peer_groups['External']
+            # Find the peer group containing this peer (fabric_exit or 'External')
+            _found_pg_name = None
+            for _pg_name, _pg_config in peer_groups.items():
+                if not (_pg_config.get('fabric_exit', False) or _pg_name == 'External'):
+                    continue
+                _pg_peers = _pg_config.get('peers', {})
+                if isinstance(_pg_peers, dict) and remote_peer in _pg_peers:
+                    _found_pg_name = _pg_name
+                    break
+                elif isinstance(_pg_peers, list) and remote_peer in _pg_peers:
+                    _found_pg_name = _pg_name
+                    break
+            
+            if _found_pg_name:
+                external_pg = peer_groups[_found_pg_name]
                 peers = external_pg.get('peers', {})
                 
                 if isinstance(peers, list):
@@ -4022,13 +4040,27 @@ try:
     profile = profiles[bgp_profile]
     peer_groups = profile.get('peer_groups', {})
     
-    if 'External' not in peer_groups:
-        print(json.dumps({'success': False, 'error': f'External peer group not found in profile {bgp_profile}'}))
+    # Find the peer group containing this peer (fabric_exit or 'External')
+    _search_ip = original_peer if original_peer else remote_peer
+    _found_pg_name = None
+    for _pg_name, _pg_config in peer_groups.items():
+        if not (_pg_config.get('fabric_exit', False) or _pg_name == 'External'):
+            continue
+        _pg_peers = _pg_config.get('peers', {})
+        if isinstance(_pg_peers, dict) and _search_ip in _pg_peers:
+            _found_pg_name = _pg_name
+            break
+        elif isinstance(_pg_peers, list) and _search_ip in _pg_peers:
+            _found_pg_name = _pg_name
+            break
+    
+    if not _found_pg_name:
+        print(json.dumps({'success': False, 'error': f'Peer {_search_ip} not found in any fabric_exit peer group of profile {bgp_profile}'}))
         sys.exit(0)
     
-    external_pg = peer_groups['External']
+    external_pg = peer_groups[_found_pg_name]
     
-    # Update BFD setting for the External peer group
+    # Update BFD setting for the peer group
     external_pg['enable_bfd'] = bfd_enabled
     
     # Update peer
@@ -4162,12 +4194,14 @@ try:
             bgp_data = yaml.load(f, Loader=yaml.CSafeLoader) or {}
             bgp_profiles = bgp_data.get('bgp_profiles', {})
     
-    # Find profiles that have "External" peer group
+    # Find profiles with fabric_exit peer groups (fabric_exit: true tag or name == 'External')
     for profile_name, profile_config in bgp_profiles.items():
         peer_groups = profile_config.get('peer_groups', {})
-        if 'External' in peer_groups:
-            external_pg = peer_groups['External']
-            peers_data = external_pg.get('peers', {})
+        for pg_name, pg_config in peer_groups.items():
+            if not (pg_config.get('fabric_exit', False) or pg_name == 'External'):
+                continue
+            
+            peers_data = pg_config.get('peers', {})
             
             # Build peers dict with weight, policy, and soft_reconfiguration info
             peers_with_info = {}
@@ -4194,12 +4228,15 @@ try:
                 for peer_ip in peers_data:
                     peers_with_info[peer_ip] = {'weight': None, 'policy_name': None, 'policy_direction': None, 'soft_reconfiguration': False}
             
-            profiles_with_external[profile_name] = {
-                'peers': peers_with_info,
-                'bfd_enabled': external_pg.get('enable_bfd', False),
-                'description': external_pg.get('description', ''),
-                'has_external': True
-            }
+            if peers_with_info:
+                if profile_name not in profiles_with_external:
+                    profiles_with_external[profile_name] = []
+                profiles_with_external[profile_name].append({
+                    'pg_name': pg_name,
+                    'peers': peers_with_info,
+                    'bfd_enabled': pg_config.get('enable_bfd', False),
+                    'description': pg_config.get('description', '')
+                })
     
     # Load all devices and find those using external profiles
     peers = []
@@ -4223,49 +4260,45 @@ try:
             
             if profile_name in profiles_with_external:
                 has_external = True
-                external_info = profiles_with_external[profile_name]
                 
-                # Get peer IPs from the profile (dict with weight info)
-                peers_data = external_info['peers']
-                
-                # Try to match subinterfaces to find local IPs
-                for peer_ip, peer_info in peers_data.items():
-                    # Find matching subinterface (same /31 network)
-                    local_ip = ''
-                    interface_name = ''
+                for ext_pg in profiles_with_external[profile_name]:
+                    peers_data = ext_pg['peers']
                     
-                    for if_name, if_config in interfaces.items():
-                        subinterfaces = if_config.get('subinterfaces', {})
-                        for sub_id, sub_config in subinterfaces.items():
-                            sub_ip = sub_config.get('ip', '')
-                            sub_vrf = sub_config.get('vrf', '')
-                            
-                            # Check if this subinterface is in the same VRF
-                            if sub_vrf == vrf_name and sub_ip:
-                                # Check if IPs are in same /31 (simple check)
-                                local_base = sub_ip.split('/')[0].rsplit('.', 1)[0]
-                                peer_base = str(peer_ip).rsplit('.', 1)[0]
+                    for peer_ip, peer_info in peers_data.items():
+                        local_ip = ''
+                        interface_name = ''
+                        
+                        for if_name, if_config in interfaces.items():
+                            subinterfaces = if_config.get('subinterfaces', {})
+                            for sub_id, sub_config in subinterfaces.items():
+                                sub_ip = sub_config.get('ip', '')
+                                sub_vrf = sub_config.get('vrf', '')
                                 
-                                if local_base == peer_base:
-                                    local_ip = sub_ip
-                                    interface_name = f"{if_name}.{sub_id}"
-                                    break
-                        if local_ip:
-                            break
-                    
-                    peers.append({
-                        'device': hostname,
-                        'vrf': vrf_name,
-                        'bgp_profile': profile_name,
-                        'interface': interface_name,
-                        'local_ip': local_ip.split('/')[0] if local_ip else '',
-                        'remote_peer': str(peer_ip),
-                        'weight': peer_info.get('weight'),
-                        'policy_name': peer_info.get('policy_name'),
-                        'policy_direction': peer_info.get('policy_direction'),
-                        'soft_reconfiguration': peer_info.get('soft_reconfiguration', False),
-                        'bfd_enabled': external_info['bfd_enabled']
-                    })
+                                if sub_vrf == vrf_name and sub_ip:
+                                    local_base = sub_ip.split('/')[0].rsplit('.', 1)[0]
+                                    peer_base = str(peer_ip).rsplit('.', 1)[0]
+                                    
+                                    if local_base == peer_base:
+                                        local_ip = sub_ip
+                                        interface_name = f"{if_name}.{sub_id}"
+                                        break
+                            if local_ip:
+                                break
+                        
+                        peers.append({
+                            'device': hostname,
+                            'vrf': vrf_name,
+                            'bgp_profile': profile_name,
+                            'peer_group': ext_pg['pg_name'],
+                            'interface': interface_name,
+                            'local_ip': local_ip.split('/')[0] if local_ip else '',
+                            'remote_peer': str(peer_ip),
+                            'weight': peer_info.get('weight'),
+                            'policy_name': peer_info.get('policy_name'),
+                            'policy_direction': peer_info.get('policy_direction'),
+                            'soft_reconfiguration': peer_info.get('soft_reconfiguration', False),
+                            'bfd_enabled': ext_pg['bfd_enabled']
+                        })
         
         if has_external:
             devices.append({'hostname': hostname})
@@ -4277,7 +4310,7 @@ try:
         'success': True,
         'peers': peers,
         'devices': devices,
-        'bgp_profiles': {k: {'has_external': True, 'bfd_enabled': v['bfd_enabled']} for k, v in profiles_with_external.items()}
+        'bgp_profiles': {k: {'has_external': True, 'bfd_enabled': any(pg['bfd_enabled'] for pg in v)} for k, v in profiles_with_external.items()}
     }))
 
 except Exception as e:

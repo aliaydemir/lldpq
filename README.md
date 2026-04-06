@@ -907,12 +907,18 @@ bgp_profiles:
   TENANT_A:
     enable_evpn: true
     peer_groups:
-      External:                    # "External" peer group name is hardcoded
+      External:                    # name "External" is auto-detected (no tag needed)
         description: "External-Connections"
         peers:
           10.0.0.1:
             description: "ISP-1"
             remote_as: 65000
+      Upstream_BGP:                # custom name requires fabric_exit tag
+        fabric_exit: true
+        description: "WAN Uplinks"
+        peer_type: external
+        peers:
+          10.0.0.5: {}
     ipv4_unicast_af:
       route_import:
         from_vrf:                  # route leaking structure
@@ -922,10 +928,12 @@ bgp_profiles:
 ```
 
 Key conventions used by LLDPq:
-- BGP peer group named `External` — used for external BGP peer management UI
+- **Fabric Exit peer groups** — shown on the Fabric Exit page for external BGP peer management. Two ways to mark a peer group:
+  1. Name it `External` (auto-detected, no extra config needed)
+  2. Add `fabric_exit: true` to any peer group with a custom name (e.g. `Juniper_Underlay`, `WAN_Peers`)
 - Profiles prefixed with `VxLAN_UNDERLAY` — automatically excluded from user-facing lists
 - `ipv4_unicast_af.route_import.from_vrf` — used for inter-VRF route leaking management
-- `peer_groups.External.peers` — used for external BGP neighbor CRUD operations
+- The `fabric_exit` tag is ignored by Ansible — it only affects LLDPq's Fabric Exit UI
 
 If these keys or structures differ in your Ansible repo, the corresponding UI features will not work correctly.
 
