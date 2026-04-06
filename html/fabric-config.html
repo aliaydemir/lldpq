@@ -1593,7 +1593,7 @@
                             <td>${vxlanInt !== '-' ? `<span class="badge badge-gray">${vxlanInt}</span>` : '-'}</td>
                             <td>${vrfConfig.l3vni || '-'}</td>
                             <td>${vrfConfig.bgp?.bgp_profile || '-'}</td>
-                            <td>${resolveJinja(vrfConfig.lo, config)?.split('/')[0] || '-'}</td>
+                            <td>${(resolveJinja(vrfConfig.lo, config) || (vrfName === 'default' ? config.lo_ip : ''))?.split('/')[0] || '-'}</td>
                             <td style="text-align: right;">${resolveJinja(vrfConfig.bgp?.asn, config) || '-'}</td>
                         </tr>
                     `;
