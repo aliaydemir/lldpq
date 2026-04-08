@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""
+Process transceiver inventory data collected by monitor.sh
+
+Parses vendor info from ethtool -m (optical-data/) and
+FW versions from mlxlink (transceiver-data/) to build
+a fabric-wide transceiver inventory.
+
+Copyright (c) 2024 LLDPq Project
+Licensed under MIT License - see LICENSE file for details
+"""
+
+import os
+import re
+import json
+from datetime import datetime
+
+
+def parse_optical_vendor_info(filepath):
+    """Parse vendor/model info from ethtool -m output (optical-data/*.txt)"""
+    modules = {}
+
+    try:
+        with open(filepath, 'r') as f:
+            content = f.read()
+
+        sections = content.split('--- Interface:')
+
+        for section in sections[1:]:
+            lines = section.strip().split('\n')
+            if not lines:
+                continue
+
+            iface_match = re.match(r'(\w+)', lines[0].strip())
+            if not iface_match:
+                continue
+
+            iface = iface_match.group(1)
+            data = '\n'.join(lines[1:])
+
+            identifier = ''
+            vendor = ''
+            part_number = ''
+            serial = ''
+            vendor_rev = ''
+            connector = ''
+
+            for line in lines[1:]:
+                line = line.strip()
+                if line.startswith('Identifier'):
+                    m = re.search(r'\((.+?)\)', line)
+                    if m:
+                        identifier = m.group(1).split()[0]
+                    elif ':' in line:
+                        identifier = line.split(':', 1)[1].strip()
+                elif line.startswith('Vendor name'):
+                    vendor = line.split(':', 1)[1].strip() if ':' in line else ''
+                elif line.startswith('Vendor PN'):
+                    part_number = line.split(':', 1)[1].strip() if ':' in line else ''
+                elif line.startswith('Vendor SN') or line.startswith('Vendor Serial'):
+                    serial = line.split(':', 1)[1].strip() if ':' in line else ''
+                elif line.startswith('Vendor rev'):
+                    vendor_rev = line.split(':', 1)[1].strip() if ':' in line else ''
+                elif line.startswith('Connector'):
+                    m = re.search(r'\((.+?)\)', line)
+                    if m:
+                        connector = m.group(1)
+
+            if vendor or part_number:
+                modules[iface] = {
+                    'identifier': identifier,
+                    'vendor': vendor,
+                    'part_number': part_number,
+                    'serial': serial,
+                    'vendor_rev': vendor_rev,
+                    'connector': connector
+                }
+
+    except Exception as e:
+        pass
+
+    return modules
+
+
+def parse_transceiver_fw(filepath):
+    """Parse FW versions from mlxlink output (transceiver-data/*.txt)"""
+    fw_versions = {}
+
+    try:
+        with open(filepath, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or '|' not in line:
+                    continue
+                parts = line.split('|', 1)
+                iface = parts[0].strip()
+                fw_match = re.search(r':\s*(.+)', parts[1])
+                if fw_match:
+                    fw_versions[iface] = fw_match.group(1).strip()
+    except Exception:
+        pass
+
+    return fw_versions
+
+
+def process_transceiver_data(optical_dir='monitor-results/optical-data',
+                              transceiver_dir='monitor-results/transceiver-data',
+                              output_dir='monitor-results'):
+    """Build transceiver inventory from optical + mlxlink data"""
+
+    all_modules = []
+
+    for filename in sorted(os.listdir(optical_dir)):
+        if not filename.endswith('_optical.txt'):
+            continue
+
+        hostname = filename.replace('_optical.txt', '')
+        optical_path = os.path.join(optical_dir, filename)
+        transceiver_path = os.path.join(transceiver_dir, f'{hostname}_transceiver.txt')
+
+        vendor_info = parse_optical_vendor_info(optical_path)
+        fw_info = parse_transceiver_fw(transceiver_path) if os.path.exists(transceiver_path) else {}
+
+        for iface, info in vendor_info.items():
+            port_num_match = re.match(r'swp(\d+)', iface)
+            port_num = port_num_match.group(1) if port_num_match else iface.replace('swp', '')
+            fw = fw_info.get(iface, '')
+            if not fw:
+                for fw_iface, fw_val in fw_info.items():
+                    fw_port = re.match(r'swp(\d+)', fw_iface)
+                    if fw_port and fw_port.group(1) == port_num:
+                        fw = fw_val
+                        break
+
+            all_modules.append({
+                'device': hostname,
+                'port': iface,
+                'identifier': info['identifier'],
+                'vendor': info['vendor'],
+                'part_number': info['part_number'],
+                'serial': info['serial'],
+                'vendor_rev': info['vendor_rev'],
+                'connector': info.get('connector', ''),
+                'fw_version': fw
+            })
+
+    # Build summary
+    unique_models = set()
+    devices_with_modules = set()
+    fw_by_model = {}
+
+    for m in all_modules:
+        pn = m['part_number']
+        if pn:
+            unique_models.add(pn)
+            devices_with_modules.add(m['device'])
+            fw = m['fw_version'] or 'unknown'
+            if pn not in fw_by_model:
+                fw_by_model[pn] = {}
+            fw_by_model[pn][fw] = fw_by_model[pn].get(fw, 0) + 1
+
+    mixed_fw_models = [pn for pn, versions in fw_by_model.items()
+                       if len([v for v in versions if v != 'unknown']) > 1]
+
+    result = {
+        'last_update': datetime.now().isoformat(),
+        'modules': all_modules,
+        'summary': {
+            'total_modules': len(all_modules),
+            'unique_models': len(unique_models),
+            'devices_with_modules': len(devices_with_modules),
+            'fw_versions': fw_by_model,
+            'mixed_fw_models': mixed_fw_models
+        }
+    }
+
+    output_path = os.path.join(output_dir, 'transceiver_inventory.json')
+    with open(output_path, 'w') as f:
+        json.dump(result, f, indent=2)
+
+    print(f"Transceiver inventory: {len(all_modules)} modules across "
+          f"{len(devices_with_modules)} devices, {len(unique_models)} unique models"
+          f"{f', {len(mixed_fw_models)} with mixed FW' if mixed_fw_models else ''}")
+
+
+if __name__ == '__main__':
+    process_transceiver_data()

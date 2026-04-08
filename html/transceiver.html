@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="shortcut icon" href="/png/favicon.ico">
+    <title>..::LLDPQ::..</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <script src="css/auth.js"></script>
+    <style>
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px #1a1a1a inset !important;
+            -webkit-text-fill-color: #fff !important;
+            caret-color: #fff !important;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .page-title {
+            font-size: 22px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .page-title svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        .page-subtitle {
+            font-size: 12px;
+            color: #888;
+            margin-top: 2px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .summary-card {
+            background: #252526;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 3px solid #76b900;
+        }
+
+        .card-total { border-left-color: #76b900; }
+        .card-info { border-left-color: #4fc3f7; }
+        .card-warning { border-left-color: #ff9800; }
+        .card-success { border-left-color: #4caf50; }
+
+        .card-value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .card-total .card-value { color: #76b900; }
+        .card-info .card-value { color: #4fc3f7; }
+        .card-warning .card-value { color: #ff9800; }
+        .card-success .card-value { color: #4caf50; }
+
+        .card-label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .filter-group { display: flex; flex-direction: column; gap: 4px; }
+        .filter-group label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+        .filter-group select, .filter-group input {
+            background: #2d2d2d;
+            border: 1px solid #404040;
+            color: #d4d4d4;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            min-width: 140px;
+        }
+        .filter-group select:focus, .filter-group input:focus { border-color: #76b900; outline: none; }
+
+        .table-container {
+            background: #252526;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th {
+            background: #2d2d2d;
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #888;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #404040;
+            position: sticky;
+            top: 0;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .data-table th:hover { color: #76b900; }
+
+        .data-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #2d2d2d;
+            font-size: 13px;
+        }
+
+        .data-table tr:hover { background: #2a2d2e; }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .badge-green { background: rgba(118, 185, 0, 0.15); color: #76b900; }
+        .badge-blue { background: rgba(79, 195, 247, 0.15); color: #4fc3f7; }
+        .badge-gray { background: rgba(255, 255, 255, 0.08); color: #aaa; }
+        .badge-yellow { background: rgba(255, 152, 0, 0.2); color: #ff9800; }
+        .badge-red { background: rgba(244, 67, 54, 0.2); color: #f44336; }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 40px;
+            color: #888;
+        }
+
+        .spinner {
+            width: 20px; height: 20px;
+            border: 2px solid #404040;
+            border-top: 2px solid #76b900;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .no-data {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
+        }
+
+        .no-data svg { width: 48px; height: 48px; fill: #555; margin-bottom: 15px; }
+        .no-data h3 { color: #999; margin-bottom: 8px; }
+
+        .fw-mixed { color: #ff9800; font-weight: 600; }
+
+        .sort-arrow { font-size: 10px; margin-left: 4px; opacity: 0.5; }
+        .sort-arrow.active { opacity: 1; color: #76b900; }
+    </style>
+</head>
+<body>
+    <div class="page-header">
+        <div>
+            <div class="page-title">
+                <a href="index.html" style="color: #76b900; text-decoration: none; display: flex; align-items: center;">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                </a>
+                Transceiver Inventory
+            </div>
+            <div class="page-subtitle" id="last-updated"></div>
+        </div>
+    </div>
+
+    <div class="summary-grid">
+        <div class="summary-card card-total">
+            <div class="card-value" id="total-modules">-</div>
+            <div class="card-label">Total Modules</div>
+        </div>
+        <div class="summary-card card-info">
+            <div class="card-value" id="unique-models">-</div>
+            <div class="card-label">Unique Models</div>
+        </div>
+        <div class="summary-card card-success">
+            <div class="card-value" id="devices-count">-</div>
+            <div class="card-label">Devices</div>
+        </div>
+        <div class="summary-card card-warning">
+            <div class="card-value" id="mixed-fw">-</div>
+            <div class="card-label">Mixed FW Models</div>
+        </div>
+    </div>
+
+    <div class="filter-bar">
+        <div class="filter-group">
+            <label>Device</label>
+            <select id="filter-device" onchange="renderTable()">
+                <option value="">All Devices</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Part Number</label>
+            <select id="filter-pn" onchange="renderTable()">
+                <option value="">All Models</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Identifier</label>
+            <select id="filter-id" onchange="renderTable()">
+                <option value="">All Types</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>FW Version</label>
+            <select id="filter-fw" onchange="renderTable()">
+                <option value="">All Versions</option>
+            </select>
+        </div>
+        <div class="filter-group" style="margin-left: auto;">
+            <label>Search</label>
+            <input type="text" id="filter-search" placeholder="Search..." oninput="renderTable()" autocomplete="off">
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th onclick="sortBy('device')">Device <span class="sort-arrow" id="sort-device"></span></th>
+                    <th onclick="sortBy('port')">Port <span class="sort-arrow" id="sort-port"></span></th>
+                    <th onclick="sortBy('identifier')">Identifier <span class="sort-arrow" id="sort-identifier"></span></th>
+                    <th onclick="sortBy('vendor')">Vendor <span class="sort-arrow" id="sort-vendor"></span></th>
+                    <th onclick="sortBy('part_number')">Part Number <span class="sort-arrow" id="sort-part_number"></span></th>
+                    <th onclick="sortBy('serial')">Serial Number <span class="sort-arrow" id="sort-serial"></span></th>
+                    <th onclick="sortBy('vendor_rev')">Rev <span class="sort-arrow" id="sort-vendor_rev"></span></th>
+                    <th onclick="sortBy('fw_version')">FW Version <span class="sort-arrow" id="sort-fw_version"></span></th>
+                </tr>
+            </thead>
+            <tbody id="module-table">
+                <tr><td colspan="8"><div class="loading"><div class="spinner"></div>Loading transceiver inventory...</div></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+<script>
+    let allModules = [];
+    let summary = {};
+    let sortField = 'device';
+    let sortAsc = true;
+    let mixedFwModels = [];
+    let fwByModel = {};
+
+    document.addEventListener('DOMContentLoaded', loadData);
+
+    async function loadData() {
+        try {
+            const resp = await fetch('/monitor-results/transceiver_inventory.json');
+            const data = await resp.json();
+
+            allModules = data.modules || [];
+            summary = data.summary || {};
+            mixedFwModels = summary.mixed_fw_models || [];
+            fwByModel = summary.fw_versions || {};
+
+            document.getElementById('last-updated').textContent = data.last_update
+                ? 'Last updated: ' + new Date(data.last_update).toLocaleString()
+                : '';
+
+            updateSummary();
+            populateFilters();
+            renderTable();
+        } catch (e) {
+            document.getElementById('module-table').innerHTML =
+                '<tr><td colspan="8"><div class="no-data"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg><h3>No Data Yet</h3><p>Transceiver inventory will be available after the next monitor run.</p></div></td></tr>';
+        }
+    }
+
+    function updateSummary() {
+        document.getElementById('total-modules').textContent = summary.total_modules || 0;
+        document.getElementById('unique-models').textContent = summary.unique_models || 0;
+        document.getElementById('devices-count').textContent = summary.devices_with_modules || 0;
+        document.getElementById('mixed-fw').textContent = mixedFwModels.length;
+    }
+
+    function populateFilters() {
+        const devices = [...new Set(allModules.map(m => m.device))].sort();
+        const pns = [...new Set(allModules.map(m => m.part_number).filter(Boolean))].sort();
+        const ids = [...new Set(allModules.map(m => m.identifier).filter(Boolean))].sort();
+        const fws = [...new Set(allModules.map(m => m.fw_version).filter(Boolean))].sort();
+
+        fillSelect('filter-device', devices);
+        fillSelect('filter-pn', pns);
+        fillSelect('filter-id', ids);
+        fillSelect('filter-fw', fws);
+    }
+
+    function fillSelect(id, values) {
+        const sel = document.getElementById(id);
+        const current = sel.value;
+        const first = sel.options[0].outerHTML;
+        sel.innerHTML = first + values.map(v => `<option value="${v}" ${v === current ? 'selected' : ''}>${v}</option>`).join('');
+    }
+
+    function getFilteredModules() {
+        const device = document.getElementById('filter-device').value;
+        const pn = document.getElementById('filter-pn').value;
+        const idType = document.getElementById('filter-id').value;
+        const fw = document.getElementById('filter-fw').value;
+        const search = document.getElementById('filter-search').value.toLowerCase();
+
+        return allModules.filter(m => {
+            if (device && m.device !== device) return false;
+            if (pn && m.part_number !== pn) return false;
+            if (idType && m.identifier !== idType) return false;
+            if (fw && m.fw_version !== fw) return false;
+            if (search) {
+                const hay = `${m.device} ${m.port} ${m.identifier} ${m.vendor} ${m.part_number} ${m.serial} ${m.vendor_rev} ${m.fw_version}`.toLowerCase();
+                if (!hay.includes(search)) return false;
+            }
+            return true;
+        });
+    }
+
+    function getMajorityFw(partNumber) {
+        const versions = fwByModel[partNumber];
+        if (!versions) return null;
+        let maxCount = 0, majorityFw = null;
+        for (const [fw, count] of Object.entries(versions)) {
+            if (fw !== 'unknown' && count > maxCount) {
+                maxCount = count;
+                majorityFw = fw;
+            }
+        }
+        return majorityFw;
+    }
+
+    function sortBy(field) {
+        if (sortField === field) {
+            sortAsc = !sortAsc;
+        } else {
+            sortField = field;
+            sortAsc = true;
+        }
+        document.querySelectorAll('.sort-arrow').forEach(el => {
+            el.textContent = '';
+            el.classList.remove('active');
+        });
+        const arrow = document.getElementById('sort-' + field);
+        if (arrow) {
+            arrow.textContent = sortAsc ? '▲' : '▼';
+            arrow.classList.add('active');
+        }
+        renderTable();
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('module-table');
+        let filtered = getFilteredModules();
+
+        filtered.sort((a, b) => {
+            let va = (a[sortField] || '').toString().toLowerCase();
+            let vb = (b[sortField] || '').toString().toLowerCase();
+            if (sortField === 'port') {
+                const na = parseInt(va.replace(/\D/g, '')) || 0;
+                const nb = parseInt(vb.replace(/\D/g, '')) || 0;
+                return sortAsc ? na - nb : nb - na;
+            }
+            return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+        });
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8"><div class="no-data"><h3>No Modules Found</h3><p>No transceivers match your filters.</p></div></td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(m => {
+            const isMixed = mixedFwModels.includes(m.part_number);
+            const majorityFw = isMixed ? getMajorityFw(m.part_number) : null;
+            const isMinority = isMixed && m.fw_version && m.fw_version !== 'unknown' && m.fw_version !== majorityFw;
+
+            const fwClass = isMinority ? 'fw-mixed' : '';
+            const fwBadge = isMinority ? ' <span class="badge badge-yellow">mixed</span>' : '';
+            const fwDisplay = m.fw_version || '<span style="color:#555">-</span>';
+
+            return `<tr>
+                <td>${m.device}</td>
+                <td><span class="badge badge-gray">${m.port}</span></td>
+                <td><span class="badge badge-blue">${m.identifier || '-'}</span></td>
+                <td>${m.vendor || '-'}</td>
+                <td><strong>${m.part_number || '-'}</strong></td>
+                <td style="font-family: monospace; font-size: 12px; color: #999;">${m.serial || '-'}</td>
+                <td>${m.vendor_rev || '-'}</td>
+                <td class="${fwClass}">${fwDisplay}${fwBadge}</td>
+            </tr>`;
+        }).join('');
+    }
+</script>
+</body>
+</html>
