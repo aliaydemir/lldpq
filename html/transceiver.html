@@ -449,9 +449,16 @@
             const majorityFw = isMixed ? getMajorityFw(m.part_number) : null;
             const isMinority = isMixed && m.fw_version && m.fw_version !== 'unknown' && m.fw_version !== majorityFw;
 
+            const isUnreachable = m.fw_version === 'unreachable';
             const fwClass = isMinority ? 'fw-mixed' : '';
-            const fwBadge = isMinority ? ' <span class="badge badge-yellow">mixed</span>' : '';
-            const fwDisplay = m.fw_version || '<span style="color:#555">-</span>';
+            let fwBadge = isMinority ? ' <span class="badge badge-yellow">mixed</span>' : '';
+            let fwDisplay;
+            if (isUnreachable) {
+                fwDisplay = '<span class="badge badge-red">unreachable</span>';
+                fwBadge = '';
+            } else {
+                fwDisplay = m.fw_version || '<span style="color:#555">-</span>';
+            }
 
             return `<tr>
                 <td>${m.device}</td>

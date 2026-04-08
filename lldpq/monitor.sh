@@ -432,7 +432,7 @@ EOF
                 port_num=$(echo "$iface" | sed 's/swp//' | sed 's/s.*//')
                 case " $done_ports " in *" $port_num "*) continue ;; esac
                 done_ports="$done_ports $port_num"
-                FW=$(timeout 5 sudo mlxlink -d /dev/mst/$MST_DEV -m -p $port_num 2>/dev/null | grep "FW Version")
+                FW=$(timeout 5 sudo mlxlink -d /dev/mst/$MST_DEV -m -p $port_num 2>/dev/null | grep "FW Version" | grep -v "N/A")
                 if [ -n "$FW" ]; then
                     echo "swp${port_num}|${FW}"
                 fi

@@ -121,6 +121,13 @@ def process_transceiver_data(optical_dir='monitor-results/optical-data',
         vendor_info = parse_optical_vendor_info(optical_path)
         fw_info = parse_transceiver_fw(transceiver_path) if os.path.exists(transceiver_path) else {}
 
+        has_transceiver_file = os.path.exists(transceiver_path)
+        has_cmis_modules = any(
+            info['identifier'] in ('OSFP', 'QSFP-DD', 'OSFP 8X Pluggable Transceiver')
+            for info in vendor_info.values()
+        )
+        device_unreachable = has_cmis_modules and not has_transceiver_file
+
         for iface, info in vendor_info.items():
             port_num_match = re.match(r'swp(\d+)', iface)
             port_num = port_num_match.group(1) if port_num_match else iface.replace('swp', '')
@@ -131,6 +138,9 @@ def process_transceiver_data(optical_dir='monitor-results/optical-data',
                     if fw_port and fw_port.group(1) == port_num:
                         fw = fw_val
                         break
+
+            if not fw and device_unreachable:
+                fw = 'unreachable'
 
             all_modules.append({
                 'device': hostname,
