@@ -117,7 +117,7 @@ EOF
     # Verbose output removed for performance
     local ssh_start=$(date +%s)
     
-    timeout 180 ssh $SSH_OPTS -q "$user@$device" '
+    timeout 300 ssh $SSH_OPTS -q "$user@$device" '
         HOSTNAME_VAR="'"$hostname"'"
         
         # =====================================================================
@@ -422,15 +422,19 @@ EOF
         
         # =====================================================================
         # SECTION 9: Transceiver Firmware Versions (mlxlink)
+        # Only unique physical ports (breakout subports share one module)
         # =====================================================================
         echo "===TRANSCEIVER_DATA_START==="
         MST_DEV=$(ls /dev/mst/ 2>/dev/null | grep pciconf0 | head -1)
         if [ -n "$MST_DEV" ]; then
+            done_ports=""
             for iface in $all_interfaces; do
                 port_num=$(echo "$iface" | sed 's/swp//' | sed 's/s.*//')
-                FW=$(sudo mlxlink -d /dev/mst/$MST_DEV -m -p $port_num 2>/dev/null | grep 'FW Version')
+                case " $done_ports " in *" $port_num "*) continue ;; esac
+                done_ports="$done_ports $port_num"
+                FW=$(timeout 5 sudo mlxlink -d /dev/mst/$MST_DEV -m -p $port_num 2>/dev/null | grep 'FW Version')
                 if [ -n "$FW" ]; then
-                    echo "${iface}|${FW}"
+                    echo "swp${port_num}|${FW}"
                 fi
             done
         fi
