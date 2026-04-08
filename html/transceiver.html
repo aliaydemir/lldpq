@@ -29,26 +29,51 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #404040;
         }
 
         .page-title {
-            font-size: 22px;
+            font-size: 24px;
             font-weight: 600;
+            color: #76b900;
+        }
+
+        .last-updated {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .action-buttons { display: flex; gap: 10px; align-items: center; }
+
+        .btn {
+            padding: 7px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 6px;
+            color: #fff;
         }
 
-        .page-title svg {
-            width: 22px;
-            height: 22px;
-        }
+        .btn-primary { background: linear-gradient(0deg, #689f38 0%, #76b900 100%); }
+        .btn-primary:hover { background: linear-gradient(0deg, #76b900 0%, #8bc34a 100%); }
+        .btn-secondary { background: linear-gradient(0deg, #0288d1 0%, #03a9f4 100%); }
+        .btn-secondary:hover { background: linear-gradient(0deg, #03a9f4 0%, #29b6f6 100%); }
 
-        .page-subtitle {
-            font-size: 12px;
-            color: #888;
-            margin-top: 2px;
+        .device-search select {
+            background: #3c3c3c;
+            border: 1px solid #555;
+            color: #d4d4d4;
+            padding: 7px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            min-width: 220px;
         }
+        .device-search select:focus { border-color: #76b900; outline: none; }
 
         .summary-grid {
             display: grid;
@@ -195,13 +220,23 @@
 <body>
     <div class="page-header">
         <div>
-            <div class="page-title">
-                <a href="index.html" style="color: #76b900; text-decoration: none; display: flex; align-items: center;">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-                </a>
-                Transceiver Inventory
+            <div class="page-title">Transceiver Inventory</div>
+            <div class="last-updated" id="last-updated"></div>
+        </div>
+        <div class="action-buttons">
+            <div class="device-search">
+                <select id="deviceSearch" onchange="filterByDevice()">
+                    <option value="">Search Device...</option>
+                </select>
             </div>
-            <div class="page-subtitle" id="last-updated"></div>
+            <button class="btn btn-secondary" onclick="runAnalysis()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4Z"/></svg>
+                Run Analysis
+            </button>
+            <button class="btn btn-primary" onclick="downloadCSV()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/></svg>
+                Download CSV
+            </button>
         </div>
     </div>
 
@@ -249,9 +284,8 @@
                 <option value="">All Versions</option>
             </select>
         </div>
-        <div class="filter-group" style="margin-left: auto;">
-            <label>Search</label>
-            <input type="text" id="filter-search" placeholder="Search..." oninput="renderTable()" autocomplete="off">
+        <div class="filter-group" style="display:none;">
+            <input type="hidden" id="filter-search" value="">
         </div>
     </div>
 
@@ -296,7 +330,7 @@
             fwByModel = summary.fw_versions || {};
 
             document.getElementById('last-updated').textContent = data.last_update
-                ? 'Last updated: ' + new Date(data.last_update).toLocaleString()
+                ? 'Last Updated: ' + new Date(data.last_update).toLocaleString('sv-SE').replace('T', ' ')
                 : '';
 
             updateSummary();
@@ -325,6 +359,10 @@
         fillSelect('filter-pn', pns);
         fillSelect('filter-id', ids);
         fillSelect('filter-fw', fws);
+
+        const devSearch = document.getElementById('deviceSearch');
+        devSearch.innerHTML = '<option value="">Search Device...</option>' +
+            devices.map(d => `<option value="${d}">${d}</option>`).join('');
     }
 
     function fillSelect(id, values) {
@@ -426,6 +464,50 @@
                 <td class="${fwClass}">${fwDisplay}${fwBadge}</td>
             </tr>`;
         }).join('');
+    }
+
+    function filterByDevice() {
+        const dev = document.getElementById('deviceSearch').value;
+        document.getElementById('filter-device').value = dev;
+        renderTable();
+    }
+
+    function runAnalysis() {
+        const btn = event.target.closest('.btn');
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px;"></div> Running...';
+        fetch('/monitor-results/transceiver_inventory.json?t=' + Date.now())
+            .then(r => r.json())
+            .then(data => {
+                allModules = data.modules || [];
+                summary = data.summary || {};
+                mixedFwModels = summary.mixed_fw_models || [];
+                fwByModel = summary.fw_versions || {};
+                document.getElementById('last-updated').textContent = data.last_update
+                    ? 'Last Updated: ' + new Date(data.last_update).toLocaleString('sv-SE').replace('T', ' ')
+                    : '';
+                updateSummary();
+                populateFilters();
+                renderTable();
+            })
+            .catch(() => {})
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4Z"/></svg> Run Analysis';
+            });
+    }
+
+    function downloadCSV() {
+        const filtered = getFilteredModules();
+        const headers = ['Device','Port','Identifier','Vendor','Part Number','Serial Number','Rev','FW Version'];
+        const rows = filtered.map(m => [m.device, m.port, m.identifier, m.vendor, m.part_number, m.serial, m.vendor_rev, m.fw_version].map(v => `"${(v||'').replace(/"/g,'""')}"`).join(','));
+        const csv = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csv], {type: 'text/csv'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'transceiver_inventory.csv';
+        a.click();
+        URL.revokeObjectURL(a.href);
     }
 </script>
 </body>
