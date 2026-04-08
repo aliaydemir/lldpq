@@ -29,6 +29,7 @@ mkdir -p "$SCRIPT_DIR/monitor-results/optical-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/ber-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/hardware-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/log-data"
+mkdir -p "$SCRIPT_DIR/monitor-results/transceiver-data"
 
 unreachable_hosts_file=$(mktemp)
 active_jobs_file=$(mktemp)
@@ -419,6 +420,22 @@ EOF
         
         echo "===LOG_DATA_END==="
         
+        # =====================================================================
+        # SECTION 9: Transceiver Firmware Versions (mlxlink)
+        # =====================================================================
+        echo "===TRANSCEIVER_DATA_START==="
+        MST_DEV=$(ls /dev/mst/ 2>/dev/null | grep pciconf0 | head -1)
+        if [ -n "$MST_DEV" ]; then
+            for iface in $all_interfaces; do
+                port_num=$(echo "$iface" | sed 's/swp//' | sed 's/s.*//')
+                FW=$(sudo mlxlink -d /dev/mst/$MST_DEV -m -p $port_num 2>/dev/null | grep 'FW Version')
+                if [ -n "$FW" ]; then
+                    echo "${iface}|${FW}"
+                fi
+            done
+        fi
+        echo "===TRANSCEIVER_DATA_END==="
+        
     ' > "monitor-results/${hostname}_raw_data.txt" 2>/dev/null
     
     local ssh_end=$(date +%s)
@@ -469,6 +486,10 @@ EOF
         # Extract Log data
         sed -n '/===LOG_DATA_START===/,/===LOG_DATA_END===/p' "monitor-results/${hostname}_raw_data.txt" | \
             grep -v "===LOG_DATA" > "monitor-results/log-data/${hostname}_logs.txt"
+        
+        # Extract Transceiver FW data
+        sed -n '/===TRANSCEIVER_DATA_START===/,/===TRANSCEIVER_DATA_END===/p' "monitor-results/${hostname}_raw_data.txt" | \
+            grep -v "===TRANSCEIVER_DATA" > "monitor-results/transceiver-data/${hostname}_transceiver.txt"
         
         # Cleanup raw file
         rm -f "monitor-results/${hostname}_raw_data.txt"
@@ -573,6 +594,7 @@ python3 process_optical_data.py >/dev/null 2>&1 &
 python3 process_ber_data.py >/dev/null 2>&1 &
 python3 process_hardware_data.py >/dev/null 2>&1 &
 python3 process_log_data.py >/dev/null 2>&1 &
+python3 process_transceiver_data.py >/dev/null 2>&1 &
 
 # Wait for all
 wait
