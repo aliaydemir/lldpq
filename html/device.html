@@ -847,6 +847,35 @@
             <div class="loading">Loading logs...</div>
         </div>
         <div class="log-output" id="logOutput" style="display: none;"></div>
+        
+        <div style="margin-top: 20px; padding: 15px; background: #1e1e1e; border-radius: 6px; border: 1px solid #3c3c3c;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="#76b900"><path d="M12 8V4l8 8-8 8v-4H4V8h8z"/></svg>
+                <span style="font-weight: 600; color: #76b900;">Live Log Tail</span>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <select id="tailSeverity" style="padding: 8px 12px; background: #252526; border: 1px solid #404040; border-radius: 4px; color: #fff; font-size: 13px;">
+                    <option value="all">All Severity</option>
+                    <option value="critical">Critical</option>
+                    <option value="error">Error</option>
+                    <option value="warning" selected>Warning+</option>
+                    <option value="info">Info+</option>
+                </select>
+                <input type="text" id="tailKeyword" placeholder="Keyword filter (optional)" style="padding: 8px 12px; background: #252526; border: 1px solid #404040; border-radius: 4px; color: #fff; font-size: 13px; width: 200px;">
+                <select id="tailDuration" style="padding: 8px 12px; background: #252526; border: 1px solid #404040; border-radius: 4px; color: #fff; font-size: 13px;">
+                    <option value="30">30 sec</option>
+                    <option value="60" selected>60 sec</option>
+                    <option value="120">2 min</option>
+                    <option value="300">5 min</option>
+                </select>
+                <button class="btn btn-primary btn-sm" id="btnStartTail" onclick="startLogTail()">Start Tail</button>
+                <button class="btn btn-danger btn-sm" id="btnStopTail" onclick="stopLogTail()" style="display: none;">Stop</button>
+                <span id="tailStatus" style="font-size: 12px; color: #666;"></span>
+            </div>
+            <div id="tailOutputContainer" style="display: none; margin-top: 12px;">
+                <pre id="tailOutput" style="margin: 0; white-space: pre-wrap; color: #4ec9b0; max-height: 500px; overflow-y: auto; background: #111; padding: 12px; border-radius: 4px; font-size: 12px; font-family: 'Cascadia Code', Consolas, monospace;"></pre>
+            </div>
+        </div>
     </div>
     
     <!-- Command Runner Tab -->
@@ -1508,6 +1537,11 @@
             if (livePollingInterval) {
                 clearInterval(livePollingInterval);
                 livePollingInterval = null;
+            }
+            if (tailPollingInterval) {
+                clearInterval(tailPollingInterval);
+                tailPollingInterval = null;
+                tailOutputFile = null;
             }
             if (clsupportPollingInterval) {
                 clearInterval(clsupportPollingInterval);
@@ -2249,6 +2283,86 @@
             
             statusEl.textContent = 'Capture complete';
             statusEl.style.color = '#76b900';
+        }
+        
+        // ===================== LOG TAIL =====================
+        let tailPollingInterval = null;
+        let tailOutputFile = null;
+        
+        async function startLogTail() {
+            const severity = document.getElementById('tailSeverity').value;
+            const keyword = document.getElementById('tailKeyword').value.trim();
+            const duration = document.getElementById('tailDuration').value;
+            const statusEl = document.getElementById('tailStatus');
+            const outputEl = document.getElementById('tailOutputContainer');
+            const tailEl = document.getElementById('tailOutput');
+            const btnStart = document.getElementById('btnStartTail');
+            const btnStop = document.getElementById('btnStopTail');
+            
+            btnStart.style.display = 'none';
+            btnStop.style.display = 'inline-flex';
+            statusEl.textContent = 'Starting...';
+            statusEl.style.color = '#ff9800';
+            outputEl.style.display = 'block';
+            tailEl.textContent = 'Connecting to ' + deviceName + '...';
+            
+            try {
+                const resp = await fetch('/fabric-api.sh?action=start-log-tail', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ device: deviceName, severity, keyword, duration })
+                });
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error || 'Failed to start tail');
+                
+                tailOutputFile = data.output_file;
+                statusEl.textContent = 'Tailing...';
+                statusEl.style.color = '#76b900';
+                
+                let lastLength = 0;
+                tailPollingInterval = setInterval(async () => {
+                    try {
+                        const r = await fetch('/fabric-api.sh?action=run-device-command', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ device: deviceName, command: `cat ${tailOutputFile} 2>/dev/null` })
+                        });
+                        const d = await r.json();
+                        if (d.success && d.output && d.output.length > lastLength) {
+                            tailEl.textContent = d.output;
+                            tailEl.scrollTop = tailEl.scrollHeight;
+                            lastLength = d.output.length;
+                        }
+                    } catch (e) {}
+                }, 1000);
+                
+                setTimeout(() => { if (tailPollingInterval) stopLogTail(); }, parseInt(duration) * 1000 + 3000);
+            } catch (e) {
+                statusEl.textContent = 'Error: ' + e.message;
+                statusEl.style.color = '#f44336';
+                btnStart.style.display = 'inline-flex';
+                btnStop.style.display = 'none';
+            }
+        }
+        
+        function stopLogTail() {
+            if (tailPollingInterval) {
+                clearInterval(tailPollingInterval);
+                tailPollingInterval = null;
+            }
+            document.getElementById('btnStartTail').style.display = 'inline-flex';
+            document.getElementById('btnStopTail').style.display = 'none';
+            
+            if (tailOutputFile) {
+                fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ device: deviceName, command: `sudo pkill -f "journalctl -f" 2>/dev/null; sudo rm -f ${tailOutputFile}` })
+                }).catch(() => {});
+                tailOutputFile = null;
+            }
+            document.getElementById('tailStatus').textContent = 'Stopped';
+            document.getElementById('tailStatus').style.color = '#888';
         }
         
         async function downloadPcap() {

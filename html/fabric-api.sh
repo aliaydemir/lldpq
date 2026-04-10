@@ -5662,6 +5662,133 @@ else:
 PYTHON_LIVE
         exit 0
         ;;
+    start-log-tail)
+        read -r POST_DATA
+        export POST_DATA
+        
+        python3 << 'PYTHON_TAIL'
+import json
+import subprocess
+import re
+import os
+import time
+
+def read_lldpq_conf():
+    conf = {}
+    for conf_path in ['/etc/lldpq.conf', os.path.expanduser('~/lldpq.conf')]:
+        if os.path.exists(conf_path):
+            with open(conf_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, val = line.split('=', 1)
+                        conf[key.strip()] = val.strip()
+            break
+    return conf
+
+try:
+    data = json.loads(os.environ.get('POST_DATA', '{}'))
+except:
+    data = {}
+
+device = data.get('device', '')
+severity = data.get('severity', 'all')
+keyword = data.get('keyword', '').strip()
+duration = min(int(data.get('duration', 60)), 300)
+
+if not device:
+    print(json.dumps({'success': False, 'error': 'Device required'}))
+    exit()
+
+if keyword and not re.match(r'^[a-zA-Z0-9\s\.\:\-\_\|\[\]]+$', keyword):
+    print(json.dumps({'success': False, 'error': 'Invalid keyword'}))
+    exit()
+
+lldpq_conf = read_lldpq_conf()
+ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
+lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+lldpq_dir = lldpq_conf.get('LLDPQ_DIR', os.path.expanduser('~/lldpq'))
+
+device_ip = None
+ssh_user = 'cumulus'
+
+import yaml
+for devices_path in [f"{lldpq_dir}/devices.yaml"]:
+    if os.path.exists(devices_path):
+        try:
+            with open(devices_path, 'r') as f:
+                ddata = yaml.safe_load(f)
+            defaults = ddata.get('defaults', {})
+            default_user = defaults.get('username', 'cumulus')
+            for ip, info in ddata.get('devices', {}).items():
+                if isinstance(info, dict):
+                    hname = info.get('hostname', '')
+                    uname = info.get('username', default_user)
+                else:
+                    hname = str(info).split()[0] if info else ''
+                    uname = default_user
+                if hname == device:
+                    device_ip = str(ip)
+                    ssh_user = uname
+                    break
+        except:
+            pass
+
+if not device_ip:
+    for inv_file in [f"{ansible_dir}/inventory/inventory.ini", f"{ansible_dir}/inventory/hosts"]:
+        if os.path.exists(inv_file):
+            try:
+                with open(inv_file, 'r') as f:
+                    for line in f:
+                        if line.strip().startswith(device + ' ') or line.strip().startswith(device + '\t'):
+                            match = re.search(r'ansible_host=(\S+)', line)
+                            if match:
+                                device_ip = match.group(1)
+                                break
+            except:
+                pass
+        if device_ip:
+            break
+
+if not device_ip:
+    print(json.dumps({'success': False, 'error': f'Device {device} not found'}))
+    exit()
+
+timestamp = time.strftime('%Y%m%d-%H%M%S')
+output_file = f'/tmp/tail_{device}_{timestamp}.txt'
+
+priority_map = {'critical': '0..2', 'error': '0..3', 'warning': '0..4', 'info': '0..6'}
+journal_cmd = f'sudo timeout {duration} journalctl -f --no-pager'
+if severity != 'all' and severity in priority_map:
+    journal_cmd += f' -p {priority_map[severity]}'
+if keyword:
+    journal_cmd += f' | grep --line-buffered -i "{keyword}"'
+
+remote_cmd = f"nohup sh -c '{journal_cmd} > {output_file} 2>&1' > /dev/null 2>&1 & echo $!"
+
+ssh_command = [
+    'sudo', '-u', lldpq_user,
+    'ssh', '-o', 'StrictHostKeyChecking=no', '-o', 'ConnectTimeout=10', '-o', 'BatchMode=yes',
+    f'{ssh_user}@{device_ip}',
+    remote_cmd
+]
+
+result = subprocess.run(ssh_command, capture_output=True, text=True, timeout=15)
+
+if result.returncode == 0:
+    print(json.dumps({
+        'success': True,
+        'output_file': output_file,
+        'pid': result.stdout.strip(),
+        'device': device,
+        'duration': duration
+    }))
+else:
+    print(json.dumps({'success': False, 'error': result.stderr[:200]}))
+
+PYTHON_TAIL
+        exit 0
+        ;;
     run-device-command)
         # Run a safe command on a device
         read -r POST_DATA
