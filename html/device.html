@@ -868,8 +868,8 @@
                     <option value="120">2 min</option>
                     <option value="300">5 min</option>
                 </select>
-                <button class="btn btn-primary btn-sm" id="btnStartTail" onclick="startLogTail()">Start Tail</button>
-                <button class="btn btn-danger btn-sm" id="btnStopTail" onclick="stopLogTail()" style="display: none;">Stop</button>
+                <button class="cmd-btn" id="btnStartTail" onclick="startLogTail()" style="background: #76b900; color: #000; padding: 8px 16px;">Start Tail</button>
+                <button class="cmd-btn" id="btnStopTail" onclick="stopLogTail()" style="background: #c53030; color: #fff; padding: 8px 16px; display: none;">Stop</button>
                 <span id="tailStatus" style="font-size: 12px; color: #666;"></span>
             </div>
             <div id="tailOutputContainer" style="display: none; margin-top: 12px;">
@@ -2357,7 +2357,12 @@
                 fetch('/fabric-api.sh?action=run-device-command', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ device: deviceName, command: `sudo pkill -f "journalctl -f" 2>/dev/null; sudo rm -f ${tailOutputFile}` })
+                    body: JSON.stringify({ device: deviceName, command: 'sudo pkill -f "journalctl -f"' })
+                }).catch(() => {});
+                fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ device: deviceName, command: `sudo rm -f ${tailOutputFile}` })
                 }).catch(() => {});
                 tailOutputFile = null;
             }
