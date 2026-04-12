@@ -1157,7 +1157,7 @@ step "Configuring cron jobs..."
 # Remove existing LLDPq cron jobs and re-add (ensures latest)
 sudo sed -i '/lldpq\|monitor\|get-conf\|fabric-scan\|ai-analyze/d' /etc/crontab
 
-echo "*/5 * * * * $LLDPQ_USER /usr/local/bin/lldpq" | sudo tee -a /etc/crontab > /dev/null
+echo "*/10 * * * * $LLDPQ_USER /usr/local/bin/lldpq" | sudo tee -a /etc/crontab > /dev/null
 echo "0 */12 * * * $LLDPQ_USER /usr/local/bin/get-conf" | sudo tee -a /etc/crontab > /dev/null
 echo "* * * * * $LLDPQ_USER /usr/local/bin/lldpq-trigger" | sudo tee -a /etc/crontab > /dev/null
 echo "* * * * * $LLDPQ_USER cd $LLDPQ_INSTALL_DIR && ./fabric-scan.sh >/dev/null 2>&1" | sudo tee -a /etc/crontab > /dev/null
@@ -1171,7 +1171,7 @@ if [[ "$ANSIBLE_DIR" != "NoNe" ]] && [[ -d "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_
 fi
 
 echo "  Cron jobs configured:"
-echo "    - lldpq:           every 5 minutes"
+echo "    - lldpq:           every 10 minutes"
 echo "    - get-conf:        every 12 hours"
 echo "    - web triggers:    every minute (enables Run LLDP Check button)"
 echo "    - git auto-commit: daily at midnight"

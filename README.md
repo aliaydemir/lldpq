@@ -162,7 +162,7 @@ cd lldpq-src
 
 ## [01] what it does
 
-- validation lldp and monitors switches every 5 minutes
+- validation lldp and monitors switches every 10 minutes
 - collects bgp, optical, ber, link flap, hardware health data
 - shows network topology with lldp
 - web dashboard with real-time stats
@@ -355,7 +355,7 @@ patterns are matched against devices found in LLDP neighbor data.
 ## [04] cron jobs (auto setup)
 
 ```
-*/5 * * * * lldpq                       # system monitoring every 5 minutes
+*/10 * * * * lldpq                      # system monitoring every 10 minutes
 0 */12 * * * get-conf                   # config backup every 12 hours
 * * * * * lldpq-trigger                 # web UI refresh buttons daemon
 * * * * * fabric-scan.sh                # fabric topology scan (search data)
@@ -762,7 +762,7 @@ Scans the entire discovery range with ping + SSH probe for device classification
 
 Additional stat cards: **MAC Mismatch** (binding MAC vs discovered MAC differ) and **No Binding** (IP alive but not in DHCP bindings).
 
-- Auto-scans every 5 minutes in background (silent, no loading indicator)
+- Auto-scans every 10 minutes in background (silent, no loading indicator)
 - Manual **Scan** button for immediate full scan with results
 - Cache-based loading for instant page display
 
