@@ -17,6 +17,14 @@ eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 source /etc/lldpq.conf 2>/dev/null || true
 WEB_ROOT="${WEB_ROOT:-/var/www/html}"
 
+# Parse flags
+SKIP_OPTICAL="${SKIP_OPTICAL:-false}"
+while getopts "s" opt; do
+    case $opt in
+        s) SKIP_OPTICAL=true ;;
+    esac
+done
+
 # === TUNING PARAMETERS ===
 MAX_PARALLEL=300  # Maximum parallel SSH connections (adjust based on your server)
 SSH_TIMEOUT=60   # SSH connection timeout in seconds
@@ -29,7 +37,6 @@ mkdir -p "$SCRIPT_DIR/monitor-results/optical-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/ber-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/hardware-data"
 mkdir -p "$SCRIPT_DIR/monitor-results/log-data"
-mkdir -p "$SCRIPT_DIR/monitor-results/transceiver-data"
 
 unreachable_hosts_file=$(mktemp)
 active_jobs_file=$(mktemp)
@@ -119,6 +126,7 @@ EOF
     
     timeout 300 ssh $SSH_OPTS -q "$user@$device" '
         HOSTNAME_VAR="'"$hostname"'"
+        SKIP_OPTICAL="'"$SKIP_OPTICAL"'"
         
         # =====================================================================
         # SECTION 1: Interface Overview (for HTML)
@@ -229,23 +237,25 @@ EOF
         echo "===CARRIER_DATA_END==="
         
         # =====================================================================
-        # SECTION 4: Optical Transceiver Data
+        # SECTION 4: Optical Transceiver Data (skippable with -s flag)
         # =====================================================================
         echo "===OPTICAL_DATA_START==="
-        all_interfaces=$(ip link show | awk "/^[0-9]+: swp[0-9]+[s0-9]*/ {gsub(/:/, \"\", \$2); print \$2}")
-        for interface in $all_interfaces; do
-            if [ -e "/sys/class/net/$interface" ]; then
-                state=$(cat /sys/class/net/$interface/operstate 2>/dev/null)
-                if [ "$state" = "up" ]; then
-                    echo "--- Interface: $interface"
-                    if sudo ethtool -m "$interface" >/dev/null 2>&1; then
-                        sudo ethtool -m "$interface" 2>/dev/null
-                    else
-                        echo "No transceiver data"
+        if [ "$SKIP_OPTICAL" != "true" ]; then
+            all_interfaces=$(ip link show | awk "/^[0-9]+: swp[0-9]+[s0-9]*/ {gsub(/:/, \"\", \$2); print \$2}")
+            for interface in $all_interfaces; do
+                if [ -e "/sys/class/net/$interface" ]; then
+                    state=$(cat /sys/class/net/$interface/operstate 2>/dev/null)
+                    if [ "$state" = "up" ]; then
+                        echo "--- Interface: $interface"
+                        if sudo ethtool -m "$interface" >/dev/null 2>&1; then
+                            sudo ethtool -m "$interface" 2>/dev/null
+                        else
+                            echo "No transceiver data"
+                        fi
                     fi
                 fi
-            fi
-        done
+            done
+        fi
         echo "===OPTICAL_DATA_END==="
         
         # =====================================================================
@@ -420,25 +430,6 @@ EOF
         
         echo "===LOG_DATA_END==="
         
-        # =====================================================================
-        # SECTION 9: Transceiver Firmware Versions (mlxlink)
-        # Only unique physical ports (breakout subports share one module)
-        # =====================================================================
-        echo "===TRANSCEIVER_DATA_START==="
-        MST_DEV=$(ls /dev/mst/ 2>/dev/null | grep pciconf0 | head -1)
-        if [ -n "$MST_DEV" ]; then
-            done_ports=""
-            for iface in $all_interfaces; do
-                port_num=$(echo "$iface" | sed 's/swp//' | sed 's/s.*//')
-                case " $done_ports " in *" $port_num "*) continue ;; esac
-                done_ports="$done_ports $port_num"
-                FW=$(timeout 5 sudo mlxlink -d /dev/mst/$MST_DEV -m -p $port_num 2>/dev/null | grep "FW Version" | grep -v "N/A")
-                if [ -n "$FW" ]; then
-                    echo "swp${port_num}|${FW}"
-                fi
-            done
-        fi
-        echo "===TRANSCEIVER_DATA_END==="
         
     ' > "monitor-results/${hostname}_raw_data.txt" 2>/dev/null
     
@@ -490,10 +481,6 @@ EOF
         # Extract Log data
         sed -n '/===LOG_DATA_START===/,/===LOG_DATA_END===/p' "monitor-results/${hostname}_raw_data.txt" | \
             grep -v "===LOG_DATA" > "monitor-results/log-data/${hostname}_logs.txt"
-        
-        # Extract Transceiver FW data
-        sed -n '/===TRANSCEIVER_DATA_START===/,/===TRANSCEIVER_DATA_END===/p' "monitor-results/${hostname}_raw_data.txt" | \
-            grep -v "===TRANSCEIVER_DATA" > "monitor-results/transceiver-data/${hostname}_transceiver.txt"
         
         # Cleanup raw file
         rm -f "monitor-results/${hostname}_raw_data.txt"
@@ -594,11 +581,10 @@ analysis_start=$(date +%s)
 # Run all analyses in parallel (suppress all output)
 python3 process_bgp_data.py >/dev/null 2>&1 &
 python3 process_flap_data.py >/dev/null 2>&1 &
-python3 process_optical_data.py >/dev/null 2>&1 &
+[[ "$SKIP_OPTICAL" != "true" ]] && python3 process_optical_data.py >/dev/null 2>&1 &
 python3 process_ber_data.py >/dev/null 2>&1 &
 python3 process_hardware_data.py >/dev/null 2>&1 &
 python3 process_log_data.py >/dev/null 2>&1 &
-python3 process_transceiver_data.py >/dev/null 2>&1 &
 
 # Wait for all
 wait

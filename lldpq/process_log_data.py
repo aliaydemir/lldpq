@@ -1104,7 +1104,19 @@ class LogAnalyzer:
         print(f"Log analysis HTML generated: {output_file}")
     
     def save_summary_data(self):
-        """Save summary data for dashboard integration"""
+        """Save summary data for dashboard and AI integration"""
+        recent_messages = {}
+        for device, categories in self.log_analysis.items():
+            msgs = []
+            for entry in categories.get("critical", [])[-20:]:
+                text = entry.get('message', str(entry)) if isinstance(entry, dict) else str(entry)
+                msgs.append(f"[CRITICAL] {text[:200]}")
+            for entry in categories.get("error", [])[-10:]:
+                text = entry.get('message', str(entry)) if isinstance(entry, dict) else str(entry)
+                msgs.append(f"[ERROR] {text[:200]}")
+            if msgs:
+                recent_messages[device] = msgs
+        
         summary_data = {
             "timestamp": datetime.now().isoformat(),
             "total_devices": len(self.log_counts),
@@ -1114,7 +1126,8 @@ class LogAnalyzer:
                 "error": sum(device["error"] for device in self.log_counts.values()),
                 "info": sum(device["info"] for device in self.log_counts.values())
             },
-            "device_counts": dict(self.log_counts)
+            "device_counts": dict(self.log_counts),
+            "recent_messages": recent_messages
         }
         
         summary_file = os.path.join(self.data_dir, "log_summary.json")

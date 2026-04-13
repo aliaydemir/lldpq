@@ -195,7 +195,7 @@ def build_fabric_summary():
     except Exception:
         pass
     
-    # 5. Log summary
+    # 5. Log summary (totals + per-device critical breakdown)
     try:
         log_file = os.path.join(LLDPQ_DIR, 'monitor-results', 'log_summary.json')
         if os.path.exists(log_file):
@@ -206,6 +206,23 @@ def build_fabric_summary():
             warnings = sum(d.get('warning', 0) for d in logs.values() if isinstance(d, dict))
             if critical or errors or warnings:
                 summary.append(f"LOGS: {critical} critical, {errors} errors, {warnings} warnings across all devices")
+            if critical > 0:
+                crit_devices = []
+                device_counts = logs.get('device_counts', logs)
+                for dev, counts in sorted(device_counts.items()):
+                    if isinstance(counts, dict) and counts.get('critical', 0) > 0:
+                        crit_devices.append(f"  {dev}: {counts['critical']} critical")
+                if crit_devices:
+                    summary.append("CRITICAL LOG DEVICES:\n" + "\n".join(crit_devices[:20]))
+            
+            recent = logs.get('recent_messages', {})
+            if recent:
+                log_lines = []
+                for dev in sorted(recent.keys())[:5]:
+                    for msg in recent[dev][:2]:
+                        log_lines.append(f"  {dev}: {msg}")
+                if log_lines:
+                    summary.append("LOG SAMPLES (top 5 devices, use Attach Logs button for full detail):\n" + "\n".join(log_lines))
     except Exception:
         pass
     
@@ -1193,6 +1210,17 @@ elif ACTION == 'analyze':
     action_analyze()
 elif ACTION == 'get-analysis':
     action_get_analysis()
+elif ACTION == 'get-log-messages':
+    try:
+        log_file = os.path.join(LLDPQ_DIR, 'monitor-results', 'log_summary.json')
+        if os.path.exists(log_file):
+            with open(log_file, 'r') as f:
+                data = json.load(f)
+            result_json({"success": True, "messages": data.get('recent_messages', {}), "totals": data.get('totals', {})})
+        else:
+            result_json({"success": True, "messages": {}, "totals": {}})
+    except Exception as e:
+        error_json(str(e))
 else:
     error_json(f"Unknown action: {ACTION}")
 

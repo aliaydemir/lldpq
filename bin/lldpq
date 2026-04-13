@@ -6,12 +6,15 @@
 source /etc/lldpq.conf 2>/dev/null || true
 LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
 
-# Verbose mode: lldpq - (shows output)
-if [[ "$1" == "-" ]]; then
-    QUIET=""
-else
-    QUIET=">/dev/null 2>&1"
-fi
+# Parse flags: lldpq - (verbose), lldpq -s (skip optical)
+QUIET=">/dev/null 2>&1"
+MONITOR_FLAGS=""
+for arg in "$@"; do
+    case "$arg" in
+        -) QUIET="" ;;
+        -s) MONITOR_FLAGS="$MONITOR_FLAGS -s" ;;
+    esac
+done
 
 cd "$LLDPQ_DIR"
 wait_until_not_running() {
@@ -26,7 +29,7 @@ wait_until_not_running "assets.sh"
 eval "./assets.sh $QUIET"
 wait_until_not_running "check-lldp.sh"
 eval "./check-lldp.sh $QUIET"
-eval "./monitor.sh $QUIET"
+eval "./monitor.sh $MONITOR_FLAGS $QUIET"
 
 # Fabric table scan for search
 wait_until_not_running "fabric-scan.sh"

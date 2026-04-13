@@ -229,9 +229,9 @@
                     <option value="">Search Device...</option>
                 </select>
             </div>
-            <button class="btn btn-secondary" onclick="runAnalysis()">
+            <button class="btn btn-secondary" onclick="runAnalysis()" id="btnCollect">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4Z"/></svg>
-                Run Analysis
+                Collect
             </button>
             <button class="btn btn-primary" onclick="downloadCSV()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/></svg>
@@ -479,30 +479,29 @@
         renderTable();
     }
 
-    function runAnalysis() {
+    async function runAnalysis() {
         const btn = event.target.closest('.btn');
         btn.disabled = true;
-        btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px;"></div> Running...';
-        fetch('/monitor-results/transceiver_inventory.json?t=' + Date.now())
-            .then(r => r.json())
-            .then(data => {
-                allModules = data.modules || [];
-                summary = data.summary || {};
-                mixedFwModels = summary.mixed_fw_models || [];
-                fwByModel = summary.fw_versions || {};
-                document.getElementById('last-updated').textContent = data.last_update
-                    ? 'Last Updated: ' + new Date(data.last_update).toLocaleString('sv-SE').replace('T', ' ')
-                    : '';
-                updateSummary();
-                populateFilters();
-                renderTable();
-            })
-            .catch(() => {})
-            .finally(() => {
-                btn.disabled = false;
-                btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4Z"/></svg> Run Analysis';
-            });
+        btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px;"></div> Starting...';
+        try {
+            const scanResp = await fetch('/fabric-api.sh?action=run-transceiver-scan');
+            const scanData = await scanResp.json();
+            if (scanData.success) {
+                btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px;"></div> Collecting... (auto-refresh in 2 min)';
+                setTimeout(() => {
+                    loadData();
+                    btn.disabled = false;
+                    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4Z"/></svg> Collect';
+                }, 120000);
+                return;
+            } else {
+                alert('Failed: ' + (scanData.error || 'Unknown error'));
+            }
+        } catch (e) {}
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4Z"/></svg> Collect';
     }
+
 
     function downloadCSV() {
         const filtered = getFilteredModules();

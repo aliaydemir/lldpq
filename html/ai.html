@@ -101,7 +101,7 @@
 
         /* Suggestion chips */
         .suggestions { display: flex; flex-wrap: wrap; gap: 8px; padding: 15px 20px; justify-content: center; }
-        .suggestion-chip { padding: 8px 16px; background: #2d2d2d; border: 1px solid #3c3c3c; border-radius: 18px; font-size: 13px; color: #aaa; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+        .suggestion-chip { padding: 6px 12px; background: #2d2d2d; border: 1px solid #3c3c3c; border-radius: 18px; font-size: 12px; color: #aaa; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
         .suggestion-chip:hover { border-color: #76b900; color: #76b900; background: #1a2e00; }
 
         /* Message wrapper for actions */
@@ -175,6 +175,9 @@
     <div class="input-wrapper">
         <textarea id="chatInput" placeholder="Ask about your fabric..." rows="1" onkeydown="handleKeydown(event)" oninput="autoResize(this)"></textarea>
     </div>
+    <button id="btnAttachLogs" onclick="toggleAttachLogs()" title="Attach critical/error logs to next message" style="height: 42px; width: 42px; padding: 0; flex-shrink: 0; background: #333; border: 1px solid #555; border-radius: 6px; color: #888; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 9h-2v3c0 1.1-.9 2-2 2s-2-.9-2-2v-4c0-1.66 1.34-3 3-3s3 1.34 3 3v1zm-3-7V3.5L18.5 9H14c-.55 0-1-.45-1-1V4z"/></svg>
+    </button>
     <button class="btn btn-primary" onclick="sendMessage()" id="btnSend" style="height: 42px; padding: 0 16px; flex-shrink: 0;">
         <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
     </button>
@@ -598,6 +601,16 @@ function linkDeviceNames(el) {
 }
 
 let _knownDevices = [];
+let attachLogsActive = false;
+
+function toggleAttachLogs() {
+    attachLogsActive = !attachLogsActive;
+    const btn = document.getElementById('btnAttachLogs');
+    btn.style.background = attachLogsActive ? '#76b900' : '#333';
+    btn.style.color = attachLogsActive ? '#000' : '#888';
+    btn.style.borderColor = attachLogsActive ? '#76b900' : '#555';
+    btn.title = attachLogsActive ? 'Logs will be attached to next message (click to cancel)' : 'Attach critical/error logs to next message';
+}
 
 async function sendMessage() {
     const input = document.getElementById('chatInput');
@@ -608,7 +621,35 @@ async function sendMessage() {
     const suggestions = document.getElementById('suggestions');
     if (suggestions) suggestions.remove();
     
-    // Add user message
+    // Build final message (with logs if attached)
+    let finalMessage = message;
+    if (attachLogsActive) {
+        try {
+            const logData = await apiCall('get-log-messages');
+            if (logData.success && logData.messages && Object.keys(logData.messages).length > 0) {
+                let logText = '[ATTACHED: Fabric Log Messages]\n';
+                const totals = logData.totals || {};
+                logText += `Totals: ${totals.critical || 0} critical, ${totals.error || 0} error, ${totals.warning || 0} warning\n\n`;
+                let lineCount = 0;
+                for (const [dev, msgs] of Object.entries(logData.messages).sort()) {
+                    for (const msg of msgs) {
+                        logText += `${dev}: ${msg}\n`;
+                        if (++lineCount >= 200) break;
+                    }
+                    if (lineCount >= 200) break;
+                }
+                logText += '[END ATTACHED LOGS]\n\n';
+                finalMessage = logText + message;
+            }
+        } catch (e) {}
+        attachLogsActive = false;
+        const abtn = document.getElementById('btnAttachLogs');
+        abtn.style.background = '#333';
+        abtn.style.color = '#888';
+        abtn.style.borderColor = '#555';
+    }
+    
+    // Add user message (show original, send with logs)
     addMessage('user', message);
     chatHistory.push({ role: 'user', content: message });
     saveChatToStorage();
@@ -622,7 +663,7 @@ async function sendMessage() {
     showTypingIndicator();
     
     try {
-        const data = await apiCall('chat', { message, history: chatHistory.slice(-10) });
+        const data = await apiCall('chat', { message: finalMessage, history: chatHistory.slice(-10) });
         removeTypingIndicator();
         
         if (data.success && data.response) {
@@ -702,6 +743,7 @@ const PROMPT_CATEGORIES = [
             { chip: 'Morning health check', full: 'Give me a morning health check — summarize all issues, BGP status, LLDP problems, and any devices that need attention. Rate severity.' },
             { chip: 'Unreachable devices', full: 'Show all unreachable devices. Are they expected to be down or is this a problem?' },
             { chip: 'Recent reboots', full: 'Any devices with very short uptime (recently rebooted)? What might have caused it?' },
+            { chip: 'Firmware versions', full: 'List all firmware versions across devices. Are all devices on the same version? Report any inconsistencies.' },
         ]
     },
     {
@@ -718,6 +760,15 @@ const PROMPT_CATEGORIES = [
             { chip: 'LLDP problems', full: 'List all LLDP problems (Fail status). What do these failures mean?' },
             { chip: 'Link flaps', full: 'Which devices have link flaps? How many carrier transitions? Suggest troubleshooting steps.' },
             { chip: 'Bond failures', full: 'Any bonds with missing or down members? This indicates partial LAG failure.' },
+            { chip: 'Optical health', full: 'Any optical transceivers with warnings or critical DOM values (RX/TX power, temperature)? List affected ports.' },
+            { chip: 'Hardware alerts', full: 'Any hardware issues — high temperature, fan failures, PSU problems? List affected devices with sensor values.' },
+        ]
+    },
+    {
+        label: 'Logs',
+        prompts: [
+            { chip: 'Critical logs', full: 'Analyze all critical logs — group by category (BGP, hardware, software, kernel) and suggest remediation for each group.' },
+            { chip: 'Recent errors', full: 'What errors occurred in the last monitoring cycle? Summarize by device and error type.' },
         ]
     },
     {
@@ -740,18 +791,19 @@ const PROMPT_CATEGORIES = [
         prompts: [
             { chip: 'Single points of failure', full: 'Are there any single points of failure in this fabric? What would happen if a spine went down?' },
             { chip: 'Compare spines', full: 'Compare all spine devices — do they have the same number of BGP sessions and LLDP neighbors? Asymmetry indicates problems.' },
+            { chip: 'Capacity planning', full: 'Based on current device counts, link utilization, and topology, which links or devices are nearing capacity? Any bottlenecks?' },
         ]
     }
 ];
 
 function getSuggestionsHTML() {
-    let html = '<div id="suggestions" style="padding:20px 40px; max-width:700px; margin:0 auto;">';
+    let html = '<div id="suggestions" style="padding:20px 20px; max-width:800px; margin:0 auto;">';
     html += '<table style="width:100%; border-collapse:collapse;">';
     PROMPT_CATEGORIES.forEach(cat => {
         html += '<tr>';
         html += `<td style="padding:8px 16px 8px 0; vertical-align:middle; white-space:nowrap; width:1%;"><span style="font-size:12px;color:#666;text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">${cat.label}</span></td>`;
         html += '<td style="padding:8px 0;">';
-        html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+        html += '<div style="display:flex;flex-wrap:nowrap;gap:6px;">';
         cat.prompts.forEach(p => {
             const escaped = p.full.replace(/'/g, "\\'").replace(/"/g, '&quot;');
             html += `<div class="suggestion-chip" onclick="sendPrompt('${escaped}')">${p.chip}</div>`;

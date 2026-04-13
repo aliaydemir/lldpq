@@ -464,7 +464,12 @@ get-conf -                         # backup from single device (interactive sele
 
 # monitoring (usually runs via cron, but can be run manually)
 lldpq                              # full run: assets + lldp check + monitor + alerts
+lldpq -                            # verbose mode (shows output)
+lldpq -s                           # skip optical/transceiver data (faster)
+lldpq - -s                         # verbose + skip optical
 ```
+
+**Skip optical**: The `-s` flag skips optical transceiver DOM data (ethtool -m) and transceiver firmware checks (mlxlink). These are the slowest monitoring sections — skipping them can cut monitoring time by 50%+. To make it permanent, set `SKIP_OPTICAL=true` in `/etc/lldpq.conf`.
 
 ## [10] authentication
 
