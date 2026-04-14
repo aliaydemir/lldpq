@@ -125,14 +125,6 @@ while true; do
         fi
     fi
     
-    # Check Transceiver scan trigger
-    TRANSCEIVER_TRIGGER_FILE="/tmp/.transceiver_scan_trigger"
-    if [ -f "$TRANSCEIVER_TRIGGER_FILE" ]; then
-        rm -f "$TRANSCEIVER_TRIGGER_FILE"
-        cd "$LLDPQ_DIR"
-        ./collect-transceiver-fw.sh >/dev/null 2>&1 &
-    fi
-
     # Sleep for 3 seconds before next check
     sleep 3
 done

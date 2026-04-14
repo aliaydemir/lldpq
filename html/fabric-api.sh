@@ -6074,15 +6074,6 @@ PYTHON_END
             echo '{"success": true, "configured": false}'
         fi
         ;;
-    run-transceiver-scan)
-        source /etc/lldpq.conf 2>/dev/null || true
-        LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
-        LLDPQ_USER="${LLDPQ_USER:-$(whoami)}"
-        # Trigger via lldpq-trigger mechanism (runs as LLDPQ_USER via cron)
-        touch /tmp/.transceiver_scan_trigger
-        echo '{"success": true, "message": "Scan triggered. Results will update in 1-2 minutes."}'
-        exit 0
-        ;;
     *)
         echo '{"success": false, "error": "Unknown action: '"$ACTION"'"}'
         ;;
