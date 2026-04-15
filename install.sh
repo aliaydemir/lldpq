@@ -584,6 +584,7 @@ echo "  - Copying telemetry stack to $LLDPQ_INSTALL_DIR/telemetry"
 sudo cp -r telemetry "$LLDPQ_INSTALL_DIR/telemetry"
 sudo chown -R "$LLDPQ_USER:www-data" "$LLDPQ_INSTALL_DIR/telemetry"
 sudo chmod 755 "$LLDPQ_INSTALL_DIR/telemetry/start.sh"
+sudo chmod 644 "$LLDPQ_INSTALL_DIR/telemetry/config/"*.yaml 2>/dev/null || true
 
 # Restore telemetry user config (update mode)
 if [[ -n "$_preserved_dir" ]] && [[ -d "$_preserved_dir/telemetry-config" ]]; then
