@@ -247,8 +247,9 @@ EOF
                     state=$(cat /sys/class/net/$interface/operstate 2>/dev/null)
                     if [ "$state" = "up" ]; then
                         echo "--- Interface: $interface"
-                        if sudo ethtool -m "$interface" >/dev/null 2>&1; then
-                            sudo ethtool -m "$interface" 2>/dev/null
+                        ethtool_output=$(sudo ethtool -m "$interface" 2>/dev/null)
+                        if [ -n "$ethtool_output" ]; then
+                            echo "$ethtool_output"
                         else
                             echo "No transceiver data"
                         fi
