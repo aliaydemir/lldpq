@@ -83,24 +83,59 @@ def parse_optical_vendor_info(filepath):
 
 
 def parse_transceiver_fw(filepath):
-    """Parse FW versions from mlxlink output (transceiver-data/*.txt)"""
+    """Parse mlxlink output (transceiver-data/*.txt).
+
+    Returns: (fw_versions dict, status string, status detail string)
+        status: 'ok', 'skipped_model', 'skipped_unknown', 'no_data',
+                'failed', 'unreachable' (no file)
+    """
     fw_versions = {}
+    status = 'ok'
+    detail = ''
+
+    if not os.path.exists(filepath):
+        return fw_versions, 'unreachable', ''
 
     try:
         with open(filepath, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if not line or '|' not in line:
-                    continue
-                parts = line.split('|', 1)
-                iface = parts[0].strip()
-                fw_match = re.search(r':\s*(.+)', parts[1])
-                if fw_match:
-                    fw_versions[iface] = fw_match.group(1).strip()
+            content = f.read()
     except Exception:
-        pass
+        return fw_versions, 'failed', 'read_error'
 
-    return fw_versions
+    lines = content.splitlines()
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        if stripped.startswith('#'):
+            marker = stripped.lstrip('#').strip().lower()
+            if marker.startswith('skipped model'):
+                status = 'skipped_model'
+                detail = stripped.lstrip('#').strip()[len('skipped model'):].strip()
+            elif marker.startswith('skipped unknown model'):
+                status = 'skipped_unknown'
+                detail = ''
+            elif marker.startswith('no firmware data'):
+                status = 'no_data'
+                detail = ''
+            elif marker.startswith('failed'):
+                status = 'failed'
+                detail = stripped.lstrip('#').strip()
+            continue
+
+        if '|' in stripped:
+            parts = stripped.split('|', 1)
+            iface = parts[0].strip()
+            fw_match = re.search(r':\s*(.+)', parts[1])
+            if fw_match:
+                fw_versions[iface] = fw_match.group(1).strip()
+
+    if fw_versions:
+        status = 'ok'
+
+    return fw_versions, status, detail
 
 
 def process_transceiver_data(optical_dir='monitor-results/optical-data',
@@ -119,14 +154,7 @@ def process_transceiver_data(optical_dir='monitor-results/optical-data',
         transceiver_path = os.path.join(transceiver_dir, f'{hostname}_transceiver.txt')
 
         vendor_info = parse_optical_vendor_info(optical_path)
-        fw_info = parse_transceiver_fw(transceiver_path) if os.path.exists(transceiver_path) else {}
-
-        has_transceiver_file = os.path.exists(transceiver_path)
-        has_cmis_modules = any(
-            info['identifier'] in ('OSFP', 'QSFP-DD', 'OSFP 8X Pluggable Transceiver')
-            for info in vendor_info.values()
-        )
-        device_unreachable = has_cmis_modules and not has_transceiver_file
+        fw_info, fw_status, fw_detail = parse_transceiver_fw(transceiver_path)
 
         for iface, info in vendor_info.items():
             port_num_match = re.match(r'swp(\d+)', iface)
@@ -139,8 +167,12 @@ def process_transceiver_data(optical_dir='monitor-results/optical-data',
                         fw = fw_val
                         break
 
-            if not fw and device_unreachable:
-                fw = 'unreachable'
+            module_status = 'ok'
+            module_detail = ''
+            if not fw:
+                if fw_status in ('skipped_model', 'skipped_unknown', 'no_data', 'failed', 'unreachable'):
+                    module_status = fw_status
+                    module_detail = fw_detail
 
             all_modules.append({
                 'device': hostname,
@@ -151,26 +183,31 @@ def process_transceiver_data(optical_dir='monitor-results/optical-data',
                 'serial': info['serial'],
                 'vendor_rev': info['vendor_rev'],
                 'connector': info.get('connector', ''),
-                'fw_version': fw
+                'fw_version': fw,
+                'fw_status': module_status,
+                'fw_status_detail': module_detail
             })
 
     # Build summary
     unique_models = set()
     devices_with_modules = set()
     fw_by_model = {}
+    status_counts = {}
 
     for m in all_modules:
         pn = m['part_number']
         if pn:
             unique_models.add(pn)
             devices_with_modules.add(m['device'])
-            fw = m['fw_version'] or 'unknown'
-            if pn not in fw_by_model:
-                fw_by_model[pn] = {}
-            fw_by_model[pn][fw] = fw_by_model[pn].get(fw, 0) + 1
+            if m['fw_version']:
+                fw = m['fw_version']
+                if pn not in fw_by_model:
+                    fw_by_model[pn] = {}
+                fw_by_model[pn][fw] = fw_by_model[pn].get(fw, 0) + 1
+        st = m.get('fw_status', 'ok')
+        status_counts[st] = status_counts.get(st, 0) + 1
 
-    mixed_fw_models = [pn for pn, versions in fw_by_model.items()
-                       if len([v for v in versions if v != 'unknown']) > 1]
+    mixed_fw_models = [pn for pn, versions in fw_by_model.items() if len(versions) > 1]
 
     result = {
         'last_update': datetime.now().isoformat(),
@@ -180,7 +217,8 @@ def process_transceiver_data(optical_dir='monitor-results/optical-data',
             'unique_models': len(unique_models),
             'devices_with_modules': len(devices_with_modules),
             'fw_versions': fw_by_model,
-            'mixed_fw_models': mixed_fw_models
+            'mixed_fw_models': mixed_fw_models,
+            'status_counts': status_counts
         }
     }
 

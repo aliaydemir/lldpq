@@ -492,6 +492,9 @@ if [[ "$INSTALL_MODE" == "update" ]]; then
     _SAVE_AUTO_ZTP_DISABLE="${AUTO_ZTP_DISABLE:-true}"
     _SAVE_AUTO_SET_HOSTNAME="${AUTO_SET_HOSTNAME:-true}"
     _SAVE_SKIP_OPTICAL="${SKIP_OPTICAL:-false}"
+    _SAVE_TRANSCEIVER_FW_SKIP_MODELS="${TRANSCEIVER_FW_SKIP_MODELS:-}"
+    _SAVE_TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY="${TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY:-skip}"
+    _SAVE_TRANSCEIVER_FW_MAX_PARALLEL="${TRANSCEIVER_FW_MAX_PARALLEL:-10}"
     _SAVE_TELEMETRY_COLLECTOR_PORT="${TELEMETRY_COLLECTOR_PORT:-}"
     _SAVE_TELEMETRY_COLLECTOR_VRF="${TELEMETRY_COLLECTOR_VRF:-}"
     _SAVE_AI_PROVIDER="${AI_PROVIDER:-ollama}"
@@ -818,6 +821,9 @@ echo "AUTO_BASE_CONFIG=true" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AUTO_ZTP_DISABLE=true" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AUTO_SET_HOSTNAME=true" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "SKIP_OPTICAL=false" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "TRANSCEIVER_FW_SKIP_MODELS=\"\"" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY=skip" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "TRANSCEIVER_FW_MAX_PARALLEL=10" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AI_PROVIDER=ollama" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AI_MODEL=llama3.2" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AI_API_KEY=" | sudo tee -a /etc/lldpq.conf > /dev/null
@@ -844,6 +850,9 @@ if [[ "$INSTALL_MODE" == "update" ]]; then
     sudo sed -i "s/^AUTO_ZTP_DISABLE=.*/AUTO_ZTP_DISABLE=$_SAVE_AUTO_ZTP_DISABLE/" /etc/lldpq.conf
     sudo sed -i "s/^AUTO_SET_HOSTNAME=.*/AUTO_SET_HOSTNAME=$_SAVE_AUTO_SET_HOSTNAME/" /etc/lldpq.conf
     sudo sed -i "s/^SKIP_OPTICAL=.*/SKIP_OPTICAL=$_SAVE_SKIP_OPTICAL/" /etc/lldpq.conf
+    sudo sed -i "s|^TRANSCEIVER_FW_SKIP_MODELS=.*|TRANSCEIVER_FW_SKIP_MODELS=\"$_SAVE_TRANSCEIVER_FW_SKIP_MODELS\"|" /etc/lldpq.conf
+    sudo sed -i "s/^TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY=.*/TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY=$_SAVE_TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY/" /etc/lldpq.conf
+    sudo sed -i "s/^TRANSCEIVER_FW_MAX_PARALLEL=.*/TRANSCEIVER_FW_MAX_PARALLEL=$_SAVE_TRANSCEIVER_FW_MAX_PARALLEL/" /etc/lldpq.conf
     # Preserve AI settings
     sudo sed -i "s/^AI_PROVIDER=.*/AI_PROVIDER=$_SAVE_AI_PROVIDER/" /etc/lldpq.conf
     sudo sed -i "s/^AI_MODEL=.*/AI_MODEL=$_SAVE_AI_MODEL/" /etc/lldpq.conf

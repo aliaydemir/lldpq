@@ -447,17 +447,15 @@
         tbody.innerHTML = filtered.map(m => {
             const isMixed = mixedFwModels.includes(m.part_number);
             const majorityFw = isMixed ? getMajorityFw(m.part_number) : null;
-            const isMinority = isMixed && m.fw_version && m.fw_version !== 'unknown' && m.fw_version !== majorityFw;
+            const isMinority = isMixed && m.fw_version && m.fw_version !== majorityFw;
 
-            const isUnreachable = m.fw_version === 'unreachable';
             const fwClass = isMinority ? 'fw-mixed' : '';
-            let fwBadge = isMinority ? ' <span class="badge badge-yellow">mixed</span>' : '';
             let fwDisplay;
-            if (isUnreachable) {
-                fwDisplay = '<span class="badge badge-red">unreachable</span>';
-                fwBadge = '';
+            if (m.fw_version) {
+                fwDisplay = m.fw_version;
+                if (isMinority) fwDisplay += ' <span class="badge badge-yellow">mixed</span>';
             } else {
-                fwDisplay = m.fw_version || '<span style="color:#555">-</span>';
+                fwDisplay = renderStatusBadge(m.fw_status, m.fw_status_detail);
             }
 
             return `<tr>
@@ -468,9 +466,26 @@
                 <td><strong>${m.part_number || '-'}</strong></td>
                 <td style="font-family: monospace; font-size: 12px; color: #999;">${m.serial || '-'}</td>
                 <td>${m.vendor_rev || '-'}</td>
-                <td class="${fwClass}">${fwDisplay}${fwBadge}</td>
+                <td class="${fwClass}">${fwDisplay}</td>
             </tr>`;
         }).join('');
+    }
+
+    function renderStatusBadge(status, detail) {
+        switch (status) {
+            case 'unreachable':
+                return '<span class="badge badge-red">unreachable</span>';
+            case 'failed':
+                return `<span class="badge badge-red" title="${detail || 'failed'}">failed</span>`;
+            case 'skipped_model':
+                return `<span class="badge badge-gray" title="Skipped due to model: ${detail || 'unknown'}">skipped (${detail || 'model'})</span>`;
+            case 'skipped_unknown':
+                return '<span class="badge badge-gray" title="Skipped: unknown model">skipped (unknown)</span>';
+            case 'no_data':
+                return '<span style="color:#555">-</span>';
+            default:
+                return '<span style="color:#555">-</span>';
+        }
     }
 
     function filterByDevice() {
