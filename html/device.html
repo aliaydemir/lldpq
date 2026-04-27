@@ -16,6 +16,7 @@
             color: #d4d4d4;
             height: 100vh;
             overflow: hidden;
+            visibility: hidden;
         }
         
         /* Layout */
@@ -1718,12 +1719,17 @@
         
         // Initialize auth
         async function initPage() {
-            await LLDPqAuth.check();
+            const isAuth = await LLDPqAuth.check();
+            if (!isAuth) return;
+            if (!LLDPqAuth.isAdmin()) {
+                document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#888;">Access denied. Admin only.</div>';
+                document.body.style.visibility = 'visible';
+                return;
+            }
+            document.body.style.visibility = 'visible';
+            loadDeviceList();
         }
         initPage();
-        
-        // Load device list first
-        loadDeviceList();
         
         // Get device name from URL
         const urlParams = new URLSearchParams(window.location.search);

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Provision - ZTP & Base Config</title>
     <link rel="shortcut icon" href="/png/favicon.ico">
+    <script src="/css/auth.js"></script>
     <style>
         /* Prevent browser autofill from changing input background */
         input:-webkit-autofill,
@@ -1336,7 +1337,14 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 // ===================== INIT =====================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    const isAuth = await LLDPqAuth.check();
+    if (!isAuth) return;
+    if (!LLDPqAuth.isAdmin()) {
+        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#888;">Access denied. Admin only.</div>';
+        return;
+    }
+
     // Tab switching
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {

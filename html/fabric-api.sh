@@ -2,6 +2,17 @@
 # Fabric Configuration API
 # Backend for fabric-config.html
 
+# Auth guard. Most actions are admin-only; a few read-only ones (used by sidebar
+# and operator-visible pages) are open to any authenticated user.
+source "$(dirname "$0")/auth-guard.sh"
+_FABRIC_ACTION=$(echo "$QUERY_STRING" | grep -oP 'action=\K[^&]*' | head -1)
+case "$_FABRIC_ACTION" in
+    ansible-status|list-devices)
+        require_auth ;;
+    *)
+        require_admin ;;
+esac
+
 # Load config - read ANSIBLE_DIR from config file, but don't overwrite env var
 if [[ -f /etc/lldpq.conf ]]; then
     _conf_ansible_dir=$(grep "^ANSIBLE_DIR=" /etc/lldpq.conf 2>/dev/null | cut -d= -f2)

@@ -118,6 +118,7 @@ server {
             fastcgi_param REQUEST_METHOD $request_method;
             fastcgi_param CONTENT_TYPE $content_type;
             fastcgi_param CONTENT_LENGTH $content_length;
+            fastcgi_param HTTP_COOKIE $http_cookie;
             
             # Longer timeout for ansible operations
             fastcgi_read_timeout 300;
@@ -142,6 +143,7 @@ server {
             fastcgi_param REQUEST_METHOD $request_method;
             fastcgi_param CONTENT_TYPE $content_type;
             fastcgi_param CONTENT_LENGTH $content_length;
+            fastcgi_param HTTP_COOKIE $http_cookie;
             fastcgi_read_timeout 300;
         }
         
@@ -153,6 +155,7 @@ server {
             fastcgi_param REQUEST_METHOD $request_method;
             fastcgi_param CONTENT_TYPE $content_type;
             fastcgi_param CONTENT_LENGTH $content_length;
+            fastcgi_param HTTP_COOKIE $http_cookie;
             
             # Longer timeout for parsing large configs
             fastcgi_read_timeout 60;
@@ -179,6 +182,7 @@ server {
             fastcgi_param REQUEST_METHOD $request_method;
             fastcgi_param CONTENT_TYPE $content_type;
             fastcgi_param CONTENT_LENGTH $content_length;
+            fastcgi_param HTTP_COOKIE $http_cookie;
             
             # Longer timeout for parallel SSH operations across all devices
             fastcgi_read_timeout 120;
@@ -207,6 +211,7 @@ server {
             fastcgi_param REQUEST_METHOD $request_method;
             fastcgi_param CONTENT_TYPE $content_type;
             fastcgi_param CONTENT_LENGTH $content_length;
+            fastcgi_param HTTP_COOKIE $http_cookie;
             
             # Longer timeout for parallel SCP/SSH deploy operations
             fastcgi_read_timeout 180;

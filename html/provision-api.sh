@@ -3,6 +3,10 @@
 # Backend for provision.html
 # Called by nginx fcgiwrap
 
+# Admin-only guard (validates session, exits 401/403 if not admin)
+source "$(dirname "$0")/auth-guard.sh"
+require_admin
+
 # Load config
 if [[ -f /etc/lldpq.conf ]]; then
     source /etc/lldpq.conf

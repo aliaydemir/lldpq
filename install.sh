@@ -556,6 +556,8 @@ sudo find "$WEB_ROOT" -type d -exec chmod 775 {} \;
 sudo find "$WEB_ROOT" -type f -exec chmod 664 {} \;
 sudo find "$WEB_ROOT" -name '*.sh' -exec chmod 775 {} \;
 sudo mkdir -p "$WEB_ROOT/hstr" "$WEB_ROOT/configs" "$WEB_ROOT/monitor-results" "$WEB_ROOT/topology" "$WEB_ROOT/generated_config_folder"
+sudo chown -R "$LLDPQ_USER:www-data" "$WEB_ROOT/hstr" "$WEB_ROOT/configs" "$WEB_ROOT/monitor-results" "$WEB_ROOT/topology" "$WEB_ROOT/generated_config_folder"
+sudo chmod 775 "$WEB_ROOT/hstr" "$WEB_ROOT/configs" "$WEB_ROOT/monitor-results" "$WEB_ROOT/topology" "$WEB_ROOT/generated_config_folder"
 
 # Create serial-mapping.txt if it doesn't exist
 if [ ! -f "$WEB_ROOT/serial-mapping.txt" ]; then
@@ -594,6 +596,7 @@ if [[ -n "$_preserved_dir" ]] && [[ -d "$_preserved_dir/telemetry-config" ]]; th
     sudo cp -r "$_preserved_dir/telemetry-config"/* "$LLDPQ_INSTALL_DIR/telemetry/config/" 2>/dev/null || true
     echo "    • telemetry config preserved"
 fi
+sudo chmod 644 "$LLDPQ_INSTALL_DIR/telemetry/config/"*.yaml 2>/dev/null || true
 
 # Restore git history (update mode)
 if [[ -n "$_preserved_dir" ]] && [[ -d "$_preserved_dir/dot-git" ]]; then
@@ -1105,7 +1108,7 @@ sudo chmod 755 /var/lib/lldpq
 sudo chmod 700 /var/lib/lldpq/sessions
 echo "  Sessions directory configured"
 
-if [[ ! -f /etc/lldpq-users.conf ]]; then
+if [[ "$INSTALL_MODE" == "fresh" ]] || [[ ! -f /etc/lldpq-users.conf ]]; then
     ADMIN_HASH=$(echo -n "admin" | openssl dgst -sha256 | awk '{print $2}')
     OPERATOR_HASH=$(echo -n "operator" | openssl dgst -sha256 | awk '{print $2}')
     echo "admin:$ADMIN_HASH:admin" | sudo tee /etc/lldpq-users.conf > /dev/null

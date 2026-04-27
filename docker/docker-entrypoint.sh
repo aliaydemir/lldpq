@@ -133,8 +133,8 @@ echo "✓ Authentication ready"
 # lldpq = assets.sh + check-lldp.sh + monitor.sh + fabric-scan.sh + alerts
 # lldpq-trigger = web UI refresh buttons (Refresh Assets, Refresh LLDP, etc.)
 cat > /etc/cron.d/lldpq << 'CRON'
-# LLDPq full run (assets + lldp + monitor + alerts) - every 5 minutes
-*/5 * * * * lldpq /usr/local/bin/lldpq > /dev/null 2>&1
+# LLDPq full run (assets + lldp + monitor + alerts) - every 10 minutes
+*/10 * * * * lldpq /usr/local/bin/lldpq > /dev/null 2>&1
 # Web trigger daemon (handles Refresh buttons from UI) - every minute
 * * * * * lldpq /usr/local/bin/lldpq-trigger > /dev/null 2>&1
 # Fabric scan (topology data for search) - every minute

@@ -9,6 +9,10 @@
 #   - diff: Run ansible diff playbook
 #   - deploy: Run ansible deploy playbook
 
+# Admin-only guard (validates session, exits 401/403 if not admin)
+source "$(dirname "$0")/auth-guard.sh"
+require_admin
+
 # Load config with fallback
 source /etc/lldpq.conf 2>/dev/null || true
 LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
