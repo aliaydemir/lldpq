@@ -624,10 +624,11 @@
                 document.body.insertAdjacentHTML('beforeend', LLDPqAuth.createUserManagementModal());
             }
             
-            // Hide Ansible menu for operators
+            // Hide admin-only menus for operators
             if (LLDPqAuth.isOperator()) {
-                document.getElementById('ansible-menu').style.display = 'none';
-                document.querySelectorAll('.admin-only-menu').forEach(el => el.style.display = 'none');
+                const ansibleMenu = document.getElementById('ansible-menu');
+                if (ansibleMenu) ansibleMenu.remove();
+                document.querySelectorAll('.admin-only-menu').forEach(el => el.remove());
             }
             
             // Hide Ansible menu if Ansible is not configured
