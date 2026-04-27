@@ -774,15 +774,22 @@ if [[ "$ANSIBLE_DIR" != "NoNe" ]] && [[ -n "$ANSIBLE_DIR" ]] && [[ -d "$ANSIBLE_
 
     if [[ -d "$ANSIBLE_DIR/.git" ]]; then
         echo "  Setting up git hooks for permission management..."
+        # Try to make .git writable for current user; may already be owned by another user
+        sudo chown -R "$LLDPQ_USER:www-data" "$ANSIBLE_DIR/.git" 2>/dev/null || true
+        sudo chmod -R g+rwX "$ANSIBLE_DIR/.git" 2>/dev/null || true
 
-        cat > "$ANSIBLE_DIR/.git/hooks/post-merge" << 'HOOKEOF'
+        if sudo tee "$ANSIBLE_DIR/.git/hooks/post-merge" >/dev/null 2>&1 << 'HOOKEOF'
 #!/bin/bash
 # Fix permissions after git pull/merge
 chmod -R g+rw "$(git rev-parse --show-toplevel)" 2>/dev/null || true
 HOOKEOF
-        chmod +x "$ANSIBLE_DIR/.git/hooks/post-merge"
-        cp "$ANSIBLE_DIR/.git/hooks/post-merge" "$ANSIBLE_DIR/.git/hooks/post-checkout"
-        echo "  Git hooks created (post-merge, post-checkout)"
+        then
+            sudo chmod +x "$ANSIBLE_DIR/.git/hooks/post-merge" 2>/dev/null || true
+            sudo cp "$ANSIBLE_DIR/.git/hooks/post-merge" "$ANSIBLE_DIR/.git/hooks/post-checkout" 2>/dev/null || true
+            echo "  Git hooks created (post-merge, post-checkout)"
+        else
+            echo "  [!] Could not write Ansible git hooks (skipped, non-fatal)"
+        fi
     fi
 
     # Add git safe.directory for www-data user
