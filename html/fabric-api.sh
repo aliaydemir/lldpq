@@ -4482,6 +4482,8 @@ def read_lldpq_conf():
 lldpq_conf = read_lldpq_conf()
 ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
 lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+max_workers = int(lldpq_conf.get('TELEMETRY_MAX_PARALLEL', '25') or 25)
+max_workers = max(1, min(max_workers, 50))
 web_root = '/var/www/html'
 
 # Get device IP and username
@@ -4578,6 +4580,7 @@ import json
 import subprocess
 import re
 import os
+import fcntl
 
 def read_lldpq_conf():
     conf = {}
@@ -4793,7 +4796,7 @@ supported = []
 unsupported = []
 
 # Check all devices in parallel
-with ThreadPoolExecutor(max_workers=300) as executor:
+with ThreadPoolExecutor(max_workers=max_workers) as executor:
     futures = {}
     for device in devices:
         device_info = get_device_info(device, ansible_dir, lldpq_conf)
@@ -4948,6 +4951,8 @@ if not commands:
 lldpq_conf = read_lldpq_conf()
 ansible_dir = lldpq_conf.get('ANSIBLE_DIR', os.path.expanduser('~/ansible'))
 lldpq_user = lldpq_conf.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+max_workers = int(lldpq_conf.get('TELEMETRY_MAX_PARALLEL', '25') or 25)
+max_workers = max(1, min(max_workers, 50))
 
 # Validate commands - only allow telemetry-related nv commands
 allowed_prefixes = [
@@ -4956,16 +4961,19 @@ allowed_prefixes = [
     'nv config apply'
 ]
 for cmd in commands:
-    if not any(cmd.startswith(prefix) for prefix in allowed_prefixes):
+    if any(ord(ch) < 32 for ch in cmd) or re.search(r'[;&|`\$<>]', cmd):
+        print(json.dumps({'success': False, 'error': f'Unsafe telemetry command: {cmd}'}))
+        sys.exit()
+    if not any(cmd == prefix or cmd.startswith(prefix + ' ') for prefix in allowed_prefixes):
         print(json.dumps({'success': False, 'error': f'Only telemetry commands allowed: {cmd}'}))
         sys.exit()
 
 # Join commands with && to run sequentially on each device
 combined_cmd = ' && '.join(commands)
 
-# Run on all devices in parallel (max 300 concurrent)
+# Run on all devices in bounded parallelism
 results = []
-with ThreadPoolExecutor(max_workers=300) as executor:
+with ThreadPoolExecutor(max_workers=max_workers) as executor:
     futures = {}
     for device in devices:
         device_info = get_device_info(device, ansible_dir, lldpq_conf)
@@ -5135,6 +5143,8 @@ PYTHON_PROM_RANGE
 import json
 import os
 import subprocess
+import fcntl
+import ipaddress
 
 def read_lldpq_conf():
     conf = {}
@@ -5306,6 +5316,17 @@ collector_vrf = data.get('collector_vrf', 'mgmt')
 if not collector_ip:
     print(json.dumps({'success': False, 'error': 'Collector IP required'}))
     exit()
+try:
+    ipaddress.ip_address(collector_ip)
+except ValueError:
+    print(json.dumps({'success': False, 'error': 'Invalid collector IP'}))
+    exit()
+if not str(collector_port).isdigit() or not (1 <= int(collector_port) <= 65535):
+    print(json.dumps({'success': False, 'error': 'Invalid collector port'}))
+    exit()
+if not collector_vrf.replace('-', '').replace('_', '').isalnum():
+    print(json.dumps({'success': False, 'error': 'Invalid collector VRF'}))
+    exit()
 
 # Update /etc/lldpq.conf with sudo
 config_updates = [
@@ -5329,9 +5350,19 @@ try:
         # Add new value
         config_lines.append(update + '\n')
     
-    # Write back
-    with open('/etc/lldpq.conf', 'w') as f:
-        f.writelines(config_lines)
+    # Write back with the same lock file used by other config writers.
+    content = ''.join(config_lines)
+    lock_fd = open('/etc/lldpq.conf.lock', 'w')
+    fcntl.flock(lock_fd, fcntl.LOCK_EX)
+    try:
+        try:
+            with open('/etc/lldpq.conf', 'w') as f:
+                f.write(content)
+        except PermissionError:
+            subprocess.run(['sudo', '-n', 'tee', '/etc/lldpq.conf'], input=content, capture_output=True, text=True, timeout=5, check=True)
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
     
     print(json.dumps({'success': True}))
 except Exception as e:
@@ -5819,11 +5850,30 @@ except:
     params = {}
 
 device = params.get('device', '')
-command = params.get('command', '')
+command = params.get('command', '').strip()
 
 if not device or not command:
     print(json.dumps({'success': False, 'error': 'Missing device or command'}))
     exit()
+
+if any(ord(ch) < 32 for ch in command):
+    print(json.dumps({'success': False, 'error': 'Command contains control characters'}))
+    exit()
+
+FORBIDDEN_PATTERNS = [
+    r'\bmlxlink\b',
+    r'\bonie-install\b',
+    r'\breboot\b',
+    r'\bshutdown\b',
+    r'\bnv\s+config\b',
+    r'\bnv\s+set\b',
+    r'\bnv\s+unset\b',
+    r'\bztp\b',
+]
+for pattern in FORBIDDEN_PATTERNS:
+    if re.search(pattern, command, re.IGNORECASE):
+        print(json.dumps({'success': False, 'error': 'Command is not allowed from Device Details'}))
+        exit()
 
 # Security: Whitelist of allowed command patterns (checked first)
 ALLOWED_PATTERNS = [
@@ -5835,12 +5885,9 @@ ALLOWED_PATTERNS = [
     r'^sudo vtysh -c ["\']show\b',
     r'^vtysh -c ["\']show\b',
     # Layer 1 diagnostics
-    r'^sudo l1-show\b',
+    r'^sudo l1-show [A-Za-z0-9_.:-]+$',
     # ethtool variants
-    r'^/sbin/ethtool\b',
-    r'^sudo /sbin/ethtool\b',
-    r'^ethtool\b',
-    r'^sudo ethtool\b',
+    r'^(sudo )?(/sbin/)?ethtool( -(m|S|i))? [A-Za-z0-9_.:-]+$',
     # IP/network commands
     r'^ip link\b',
     r'^ip addr\b',
@@ -5879,16 +5926,12 @@ ALLOWED_PATTERNS = [
     r'^df\b',
     r'^ls\b',
     r'^pgrep\b',
-    r'^sudo pkill\b',
-    r'^sudo killall\b',
+    r'^sudo killall tcpdump$',
+    r'^sudo pkill -f ["\']journalctl -f["\']$',
     r'^find /tmp -name "capture_\*\.pcap"',
     # Packet capture
-    r'^sudo timeout \d+ tcpdump\b',
-    r'^tcpdump\b',
-    r'^sudo tcpdump\b',
+    r'^sudo timeout ([1-9]|[1-9][0-9]|[12][0-9]{2}|300) tcpdump -U -i [A-Za-z0-9_.:-]+ -nnnn -w /tmp/capture_[A-Za-z0-9_.:-]+\.pcap( -c [1-9][0-9]{0,5})?( [A-Za-z0-9_.:/ -]+)?$',
     # Diagnostic bundle
-    r'^sudo cl-support\b',
-    r'^cl-support\b',
     # Delete cl-support files only
     r'^sudo rm -f "/var/support/cl_support',
     r'^sudo rm -f /var/support/cl_support\*\.txz$',
@@ -5897,31 +5940,6 @@ ALLOWED_PATTERNS = [
     r'^sudo rm -f /tmp/capture_\*\.pcap$',
     r'^sudo rm -f /tmp/live_',
     r'^sudo rm -f /tmp/tail_',
-]
-
-# Security: Blacklist dangerous patterns (only checked if NOT in whitelist)
-BLOCKED_PATTERNS = [
-    r'[;&|`\$]',          # Shell operators
-    r'\bsu\b',
-    r'\brm\b',
-    r'\bmv\b',
-    r'\bcp\b',
-    r'\bchmod\b',
-    r'\bchown\b',
-    r'\bkill\b',
-    r'\breboot\b',
-    r'\bshutdown\b',
-    r'\bnv set\b',
-    r'\bnv apply\b',
-    r'\bnv config\b',
-    r'\bnet add\b',
-    r'\bnet del\b',
-    r'\bnet commit\b',
-    r'configure',
-    r'\becho\b',
-    r'>',                 # Redirect
-    r'\bwget\b',
-    r'\bcurl\b',
 ]
 
 # Check if command is in whitelist
@@ -5937,7 +5955,7 @@ if not command_allowed:
     exit()
 
 # Even if whitelisted, check for shell injection attempts
-INJECTION_PATTERNS = [r'[;&|`\$]', r'>>', r'<<']
+INJECTION_PATTERNS = [r'[;&|`\$]', r'>>', r'<<', r'[\r\n]']
 for pattern in INJECTION_PATTERNS:
     if re.search(pattern, command):
         print(json.dumps({'success': False, 'error': 'Command contains unsafe characters'}))
@@ -6019,6 +6037,15 @@ if not device_ip:
 
 # Execute command via SSH using management IP
 try:
+    safe_device = re.sub(r'[^A-Za-z0-9_.-]', '_', device)
+    lock_path = f"/tmp/lldpq-run-device-command-{safe_device}.lock"
+    lock_fd = open(lock_path, "w")
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print(json.dumps({'success': False, 'error': 'Another command is already running on this device'}))
+        exit()
+
     # Determine timeout based on command - longer for tcpdump, cl-support
     cmd_timeout = 30
     if 'tcpdump' in command or 'cl-support' in command:

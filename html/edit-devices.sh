@@ -2,6 +2,9 @@
 # edit-devices.sh - Read/Write devices.yaml via CGI
 # Called by nginx fcgiwrap
 
+source "$(dirname "$0")/auth-guard.sh"
+require_admin
+
 # Load config with fallback
 source /etc/lldpq.conf 2>/dev/null || true
 LLDPQ_USER="${LLDPQ_USER:-$(whoami)}"
@@ -68,6 +71,8 @@ except Exception as e:
             echo "$CONTENT" > "$DEVICES_FILE"
             
             if [ $? -eq 0 ]; then
+                sudo -n chown "${LLDPQ_USER:-$(whoami)}:www-data" "$DEVICES_FILE" 2>/dev/null || true
+                sudo -n chmod 664 "$DEVICES_FILE" 2>/dev/null || true
                 echo "{\"success\": true, \"message\": \"devices.yaml saved successfully\"}"
             else
                 echo "{\"success\": false, \"error\": \"Failed to write file\"}"

@@ -23,6 +23,14 @@ AI_PROXY_URL="${AI_PROXY_URL:-}"
 # Parse query string
 ACTION=$(echo "$QUERY_STRING" | grep -oP 'action=\K[^&]*' | head -1)
 
+source "$(dirname "$0")/auth-guard.sh"
+case "$ACTION" in
+    get-config|save-config|test-connection|list-models)
+        require_admin ;;
+    *)
+        require_auth ;;
+esac
+
 # All responses are JSON (SSE streaming not supported by fcgiwrap)
 echo "Content-Type: application/json"
 echo ""
@@ -989,6 +997,7 @@ def action_save_config():
     except Exception:
         error_json("Invalid JSON")
     
+    import shlex
     import subprocess, fcntl
     conf = '/etc/lldpq.conf'
     
@@ -1013,20 +1022,21 @@ def action_save_config():
             with open(conf, 'r') as f:
                 lines = f.readlines()
             for key, value in updates.items():
+                rendered = shlex.quote(str(value))
                 found = False
                 for i, line in enumerate(lines):
                     if line.startswith(f'{key}='):
-                        lines[i] = f'{key}={value}\n'
+                        lines[i] = f'{key}={rendered}\n'
                         found = True
                         break
                 if not found:
-                    lines.append(f'{key}={value}\n')
+                    lines.append(f'{key}={rendered}\n')
             content = ''.join(lines)
             try:
                 with open(conf, 'w') as f:
                     f.write(content)
             except PermissionError:
-                subprocess.run(['sudo', 'tee', conf], input=content, capture_output=True, text=True, timeout=5)
+                subprocess.run(['sudo', '-n', 'tee', conf], input=content, capture_output=True, text=True, timeout=5)
         finally:
             fcntl.flock(lock_fd, fcntl.LOCK_UN)
             lock_fd.close()
@@ -1168,10 +1178,10 @@ DEVICE LIST:
             json.dump(analysis, f, indent=2)
     except PermissionError:
         import subprocess
-        subprocess.run(['sudo', 'tee', ANALYSIS_FILE],
+        subprocess.run(['sudo', '-n', 'tee', ANALYSIS_FILE],
                       input=json.dumps(analysis, indent=2), capture_output=True, text=True, timeout=10)
-        subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', ANALYSIS_FILE], capture_output=True, timeout=5)
-        subprocess.run(['sudo', 'chmod', '664', ANALYSIS_FILE], capture_output=True, timeout=5)
+        subprocess.run(['sudo', '-n', 'chown', f'{LLDPQ_USER}:www-data', ANALYSIS_FILE], capture_output=True, timeout=5)
+        subprocess.run(['sudo', '-n', 'chmod', '664', ANALYSIS_FILE], capture_output=True, timeout=5)
     
     result_json({"success": True, "analysis": response, "timestamp": analysis['timestamp']})
 

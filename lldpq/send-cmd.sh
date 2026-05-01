@@ -3,6 +3,7 @@
 # Copyright (c) 2024 LLDPq Project - Licensed under MIT License
 
 SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
+source /etc/lldpq.conf 2>/dev/null || true
 
 show_help() {
     cat << EOF
@@ -116,6 +117,18 @@ else
     fi
 fi
 
+if [[ "${LLDPQ_ALLOW_DANGEROUS_COMMANDS:-false}" != "true" ]]; then
+    for command in "${commands[@]}"; do
+        if [[ "$command" =~ (^|[[:space:]])(mlxlink|onie-install|reboot|shutdown)([[:space:]]|$) ]] || \
+           [[ "$command" =~ (^|[[:space:]])nv[[:space:]]+config[[:space:]]+(apply|replace|save)([[:space:]]|$) ]] || \
+           [[ "$command" =~ (^|[[:space:]])ztp([[:space:]]|$) ]]; then
+            echo "ERROR: Refusing high-impact command by default: $command"
+            echo "Set LLDPQ_ALLOW_DANGEROUS_COMMANDS=true only for an explicit maintenance window."
+            exit 1
+        fi
+    done
+fi
+
 echo ""
 echo -e "\e[1;34mExecuting ${#commands[@]} command(s) on ${#devices[@]} device(s)...\e[0m"
 echo ""
@@ -161,7 +174,10 @@ execute_commands() {
     done
 }
 
-MAX_PARALLEL=300
+MAX_PARALLEL="${SEND_CMD_MAX_PARALLEL:-25}"
+case "$MAX_PARALLEL" in
+    ''|*[!0-9]*|0) MAX_PARALLEL=25 ;;
+esac
 job_count=0
 
 for device in "${!devices[@]}"; do
@@ -172,7 +188,7 @@ for device in "${!devices[@]}"; do
         
         # Limit parallel jobs
         if [ $job_count -ge $MAX_PARALLEL ]; then
-            wait -n
+            wait -n 2>/dev/null || true
             ((job_count--))
         fi
     }

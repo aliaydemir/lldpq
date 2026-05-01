@@ -364,7 +364,7 @@ if [[ "$INSTALL_MODE" == "fresh" ]]; then
 
     step "Installing required packages..."
     sudo apt update || { echo "[!] apt update failed"; exit 1; }
-    sudo apt install -y nginx fcgiwrap python3 python3-pip python3-yaml util-linux bsdextrautils sshpass unzip acl || {
+    sudo apt install -y nginx fcgiwrap python3 python3-pip python3-yaml util-linux bsdextrautils sshpass unzip acl isc-dhcp-server || {
         echo "[!] Package installation failed"
         echo "    Try running: sudo apt --fix-broken install"
         exit 1
@@ -669,6 +669,9 @@ if [[ -f "$WEB_ROOT/topology_config.yaml" ]]; then
     rm -f "$LLDPQ_INSTALL_DIR/topology_config.yaml" 2>/dev/null
 elif [[ -f "$LLDPQ_INSTALL_DIR/topology_config.yaml" ]]; then
     sudo mv "$LLDPQ_INSTALL_DIR/topology_config.yaml" "$WEB_ROOT/topology_config.yaml"
+else
+    echo "    Creating empty topology_config.yaml"
+    echo "{}" | sudo tee "$WEB_ROOT/topology_config.yaml" > /dev/null
 fi
 sudo chown "$LLDPQ_USER:www-data" "$WEB_ROOT/topology_config.yaml"
 sudo chmod 664 "$WEB_ROOT/topology_config.yaml"
@@ -831,9 +834,17 @@ echo "AUTO_BASE_CONFIG=true" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AUTO_ZTP_DISABLE=true" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AUTO_SET_HOSTNAME=true" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "SKIP_OPTICAL=false" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "SKIP_L1=true" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "MONITOR_MAX_PARALLEL=100" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "LLDP_MAX_PARALLEL=100" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "ASSETS_MAX_PARALLEL=50" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "GET_CONFIGS_MAX_PARALLEL=50" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "SEND_CMD_MAX_PARALLEL=25" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "TELEMETRY_MAX_PARALLEL=25" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "TRANSCEIVER_FW_SKIP_MODELS=\"\"" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY=skip" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "TRANSCEIVER_FW_MAX_PARALLEL=10" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "TRANSCEIVER_FW_MIN_INTERVAL=1800" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AI_PROVIDER=ollama" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AI_MODEL=llama3.2" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AI_API_KEY=" | sudo tee -a /etc/lldpq.conf > /dev/null
@@ -900,7 +911,7 @@ echo "www-data ALL=($LLDPQ_USER) NOPASSWD: /usr/bin/timeout, /usr/bin/ssh, /usr/
     sudo tee /etc/sudoers.d/www-data-lldpq > /dev/null
 sudo chmod 440 /etc/sudoers.d/www-data-lldpq
 
-echo "www-data ALL=(root) NOPASSWD: /usr/bin/systemctl start isc-dhcp-server, /usr/bin/systemctl stop isc-dhcp-server, /usr/bin/systemctl restart isc-dhcp-server, /usr/bin/systemctl disable isc-dhcp-server, /usr/bin/systemctl enable isc-dhcp-server, /usr/bin/tee /etc/dhcp/dhcpd.conf, /usr/bin/tee /etc/dhcp/dhcpd.hosts, /usr/bin/tee /etc/default/isc-dhcp-server, /usr/bin/tee /etc/lldpq.conf, /usr/bin/pkill -x dhcpd, /usr/sbin/dhcpd, /usr/bin/cat /etc/dhcp/dhcpd.conf, /usr/bin/chmod 755 *, /usr/bin/chmod 700 *, /usr/bin/chmod 600 *, /usr/bin/chmod 644 *, /usr/bin/chown" | \
+echo "www-data ALL=(root) NOPASSWD: /usr/bin/systemctl start isc-dhcp-server, /usr/bin/systemctl stop isc-dhcp-server, /usr/bin/systemctl restart isc-dhcp-server, /usr/bin/systemctl disable isc-dhcp-server, /usr/bin/systemctl enable isc-dhcp-server, /usr/bin/tee /etc/dhcp/dhcpd.conf, /usr/bin/tee /etc/dhcp/dhcpd.hosts, /usr/bin/tee /etc/default/isc-dhcp-server, /usr/bin/tee /etc/lldpq.conf, /usr/bin/cp, /usr/bin/mkdir, /usr/bin/rm, /usr/bin/pkill -x dhcpd, /usr/sbin/dhcpd, /usr/bin/cat /etc/dhcp/dhcpd.conf, /usr/bin/chmod, /usr/bin/chown" | \
     sudo tee /etc/sudoers.d/www-data-provision > /dev/null
 sudo chmod 440 /etc/sudoers.d/www-data-provision
 echo "  Sudoers configured (SSH/SCP + DHCP/Provision + SSH key mgmt)"
@@ -1013,7 +1024,7 @@ function resolve_hostname(){
     local hostname=""
     local mapping=$(curl -sf "$mapping_url" 2>/dev/null)
     if [ -n "$mapping" ]; then
-        hostname=$(echo "$mapping" | grep -v '^#' | grep -i "$serial" | awk '{print $2}' | head -1)
+        hostname=$(echo "$mapping" | grep -v '^#' | awk -v s="$serial" 'tolower($1) == tolower(s) {print $2; exit}')
     fi
     echo "$hostname"
 }

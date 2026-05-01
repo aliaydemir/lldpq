@@ -51,6 +51,13 @@ if [ -n "$EDITOR_ROOT" ] && [ -d "$EDITOR_ROOT" ]; then
 fi
 echo "  ✓ Fabric Editor: $(grep '^EDITOR_ROOT=' /etc/lldpq.conf | cut -d= -f2)"
 
+# ─── Shared config permissions ───
+usermod -aG lldpq www-data 2>/dev/null || true
+usermod -aG www-data lldpq 2>/dev/null || true
+touch /etc/lldpq.conf.lock
+chown root:www-data /etc/lldpq.conf /etc/lldpq.conf.lock
+chmod 664 /etc/lldpq.conf /etc/lldpq.conf.lock
+
 # ─── devices.yaml Setup ───
 if [ -f /home/lldpq/lldpq/devices.yaml ]; then
     chown lldpq:www-data /home/lldpq/lldpq/devices.yaml

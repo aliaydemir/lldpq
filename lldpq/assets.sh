@@ -10,6 +10,10 @@ eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 # Load config with fallback
 source /etc/lldpq.conf 2>/dev/null || true
 WEB_ROOT="${WEB_ROOT:-/var/www/html}"
+ASSETS_MAX_PARALLEL="${ASSETS_MAX_PARALLEL:-50}"
+case "$ASSETS_MAX_PARALLEL" in
+  ''|*[!0-9]*|0) ASSETS_MAX_PARALLEL=50 ;;
+esac
 
 TMPFILE="$SCRIPT_DIR/assets.tmp"
 UNREACH="$SCRIPT_DIR/unreachable.tmp"
@@ -176,8 +180,15 @@ process_one() {
   fi
 }
 
+wait_for_slot() {
+  while (( $(jobs -rp | wc -l) >= ASSETS_MAX_PARALLEL )); do
+    wait -n 2>/dev/null || true
+  done
+}
+
 # Parallel execution
 for ip in "${!devices[@]}"; do
+  wait_for_slot
   process_one "$ip" "${devices[$ip]}" &
 done
 wait

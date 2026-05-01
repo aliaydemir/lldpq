@@ -2,6 +2,9 @@
 # Search API - MAC/ARP Table Backend
 # Backend for search.html
 
+source "$(dirname "$0")/auth-guard.sh"
+require_auth
+
 # Load config
 if [[ -f /etc/lldpq.conf ]]; then
     source /etc/lldpq.conf
@@ -37,7 +40,7 @@ import yaml, os
 try:
     with open(os.environ.get('LLDPQ_DIR','$HOME/lldpq') + '/devices.yaml') as f:
         d = yaml.safe_load(f)
-    default_user = d.get('defaults', {}).get('username', 'cumulus')
+    default_user = d.get('defaults', {}).get('username', '')
     devs = d.get('devices', d)
     info = devs.get('$ip', {})
     if isinstance(info, dict):
@@ -45,9 +48,13 @@ try:
     else:
         print(default_user)
 except:
-    print('cumulus')
+    print('')
 " 2>/dev/null)
-    echo "${username:-cumulus}@${ip}"
+    if [[ -n "$username" ]]; then
+        echo "${username}@${ip}"
+    else
+        echo "$ip"
+    fi
 }
 
 # List available devices from devices.yaml
@@ -295,6 +302,13 @@ if not os.path.exists(devices_file):
 
 table_type = "$table_type"
 search = "$search".lower()
+default_ssh_user = ""
+
+def ssh_target(ip, info):
+    username = default_ssh_user
+    if isinstance(info, dict):
+        username = info.get('username') or default_ssh_user
+    return f"{username}@{ip}" if username else ip
 
 def get_device_table(device_info):
     ip, info = device_info
@@ -305,14 +319,20 @@ def get_device_table(device_info):
     
     try:
         lldpq_user = os.environ.get('LLDPQ_USER', os.environ.get('USER', 'root'))
+        target = ssh_target(ip, info)
         if table_type == "mac":
-            cmd = f"sudo -u {lldpq_user} timeout 15 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes {ip} '/usr/sbin/bridge fdb show 2>/dev/null | grep -v permanent | head -200'"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=20)
+            remote_script = "/usr/sbin/bridge fdb show 2>/dev/null | grep -v permanent | head -200"
+            cmd_parts = [
+                "sudo", "-u", lldpq_user, "timeout", "15", "ssh",
+                "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes", target,
+                remote_script
+            ]
+            result = subprocess.run(cmd_parts, capture_output=True, text=True, timeout=20)
         else:  # arp - get ARP with interface VRF mappings
             remote_script = '/usr/sbin/ip neigh show 2>/dev/null | head -200; echo ---VRF_MAP---; /usr/sbin/ip vrf list 2>/dev/null; echo ---IFACE_VRF---; for i in /sys/class/net/vlan*/master /sys/class/net/eth*/master; do n=\$(basename \$(dirname \$i)); m=\$(readlink \$i | xargs basename); [ -n "\$m" ] && echo \$n \$m; done 2>/dev/null'
             cmd_parts = [
                 "sudo", "-u", lldpq_user, "timeout", "15", "ssh",
-                "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes", ip,
+                "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes", target,
                 remote_script
             ]
             result = subprocess.run(cmd_parts, capture_output=True, text=True, timeout=20)
@@ -392,6 +412,7 @@ def get_device_table(device_info):
 try:
     with open(devices_file, 'r') as f:
         devices_data = yaml.safe_load(f)
+    default_ssh_user = devices_data.get('defaults', {}).get('username', '')
     
     # Get devices from 'devices' section
     devices_section = devices_data.get('devices', {})
@@ -749,6 +770,11 @@ get_bond_members() {
     
     if [[ -z "$device" ]] || [[ -z "$bond" ]]; then
         echo '{"success": false, "error": "Device and bond not specified"}'
+        return
+    fi
+
+    if [[ ! "$bond" =~ ^[A-Za-z0-9_.:-]+$ ]]; then
+        echo '{"success": false, "error": "Invalid bond interface"}'
         return
     fi
     

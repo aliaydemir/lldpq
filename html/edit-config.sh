@@ -2,6 +2,9 @@
 # edit-config.sh - Read/Write topology_config.yaml via CGI
 # Called by nginx fcgiwrap
 
+source "$(dirname "$0")/auth-guard.sh"
+require_admin
+
 # Load config with fallback
 source /etc/lldpq.conf 2>/dev/null || true
 WEB_ROOT="${WEB_ROOT:-/var/www/html}"
@@ -217,12 +220,12 @@ except:
     if [ -n "$CONTENT" ]; then
         # Write new content (try direct, fallback to sudo tee)
         if echo "$CONTENT" > "$CONFIG_FILE" 2>/dev/null; then
-            sudo chown "${LLDPQ_USER:-lldpq}:www-data" "$CONFIG_FILE" 2>/dev/null
-            sudo chmod 664 "$CONFIG_FILE" 2>/dev/null
+            sudo -n chown "${LLDPQ_USER:-lldpq}:www-data" "$CONFIG_FILE" 2>/dev/null
+            sudo -n chmod 664 "$CONFIG_FILE" 2>/dev/null
             echo "{\"success\": true, \"message\": \"Config saved successfully\"}"
-        elif echo "$CONTENT" | sudo tee "$CONFIG_FILE" > /dev/null 2>&1; then
-            sudo chown "${LLDPQ_USER:-lldpq}:www-data" "$CONFIG_FILE" 2>/dev/null
-            sudo chmod 664 "$CONFIG_FILE" 2>/dev/null
+        elif echo "$CONTENT" | sudo -n tee "$CONFIG_FILE" > /dev/null 2>&1; then
+            sudo -n chown "${LLDPQ_USER:-lldpq}:www-data" "$CONFIG_FILE" 2>/dev/null
+            sudo -n chmod 664 "$CONFIG_FILE" 2>/dev/null
             echo "{\"success\": true, \"message\": \"Config saved successfully\"}"
         else
             echo "{\"success\": false, \"error\": \"Failed to write file\"}"

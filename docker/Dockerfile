@@ -56,8 +56,10 @@ RUN useradd -m -s /bin/bash -G www-data lldpq \
     && rm -f /home/lldpq/.bashrc /home/lldpq/.profile /home/lldpq/.bash_logout \
     && rm -f /root/.bashrc /root/.profile /root/.bash_logout
 
-# Allow www-data to sudo as lldpq (for SSH operations from CGI + SSH Setup)
-RUN echo "www-data ALL=(lldpq) NOPASSWD: ALL" > /etc/sudoers.d/www-data-lldpq
+# Allow www-data to run only the commands needed by CGI workflows.
+RUN echo "www-data ALL=(lldpq) NOPASSWD: /usr/bin/timeout, /usr/bin/ssh, /usr/bin/scp, /usr/bin/mkdir, /usr/bin/rm, /usr/bin/tee, /usr/bin/cat, /usr/bin/ssh-keygen" > /etc/sudoers.d/www-data-lldpq \
+    && echo "www-data ALL=(root) NOPASSWD: /usr/bin/systemctl start isc-dhcp-server, /usr/bin/systemctl stop isc-dhcp-server, /usr/bin/systemctl restart isc-dhcp-server, /usr/bin/systemctl disable isc-dhcp-server, /usr/bin/systemctl enable isc-dhcp-server, /usr/bin/tee /etc/dhcp/dhcpd.conf, /usr/bin/tee /etc/dhcp/dhcpd.hosts, /usr/bin/tee /etc/default/isc-dhcp-server, /usr/bin/tee /etc/lldpq.conf, /usr/bin/cp, /usr/bin/mkdir, /usr/bin/rm, /usr/bin/pkill -x dhcpd, /usr/sbin/dhcpd, /usr/bin/cat /etc/dhcp/dhcpd.conf, /usr/bin/chmod, /usr/bin/chown" > /etc/sudoers.d/www-data-provision \
+    && chmod 440 /etc/sudoers.d/www-data-lldpq /etc/sudoers.d/www-data-provision
 
 # Create directory structure
 RUN mkdir -p /home/lldpq/lldpq/monitor-results/fabric-tables \
@@ -132,17 +134,29 @@ RUN mkdir -p /etc/dhcp /var/lib/dhcp /var/run \
     && chmod 664 /etc/dhcp/dhcpd.hosts
 
 # Create lldpq config
-RUN echo '# LLDPq Configuration (Docker)\n\
-LLDPQ_DIR=/home/lldpq/lldpq\n\
-LLDPQ_USER=lldpq\n\
-WEB_ROOT=/var/www/html\n\
-DHCP_HOSTS_FILE=/etc/dhcp/dhcpd.hosts\n\
-DHCP_CONF_FILE=/etc/dhcp/dhcpd.conf\n\
-DHCP_LEASES_FILE=/var/lib/dhcp/dhcpd.leases\n\
-ZTP_SCRIPT_FILE=/var/www/html/cumulus-ztp.sh\n\
-BASE_CONFIG_DIR=/home/lldpq/lldpq/sw-base\n\
-ANSIBLE_DIR=/home/lldpq/ansible\n\
-EDITOR_ROOT=/home/lldpq' > /etc/lldpq.conf
+RUN printf '%s\n' \
+    '# LLDPq Configuration (Docker)' \
+    'LLDPQ_DIR=/home/lldpq/lldpq' \
+    'LLDPQ_USER=lldpq' \
+    'WEB_ROOT=/var/www/html' \
+    'DHCP_HOSTS_FILE=/etc/dhcp/dhcpd.hosts' \
+    'DHCP_CONF_FILE=/etc/dhcp/dhcpd.conf' \
+    'DHCP_LEASES_FILE=/var/lib/dhcp/dhcpd.leases' \
+    'ZTP_SCRIPT_FILE=/var/www/html/cumulus-ztp.sh' \
+    'BASE_CONFIG_DIR=/home/lldpq/lldpq/sw-base' \
+    'ANSIBLE_DIR=/home/lldpq/ansible' \
+    'EDITOR_ROOT=/home/lldpq' \
+    'SKIP_L1=true' \
+    'MONITOR_MAX_PARALLEL=100' \
+    'LLDP_MAX_PARALLEL=100' \
+    'ASSETS_MAX_PARALLEL=50' \
+    'GET_CONFIGS_MAX_PARALLEL=50' \
+    'SEND_CMD_MAX_PARALLEL=25' \
+    'TELEMETRY_MAX_PARALLEL=25' \
+    'TRANSCEIVER_FW_MAX_PARALLEL=10' \
+    'TRANSCEIVER_FW_MIN_INTERVAL=1800' \
+    'TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY=skip' \
+    > /etc/lldpq.conf
 
 # Create auth users file + sessions directory
 # Entrypoint also recreates these if missing (self-healing)

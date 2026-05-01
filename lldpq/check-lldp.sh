@@ -18,7 +18,10 @@ source /etc/lldpq.conf 2>/dev/null || true
 WEB_ROOT="${WEB_ROOT:-/var/www/html}"
 
 # === TUNING PARAMETERS ===
-MAX_PARALLEL=300  # Maximum parallel SSH connections
+MAX_PARALLEL="${LLDP_MAX_PARALLEL:-100}"  # Maximum parallel SSH connections
+case "$MAX_PARALLEL" in
+    ''|*[!0-9]*|0) MAX_PARALLEL=100 ;;
+esac
 SSH_TIMEOUT=30    # SSH connection timeout in seconds
 
 mkdir -p "$SCRIPT_DIR/lldp-results"

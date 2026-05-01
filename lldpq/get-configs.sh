@@ -8,6 +8,10 @@ eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 # Load config with fallback
 source /etc/lldpq.conf 2>/dev/null || true
 WEB_ROOT="${WEB_ROOT:-/var/www/html}"
+GET_CONFIGS_MAX_PARALLEL="${GET_CONFIGS_MAX_PARALLEL:-50}"
+case "$GET_CONFIGS_MAX_PARALLEL" in
+    ''|*[!0-9]*|0) GET_CONFIGS_MAX_PARALLEL=50 ;;
+esac
 
 date=$(date +%F--%H-%M)
 mkdir -p ~/configs/configs-${date}/nv-yaml
@@ -35,12 +39,11 @@ execute_commands() {
     local user=$2
     local hostname=$3
 
-    #ssh -q -o StrictHostKeyChecking=no "${user}@${device}" "nv config save" > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        ssh -q -o StrictHostKeyChecking=no "${user}@${device}" "sudo cat /etc/nvue.d/startup.yaml" 2>/dev/null 1> ~/configs/configs-${date}/nv-yaml/${hostname}.yaml
-        ssh -q -o StrictHostKeyChecking=no "${user}@${device}" "nv config show -o commands" 2>/dev/null 1> ~/configs/configs-${date}/nv-set/${hostname}.txt
+    if ssh -q -o StrictHostKeyChecking=no "${user}@${device}" "sudo cat /etc/nvue.d/startup.yaml" 2>/dev/null 1> ~/configs/configs-${date}/nv-yaml/${hostname}.yaml; then
+        ssh -q -o StrictHostKeyChecking=no "${user}@${device}" "nv config show -o commands" 2>/dev/null 1> ~/configs/configs-${date}/nv-set/${hostname}.txt || true
         echo -e "\e[0;32mConfig of \e[1;32m${hostname}\e[0;32m device has been pulled...\e[0m"
     else
+        rm -f ~/configs/configs-${date}/nv-yaml/${hostname}.yaml
         echo -e "\e[0;31mFailed to execute commands on ${hostname} (${device})\e[0m"
     fi
 }
@@ -55,8 +58,15 @@ process_device() {
     fi
 }
 
+wait_for_slot() {
+    while (( $(jobs -rp | wc -l) >= GET_CONFIGS_MAX_PARALLEL )); do
+        wait -n 2>/dev/null || true
+    done
+}
+
 for device in "${!devices[@]}"; do
     IFS=' ' read -r user hostname <<< "${devices[$device]}"
+    wait_for_slot
     process_device "$device" "$user" "$hostname" &
 done
 

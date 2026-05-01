@@ -3300,7 +3300,7 @@ function resolve_hostname(){
     local hostname=""
     local mapping=$(curl -sf "$mapping_url" 2>/dev/null)
     if [ -n "$mapping" ]; then
-        hostname=$(echo "$mapping" | grep -v '^#' | grep -i "$serial" | awk '{print $2}' | head -1)
+        hostname=$(echo "$mapping" | grep -v '^#' | awk -v s="$serial" 'tolower($1) == tolower(s) {print $2; exit}')
     fi
     echo "$hostname"
 }

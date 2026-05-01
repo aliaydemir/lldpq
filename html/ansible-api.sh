@@ -46,8 +46,8 @@ fix_git_permissions() {
         # Get the original owner of the ansible directory
         local owner=$(stat -c '%U' "$ANSIBLE_DIR" 2>/dev/null || stat -f '%Su' "$ANSIBLE_DIR" 2>/dev/null)
         # Fix ownership: owner:www-data with group write
-        chown -R "$owner:www-data" "$ANSIBLE_DIR/.git" 2>/dev/null || true
-        chmod -R g+rwX "$ANSIBLE_DIR/.git" 2>/dev/null || true
+        sudo -n chown -R "$owner:www-data" "$ANSIBLE_DIR/.git" 2>/dev/null || true
+        sudo -n chmod -R g+rwX "$ANSIBLE_DIR/.git" 2>/dev/null || true
     fi
 }
 

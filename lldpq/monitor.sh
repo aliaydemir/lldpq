@@ -17,16 +17,29 @@ eval "$(python3 "$SCRIPT_DIR/parse_devices.py")"
 source /etc/lldpq.conf 2>/dev/null || true
 WEB_ROOT="${WEB_ROOT:-/var/www/html}"
 
+normalize_bool() {
+    case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+        true|1|yes|y|on) printf 'true' ;;
+        *) printf 'false' ;;
+    esac
+}
+
 # Parse flags
 SKIP_OPTICAL="${SKIP_OPTICAL:-false}"
+SKIP_L1="${SKIP_L1:-true}"
 while getopts "s" opt; do
     case $opt in
         s) SKIP_OPTICAL=true ;;
     esac
 done
+SKIP_OPTICAL="$(normalize_bool "$SKIP_OPTICAL")"
+SKIP_L1="$(normalize_bool "$SKIP_L1")"
 
 # === TUNING PARAMETERS ===
-MAX_PARALLEL=300  # Maximum parallel SSH connections (adjust based on your server)
+MAX_PARALLEL="${MONITOR_MAX_PARALLEL:-${MAX_PARALLEL:-100}}"  # Maximum parallel SSH connections
+case "$MAX_PARALLEL" in
+    ''|*[!0-9]*|0) MAX_PARALLEL=100 ;;
+esac
 SSH_TIMEOUT=60   # SSH connection timeout in seconds
 
 mkdir -p "$SCRIPT_DIR/monitor-results"
@@ -270,7 +283,9 @@ EOF
         # SECTION 6: L1-Show (if available)
         # =====================================================================
         echo "===L1_DATA_START==="
-        if command -v l1-show >/dev/null 2>&1; then
+        if [ "$SKIP_L1" = "true" ]; then
+            echo "l1-show skipped"
+        elif command -v l1-show >/dev/null 2>&1; then
             sudo l1-show all -p 2>/dev/null || echo "l1-show failed"
         else
             echo "l1-show not available"
@@ -582,7 +597,9 @@ analysis_start=$(date +%s)
 # Run all analyses in parallel (suppress all output)
 python3 process_bgp_data.py >/dev/null 2>&1 &
 python3 process_flap_data.py >/dev/null 2>&1 &
-[[ "$SKIP_OPTICAL" != "true" ]] && python3 process_optical_data.py >/dev/null 2>&1 &
+if [[ "$SKIP_OPTICAL" != "true" ]]; then
+    python3 process_optical_data.py >/dev/null 2>&1 &
+fi
 python3 process_ber_data.py >/dev/null 2>&1 &
 python3 process_hardware_data.py >/dev/null 2>&1 &
 python3 process_log_data.py >/dev/null 2>&1 &

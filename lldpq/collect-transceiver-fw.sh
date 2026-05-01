@@ -31,6 +31,28 @@ RESULT_DIR="$SCRIPT_DIR/monitor-results"
 TRANSCEIVER_DIR="$RESULT_DIR/transceiver-data"
 INVENTORY_JSON="$RESULT_DIR/transceiver_inventory.json"
 WEB_MONITOR_DIR="$WEB_ROOT/monitor-results"
+LOCK_FILE="$RESULT_DIR/collect-transceiver-fw.lock"
+LAST_RUN_FILE="$RESULT_DIR/.collect-transceiver-fw-last-run"
+TRANSCEIVER_FW_MIN_INTERVAL="${TRANSCEIVER_FW_MIN_INTERVAL:-1800}"
+case "$TRANSCEIVER_FW_MIN_INTERVAL" in
+    ''|*[!0-9]*) TRANSCEIVER_FW_MIN_INTERVAL=1800 ;;
+esac
+
+mkdir -p "$RESULT_DIR"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+    echo "ERROR: collect-transceiver-fw.sh is already running" >&2
+    exit 1
+fi
+
+now=$(date +%s)
+last_run=0
+[ -f "$LAST_RUN_FILE" ] && last_run=$(cat "$LAST_RUN_FILE" 2>/dev/null || echo 0)
+if [ "$TRANSCEIVER_FW_MIN_INTERVAL" -gt 0 ] && [ "$last_run" -gt 0 ] && [ $((now - last_run)) -lt "$TRANSCEIVER_FW_MIN_INTERVAL" ]; then
+    wait_left=$((TRANSCEIVER_FW_MIN_INTERVAL - (now - last_run)))
+    echo "ERROR: Last transceiver firmware collection was too recent. Wait ${wait_left}s or set TRANSCEIVER_FW_MIN_INTERVAL=0." >&2
+    exit 1
+fi
 
 # Build model map (hostname -> model) from assets.ini
 declare -A device_models
@@ -112,7 +134,12 @@ model_matches_skip() {
     for token in $TRANSCEIVER_FW_SKIP_MODELS; do
         [ -z "$token" ] && continue
         normalized_token=$(printf '%s' "$token" | tr '[:lower:]' '[:upper:]')
-        [[ "$normalized_model" == *"$normalized_token"* ]] && return 0
+        for part in $(printf '%s' "$normalized_model" | tr -cs '[:alnum:]' ' '); do
+            case "$part" in
+                "$normalized_token"|SN"$normalized_token"|MSN"$normalized_token")
+                    return 0 ;;
+            esac
+        done
     done
     return 1
 }
@@ -182,18 +209,26 @@ collect_fw() {
             local token
             local normalized_model
             local normalized_token
+            local model_parts
             local old_ifs
 
             [ -z "$model" ] && return 1
             normalized_model=$(printf '%s' "$model" | tr '[:lower:]' '[:upper:]')
+            model_parts=$(printf '%s' "$normalized_model" | tr -cs '[:alnum:]' ' ')
             old_ifs=$IFS
             IFS=,
             for token in $skip_model_pattern; do
                 [ -z "$token" ] && continue
                 normalized_token=$(printf '%s' "$token" | tr '[:lower:]' '[:upper:]')
-                case "$normalized_model" in
-                    *"$normalized_token"*) IFS=$old_ifs; return 0 ;;
-                esac
+                IFS=' '
+                for part in $model_parts; do
+                    case "$part" in
+                        "$normalized_token"|SN"$normalized_token"|MSN"$normalized_token")
+                            IFS=$old_ifs
+                            return 0 ;;
+                    esac
+                done
+                IFS=,
             done
             IFS=$old_ifs
             return 1
@@ -298,6 +333,12 @@ publish_inventory() {
     return 1
 }
 
+if [ ! -d "$RESULT_DIR/optical-data" ]; then
+    echo "ERROR: Missing $RESULT_DIR/optical-data; run monitor.sh first to collect optical inventory" >&2
+    exit 1
+fi
+
+echo "$now" > "$LAST_RUN_FILE"
 echo "Collecting transceiver firmware versions..."
 queued=0
 pids=()
@@ -336,11 +377,6 @@ skipped_total=$((skipped_model_count + skipped_unknown_count))
 echo "Queried: $queued devices"
 echo "Collected: $ok_count with FW data, $no_modules_count no FW data, $failed_count failed, $skipped_total skipped"
 echo "Processing inventory..."
-
-if [ ! -d "$RESULT_DIR/optical-data" ]; then
-    echo "ERROR: Missing $RESULT_DIR/optical-data; run monitor.sh first to collect optical inventory" >&2
-    exit 1
-fi
 
 if ! python3 "$SCRIPT_DIR/process_transceiver_data.py"; then
     echo "ERROR: Failed to process transceiver inventory" >&2

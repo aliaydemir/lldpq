@@ -9,9 +9,11 @@ LLDPQ_DIR="${LLDPQ_DIR:-$HOME/lldpq}"
 LLDP_TRIGGER_FILE="/tmp/.lldp_web_trigger"
 MONITOR_TRIGGER_FILE="/tmp/.monitor_web_trigger"
 ASSETS_TRIGGER_FILE="/tmp/.assets_web_trigger"
+CONFIGS_TRIGGER_FILE="/tmp/.configs_web_trigger"
 DAEMON_PID_FILE="/tmp/lldp_trigger_daemon.pid"
 LLDP_LOCK_FILE="/tmp/lldp_running.lock"
 ASSETS_LOCK_FILE="/tmp/assets_running.lock"
+CONFIGS_LOCK_FILE="/tmp/configs_running.lock"
 
 # Exit if daemon already running
 if [ -f "$DAEMON_PID_FILE" ]; then
@@ -40,8 +42,9 @@ trap cleanup SIGTERM SIGINT EXIT
 
 # Wait function to prevent conflicts
 wait_until_not_running() {
-    local script_name="$1"
-    while pgrep -f "$script_name" >/dev/null; do
+    local script_name="${1#./}"
+    local pattern="(^|/|[[:space:]])${script_name}([[:space:]]|$)"
+    while pgrep -f "$pattern" >/dev/null; do
         sleep 2
     done
 }
@@ -50,6 +53,7 @@ wait_until_not_running() {
 LLDP_LAST_CHECK_FILE="$LLDPQ_DIR/.last_lldp_trigger_check"
 MONITOR_LAST_CHECK_FILE="$LLDPQ_DIR/.last_monitor_trigger_check"
 ASSETS_LAST_CHECK_FILE="$LLDPQ_DIR/.last_assets_trigger_check"
+CONFIGS_LAST_CHECK_FILE="$LLDPQ_DIR/.last_configs_trigger_check"
 
 while true; do
     # Check LLDP trigger
@@ -93,9 +97,7 @@ while true; do
         if [ "$MONITOR_TRIGGER_TIME" -gt "$MONITOR_LAST_CHECK" ]; then
             echo "$MONITOR_TRIGGER_TIME" > "$MONITOR_LAST_CHECK_FILE"
             cd "$LLDPQ_DIR"
-            while pgrep -f "./monitor\.sh" >/dev/null; do
-                sleep 2
-            done
+            wait_until_not_running "monitor.sh"
             ./monitor.sh >/dev/null 2>&1
         fi
     fi
@@ -120,6 +122,31 @@ while true; do
                     wait_until_not_running "./assets.sh"
                     ./assets.sh >/dev/null 2>&1
                     rm -f "$ASSETS_LOCK_FILE"
+                }
+            fi
+        fi
+    fi
+
+    # Check Config collection trigger
+    CONFIGS_LAST_CHECK=0
+    if [ -f "$CONFIGS_LAST_CHECK_FILE" ]; then
+        CONFIGS_LAST_CHECK=$(cat "$CONFIGS_LAST_CHECK_FILE")
+    fi
+
+    if [ -f "$CONFIGS_TRIGGER_FILE" ]; then
+        CONFIGS_TRIGGER_TIME=$(stat -c %Y "$CONFIGS_TRIGGER_FILE" 2>/dev/null || stat -f %m "$CONFIGS_TRIGGER_FILE" 2>/dev/null || echo 0)
+
+        if [ "$CONFIGS_TRIGGER_TIME" -gt "$CONFIGS_LAST_CHECK" ]; then
+            if [ -f "$CONFIGS_LOCK_FILE" ] && kill -0 "$(cat "$CONFIGS_LOCK_FILE")" 2>/dev/null; then
+                : # Config collection already running, skipping trigger
+            else
+                {
+                    echo $$ > "$CONFIGS_LOCK_FILE"
+                    echo "$CONFIGS_TRIGGER_TIME" > "$CONFIGS_LAST_CHECK_FILE"
+                    cd "$LLDPQ_DIR"
+                    wait_until_not_running "get-configs.sh"
+                    ./get-configs.sh >/dev/null 2>&1
+                    rm -f "$CONFIGS_LOCK_FILE"
                 }
             fi
         fi

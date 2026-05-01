@@ -2,9 +2,11 @@
 # LLDP Web Trigger Script
 # Called by nginx via fcgiwrap
 
+source "$(dirname "$0")/auth-guard.sh"
+require_admin
+
 # Set HTTP headers
 echo "Content-Type: application/json"
-echo "Access-Control-Allow-Origin: *"
 echo "Access-Control-Allow-Methods: POST, OPTIONS"
 echo "Access-Control-Allow-Headers: Content-Type"
 echo ""
@@ -17,7 +19,7 @@ fi
 
 # Create trigger file
 TRIGGER_FILE="/tmp/.lldp_web_trigger"
-echo "$(date +%s)" | sudo tee "$TRIGGER_FILE" >/dev/null 2>&1 || echo "$(date +%s)" > "$TRIGGER_FILE" 2>/dev/null
+echo "$(date +%s)" > "$TRIGGER_FILE" 2>/dev/null
 
 # Return JSON response
 if [ -f "$TRIGGER_FILE" ]; then

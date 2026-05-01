@@ -3953,7 +3953,7 @@
                 }
                 
                 const allVrfs = data.vrfs || [];
-                const deviceConfig = await fetch(`/fabric-api.sh?action=get-device&device=${selectedDevice}`).then(r => r.json());
+                const deviceConfig = await fetch(`/fabric-api.sh?action=get-device&hostname=${encodeURIComponent(selectedDevice)}`).then(r => r.json());
                 const currentVrfs = deviceConfig.success && deviceConfig.config.vrfs ? Object.keys(deviceConfig.config.vrfs) : [];
                 
                 // Filter out already assigned VRFs

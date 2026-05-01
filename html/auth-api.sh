@@ -40,9 +40,25 @@ get_cookie() {
     echo "$HTTP_COOKIE" | tr ';' '\n' | grep "lldpq_session=" | cut -d'=' -f2 | tr -d ' '
 }
 
+valid_token() {
+    [[ "$1" =~ ^[A-Fa-f0-9]{64}$ ]]
+}
+
+json_escape() {
+    python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().rstrip("\n")))'
+}
+
+get_user_record() {
+    local username="$1"
+    awk -F: -v u="$username" '$1 == u { print; exit }' "$USERS_FILE" 2>/dev/null
+}
+
 # Function to validate session
 validate_session() {
     local token="$1"
+    if ! valid_token "$token"; then
+        return 1
+    fi
     local session_file="$SESSIONS_DIR/$token"
     
     if [ -z "$token" ] || [ ! -f "$session_file" ]; then
@@ -63,6 +79,9 @@ validate_session() {
 # Function to get session info
 get_session_info() {
     local token="$1"
+    if ! valid_token "$token"; then
+        return 1
+    fi
     local session_file="$SESSIONS_DIR/$token"
     
     if [ -f "$session_file" ]; then
@@ -79,7 +98,8 @@ verify_credentials() {
         return 1
     fi
     
-    local stored_hash=$(grep "^$username:" "$USERS_FILE" | cut -d':' -f2)
+    local user_record=$(get_user_record "$username")
+    local stored_hash=$(echo "$user_record" | cut -d':' -f2)
     local input_hash=$(hash_password "$password")
     
     if [ -z "$stored_hash" ]; then
@@ -96,7 +116,7 @@ verify_credentials() {
 # Function to get user role
 get_user_role() {
     local username="$1"
-    grep "^$username:" "$USERS_FILE" | cut -d':' -f3
+    get_user_record "$username" | cut -d':' -f3
 }
 
 # Clean expired sessions
@@ -147,10 +167,12 @@ case "$ACTION" in
             printf '%s\n%s\n%s\n' "$EXPIRY" "$USERNAME" "$ROLE" > "$SESSIONS_DIR/$TOKEN"
             
             # Set cookie and return success
+            USERNAME_JSON=$(printf '%s' "$USERNAME" | json_escape)
+            ROLE_JSON=$(printf '%s' "$ROLE" | json_escape)
             echo "Content-Type: application/json"
             echo "Set-Cookie: lldpq_session=$TOKEN; Path=/; HttpOnly; SameSite=Strict; $COOKIE_EXPIRY"
             echo ""
-            echo "{\"success\": true, \"username\": \"$USERNAME\", \"role\": \"$ROLE\"}"
+            echo "{\"success\": true, \"username\": $USERNAME_JSON, \"role\": $ROLE_JSON}"
         else
             json_response '{"success": false, "error": "Invalid username or password"}'
         fi
@@ -159,7 +181,9 @@ case "$ACTION" in
     logout)
         TOKEN=$(get_cookie)
         if [ -n "$TOKEN" ]; then
-            rm -f "$SESSIONS_DIR/$TOKEN"
+            if valid_token "$TOKEN"; then
+                rm -f "$SESSIONS_DIR/$TOKEN"
+            fi
         fi
         
         echo "Content-Type: application/json"
@@ -175,7 +199,9 @@ case "$ACTION" in
             INFO=$(get_session_info "$TOKEN")
             USERNAME=$(echo "$INFO" | head -1)
             ROLE=$(echo "$INFO" | tail -1)
-            json_response "{\"authenticated\": true, \"username\": \"$USERNAME\", \"role\": \"$ROLE\"}"
+            USERNAME_JSON=$(printf '%s' "$USERNAME" | json_escape)
+            ROLE_JSON=$(printf '%s' "$ROLE" | json_escape)
+            json_response "{\"authenticated\": true, \"username\": $USERNAME_JSON, \"role\": $ROLE_JSON}"
         else
             json_response '{"authenticated": false}'
         fi
@@ -203,7 +229,7 @@ case "$ACTION" in
         NEW_PASSWORD=$(get_post_param "new_password")
         
         # Validate target user exists
-        if ! grep -q "^$TARGET_USER:" "$USERS_FILE"; then
+        if [ -z "$(get_user_record "$TARGET_USER")" ]; then
             json_response '{"success": false, "error": "User not found"}'
             exit 0
         fi
@@ -222,7 +248,7 @@ case "$ACTION" in
         
         # Update users file (use /tmp for temp file — www-data can't create files in /etc/)
         TMP_FILE=$(mktemp)
-        grep -v "^$TARGET_USER:" "$USERS_FILE" > "$TMP_FILE"
+        awk -F: -v u="$TARGET_USER" '$1 != u' "$USERS_FILE" > "$TMP_FILE"
         echo "$TARGET_USER:$NEW_HASH:$TARGET_ROLE" >> "$TMP_FILE"
         cat "$TMP_FILE" > "$USERS_FILE"
         rm -f "$TMP_FILE"
@@ -258,7 +284,9 @@ case "$ACTION" in
                 else
                     USERS_JSON="$USERS_JSON,"
                 fi
-                USERS_JSON="$USERS_JSON{\"username\":\"$username\",\"role\":\"$role\"}"
+                username_json=$(printf '%s' "$username" | json_escape)
+                role_json=$(printf '%s' "$role" | json_escape)
+                USERS_JSON="$USERS_JSON{\"username\":$username_json,\"role\":$role_json}"
             fi
         done < "$USERS_FILE"
         USERS_JSON="$USERS_JSON]"
@@ -293,7 +321,7 @@ case "$ACTION" in
         fi
         
         # Check if user already exists
-        if grep -q "^$NEW_USERNAME:" "$USERS_FILE"; then
+        if [ -n "$(get_user_record "$NEW_USERNAME")" ]; then
             json_response '{"success": false, "error": "User already exists"}'
             exit 0
         fi
@@ -351,14 +379,14 @@ case "$ACTION" in
         fi
         
         # Check if user exists
-        if ! grep -q "^$TARGET_USER:" "$USERS_FILE"; then
+        if [ -z "$(get_user_record "$TARGET_USER")" ]; then
             json_response '{"success": false, "error": "User not found"}'
             exit 0
         fi
         
         # Delete user from file (use /tmp for temp file — www-data can't create files in /etc/)
         TMP_FILE=$(mktemp)
-        grep -v "^$TARGET_USER:" "$USERS_FILE" > "$TMP_FILE"
+        awk -F: -v u="$TARGET_USER" '$1 != u' "$USERS_FILE" > "$TMP_FILE"
         cat "$TMP_FILE" > "$USERS_FILE"
         rm -f "$TMP_FILE"
         chmod 600 "$USERS_FILE"
