@@ -74,26 +74,31 @@ def parse_temperature_from_hardware_file(device_name):
         with open(hardware_file, 'r') as f:
             content = f.read()
         
-        # Parse ASIC temperature: try multiple sources in priority order
-        # 1. sensors output
-        asic_match = re.search(r'Ambient ASIC Temp:\s*\+?(-?\d+\.?\d*)[°C]', content)
-        if asic_match:
-            asic_temp = float(asic_match.group(1))
+        # Parse ASIC temperature: try fast Linux/hw-management sources first.
+        asic_mgmt = re.search(r'^HW_MGMT_ASIC:\s*([0-9]+\.?[0-9]*)', content, re.MULTILINE)
+        if asic_mgmt:
+            asic_temp = float(asic_mgmt.group(1))
         else:
-            # 2. HW_MGMT_ASIC (primary hw-management source)
-            asic_mgmt = re.search(r'^HW_MGMT_ASIC:\s*([0-9]+\.?[0-9]*)', content, re.MULTILINE)
-            if asic_mgmt:
-                asic_temp = float(asic_mgmt.group(1))
+            asic_match = re.search(r'Ambient ASIC Temp:\s*\+?(-?\d+\.?\d*)[°C]', content)
+            if asic_match:
+                asic_temp = float(asic_match.group(1))
             else:
-                # 3. THERMAL_ZONE_ASIC (fallback thermal zone)
                 thermal_zone_asic = re.search(r'^THERMAL_ZONE_ASIC:\s*([0-9]+\.?[0-9]*)', content, re.MULTILINE)
                 if thermal_zone_asic:
                     asic_temp = float(thermal_zone_asic.group(1))
                 else:
-                    # 4. HWMON_ASIC (fallback hwmon)
                     hwmon_asic = re.search(r'^HWMON_ASIC:\s*([0-9]+\.?[0-9]*)', content, re.MULTILINE)
                     if hwmon_asic:
                         asic_temp = float(hwmon_asic.group(1))
+                    else:
+                        # Passive support for already-collected NVUE output; monitor.sh does not run nv.
+                        nvue_asic = re.search(
+                            r'^\s*Asic-Temp-Sensor\s+(-?\d+\.?\d*)\s+',
+                            content,
+                            re.MULTILINE | re.IGNORECASE,
+                        )
+                        if nvue_asic:
+                            asic_temp = float(nvue_asic.group(1))
         
         # Parse CPU temperature: prefer real CPU sensors and avoid unrelated ones (e.g., drivetemp)
         # Pattern 1: Average of CPU cores "Core 0:        +40.0°C"
@@ -116,6 +121,24 @@ def parse_temperature_from_hardware_file(device_name):
                     cpu_mgmt = re.search(r'^HW_MGMT_CPU:\s*([0-9]+\.?[0-9]*)', content, re.MULTILINE)
                     if cpu_mgmt:
                         cpu_temp = float(cpu_mgmt.group(1))
+                    else:
+                        # Passive support for already-collected NVUE output; monitor.sh does not run nv.
+                        nvue_core_matches = re.findall(
+                            r'^\s*CPU-Core-Sensor-\d+\s+(-?\d+\.?\d*)\s+',
+                            content,
+                            re.MULTILINE | re.IGNORECASE,
+                        )
+                        if nvue_core_matches:
+                            core_temps = [float(temp) for temp in nvue_core_matches]
+                            cpu_temp = sum(core_temps) / len(core_temps)
+                        else:
+                            package_match = re.search(
+                                r'^\s*CPU-Package-Sensor\s+(-?\d+\.?\d*)\s+',
+                                content,
+                                re.MULTILINE | re.IGNORECASE,
+                            )
+                            if package_match:
+                                cpu_temp = float(package_match.group(1))
                 # Intentionally not falling back to generic "temp1" to avoid picking up disks/PSU sensors
         
     except Exception as e:
@@ -404,8 +427,13 @@ def calculate_device_health_grade(device_name, device_data):
         else:
             health_grades.append("CRITICAL")
     
+    parsed_resources = {}
+
     # Memory usage grade
-    memory_usage = device_data.get("resources", {}).get("memory", {}).get("usage_percent", 0)
+    memory_usage = device_data.get("resources", {}).get("memory", {}).get("usage_percent", None)
+    if memory_usage is None:
+        parsed_resources = parse_resources_from_hardware_file(device_name)
+        memory_usage = parsed_resources.get('memory_usage', 0)
     if memory_usage < 60:
         health_grades.append("EXCELLENT")
     elif memory_usage < 75:
@@ -416,7 +444,11 @@ def calculate_device_health_grade(device_name, device_data):
         health_grades.append("CRITICAL")
         
     # CPU Load grade
-    cpu_load = device_data.get("resources", {}).get("cpu", {}).get("load_5min", 0)
+    cpu_load = device_data.get("resources", {}).get("cpu", {}).get("load_5min", None)
+    if cpu_load is None:
+        if not parsed_resources:
+            parsed_resources = parse_resources_from_hardware_file(device_name)
+        cpu_load = parsed_resources.get('cpu_load', 0)
     if cpu_load < 1.0:
         health_grades.append("EXCELLENT")
     elif cpu_load < 2.0:

@@ -299,11 +299,17 @@ EOF
         echo "HARDWARE_HEALTH:"
         sensors 2>/dev/null || echo "No sensors available"
         echo "HW_MGMT_THERMAL:"
-        if [ -r "/var/run/hw-management/thermal/asic" ]; then
-            asic_raw=$(cat /var/run/hw-management/thermal/asic 2>/dev/null || echo "")
-            if [ -n "$asic_raw" ]; then
-                awk "BEGIN{printf \"HW_MGMT_ASIC: %.1f\n\", $asic_raw/1000}"
+        asic_raw=""
+        for asic_file in /var/run/hw-management/thermal/asic /run/hw-management/thermal/asic /var/run/hw-management/thermal/asic1 /run/hw-management/thermal/asic1; do
+            if [ -e "$asic_file" ]; then
+                asic_raw=$(sudo -n cat "$asic_file" 2>/dev/null || cat "$asic_file" 2>/dev/null || echo "")
+                if [ -n "$asic_raw" ]; then
+                    break
+                fi
             fi
+        done
+        if [ -n "$asic_raw" ]; then
+            awk "BEGIN{printf \"HW_MGMT_ASIC: %.1f\n\", $asic_raw/1000}"
         else
             # Fallback: Try alternative ASIC temperature sources
             echo "ASIC_FALLBACK_DEBUG:"
@@ -341,11 +347,17 @@ EOF
                 fi
             done
         fi
-        if [ -r "/var/run/hw-management/thermal/cpu_pack" ]; then
-            cpu_raw=$(cat /var/run/hw-management/thermal/cpu_pack 2>/dev/null || echo "")
-            if [ -n "$cpu_raw" ]; then
-                awk "BEGIN{printf \"HW_MGMT_CPU: %.1f\n\", $cpu_raw/1000}"
+        cpu_raw=""
+        for cpu_file in /var/run/hw-management/thermal/cpu_pack /run/hw-management/thermal/cpu_pack; do
+            if [ -e "$cpu_file" ]; then
+                cpu_raw=$(sudo -n cat "$cpu_file" 2>/dev/null || cat "$cpu_file" 2>/dev/null || echo "")
+                if [ -n "$cpu_raw" ]; then
+                    break
+                fi
             fi
+        done
+        if [ -n "$cpu_raw" ]; then
+            awk "BEGIN{printf \"HW_MGMT_CPU: %.1f\n\", $cpu_raw/1000}"
         fi
         echo "MEMORY_INFO:"
         free -h 2>/dev/null || echo "No memory info"
