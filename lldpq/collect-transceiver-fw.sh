@@ -37,6 +37,10 @@ TRANSCEIVER_FW_MIN_INTERVAL="${TRANSCEIVER_FW_MIN_INTERVAL:-1800}"
 case "$TRANSCEIVER_FW_MIN_INTERVAL" in
     ''|*[!0-9]*) TRANSCEIVER_FW_MIN_INTERVAL=1800 ;;
 esac
+TRANSCEIVER_FW_SSH_TIMEOUT="${TRANSCEIVER_FW_SSH_TIMEOUT:-300}"
+case "$TRANSCEIVER_FW_SSH_TIMEOUT" in
+    ''|*[!0-9]*|0) TRANSCEIVER_FW_SSH_TIMEOUT=300 ;;
+esac
 
 mkdir -p "$RESULT_DIR"
 exec 9>"$LOCK_FILE"
@@ -157,7 +161,7 @@ collect_fw() {
 
     rm -f "$outfile"
 
-    output=$(timeout 120 ssh "${SSH_OPTS[@]}" -q "$user@$device" bash -s -- "$SKIP_MODEL_PATTERN" "$TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY" "$known_model" <<'REMOTE_SCRIPT' 2>/dev/null
+    output=$(timeout "$TRANSCEIVER_FW_SSH_TIMEOUT" ssh "${SSH_OPTS[@]}" -q "$user@$device" bash -s -- "$SKIP_MODEL_PATTERN" "$TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY" "$known_model" <<'REMOTE_SCRIPT' 2>/dev/null
         skip_model_pattern=${1:-2010,2201,2210}
         unknown_model_policy=${2:-skip}
         known_model=${3:-}
@@ -254,12 +258,12 @@ collect_fw() {
                 case " $done_ports " in *" $port_num "*) continue ;; esac
                 done_ports="$done_ports $port_num"
                 FW=$(timeout 5 sudo mlxlink -d /dev/mst/$MST_DEV -m -p $port_num 2>/dev/null | grep "FW Version" | grep -v "N/A" | head -1)
-                CABLE_BYTE130=$(timeout 8 sudo mlxlink -d /dev/mst/$MST_DEV -p $port_num --cable --read --page 1 --offset 130 --length 1 2>/dev/null | \
-                    sed -E "s/\x1B\[[0-9;]*[mK]//g" | \
-                    awk -F: "/page\\[1\\]\\.Byte\\[130\\]/ {gsub(/^[ \t]+|[ \t]+$/, \"\", \$2); print \$2; exit}")
-                if [ -n "$FW" ] || [ -n "$CABLE_BYTE130" ]; then
+                if [ -n "$FW" ]; then
+                    CABLE_BYTE130=$(timeout 8 sudo mlxlink -d /dev/mst/$MST_DEV -p $port_num --cable --read --page 1 --offset 130 --length 1 2>/dev/null | \
+                        sed -E "s/\x1B\[[0-9;]*[mK]//g" | \
+                        awk -F: "/page\\[1\\]\\.Byte\\[130\\]/ {gsub(/^[ \t]+|[ \t]+$/, \"\", \$2); print \$2; exit}")
                     line="swp${port_num}"
-                    [ -n "$FW" ] && line="${line}|${FW}"
+                    line="${line}|${FW}"
                     [ -n "$CABLE_BYTE130" ] && line="${line}|Cable-Byte130: ${CABLE_BYTE130}"
                     echo "$line"
                 fi

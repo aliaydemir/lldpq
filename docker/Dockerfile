@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo cron \
     iproute2 iputils-ping dnsutils tcpdump \
     curl jq git bsdmainutils bsdextrautils \
-    dos2unix bash-completion colordiff net-tools bzip2 nano \
+    dos2unix bash-completion colordiff net-tools bzip2 nano vim \
     tmux openssh-server \
     isc-dhcp-server \
     && pip3 install --no-cache-dir ruamel.yaml requests \
@@ -155,6 +155,7 @@ RUN printf '%s\n' \
     'TELEMETRY_MAX_PARALLEL=25' \
     'TRANSCEIVER_FW_MAX_PARALLEL=10' \
     'TRANSCEIVER_FW_MIN_INTERVAL=1800' \
+    'TRANSCEIVER_FW_SSH_TIMEOUT=300' \
     'TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY=skip' \
     > /etc/lldpq.conf
 

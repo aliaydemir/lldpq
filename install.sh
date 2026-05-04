@@ -495,6 +495,8 @@ if [[ "$INSTALL_MODE" == "update" ]]; then
     _SAVE_TRANSCEIVER_FW_SKIP_MODELS="${TRANSCEIVER_FW_SKIP_MODELS:-}"
     _SAVE_TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY="${TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY:-skip}"
     _SAVE_TRANSCEIVER_FW_MAX_PARALLEL="${TRANSCEIVER_FW_MAX_PARALLEL:-10}"
+    _SAVE_TRANSCEIVER_FW_MIN_INTERVAL="${TRANSCEIVER_FW_MIN_INTERVAL:-1800}"
+    _SAVE_TRANSCEIVER_FW_SSH_TIMEOUT="${TRANSCEIVER_FW_SSH_TIMEOUT:-300}"
     _SAVE_TELEMETRY_COLLECTOR_PORT="${TELEMETRY_COLLECTOR_PORT:-}"
     _SAVE_TELEMETRY_COLLECTOR_VRF="${TELEMETRY_COLLECTOR_VRF:-}"
     _SAVE_AI_PROVIDER="${AI_PROVIDER:-ollama}"
@@ -845,6 +847,7 @@ echo "TRANSCEIVER_FW_SKIP_MODELS=\"\"" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY=skip" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "TRANSCEIVER_FW_MAX_PARALLEL=10" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "TRANSCEIVER_FW_MIN_INTERVAL=1800" | sudo tee -a /etc/lldpq.conf > /dev/null
+echo "TRANSCEIVER_FW_SSH_TIMEOUT=300" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AI_PROVIDER=ollama" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AI_MODEL=llama3.2" | sudo tee -a /etc/lldpq.conf > /dev/null
 echo "AI_API_KEY=" | sudo tee -a /etc/lldpq.conf > /dev/null
@@ -874,6 +877,8 @@ if [[ "$INSTALL_MODE" == "update" ]]; then
     sudo sed -i "s|^TRANSCEIVER_FW_SKIP_MODELS=.*|TRANSCEIVER_FW_SKIP_MODELS=\"$_SAVE_TRANSCEIVER_FW_SKIP_MODELS\"|" /etc/lldpq.conf
     sudo sed -i "s/^TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY=.*/TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY=$_SAVE_TRANSCEIVER_FW_UNKNOWN_MODEL_POLICY/" /etc/lldpq.conf
     sudo sed -i "s/^TRANSCEIVER_FW_MAX_PARALLEL=.*/TRANSCEIVER_FW_MAX_PARALLEL=$_SAVE_TRANSCEIVER_FW_MAX_PARALLEL/" /etc/lldpq.conf
+    sudo sed -i "s/^TRANSCEIVER_FW_MIN_INTERVAL=.*/TRANSCEIVER_FW_MIN_INTERVAL=$_SAVE_TRANSCEIVER_FW_MIN_INTERVAL/" /etc/lldpq.conf
+    sudo sed -i "s/^TRANSCEIVER_FW_SSH_TIMEOUT=.*/TRANSCEIVER_FW_SSH_TIMEOUT=$_SAVE_TRANSCEIVER_FW_SSH_TIMEOUT/" /etc/lldpq.conf
     # Preserve AI settings
     sudo sed -i "s/^AI_PROVIDER=.*/AI_PROVIDER=$_SAVE_AI_PROVIDER/" /etc/lldpq.conf
     sudo sed -i "s/^AI_MODEL=.*/AI_MODEL=$_SAVE_AI_MODEL/" /etc/lldpq.conf
