@@ -85,22 +85,23 @@ def parse_optical_vendor_info(filepath):
 def parse_transceiver_fw(filepath):
     """Parse mlxlink output (transceiver-data/*.txt).
 
-    Returns: (fw_versions dict, status string, status detail string)
+    Returns: (fw_versions dict, cable_byte130 dict, status string, status detail string)
         status: 'ok', 'skipped_model', 'skipped_unknown', 'no_data',
                 'failed', 'unreachable' (no file)
     """
     fw_versions = {}
+    cable_byte130 = {}
     status = 'ok'
     detail = ''
 
     if not os.path.exists(filepath):
-        return fw_versions, 'unreachable', ''
+        return fw_versions, cable_byte130, 'unreachable', ''
 
     try:
         with open(filepath, 'r') as f:
             content = f.read()
     except Exception:
-        return fw_versions, 'failed', 'read_error'
+        return fw_versions, cable_byte130, 'failed', 'read_error'
 
     lines = content.splitlines()
 
@@ -126,16 +127,26 @@ def parse_transceiver_fw(filepath):
             continue
 
         if '|' in stripped:
-            parts = stripped.split('|', 1)
+            parts = stripped.split('|')
             iface = parts[0].strip()
-            fw_match = re.search(r':\s*(.+)', parts[1])
-            if fw_match:
-                fw_versions[iface] = fw_match.group(1).strip()
+            for part in parts[1:]:
+                part = part.strip()
+                fw_match = re.search(r'FW Version\s*:\s*(.+)', part)
+                if fw_match:
+                    fw_versions[iface] = fw_match.group(1).strip()
+                    continue
 
-    if fw_versions:
+                byte_match = re.search(
+                    r'(?:Cable-Byte130|CABLE_BYTE130|page\[1\]\.Byte\[130\])\s*:\s*(0x[0-9A-Fa-f]+)',
+                    part
+                )
+                if byte_match:
+                    cable_byte130[iface] = byte_match.group(1).strip()
+
+    if fw_versions or cable_byte130:
         status = 'ok'
 
-    return fw_versions, status, detail
+    return fw_versions, cable_byte130, status, detail
 
 
 def process_transceiver_data(optical_dir='monitor-results/optical-data',
@@ -154,7 +165,7 @@ def process_transceiver_data(optical_dir='monitor-results/optical-data',
         transceiver_path = os.path.join(transceiver_dir, f'{hostname}_transceiver.txt')
 
         vendor_info = parse_optical_vendor_info(optical_path)
-        fw_info, fw_status, fw_detail = parse_transceiver_fw(transceiver_path)
+        fw_info, cable_byte130_info, fw_status, fw_detail = parse_transceiver_fw(transceiver_path)
 
         for iface, info in vendor_info.items():
             port_num_match = re.match(r'swp(\d+)', iface)
@@ -165,6 +176,14 @@ def process_transceiver_data(optical_dir='monitor-results/optical-data',
                     fw_port = re.match(r'swp(\d+)', fw_iface)
                     if fw_port and fw_port.group(1) == port_num:
                         fw = fw_val
+                        break
+
+            cable_byte130 = cable_byte130_info.get(iface, '')
+            if not cable_byte130:
+                for byte_iface, byte_val in cable_byte130_info.items():
+                    byte_port = re.match(r'swp(\d+)', byte_iface)
+                    if byte_port and byte_port.group(1) == port_num:
+                        cable_byte130 = byte_val
                         break
 
             module_status = 'ok'
@@ -184,6 +203,7 @@ def process_transceiver_data(optical_dir='monitor-results/optical-data',
                 'vendor_rev': info['vendor_rev'],
                 'connector': info.get('connector', ''),
                 'fw_version': fw,
+                'cable_byte130': cable_byte130,
                 'fw_status': module_status,
                 'fw_status_detail': module_detail
             })

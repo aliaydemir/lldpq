@@ -301,10 +301,11 @@
                     <th onclick="sortBy('serial')">Serial Number <span class="sort-arrow" id="sort-serial"></span></th>
                     <th onclick="sortBy('vendor_rev')">Rev <span class="sort-arrow" id="sort-vendor_rev"></span></th>
                     <th onclick="sortBy('fw_version')">FW Version <span class="sort-arrow" id="sort-fw_version"></span></th>
+                    <th onclick="sortBy('cable_byte130')">Cable-Byte130 <span class="sort-arrow" id="sort-cable_byte130"></span></th>
                 </tr>
             </thead>
             <tbody id="module-table">
-                <tr><td colspan="8"><div class="loading"><div class="spinner"></div>Loading transceiver inventory...</div></td></tr>
+                <tr><td colspan="9"><div class="loading"><div class="spinner"></div>Loading transceiver inventory...</div></td></tr>
             </tbody>
         </table>
     </div>
@@ -338,7 +339,7 @@
             renderTable();
         } catch (e) {
             document.getElementById('module-table').innerHTML =
-                '<tr><td colspan="8"><div class="no-data"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg><h3>No Data Yet</h3><p>Transceiver inventory will be available after the next monitor run.</p></div></td></tr>';
+                '<tr><td colspan="9"><div class="no-data"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg><h3>No Data Yet</h3><p>Transceiver inventory will be available after the next monitor run.</p></div></td></tr>';
         }
     }
 
@@ -385,7 +386,7 @@
             if (idType && m.identifier !== idType) return false;
             if (fw && m.fw_version !== fw) return false;
             if (search) {
-                const hay = `${m.device} ${m.port} ${m.identifier} ${m.vendor} ${m.part_number} ${m.serial} ${m.vendor_rev} ${m.fw_version}`.toLowerCase();
+                const hay = `${m.device} ${m.port} ${m.identifier} ${m.vendor} ${m.part_number} ${m.serial} ${m.vendor_rev} ${m.fw_version} ${m.cable_byte130}`.toLowerCase();
                 if (!hay.includes(search)) return false;
             }
             return true;
@@ -440,7 +441,7 @@
         });
 
         if (filtered.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8"><div class="no-data"><h3>No Modules Found</h3><p>No transceivers match your filters.</p></div></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9"><div class="no-data"><h3>No Modules Found</h3><p>No transceivers match your filters.</p></div></td></tr>';
             return;
         }
 
@@ -467,6 +468,7 @@
                 <td style="font-family: monospace; font-size: 12px; color: #999;">${m.serial || '-'}</td>
                 <td>${m.vendor_rev || '-'}</td>
                 <td class="${fwClass}">${fwDisplay}</td>
+                <td style="font-family: monospace; font-size: 12px;">${m.cable_byte130 || '-'}</td>
             </tr>`;
         }).join('');
     }
@@ -496,8 +498,8 @@
 
     function downloadCSV() {
         const filtered = getFilteredModules();
-        const headers = ['Device','Port','Identifier','Vendor','Part Number','Serial Number','Rev','FW Version'];
-        const rows = filtered.map(m => [m.device, m.port, m.identifier, m.vendor, m.part_number, m.serial, m.vendor_rev, m.fw_version].map(v => `"${(v||'').replace(/"/g,'""')}"`).join(','));
+        const headers = ['Device','Port','Identifier','Vendor','Part Number','Serial Number','Rev','FW Version','Cable-Byte130'];
+        const rows = filtered.map(m => [m.device, m.port, m.identifier, m.vendor, m.part_number, m.serial, m.vendor_rev, m.fw_version, m.cable_byte130].map(v => `"${(v||'').replace(/"/g,'""')}"`).join(','));
         const csv = [headers.join(','), ...rows].join('\n');
         const blob = new Blob([csv], {type: 'text/csv'});
         const a = document.createElement('a');

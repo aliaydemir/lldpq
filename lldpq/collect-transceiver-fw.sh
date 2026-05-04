@@ -253,9 +253,15 @@ collect_fw() {
                 port_num=$(echo "$iface" | sed "s/swp//" | sed "s/s.*//")
                 case " $done_ports " in *" $port_num "*) continue ;; esac
                 done_ports="$done_ports $port_num"
-                FW=$(timeout 5 sudo mlxlink -d /dev/mst/$MST_DEV -m -p $port_num 2>/dev/null | grep "FW Version" | grep -v "N/A")
-                if [ -n "$FW" ]; then
-                    echo "swp${port_num}|${FW}"
+                FW=$(timeout 5 sudo mlxlink -d /dev/mst/$MST_DEV -m -p $port_num 2>/dev/null | grep "FW Version" | grep -v "N/A" | head -1)
+                CABLE_BYTE130=$(timeout 8 sudo mlxlink -d /dev/mst/$MST_DEV -p $port_num --cable --read --page 1 --offset 130 --length 1 2>/dev/null | \
+                    sed -E "s/\x1B\[[0-9;]*[mK]//g" | \
+                    awk -F: "/page\\[1\\]\\.Byte\\[130\\]/ {gsub(/^[ \t]+|[ \t]+$/, \"\", \$2); print \$2; exit}")
+                if [ -n "$FW" ] || [ -n "$CABLE_BYTE130" ]; then
+                    line="swp${port_num}"
+                    [ -n "$FW" ] && line="${line}|${FW}"
+                    [ -n "$CABLE_BYTE130" ] && line="${line}|Cable-Byte130: ${CABLE_BYTE130}"
+                    echo "$line"
                 fi
             done
         fi
