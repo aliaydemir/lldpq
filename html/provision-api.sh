@@ -58,6 +58,7 @@ import sys
 import os
 import re
 import subprocess
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import time
@@ -79,6 +80,7 @@ DISCOVERY_CACHE_FILE = f'{WEB_ROOT}/discovery-cache.json'
 INVENTORY_FILE = f'{WEB_ROOT}/inventory.json'
 SERIAL_MAPPING_FILE = f'{WEB_ROOT}/serial-mapping.txt'
 GENERATED_CONFIGS_DIR = f'{WEB_ROOT}/generated_config_folder'
+UPGRADE_JOBS_DIR = '/var/lib/lldpq/upgrade-jobs'
 
 def update_lldpq_conf(key, value):
     """Update or add a key=value in /etc/lldpq.conf (with file locking)."""
@@ -365,6 +367,11 @@ def get_server_ip():
     
     _server_ip_cache = '127.0.0.1'
     return _server_ip_cache
+
+def is_valid_server_ref(value):
+    if not value or '__' in value or '_' in value:
+        return False
+    return re.match(r'^[A-Za-z0-9.-]+(:[0-9]{1,5})?$', value) is not None
 
 def action_list_bindings():
     """Load inventory from inventory.json (primary) or dhcpd.hosts (fallback).
@@ -1974,6 +1981,354 @@ def action_deploy_base_config():
         "summary": {"ok": ok, "fail": fail, "total": len(results)}
     })
 
+# ======================== OS UPGRADE ========================
+
+def image_version_from_name(name):
+    m = re.search(r'cumulus-linux-([0-9][A-Za-z0-9._-]*?)-', name)
+    return m.group(1) if m else ''
+
+def list_os_image_objects():
+    images = []
+    import glob as g
+    for ext in ['*.bin', '*.img', '*.iso']:
+        for f in g.glob(os.path.join(WEB_ROOT, ext)):
+            name = os.path.basename(f)
+            size_bytes = os.path.getsize(f)
+            images.append({
+                'name': name,
+                'size': f'{size_bytes / 1048576:.0f} MB' if size_bytes > 1048576 else f'{size_bytes / 1024:.0f} KB',
+                'size_bytes': size_bytes,
+                'version': image_version_from_name(name),
+                'path': f,
+            })
+    images.sort(key=lambda x: x['name'])
+    return images
+
+def get_device_version(device):
+    ip = device.get('ip', '')
+    hostname = device.get('hostname', ip)
+    username = device.get('username', 'cumulus')
+    result = {
+        'ip': ip,
+        'hostname': hostname,
+        'username': username,
+        'role': device.get('role', ''),
+        'reachable': False,
+        'current_version': '',
+        'startup_config': False,
+        'base_deployed': False,
+        'error': '',
+    }
+    try:
+        cmd = (
+            "echo OK; "
+            "(grep '^VERSION_ID=' /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '\"' || grep 'RELEASE' /etc/lsb-release 2>/dev/null | cut -d= -f2 || true); "
+            "test -s /etc/nvue.d/startup.yaml && echo STARTUP_OK || echo STARTUP_MISSING; "
+            "test -f /etc/lldpq-base-deployed && echo BASE_DEPLOYED || echo BASE_PENDING"
+        )
+        r = subprocess.run(
+            ['sudo', '-u', LLDPQ_USER, 'ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=5',
+             '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
+             '-o', 'LogLevel=ERROR', f'{username}@{ip}', cmd],
+            capture_output=True, text=True, timeout=12
+        )
+        if r.returncode != 0 or 'OK' not in r.stdout:
+            result['error'] = (r.stderr or 'SSH failed').strip()[:200]
+            return result
+        lines = [x.strip() for x in r.stdout.splitlines() if x.strip()]
+        result['reachable'] = True
+        for line in lines:
+            if line != 'OK' and not line.startswith('STARTUP_') and not line.startswith('BASE_'):
+                result['current_version'] = line
+                break
+        result['startup_config'] = 'STARTUP_OK' in lines
+        result['base_deployed'] = 'BASE_DEPLOYED' in lines
+        return result
+    except Exception as e:
+        result['error'] = str(e)[:200]
+        return result
+
+def action_upgrade_candidates():
+    devices = []
+    data_holder = {}
+    # Reuse devices.yaml parsing logic from list-devices without emitting JSON.
+    devices_file = os.path.join(LLDPQ_DIR, 'devices.yaml')
+    if not os.path.exists(devices_file):
+        error_json(f"devices.yaml not found at {devices_file}")
+    try:
+        import yaml
+        with open(devices_file, 'r') as f:
+            raw = yaml.safe_load(f) or {}
+        defaults = raw.get('defaults', {})
+        default_username = defaults.get('username', 'cumulus')
+        for ip, info in raw.get('devices', raw).items():
+            if ip in ('defaults', 'endpoint_hosts'):
+                continue
+            role = 'ungrouped'
+            if isinstance(info, dict):
+                hostname = info.get('hostname', str(ip))
+                username = info.get('username', default_username)
+                role = info.get('role', 'ungrouped')
+            elif isinstance(info, str):
+                parts = info.strip().split('@')
+                hostname = parts[0].strip()
+                role = parts[1].strip() if len(parts) > 1 else 'ungrouped'
+                username = default_username
+            else:
+                hostname = str(info) if info else str(ip)
+                username = default_username
+            devices.append({'ip': str(ip), 'hostname': hostname, 'username': username, 'role': role})
+    except Exception as e:
+        error_json(str(e))
+
+    candidates = []
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        futures = {executor.submit(get_device_version, d): d for d in devices}
+        for future in as_completed(futures):
+            candidates.append(future.result())
+    candidates.sort(key=lambda x: x.get('hostname', ''))
+    result_json({'success': True, 'devices': candidates, 'images': list_os_image_objects(), 'server_ip': get_server_ip()})
+
+def run_upgrade_precheck(device, target_version, image_name, server_ip):
+    info = get_device_version(device)
+    info['target_version'] = target_version
+    info['precheck_ok'] = False
+    checks = []
+    if not info['reachable']:
+        checks.append('SSH failed')
+    if not info.get('current_version'):
+        checks.append('Current version unknown')
+    if info.get('current_version') == target_version:
+        checks.append('Already at target')
+    if not info.get('startup_config'):
+        checks.append('startup.yaml missing')
+    if not os.path.exists(os.path.join(WEB_ROOT, image_name)):
+        checks.append('Image missing on server')
+    if not is_valid_server_ref(server_ip):
+        checks.append('Invalid image server')
+    if not checks:
+        try:
+            r = subprocess.run(
+                ['sudo', '-u', LLDPQ_USER, 'ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
+                 '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
+                 '-o', 'LogLevel=ERROR', f"{device.get('username','cumulus')}@{device.get('ip')}",
+                 'sudo nv config save && test -s /etc/nvue.d/startup.yaml && echo PRECHECK_OK'],
+                capture_output=True, text=True, timeout=25
+            )
+            if r.returncode == 0 and 'PRECHECK_OK' in r.stdout:
+                info['precheck_ok'] = True
+                checks.append('OK')
+            else:
+                checks.append((r.stderr or 'nv config save failed').strip()[:200])
+        except Exception as e:
+            checks.append(str(e)[:200])
+    info['checks'] = checks
+    return info
+
+def action_upgrade_precheck():
+    try:
+        data = json.loads(POST_DATA)
+    except Exception:
+        error_json("Invalid JSON data")
+    devices = data.get('devices', [])
+    target_version = data.get('target_version', '').strip()
+    image_name = os.path.basename(data.get('image_name', ''))
+    server_ip = data.get('server_ip', '').strip()
+    if not devices or not target_version or not image_name or not server_ip:
+        error_json('devices, target_version, image_name and server_ip are required')
+    if not re.match(r'^[A-Za-z0-9_.-]+\.(bin|img|iso)$', image_name):
+        error_json('Invalid image filename')
+    if not is_valid_server_ref(server_ip):
+        error_json('Invalid image server. Set a real ZTP IMAGE SERVER IP first.')
+    results = []
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(run_upgrade_precheck, d, target_version, image_name, server_ip): d for d in devices}
+        for future in as_completed(futures):
+            results.append(future.result())
+    results.sort(key=lambda x: x.get('hostname', ''))
+    result_json({'success': True, 'results': results})
+
+def ensure_upgrade_jobs_dir():
+    os.makedirs(UPGRADE_JOBS_DIR, exist_ok=True)
+    try:
+        subprocess.run(['sudo', 'chown', f'{LLDPQ_USER}:www-data', UPGRADE_JOBS_DIR], capture_output=True, timeout=5)
+        subprocess.run(['sudo', 'chmod', '775', UPGRADE_JOBS_DIR], capture_output=True, timeout=5)
+    except Exception:
+        pass
+
+def job_path(job_id):
+    if not re.match(r'^[a-f0-9-]{36}$', job_id):
+        error_json('Invalid job id')
+    return os.path.join(UPGRADE_JOBS_DIR, f'{job_id}.json')
+
+def save_upgrade_job(job):
+    ensure_upgrade_jobs_dir()
+    path = job_path(job['id'])
+    tmp = path + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(job, f, indent=2)
+    os.replace(tmp, path)
+    try:
+        os.chmod(path, 0o664)
+    except Exception:
+        pass
+
+def load_upgrade_job(job_id):
+    path = job_path(job_id)
+    if not os.path.exists(path):
+        error_json('Upgrade job not found')
+    with open(path, 'r') as f:
+        return json.load(f)
+
+def start_upgrade_for_device(dev, image_url, ztp_url):
+    ip = dev.get('ip')
+    username = dev.get('username', 'cumulus')
+    remote = r'''
+set -e
+IMAGE_URL="$1"
+ZTP_URL="$2"
+sudo nv config save
+test -s /etc/nvue.d/startup.yaml
+sudo sh -c "nohup /usr/cumulus/bin/onie-install -fa -i $IMAGE_URL -z $ZTP_URL -t /etc/nvue.d/startup.yaml && reboot" >/tmp/lldpq-upgrade.log 2>&1 </dev/null &
+echo LLDPQ_UPGRADE_STARTED
+'''
+    r = subprocess.run(
+        ['sudo', '-u', LLDPQ_USER, 'ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8',
+         '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null',
+         '-o', 'LogLevel=ERROR', f'{username}@{ip}', 'bash -s --', image_url, ztp_url],
+        input=remote, capture_output=True, text=True, timeout=35
+    )
+    return r.returncode == 0 and 'LLDPQ_UPGRADE_STARTED' in r.stdout, (r.stderr or r.stdout).strip()[:300]
+
+def update_upgrade_job(job):
+    now = time.time()
+    image_url = f"http://{job['server_ip']}/{job['image_name']}"
+    ztp_url = f"http://{job['server_ip']}/cumulus-ztp.sh"
+
+    # Refresh active devices.
+    for dev in job['devices']:
+        if dev['status'] not in ('upgrading', 'waiting_reboot'):
+            continue
+        if now - dev.get('started_at', now) > job.get('timeout_seconds', 3600):
+            dev['status'] = 'failed'
+            dev['error'] = 'Upgrade timeout'
+            continue
+        info = get_device_version(dev)
+        dev['last_check'] = int(now)
+        dev['reachable'] = info.get('reachable', False)
+        dev['current_version'] = info.get('current_version', dev.get('current_version', ''))
+        if info.get('current_version') == job['target_version']:
+            if job.get('base_config_after', True):
+                files = [f for f in FILE_DEPLOY_MAP if os.path.exists(os.path.join(BASE_CONFIG_DIR, f))]
+                res = deploy_to_device(dev, files, True)
+                if res.get('success'):
+                    dev['status'] = 'done'
+                    dev['message'] = 'Upgraded and base config deployed'
+                else:
+                    dev['status'] = 'failed'
+                    dev['error'] = 'Upgrade OK, base config failed: ' + res.get('error', '')
+            else:
+                dev['status'] = 'done'
+                dev['message'] = 'Upgraded'
+        else:
+            dev['status'] = 'waiting_reboot'
+
+    active = [d for d in job['devices'] if d['status'] in ('upgrading', 'waiting_reboot')]
+    failed = [d for d in job['devices'] if d['status'] == 'failed']
+    if job.get('cancelled'):
+        for d in job['devices']:
+            if d['status'] == 'queued':
+                d['status'] = 'cancelled'
+        return job
+    if job.get('stop_on_failure', True) and failed:
+        for d in job['devices']:
+            if d['status'] == 'queued':
+                d['status'] = 'blocked'
+        return job
+    slots = max(0, int(job.get('batch_size', 1)) - len(active))
+    for dev in [d for d in job['devices'] if d['status'] == 'queued'][:slots]:
+        ok, detail = start_upgrade_for_device(dev, image_url, ztp_url)
+        dev['started_at'] = int(now)
+        if ok:
+            dev['status'] = 'upgrading'
+            dev['message'] = 'Upgrade command started'
+        else:
+            dev['status'] = 'failed'
+            dev['error'] = detail or 'Failed to start upgrade'
+    if all(d['status'] in ('done', 'failed', 'cancelled', 'blocked') for d in job['devices']):
+        job['complete'] = True
+        job['completed_at'] = int(now)
+    return job
+
+def action_upgrade_start():
+    try:
+        data = json.loads(POST_DATA)
+    except Exception:
+        error_json("Invalid JSON data")
+    devices = data.get('devices', [])
+    target_version = data.get('target_version', '').strip()
+    image_name = os.path.basename(data.get('image_name', ''))
+    server_ip = data.get('server_ip', '').strip()
+    if not devices or not target_version or not image_name or not server_ip:
+        error_json('devices, target_version, image_name and server_ip are required')
+    if not re.match(r'^[A-Za-z0-9_.-]+\.(bin|img|iso)$', image_name):
+        error_json('Invalid image filename')
+    if not is_valid_server_ref(server_ip):
+        error_json('Invalid image server. Set a real ZTP IMAGE SERVER IP first.')
+    if not os.path.exists(os.path.join(WEB_ROOT, image_name)):
+        error_json('Selected image not found on server')
+    if not os.path.exists(ZTP_SCRIPT_FILE):
+        error_json('cumulus-ztp.sh not found in web root')
+    with open(ZTP_SCRIPT_FILE, 'r') as f:
+        ztp_content = f.read()
+    if '__IMAGE_SERVER_IP__' in ztp_content or '__TARGET_OS_VERSION__' in ztp_content:
+        error_json('cumulus-ztp.sh still contains placeholders. Apply Quick Settings and save ZTP script before upgrade.')
+    if re.search(r'^\s*KEY=["\']?["\']?\s*$', ztp_content, re.MULTILINE) or not re.search(r'^\s*KEY=["\']ssh-', ztp_content, re.MULTILINE):
+        error_json('cumulus-ztp.sh has no SSH key. Generate/import SSH key, Apply to Script, then Save before upgrade.')
+    job = {
+        'id': str(uuid.uuid4()),
+        'created_at': int(time.time()),
+        'target_version': target_version,
+        'image_name': image_name,
+        'server_ip': server_ip,
+        'batch_size': max(1, min(int(data.get('batch_size', 1) or 1), 10)),
+        'stop_on_failure': data.get('stop_on_failure', True),
+        'base_config_after': data.get('base_config_after', True),
+        'timeout_seconds': 3600,
+        'complete': False,
+        'cancelled': False,
+        'devices': [],
+    }
+    for d in devices:
+        item = dict(d)
+        item['status'] = 'queued'
+        item['target_version'] = target_version
+        job['devices'].append(item)
+    job = update_upgrade_job(job)
+    save_upgrade_job(job)
+    result_json({'success': True, 'job': job})
+
+def action_upgrade_status():
+    try:
+        data = json.loads(POST_DATA)
+    except Exception:
+        error_json("Invalid JSON data")
+    job = load_upgrade_job(data.get('job_id', ''))
+    job = update_upgrade_job(job)
+    save_upgrade_job(job)
+    result_json({'success': True, 'job': job})
+
+def action_upgrade_cancel():
+    try:
+        data = json.loads(POST_DATA)
+    except Exception:
+        error_json("Invalid JSON data")
+    job = load_upgrade_job(data.get('job_id', ''))
+    job['cancelled'] = True
+    job = update_upgrade_job(job)
+    save_upgrade_job(job)
+    result_json({'success': True, 'job': job})
+
 # ======================== SSH KEY ========================
 
 def get_ssh_key_info():
@@ -2118,19 +2473,7 @@ def action_import_ssh_key():
 
 def action_list_os_images():
     """List Cumulus Linux image files in web root."""
-    images = []
-    for ext in ['*.bin', '*.img', '*.iso']:
-        import glob as g
-        for f in g.glob(os.path.join(WEB_ROOT, ext)):
-            name = os.path.basename(f)
-            size_bytes = os.path.getsize(f)
-            if size_bytes > 1048576:
-                size = f'{size_bytes / 1048576:.0f} MB'
-            else:
-                size = f'{size_bytes / 1024:.0f} KB'
-            images.append({"name": name, "size": size, "path": f})
-    images.sort(key=lambda x: x['name'])
-    result_json({"success": True, "images": images})
+    result_json({"success": True, "images": list_os_image_objects()})
 
 def action_upload_os_image():
     """Handle multipart file upload for OS images.
@@ -2848,12 +3191,7 @@ def action_load_ztp_tab():
 
     # OS images
     try:
-        images = []
-        for f in sorted(os.listdir(WEB_ROOT)):
-            if f.endswith(('.bin', '.img', '.iso')) and os.path.isfile(os.path.join(WEB_ROOT, f)):
-                stat = os.stat(os.path.join(WEB_ROOT, f))
-                images.append({'name': f, 'size': stat.st_size, 'mtime': int(stat.st_mtime)})
-        result['os_images'] = {"success": True, "images": images}
+        result['os_images'] = {"success": True, "images": list_os_image_objects()}
     except Exception as e:
         result['os_images'] = {"success": False, "error": str(e)}
 
@@ -2920,6 +3258,16 @@ elif ACTION == 'list-devices':
     action_list_devices()
 elif ACTION == 'deploy-base-config':
     action_deploy_base_config()
+elif ACTION == 'upgrade-candidates':
+    action_upgrade_candidates()
+elif ACTION == 'upgrade-precheck':
+    action_upgrade_precheck()
+elif ACTION == 'upgrade-start':
+    action_upgrade_start()
+elif ACTION == 'upgrade-status':
+    action_upgrade_status()
+elif ACTION == 'upgrade-cancel':
+    action_upgrade_cancel()
 elif ACTION == 'ping-scan':
     # Legacy: replaced by subnet-scan. Kept for backward compat.
     action_ping_scan()

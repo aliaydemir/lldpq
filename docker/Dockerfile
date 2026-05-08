@@ -167,9 +167,11 @@ RUN ADMIN_HASH=$(echo -n "admin" | openssl dgst -sha256 | awk '{print $2}') \
     && echo "operator:$OPERATOR_HASH:operator" >> /etc/lldpq-users.conf \
     && chmod 600 /etc/lldpq-users.conf \
     && chown www-data:www-data /etc/lldpq-users.conf \
-    && mkdir -p /var/lib/lldpq/sessions \
+    && mkdir -p /var/lib/lldpq/sessions /var/lib/lldpq/upgrade-jobs \
     && chown -R www-data:www-data /var/lib/lldpq \
-    && chmod 700 /var/lib/lldpq/sessions
+    && chown lldpq:www-data /var/lib/lldpq/upgrade-jobs \
+    && chmod 700 /var/lib/lldpq/sessions \
+    && chmod 775 /var/lib/lldpq/upgrade-jobs
 
 # Create cache files with correct permissions (assets.sh, fabric-scan, provision, AI need these)
 RUN for f in device-cache.json fabric-scan-cache.json discovery-cache.json inventory.json ai-analysis.json; do \
