@@ -5841,6 +5841,7 @@ import json
 import subprocess
 import re
 import os
+import fcntl
 
 # Parse input
 post_data = os.environ.get('POST_DATA', '{}')
@@ -5865,7 +5866,8 @@ FORBIDDEN_PATTERNS = [
     r'\bonie-install\b',
     r'\breboot\b',
     r'\bshutdown\b',
-    r'\bnv\s+config\b',
+    # Block write-side nv config subcommands (apply/replace/save/delete/patch)
+    r'\bnv\s+config\s+(apply|replace|save|delete|patch|edit|detach|history)\b',
     r'\bnv\s+set\b',
     r'\bnv\s+unset\b',
     r'\bztp\b',
@@ -5881,6 +5883,9 @@ ALLOWED_PATTERNS = [
     r'^nv show\b',
     r'^nv sho\b',
     r'^nv sh\b',
+    # NVUE config (read-only show)
+    r'^nv config show\b',
+    r'^nv config diff\b',
     # FRR/vtysh commands
     r'^sudo vtysh -c ["\']show\b',
     r'^vtysh -c ["\']show\b',
@@ -5955,7 +5960,8 @@ if not command_allowed:
     exit()
 
 # Even if whitelisted, check for shell injection attempts
-INJECTION_PATTERNS = [r'[;&|`\$]', r'>>', r'<<', r'[\r\n]']
+# Pipe (|) is allowed to enable read-only filtering (grep, head, tail, wc, awk, sed, sort, uniq, cut)
+INJECTION_PATTERNS = [r'[;&`\$]', r'>>', r'<<', r'[\r\n]']
 for pattern in INJECTION_PATTERNS:
     if re.search(pattern, command):
         print(json.dumps({'success': False, 'error': 'Command contains unsafe characters'}))

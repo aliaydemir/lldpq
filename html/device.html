@@ -800,6 +800,7 @@
         <button class="tab-btn" data-tab="optical">Optical</button>
         <button class="tab-btn" data-tab="bgp">BGP</button>
         <button class="tab-btn" data-tab="logs">Logs</button>
+        <button class="tab-btn" data-tab="config">Config</button>
         <button class="tab-btn" data-tab="commands">Command Runner</button>
         <button class="tab-btn" data-tab="capture">Capture</button>
         <button class="tab-btn" data-tab="clsupport">cl-support</button>
@@ -878,7 +879,23 @@
             </div>
         </div>
     </div>
-    
+
+    <!-- Config Tab -->
+    <div class="tab-content" id="tab-config">
+        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px; flex-wrap: wrap;">
+            <select id="configFormat" onchange="loadDeviceConfig()" style="padding: 8px 12px; background: #252526; border: 1px solid #404040; border-radius: 4px; color: #fff; font-size: 13px;">
+                <option value="commands">nv config show -o commands</option>
+                <option value="yaml">nv config show -o yaml</option>
+                <option value="diff">nv config diff</option>
+            </select>
+            <button class="cmd-btn" onclick="loadDeviceConfig()" style="background: #76b900; color: #000; padding: 8px 16px;">Refresh</button>
+            <button class="cmd-btn" onclick="downloadConfig()" style="background: #4ec9b0; color: #000; padding: 8px 16px;">Download</button>
+            <input type="text" id="configFilter" placeholder="Filter (live grep)..." oninput="filterConfigOutput()" autocomplete="off" style="padding: 8px 12px; background: #252526; border: 1px solid #404040; border-radius: 4px; color: #fff; font-size: 13px; flex: 1; min-width: 200px;">
+            <span id="configStatus" style="font-size: 12px; color: #888;"></span>
+        </div>
+        <pre id="configOutput" style="margin: 0; white-space: pre; color: #d4d4d4; max-height: 70vh; overflow: auto; background: #111; padding: 16px; border-radius: 4px; font-size: 12px; font-family: 'Cascadia Code', Consolas, monospace; line-height: 1.45;">Click any tab to load device configuration...</pre>
+    </div>
+
     <!-- Command Runner Tab -->
     <div class="tab-content" id="tab-commands">
         <div class="command-section">
@@ -1363,7 +1380,7 @@
         let groupOrder = [];
         
         // Track which tabs have been loaded (for lazy loading)
-        let tabsLoaded = { overview: false, ports: false, optical: false, bgp: false, logs: false, commands: false, capture: false, clsupport: false };
+        let tabsLoaded = { overview: false, ports: false, optical: false, bgp: false, logs: false, config: false, commands: false, capture: false, clsupport: false };
         
         async function loadDeviceList() {
             try {
@@ -1528,7 +1545,7 @@
             if (logCardsEl) logCardsEl.innerHTML = '<div class="loading">Loading logs...</div>';
             
             // Reset loaded flags for lazy loading
-            tabsLoaded = { overview: false, ports: false, optical: false, bgp: false, logs: false, commands: false, capture: false, clsupport: false };
+            tabsLoaded = { overview: false, ports: false, optical: false, bgp: false, logs: false, config: false, commands: false, capture: false, clsupport: false };
             
             // Stop any active capture on previous device
             if (captureAbortController) {
@@ -1647,6 +1664,9 @@
                 if (!tabsLoaded.ports) {
                     loadPortListOnly();
                 }
+            } else if (tabName === 'config' && !tabsLoaded.config) {
+                tabsLoaded.config = true;
+                loadDeviceConfig();
             } else if (tabName === 'capture' && !tabsLoaded.capture) {
                 tabsLoaded.capture = true;
                 loadCaptureInterfaces();
@@ -1843,6 +1863,70 @@
             } catch (e) {
                 document.getElementById('portsContent').innerHTML = `<div class="error-message">${e.message}</div>`;
             }
+        }
+
+        let configRawOutput = '';
+
+        async function loadDeviceConfig() {
+            if (!deviceName) return;
+            const out = document.getElementById('configOutput');
+            const status = document.getElementById('configStatus');
+            const fmt = document.getElementById('configFormat').value;
+            const cmd = fmt === 'diff' ? 'nv config diff' : `nv config show -o ${fmt}`;
+
+            out.textContent = `Fetching ${cmd} from ${deviceName}...`;
+            status.textContent = '';
+            try {
+                const response = await fetch('/fabric-api.sh?action=run-device-command', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({device: deviceName, command: cmd})
+                });
+                const data = await response.json();
+                if (data.success) {
+                    configRawOutput = data.output || '';
+                    if (!configRawOutput.trim()) {
+                        out.textContent = '(empty)';
+                    } else {
+                        out.textContent = configRawOutput;
+                    }
+                    status.textContent = 'Updated: ' + new Date().toLocaleString();
+                    filterConfigOutput();
+                } else {
+                    out.textContent = '';
+                    out.innerHTML = `<span style="color:#f48771;">Error: ${data.error || 'Unknown error'}</span>`;
+                    status.textContent = '';
+                }
+            } catch (e) {
+                out.innerHTML = `<span style="color:#f48771;">Error: ${e.message}</span>`;
+            }
+        }
+
+        function filterConfigOutput() {
+            const filter = document.getElementById('configFilter').value.trim().toLowerCase();
+            const out = document.getElementById('configOutput');
+            if (!configRawOutput) return;
+            if (!filter) {
+                out.textContent = configRawOutput;
+                return;
+            }
+            const lines = configRawOutput.split('\n');
+            const matched = lines.filter(l => l.toLowerCase().includes(filter));
+            out.textContent = matched.length
+                ? matched.join('\n')
+                : `(no lines match "${filter}")`;
+        }
+
+        function downloadConfig() {
+            if (!configRawOutput) return;
+            const fmt = document.getElementById('configFormat').value;
+            const ext = fmt === 'yaml' ? 'yaml' : 'txt';
+            const blob = new Blob([configRawOutput], {type: 'text/plain'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${deviceName}_${fmt}.${ext}`;
+            a.click();
+            URL.revokeObjectURL(a.href);
         }
         
         function populatePortList(output) {
