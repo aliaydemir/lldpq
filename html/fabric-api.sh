@@ -5883,9 +5883,10 @@ ALLOWED_PATTERNS = [
     r'^nv show\b',
     r'^nv sho\b',
     r'^nv sh\b',
-    # NVUE config (read-only show)
+    # NVUE config (read-only show/find/diff)
     r'^nv config show\b',
     r'^nv config diff\b',
+    r'^nv config find\b',
     # FRR/vtysh commands
     r'^sudo vtysh -c ["\']show\b',
     r'^vtysh -c ["\']show\b',
