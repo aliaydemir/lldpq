@@ -217,13 +217,25 @@
     </div>
     
     <script>
+        // Always navigate the top window (escape iframe to avoid nested app shell)
+        function getTopWindow() {
+            try {
+                if (window.top && window.top !== window) {
+                    void window.top.location.pathname;
+                    return window.top;
+                }
+            } catch (e) {
+            }
+            return window;
+        }
+        
         // Check if already logged in
         async function checkSession() {
             try {
                 const response = await fetch('/auth-api?action=check');
                 const data = await response.json();
                 if (data.authenticated) {
-                    window.location.href = '/';
+                    getTopWindow().location.href = '/';
                 }
             } catch (e) {
                 // Not logged in, stay on login page
@@ -255,7 +267,7 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    window.location.href = '/';
+                    getTopWindow().location.href = '/';
                 } else {
                     errorDiv.textContent = data.error || 'Invalid username or password';
                     errorDiv.classList.add('show');

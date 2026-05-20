@@ -26,11 +26,24 @@ const LLDPqAuth = {
         }
     },
     
-    // Redirect to login page
+    // Redirect to login page (break out of iframe to avoid nested app shell)
     redirectToLogin() {
-        if (!window.location.pathname.includes('login.html')) {
-            window.location.href = '/login.html';
+        const topWin = this.getTopWindow();
+        if (!topWin.location.pathname.includes('login.html')) {
+            topWin.location.href = '/login.html';
         }
+    },
+
+    // Get the top window safely, falling back to current window if same-origin access fails
+    getTopWindow() {
+        try {
+            if (window.top && window.top !== window) {
+                void window.top.location.pathname;
+                return window.top;
+            }
+        } catch (e) {
+        }
+        return window;
     },
     
     // Logout
@@ -40,7 +53,7 @@ const LLDPqAuth = {
         } catch (e) {
             console.error('Logout error:', e);
         }
-        window.location.href = '/login.html';
+        this.getTopWindow().location.href = '/login.html';
     },
     
     // Check if user is admin

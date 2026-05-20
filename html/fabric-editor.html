@@ -1378,17 +1378,28 @@
         let earlyGitModifiedFiles = [];
         let gitStatusLoadedOnce = false;  // Prevent early fetch from overwriting later updates
         
+        function _topWindow() {
+            try {
+                if (window.top && window.top !== window) {
+                    void window.top.location.pathname;
+                    return window.top;
+                }
+            } catch (e) {
+            }
+            return window;
+        }
+        
         (async function checkAuth() {
             try {
                 const response = await fetch('/auth-api?action=check');
                 const data = await response.json();
                 if (!data.authenticated) {
-                    window.location.href = '/login.html';
+                    _topWindow().location.href = '/login.html';
                     return;
                 }
                 if (data.role !== 'admin') {
                     alert('Access denied. Admin privileges required.');
-                    window.location.href = '/';
+                    _topWindow().location.href = '/';
                     return;
                 }
                 
@@ -1409,7 +1420,7 @@
                     .catch(() => {});
                     
             } catch (e) {
-                window.location.href = '/login.html';
+                _topWindow().location.href = '/login.html';
             }
         })();
         
